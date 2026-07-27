@@ -5,6 +5,7 @@
 #pragma warning disable IDE0270 // Null check can be simplified
 
 using Excalibur.Compliance;
+using Excalibur.Compliance.Soc2.Validators;
 
 namespace Excalibur.Testing.Conformance;
 

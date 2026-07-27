@@ -8,32 +8,36 @@ description: Versioning policy, release stages, deprecation rules, and how to st
 
 ## Current Status
 
-Excalibur is currently at **3.0.0-alpha** (pre-release). APIs may change between alpha releases. Use alpha versions for evaluation, early adoption, and feedback.
+Excalibur is in **pre-release**, targeting a first stable release of **10.0.0**. APIs may change between pre-release builds. Use pre-release versions for evaluation, early adoption, and feedback.
 
-## Semantic Versioning
+## Version Scheme
 
-Once stable, Excalibur follows [Semantic Versioning 2.0.0](https://semver.org/):
+**The package major version matches the targeted .NET major version.** Because Excalibur single-targets `net10.0`, the first stable release is **10.0.0**. When the framework's development line moves to a newer runtime — for example `net11.0` — that line ships as `11.x`.
 
 | Version Component | Meaning | Example |
 |-------------------|---------|---------|
-| **Major** (X.0.0) | Breaking API changes | Removing a public method, changing a return type |
-| **Minor** (0.X.0) | New features, backward compatible | New middleware, new transport provider |
-| **Patch** (0.0.X) | Bug fixes, backward compatible | Fix null reference, correct calculation |
+| **Major** (`10.x`, `11.x`, …) | The targeted .NET major version | `10.x` targets `net10.0`; `11.x` targets `net11.0` |
+| **Minor** (`10.X.0`) | New features, backward compatible within the major | New middleware, new transport provider |
+| **Patch** (`10.0.X`) | Bug fixes, backward compatible within the major | Fix null reference, correct calculation |
+
+Minor and patch releases follow [Semantic Versioning 2.0.0](https://semver.org/) **within a major line**: they are always backward compatible. The major number is not an independent API-break counter — it tells you, at a glance, which .NET runtime the package targets, with zero ambiguity about framework compatibility. This mirrors how the .NET platform itself ships (`Microsoft.Extensions.*` and `Microsoft.AspNetCore.*` lock their major to the .NET major), so an Excalibur version reads like a first-party .NET package.
+
+Each Excalibur package single-targets one .NET major. There is no multi-targeting of older runtimes, which lets the framework adopt current-runtime APIs and current third-party dependency majors without being pinned to what also resolves on an older .NET.
 
 ## Release Stages
 
 | Stage | NuGet Tag | API Stability | Recommended For |
 |-------|-----------|---------------|-----------------|
-| **Alpha** | `3.0.0-alpha.N` | APIs may change between releases | Evaluation, early adoption, feedback |
-| **Beta** | `3.0.0-beta.N` | APIs are feature-complete but may have minor adjustments | Integration testing, pre-production validation |
-| **Release Candidate** | `3.0.0-rc.N` | APIs are frozen; only critical bug fixes | Final validation before production |
-| **Stable** | `3.0.0` | Backward-compatible within major version | Production use |
+| **Alpha** | `10.0.0-alpha.N` | APIs may change between releases | Evaluation, early adoption, feedback |
+| **Beta** | `10.0.0-beta.N` | APIs are feature-complete but may have minor adjustments | Integration testing, pre-production validation |
+| **Release Candidate** | `10.0.0-rc.N` | APIs are frozen; only critical bug fixes | Final validation before production |
+| **Stable** | `10.0.0` | Backward-compatible within the major line | Production use |
 
-### What Alpha Means for You
+### What Pre-Release Means for You
 
-- **You can build real applications** -- the framework is functionally complete with 44,000+ automated tests
+- **You can build real applications** -- the framework is functionally complete with an extensive automated test suite
 - **APIs may change** -- method signatures, interface shapes, and configuration patterns may evolve
-- **No guaranteed upgrade path** between alpha releases -- consult release notes before upgrading
+- **No guaranteed upgrade path** between pre-release builds -- consult release notes before upgrading
 - **Feedback is welcome** -- your input directly shapes the stable API surface
 
 ## Breaking Change Policy
@@ -51,19 +55,19 @@ Breaking changes may occur between any pre-release version. Always review the CH
 
 ### After Stable Release
 
-- Breaking changes only occur in **major version** bumps
-- Minor and patch versions are always backward compatible
+- Within a major line (a single .NET major), **minor and patch releases are always backward compatible**
+- Breaking API changes are reserved for a new **major line**, which coincides with adopting a new .NET major
 - Behavioral changes (same API, different behavior) are treated as breaking
 
 ## Deprecation Policy
 
 Once stable, Excalibur follows a minimum deprecation window:
 
-1. **Deprecation notice** -- The API is marked with `[Obsolete("Use X instead. Will be removed in vN+1.")]` and documented in the CHANGELOG
-2. **Minimum one minor version** -- The deprecated API continues to work for at least one minor release cycle
-3. **Removal** -- The API is removed in the next major version, with a migration guide
+1. **Deprecation notice** -- The API is marked with `[Obsolete("Use X instead.")]` and documented in the CHANGELOG
+2. **Minimum one minor version** -- The deprecated API continues to work for at least one minor release cycle within the current major line
+3. **Removal** -- The API is removed at the next major line, with a migration guide
 
-During pre-release, deprecated APIs may be removed in any subsequent release.
+During pre-release, deprecated APIs may be removed in any subsequent build.
 
 ## Upgrade Best Practices
 

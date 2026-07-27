@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.ErrorHandling;
 
 /// <summary>
 /// Optional opt-in middleware that auto-dead-letters an in-process dispatch once <see cref="RetryMiddleware"/>
-/// has exhausted every retry attempt (8o3c3p). It is placed <em>upstream</em> of <see cref="RetryMiddleware"/>
+/// has exhausted every retry attempt. It is placed <em>upstream</em> of <see cref="RetryMiddleware"/>
 /// so the retry middleware runs as its <c>next</c> delegate; it then observes the returned
 /// <see cref="IMessageResult"/> and routes a genuine retry-exhaustion terminal to the dead-letter queue.
 /// </summary>
@@ -82,6 +82,19 @@ public sealed partial class DeadLetterOnExhaustionMiddleware : IDispatchMiddlewa
 			&& string.Equals(result.ProblemDetails?.Type, RetryProblemTypes.RetryExhausted, StringComparison.Ordinal))
 		{
 			var messageId = context.MessageId ?? string.Empty;
+
+			// A host may opt in to discarding exhausted messages by registering NullDeadLetterQueue itself.
+			// That choice is honoured, but it is NOT reported as a dead-letter routing: enqueueing here would
+			// return Guid.Empty — an entry id naming no entry — and LogDeadLetteredOnExhaustion would claim
+			// the message was "routed to the dead-letter queue" when it was dropped. Both processors already
+			// take this branch (InboxProcessor:936, OutboxProcessor:798); this composes with that shape rather
+			// than forking a second, less honest one. The no-op's EnqueueAsync therefore has no caller.
+			if (_deadLetterQueue is NullDeadLetterQueue)
+			{
+				LogDiscardedNoDeadLetterQueue(messageId);
+				return result;
+			}
+
 			try
 			{
 				var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -133,4 +146,10 @@ public sealed partial class DeadLetterOnExhaustionMiddleware : IDispatchMiddlewa
 		LogLevel.Error,
 		"Best-effort dead-letter enqueue failed for exhausted message {MessageId}; the original exhausted result still flows up (fail-open).")]
 	private partial void LogDeadLetterEnqueueFailed(Exception exception, string messageId);
+
+	[LoggerMessage(
+		DeliveryEventId.DeadLetterOnExhaustionDiscarded,
+		LogLevel.Warning,
+		"Retry attempts exhausted; DISCARDED message {MessageId} because the host registered the no-op dead-letter queue. The message was not stored and cannot be replayed.")]
+	private partial void LogDiscardedNoDeadLetterQueue(string messageId);
 }

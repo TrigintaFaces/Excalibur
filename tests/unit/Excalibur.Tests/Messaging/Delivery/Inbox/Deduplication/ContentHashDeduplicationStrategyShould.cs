@@ -213,19 +213,18 @@ public sealed class ContentHashDeduplicationStrategyShould
 	}
 
 	[Fact]
-	public async Task MarkAsProcessedAsyncShouldCallStoreCheckAndMark()
+	public async Task MarkAsProcessedAsyncShouldCallStoreAdd()
 	{
 		// Arrange
 		var deduplicationId = "test-id";
-		var result = new DeduplicationResult { IsDuplicate = false };
-		_ = A.CallTo(() => _store.CheckAndMarkAsync(deduplicationId, A<DeduplicationContext>._, A<CancellationToken>._))
-			.Returns(result);
+		_ = A.CallTo(() => _store.AddAsync(A<string>._, A<TimeSpan?>._, A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
 
 		// Act
 		await _strategy.MarkAsProcessedAsync(deduplicationId, null, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		_ = A.CallTo(() => _store.CheckAndMarkAsync(deduplicationId, A<DeduplicationContext>._, A<CancellationToken>._))
+		// Assert — marks via AddAsync (which honors expiration), not the expiry-less CheckAndMarkAsync.
+		_ = A.CallTo(() => _store.AddAsync(deduplicationId, A<TimeSpan?>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -235,15 +234,14 @@ public sealed class ContentHashDeduplicationStrategyShould
 		// Arrange
 		using var cts = new CancellationTokenSource();
 		var deduplicationId = "test-id";
-		var result = new DeduplicationResult { IsDuplicate = false };
-		_ = A.CallTo(() => _store.CheckAndMarkAsync(deduplicationId, A<DeduplicationContext>._, cts.Token))
-			.Returns(result);
+		_ = A.CallTo(() => _store.AddAsync(A<string>._, A<TimeSpan?>._, A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
 
 		// Act
 		await _strategy.MarkAsProcessedAsync(deduplicationId, null, cts.Token).ConfigureAwait(false);
 
-		// Assert
-		_ = A.CallTo(() => _store.CheckAndMarkAsync(deduplicationId, A<DeduplicationContext>._, cts.Token))
+		// Assert — the caller's CancellationToken is threaded to the store.
+		_ = A.CallTo(() => _store.AddAsync(deduplicationId, A<TimeSpan?>._, cts.Token))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -295,7 +293,9 @@ public sealed class ContentHashDeduplicationStrategyShould
 			tasks.Add(Task.Run(() => _strategy.GenerateDeduplicationId(body)));
 		}
 
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await)
 		var results = Task.WhenAll(tasks).Result;
+		#pragma warning restore RS0030
 
 		// Assert
 		results.Length.ShouldBe(100);

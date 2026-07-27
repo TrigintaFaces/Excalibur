@@ -224,8 +224,8 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 		// Act
 		var result = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert — Azure Key Vault soft-deletes (recoverable), so a successful delete is ScheduledIrreversible.
+		result.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.ScheduledIrreversible);
 	}
 
 	[Fact]

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using System.Reflection;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.TieredStorage;
@@ -21,6 +22,10 @@ namespace Excalibur.EventSourcing.Tests.TieredStorage;
 [Trait("Component", "Core")]
 public sealed class EventArchiveServiceShould
 {
+	/// <summary>The tenant every candidate in this fixture belongs to; the archive service must carry it
+	/// from the candidate through to BOTH the cold write and the hot delete.</summary>
+	private static readonly KeyedTenantPartition TestTenant = KeyedTenantPartition.Scoped("tenant-a");
+
 	private readonly IEventStoreArchive _archiveSource = A.Fake<IEventStoreArchive>();
 	private readonly IEventStore _hotStore = A.Fake<IEventStore>();
 	private readonly IColdEventStore _coldStore = A.Fake<IColdEventStore>();
@@ -28,7 +33,7 @@ public sealed class EventArchiveServiceShould
 	[Fact]
 	public async Task ArchiveEventsFromHotToCold()
 	{
-		var candidates = new List<ArchiveCandidate> { new("agg-1", "Order", 5, 5) };
+		var candidates = new List<ArchiveCandidate> { new(TestTenant, "agg-1", "Order", 5, 5) };
 		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
 			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
 			.Returns(candidates);
@@ -36,8 +41,10 @@ public sealed class EventArchiveServiceShould
 		var events = CreateEvents("agg-1", 1, 2, 3, 4, 5);
 		_ = A.CallTo(() => _hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._))
 			.Returns(events);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(
-			"agg-1", "Order", 5, A<CancellationToken>._))
+		// Cold store confirms the full range durable (watermark = 5), so hot delete is authorized up to 5.
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.Returns(5L);
+		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
 			.Returns(5);
 
 		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
@@ -46,10 +53,65 @@ public sealed class EventArchiveServiceShould
 		await InvokeArchiveCycleAsync(service);
 
 		// Assert
-		A.CallTo(() => _coldStore.WriteAsync("agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync("agg-1", "Order", 5, A<CancellationToken>._))
+		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task DeleteOnlyUpToTheDurableColdWatermark()
+	{
+		// SAFETY: cold store durably confirmed only versions <= 3 (a partial/deferred write of a 1..5 batch),
+		// so the hot delete MUST be bounded to 3 — never the submitted max of 5 — or events 4,5 would be
+		// destroyed while their only durable copy is not yet in cold.
+		var candidates = new List<ArchiveCandidate> { new(TestTenant, "agg-p", "Order", 5, 5) };
+		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
+			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.Returns(candidates);
+
+		var events = CreateEvents("agg-p", 1, 2, 3, 4, 5);
+		_ = A.CallTo(() => _hotStore.LoadAsync("agg-p", "Order", A<CancellationToken>._))
+			.Returns(events);
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-p", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.Returns(3L);
+		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(3);
+
+		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
+
+		await InvokeArchiveCycleAsync(service);
+
+		// LIVENESS: the confirmed prefix (<= 3) IS deleted — the archive still makes progress.
+		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", 3, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+		// SAFETY: nothing is deleted beyond the durable watermark.
+		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", 5, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task NotDeleteWhenNothingDurablyArchived()
+	{
+		// SAFETY: cold store confirms no durable watermark at/above the first candidate version (returns -1,
+		// e.g. a buffering writer that only enqueued) — the hot delete MUST NOT run at all.
+		var candidates = new List<ArchiveCandidate> { new(TestTenant, "agg-n", "Order", 3, 3) };
+		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
+			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.Returns(candidates);
+
+		var events = CreateEvents("agg-n", 1, 2, 3);
+		_ = A.CallTo(() => _hotStore.LoadAsync("agg-n", "Order", A<CancellationToken>._))
+			.Returns(events);
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-n", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.Returns(-1L);
+
+		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
+
+		await InvokeArchiveCycleAsync(service);
+
+		A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-n", "Order", A<long>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -69,8 +131,8 @@ public sealed class EventArchiveServiceShould
 	{
 		var candidates = new List<ArchiveCandidate>
 		{
-			new("fail-agg", "Order", 3, 3),
-			new("ok-agg", "Order", 2, 2)
+			new(TestTenant, "fail-agg", "Order", 3, 3),
+			new(TestTenant, "ok-agg", "Order", 2, 2)
 		};
 		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
 			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
@@ -82,15 +144,16 @@ public sealed class EventArchiveServiceShould
 		var events = CreateEvents("ok-agg", 1, 2);
 		_ = A.CallTo(() => _hotStore.LoadAsync("ok-agg", "Order", A<CancellationToken>._))
 			.Returns(events);
-		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(
-			"ok-agg", "Order", 2, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.Returns(2L);
+		_ = A.CallTo(() => _archiveSource.DeleteEventsUpToVersionAsync(A<KeyedTenantPartition>._, "ok-agg", "Order", 2, A<CancellationToken>._))
 			.Returns(2);
 
 		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(1) });
 
 		await InvokeArchiveCycleAsync(service);
 
-		A.CallTo(() => _coldStore.WriteAsync("ok-agg", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -105,7 +168,8 @@ public sealed class EventArchiveServiceShould
 
 		await InvokeArchiveCycleAsync(service);
 
-		A.CallTo(() => _coldStore.WriteAsync(A<string>._, A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.WriteAsync(
+			A<KeyedTenantPartition>._, A<string>._, A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

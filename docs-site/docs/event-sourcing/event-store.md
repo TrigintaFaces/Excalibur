@@ -99,27 +99,49 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 ```sql
 CREATE TABLE [events].[Events] (
-    [Id] BIGINT IDENTITY(1,1) NOT NULL,
-    [EventId] NVARCHAR(100) NOT NULL,
-    [AggregateId] NVARCHAR(100) NOT NULL,
-    [AggregateType] NVARCHAR(500) NOT NULL,
+    -- Assigned by the database and read back via OUTPUT INSERTED.Position.
+    -- Must be IDENTITY: the insert never supplies a value for it.
+    [Position] BIGINT IDENTITY(1,1) NOT NULL,
+    [EventId] NVARCHAR(256) NOT NULL,
+    [AggregateId] NVARCHAR(256) NOT NULL,
+    [AggregateType] NVARCHAR(256) NOT NULL,
     [Version] BIGINT NOT NULL,
-    [EventType] NVARCHAR(500) NOT NULL,
-    [EventData] NVARCHAR(MAX) NOT NULL,
-    [Metadata] NVARCHAR(MAX) NULL,
-    [OccurredAt] DATETIME2 NOT NULL,
-    [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [DispatchedAt] DATETIME2 NULL,
+    [EventType] NVARCHAR(512) NOT NULL,
+    -- Binary, and MUST be nullable: erasure sets EventData to NULL to tombstone an
+    -- event while preserving its position. A NOT NULL column makes erasure fail.
+    [EventData] VARBINARY(MAX) NULL,
+    [Metadata] VARBINARY(MAX) NULL,
+    [Timestamp] DATETIMEOFFSET NOT NULL,
+    -- Only used when multi-tenancy is enabled, and MUST stay nullable: on the
+    -- unscoped path the insert emits neither this column nor its parameter.
+    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
 
-    CONSTRAINT [PK_Events] PRIMARY KEY CLUSTERED ([Id]),
+    CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
     CONSTRAINT [UQ_Events_EventId] UNIQUE ([EventId]),
-    CONSTRAINT [UQ_Events_Aggregate_Version] UNIQUE ([AggregateId], [Version])
+    CONSTRAINT [UQ_Events_Aggregate_Version] UNIQUE ([AggregateId], [AggregateType], [Version])
 );
 
-CREATE INDEX [IX_Events_AggregateId] ON [events].[Events] ([AggregateId], [Version]);
-CREATE INDEX [IX_Events_Undispatched] ON [events].[Events] ([DispatchedAt]) WHERE [DispatchedAt] IS NULL;
-CREATE INDEX [IX_Events_EventType] ON [events].[Events] ([EventType], [OccurredAt]);
+CREATE INDEX [IX_Events_Aggregate] ON [events].[Events] ([AggregateId], [AggregateType], [Version]);
+CREATE INDEX [IX_Events_EventType] ON [events].[Events] ([EventType], [Timestamp]);
 ```
+
+:::note Upgrading an existing event-store schema
+
+The `TenantId` column persists tenant isolation across load, append, and erasure. If you already run an
+earlier `Events` schema, add it before deploying — otherwise, once an ambient tenant is present, every load
+and every append fails with `Invalid column name 'TenantId'`:
+
+```sql
+ALTER TABLE [events].[Events] ADD [TenantId] NVARCHAR(255) COLLATE Latin1_General_BIN2 NULL;
+```
+
+On PostgreSQL the column is `tenant_id`:
+
+```sql
+ALTER TABLE events ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255);
+```
+
+:::
 
 ### Schema Setup
 
@@ -248,7 +270,6 @@ Event types are discovered automatically by the serializer based on their `Event
 ```csharp
 public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
-    public override string AggregateId => OrderId.ToString();
     public override string EventType => "order.created.v1";
 }
 ```

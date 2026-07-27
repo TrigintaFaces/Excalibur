@@ -38,7 +38,7 @@ public sealed partial class RbacAuditStore : IAuditStore
 	private readonly IAuditStore _innerStore;
 	private readonly IAuditRoleProvider _roleProvider;
 	private readonly IAuditActorProvider? _actorProvider;
-	private readonly IAuditLogger? _metaAuditLogger;
+	private readonly IAuditLogger _metaAuditLogger;
 	private readonly ILogger<RbacAuditStore> _logger;
 
 	/// <summary>
@@ -46,21 +46,42 @@ public sealed partial class RbacAuditStore : IAuditStore
 	/// </summary>
 	/// <param name="innerStore">The underlying audit store to wrap.</param>
 	/// <param name="roleProvider">The provider for the current user's role.</param>
+	/// <param name="metaAuditLogger">
+	/// The logger for meta-audit events (audit access logging). This is a required, safety-critical
+	/// dependency: meta-auditing records who read the audit trail, a segregation-of-duties control that
+	/// must never be silently disabled by leaving it unconfigured. Its absence is refused at construction.
+	/// </param>
 	/// <param name="logger">The logger for diagnostic output.</param>
 	/// <param name="actorProvider">Optional provider for the current actor identity. When null, the role name is used.</param>
-	/// <param name="metaAuditLogger">Optional logger for meta-audit events (audit access logging).</param>
 	public RbacAuditStore(
 		IAuditStore innerStore,
 		IAuditRoleProvider roleProvider,
+		IAuditLogger metaAuditLogger,
 		ILogger<RbacAuditStore> logger,
-		IAuditActorProvider? actorProvider = null,
-		IAuditLogger? metaAuditLogger = null)
+		IAuditActorProvider? actorProvider = null)
 	{
 		_innerStore = innerStore ?? throw new ArgumentNullException(nameof(innerStore));
 		_roleProvider = roleProvider ?? throw new ArgumentNullException(nameof(roleProvider));
+		_metaAuditLogger = metaAuditLogger ?? throw new ArgumentNullException(nameof(metaAuditLogger));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_actorProvider = actorProvider;
-		_metaAuditLogger = metaAuditLogger;
+	}
+
+	/// <summary>
+	/// Forwards capability resolution to the wrapped store so that optional capabilities — including
+	/// durability (<see cref="IDurableAuditStore"/>) — remain discoverable through this decorator.
+	/// </summary>
+	/// <param name="serviceType"> The capability interface to resolve. </param>
+	/// <returns> The capability from the wrapped store, or <see langword="null"/> when unavailable. </returns>
+	/// <remarks>
+	/// A decorator that did not forward would silently disable every capability of the store it wraps —
+	/// a durable store behind RBAC would report as non-durable. This forward keeps the chain transparent.
+	/// </remarks>
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return _innerStore.GetService(serviceType);
 	}
 
 	/// <inheritdoc />
@@ -217,11 +238,6 @@ public sealed partial class RbacAuditStore : IAuditStore
 		string details,
 		CancellationToken cancellationToken)
 	{
-		if (_metaAuditLogger is null)
-		{
-			return;
-		}
-
 		try
 		{
 			var actorId = _actorProvider is not null

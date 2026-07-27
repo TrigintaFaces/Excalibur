@@ -13,7 +13,12 @@
       "tests\\unit\\Excalibur.Dispatch.Options.Tests\\Excalibur.Dispatch.Options.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Workflows.Tests\\Excalibur.Dispatch.Workflows.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Serialization.Tests\\Excalibur.Dispatch.Serialization.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.SourceGenerators.Tests\\Excalibur.Dispatch.SourceGenerators.Tests.csproj"
+      "tests\\unit\\Excalibur.Dispatch.SourceGenerators.Tests\\Excalibur.Dispatch.SourceGenerators.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Compat.MassTransit.Tests\\Excalibur.Dispatch.Compat.MassTransit.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Compat.MediatR.Tests\\Excalibur.Dispatch.Compat.MediatR.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures\\Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Migration.Tests\\Excalibur.Dispatch.Migration.Tests.csproj",
+      "tests\\unit\\Excalibur.MediatRMigration.Tests\\Excalibur.MediatRMigration.Tests.csproj"
     ]
   }
 }

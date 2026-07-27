@@ -252,25 +252,7 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 			LogName = _logName,
 			Severity = "INFO",
 			Timestamp = e.Timestamp.ToString("O"),
-			JsonPayload = new Dictionary<string, string?>
-			{
-				["event_id"] = e.EventId,
-				["event_type"] = e.EventType.ToString(),
-				["action"] = e.Action,
-				["outcome"] = e.Outcome.ToString(),
-				["actor_id"] = e.ActorId,
-				["actor_type"] = e.ActorType,
-				["resource_id"] = e.ResourceId,
-				["resource_type"] = e.ResourceType,
-				["resource_classification"] = e.ResourceClassification?.ToString(),
-				["tenant_id"] = e.TenantId,
-				["correlation_id"] = e.CorrelationId,
-				["session_id"] = e.SessionId,
-				["ip_address"] = e.IpAddress,
-				["user_agent"] = e.UserAgent,
-				["reason"] = e.Reason,
-				["event_hash"] = e.EventHash
-			},
+			JsonPayload = BuildJsonPayload(e),
 			Labels = _options.Labels
 		}).ToList();
 
@@ -280,6 +262,32 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 			Resource = new Dictionary<string, string> { ["type"] = _options.ResourceType },
 			Entries = entries
 		};
+	}
+
+	/// <summary>
+	/// Builds the structured <c>jsonPayload</c> for an audit event from the shared canonical projection,
+	/// then flattens per-event metadata as <c>metadata.&lt;key&gt;</c> entries so the metadata is emitted
+	/// rather than silently dropped (the timestamp is carried on the log entry, not the payload).
+	/// </summary>
+	private static Dictionary<string, string?> BuildJsonPayload(AuditEvent auditEvent)
+	{
+		var payload = new Dictionary<string, string?>();
+
+		foreach (var field in CanonicalAuditProjection.ProjectCore(auditEvent))
+		{
+			payload[field.Name] = field.Value;
+		}
+
+		var metadata = CanonicalAuditProjection.MetadataField(auditEvent);
+		if (metadata is not null)
+		{
+			foreach (var kvp in metadata)
+			{
+				payload[$"{CanonicalAuditProjection.MetadataFieldName}.{kvp.Key}"] = kvp.Value;
+			}
+		}
+
+		return payload;
 	}
 
 	private async Task<(bool success, string? errorMessage)> ExportChunkAsync(

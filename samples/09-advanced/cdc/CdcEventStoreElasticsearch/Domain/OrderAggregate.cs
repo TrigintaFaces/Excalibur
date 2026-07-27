@@ -236,18 +236,20 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case OrderCreated e: Apply(e); break;
-			case OrderLineItemAdded e: Apply(e); break;
-			case OrderLineItemUpdated e: Apply(e); break;
-			case OrderLineItemRemoved e: Apply(e); break;
-			case OrderStatusUpdated e: Apply(e); break;
-			case OrderShipped e: Apply(e); break;
-			case OrderDelivered e: Apply(e); break;
-			case OrderCancelled e: Apply(e); break;
+			case OrderCreated e: Apply(e); return true;
+			case OrderLineItemAdded e: Apply(e); return true;
+			case OrderLineItemUpdated e: Apply(e); return true;
+			case OrderLineItemRemoved e: Apply(e); return true;
+			case OrderStatusUpdated e: Apply(e); return true;
+			case OrderShipped e: Apply(e); return true;
+			case OrderDelivered e: Apply(e); return true;
+			case OrderCancelled e: Apply(e); return true;
+			default:
+				return false;
 		}
 	}
 

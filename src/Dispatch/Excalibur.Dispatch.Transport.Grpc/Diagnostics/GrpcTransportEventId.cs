@@ -52,6 +52,9 @@ public static class GrpcTransportEventId
 	/// <summary>gRPC transport receiver: disposed.</summary>
 	public const int ReceiverDisposed = 25026;
 
+	/// <summary>gRPC transport receiver: oversized inbound payload rejected before materialization.</summary>
+	public const int ReceiverPayloadTooLarge = 25027;
+
 	// ========================================
 	// 25040-25059: Subscriber
 	// ========================================
@@ -82,4 +85,7 @@ public static class GrpcTransportEventId
 
 	/// <summary>gRPC transport subscriber: stream ended by server.</summary>
 	public const int SubscriberStreamEnded = 25048;
+
+	/// <summary>gRPC transport subscriber: oversized inbound payload rejected before materialization.</summary>
+	public const int SubscriberPayloadTooLarge = 25049;
 }

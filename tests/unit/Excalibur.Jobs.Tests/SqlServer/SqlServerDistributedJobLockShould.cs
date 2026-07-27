@@ -92,6 +92,7 @@ public sealed class SqlServerDistributedJobLockShould
 				typeof(string),
 				typeof(DateTimeOffset),
 				typeof(DateTimeOffset),
+				typeof(TimeProvider),
 				typeof(ILogger)
 			],
 			modifiers: null);
@@ -108,6 +109,7 @@ public sealed class SqlServerDistributedJobLockShould
 				"instance-1",
 				acquiredAt,
 				expiresAt,
+				TimeProvider.System,
 				NullLogger.Instance
 			]);
 

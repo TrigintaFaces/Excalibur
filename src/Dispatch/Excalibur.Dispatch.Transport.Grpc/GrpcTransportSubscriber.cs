@@ -20,9 +20,10 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// </remarks>
 internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 {
-	private readonly GrpcChannel _channel;
+	private readonly GrpcChannel? _channel;
 	private readonly CallInvoker _invoker;
 	private readonly GrpcTransportOptions _options;
+	private readonly int? _maxPayloadBytes;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -39,8 +40,31 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 	{
 		_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_maxPayloadBytes = _options.MaxPayloadBytes;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_invoker = _channel.CreateCallInvoker();
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="GrpcTransportSubscriber"/> class with an explicit
+	/// <see cref="CallInvoker"/> (the gRPC injection seam) instead of a channel. Used to substitute a fake
+	/// invoker under test so subscribe/settlement RPCs can be observed without a live server. There is no
+	/// owned channel on this path, so <see cref="GetService(Type)"/> returns <see langword="null"/> for
+	/// <see cref="GrpcChannel"/> and disposal has no channel to release.
+	/// </summary>
+	/// <param name="invoker">The gRPC call invoker that issues subscribe and settlement RPCs.</param>
+	/// <param name="options">The transport options.</param>
+	/// <param name="logger">The logger instance.</param>
+	internal GrpcTransportSubscriber(
+		CallInvoker invoker,
+		IOptions<GrpcTransportOptions> options,
+		ILogger<GrpcTransportSubscriber> logger)
+	{
+		_invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_maxPayloadBytes = _options.MaxPayloadBytes;
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_channel = null;
 	}
 
 	/// <inheritdoc />
@@ -66,7 +90,20 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 			while (await call.ResponseStream.MoveNext(cancellationToken).ConfigureAwait(false))
 			{
 				var grpcMessage = call.ResponseStream.Current;
-				var received = MapToReceivedMessage(grpcMessage);
+
+				TransportReceivedMessage received;
+				try
+				{
+					received = MapToReceivedMessage(grpcMessage);
+				}
+				catch (PayloadTooLargeException ex)
+				{
+					// Oversized poison message: drop it BEFORE its body is materialized and continue the
+					// stream, mirroring the subscriber's log-and-continue error branch (no requeue loop).
+					LogPayloadTooLargeRejected(Source, ex.ActualBytes, ex);
+					continue;
+				}
+
 				LogMessageReceived(received.Id, Source);
 
 				try
@@ -76,12 +113,15 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 					switch (action)
 					{
 						case MessageAction.Acknowledge:
+							await SettleAsync(received.Id, "acknowledge", reason: null, cancellationToken).ConfigureAwait(false);
 							LogMessageAcknowledged(received.Id, Source);
 							break;
 						case MessageAction.Reject:
+							await SettleAsync(received.Id, "reject", reason: null, cancellationToken).ConfigureAwait(false);
 							LogMessageRejected(received.Id, Source);
 							break;
 						case MessageAction.Requeue:
+							await SettleAsync(received.Id, "requeue", reason: null, cancellationToken).ConfigureAwait(false);
 							LogMessageRequeued(received.Id, Source);
 							break;
 					}
@@ -129,14 +169,47 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 		}
 
 		_disposed = true;
-		_channel.Dispose();
+		_channel?.Dispose();
 		LogDisposed(Source);
 		GC.SuppressFinalize(this);
 		return ValueTask.CompletedTask;
 	}
 
-	private static TransportReceivedMessage MapToReceivedMessage(GrpcReceivedMessage grpcMessage)
+	/// <summary>
+	/// Sends the settlement decision (acknowledge / reject / requeue) back to the server via the
+	/// Acknowledge RPC, so a Reject/Requeue is actually honored (redelivered or dead-lettered) rather
+	/// than silently dropped -- an un-settled message would otherwise be lost.
+	/// </summary>
+	private async Task SettleAsync(string messageId, string action, string? reason, CancellationToken cancellationToken)
 	{
+		var request = new GrpcAcknowledgeRequest
+		{
+			MessageId = messageId,
+			Action = action,
+			Reason = reason,
+		};
+
+		var method = GrpcMethodDescriptors.CreateAcknowledgeMethod(
+			_options.SubscribeMethodPath.Replace("Subscribe", "Acknowledge", StringComparison.Ordinal));
+
+		// Settlement must complete even during shutdown to prevent redelivery/loss; use a dedicated
+		// timeout rather than the caller's cancellation token (mirrors the receiver's ack/reject path).
+		using var settleCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+		var callOptions = new CallOptions(cancellationToken: settleCts.Token);
+
+		_ = await _invoker.AsyncUnaryCall(method, null, callOptions, request).ConfigureAwait(false);
+	}
+
+	private TransportReceivedMessage MapToReceivedMessage(GrpcReceivedMessage grpcMessage)
+	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (Convert.FromBase64String below). The limit is measured against the DECODED byte length —
+		// computed arithmetically from the Base64 string, with no decoded allocation — because Base64
+		// inflates the wire string by ~33%, so measuring the raw character length would enforce the
+		// wrong limit. Fail-closed: throws PayloadTooLargeException, caught by the subscribe loop to
+		// drop the poison message; never truncated, never silently passed through.
+		PayloadSizeGuard.EnsureBase64WithinLimit(grpcMessage.Body, _maxPayloadBytes);
+
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		foreach (var (key, value) in grpcMessage.Properties)
 		{
@@ -200,4 +273,8 @@ internal sealed partial class GrpcTransportSubscriber : ITransportSubscriber
 	[LoggerMessage(GrpcTransportEventId.SubscriberDisposed, LogLevel.Debug,
 		"gRPC transport subscriber disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(GrpcTransportEventId.SubscriberPayloadTooLarge, LogLevel.Warning,
+		"gRPC transport subscriber: dropped an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

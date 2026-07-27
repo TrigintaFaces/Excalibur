@@ -1,0 +1,34 @@
+#nullable enable
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder.ConfigureReceive(System.Action<Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions!>! configure) -> Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder.SubscriptionName(string! subscriptionName) -> Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder.SubscriptionType(Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType subscriptionType) -> Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!
+Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder.Topic(string! topic) -> Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.PulsarOptions() -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.Receive.get -> Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions!
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.Receive.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.ServiceUrl.get -> string!
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.ServiceUrl.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.SubscriptionName.get -> string!
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.SubscriptionName.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.SubscriptionType.get -> Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.SubscriptionType.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.Topic.get -> string!
+Excalibur.Dispatch.Transport.Pulsar.PulsarOptions.Topic.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions
+Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions.MaxBatchSize.get -> int
+Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions.MaxBatchSize.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions.MaxPayloadBytes.get -> int?
+Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions.MaxPayloadBytes.set -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarReceiveTuningOptions.PulsarReceiveTuningOptions() -> void
+Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType
+Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.Exclusive = 1 -> Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType
+Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.Failover = 2 -> Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType
+Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.KeyShared = 3 -> Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType
+Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.Shared = 0 -> Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType
+Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions
+const Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions.DefaultTransportName = "pulsar" -> string!
+static Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions.AddPulsarTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PulsarTransportServiceCollectionExtensions.AddPulsarTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Pulsar.IPulsarTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

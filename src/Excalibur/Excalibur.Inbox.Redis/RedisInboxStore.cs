@@ -23,8 +23,18 @@ namespace Excalibur.Inbox.Redis;
 /// </summary>
 /// <remarks>
 /// Uses Redis SETNX (SET ... NX) for atomic first-writer-wins semantics.
-/// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}
+/// Keys are formatted as: {KeyPrefix}:{messageId}:{handlerType}, so the tenant is a key segment and the
+/// write/dedup/claim paths and keyed reads are isolated by construction — two tenants carrying the same
+/// message id never dedup against each other.
 /// Uses Redis TTL for automatic cleanup of processed entries.
+/// <para>
+/// The <see cref="IInboxStoreAdmin"/> operator surface (<c>GetAllEntries</c>, <c>GetFailedEntries</c>,
+/// <c>GetStatistics</c>, <c>Cleanup</c>) scans <c>{KeyPrefix}:*</c> and is <b>estate-wide by design</b>:
+/// it serves operators and background services (dashboards, retention, retry processors), not the
+/// per-tenant request path. A message handler depends on <see cref="IInboxStore"/>, which does not expose
+/// these methods, so a per-tenant caller cannot reach a cross-tenant read or delete. This estate-wide scan
+/// is a deliberate global, not an oversight — matching <c>SqlServerInboxStore</c>.
+/// </para>
 /// </remarks>
 public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable
 {
@@ -40,6 +50,85 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		return redis.call('DEL', KEYS[1])
 		""";
 
+	// Atomic guarded transition for a NON-terminal mutation (Processing / Failed): replace the stored value
+	// only if the entry exists AND its CURRENT persisted Status is not terminal (Processed). Prevents a
+	// concurrent read-modify-write from DOWNGRADING a finalized entry back to a non-terminal state, which
+	// would re-admit the message → double-processing. Returns 1 = transitioned, 0 = refused (terminal),
+	// -1 = not found. ARGV[1] = Processed ordinal, ARGV[2] = new serialized document.
+	private const string GuardedTransitionIfNotProcessedScript =
+		"""
+		local v = redis.call('GET', KEYS[1])
+		if not v then return -1 end
+		local ok, doc = pcall(cjson.decode, v)
+		if ok and doc and tonumber(doc.Status) == tonumber(ARGV[1]) then return 0 end
+		redis.call('SET', KEYS[1], ARGV[2])
+		return 1
+		""";
+
+	// Atomic finalize to the terminal Processed state: set the new value (and optional retention TTL) only if
+	// the entry exists AND is not ALREADY Processed; otherwise report the existing state so the caller can
+	// honor the not-found / already-processed contracts without a separate non-atomic GET. Returns 1 =
+	// finalized, 0 = already Processed, -1 = not found. ARGV[1] = Processed ordinal, ARGV[2] = new value,
+	// ARGV[3] = retention TTL seconds (<= 0 => no TTL).
+	private const string FinalizeProcessedScript =
+		"""
+		local v = redis.call('GET', KEYS[1])
+		if not v then return -1 end
+		local ok, doc = pcall(cjson.decode, v)
+		if ok and doc and tonumber(doc.Status) == tonumber(ARGV[1]) then return 0 end
+		redis.call('SET', KEYS[1], ARGV[2])
+		local ttl = tonumber(ARGV[3])
+		if ttl and ttl > 0 then redis.call('PEXPIRE', KEYS[1], ttl * 1000) end
+		return 1
+		""";
+
+	// Atomic lease CAS. Claim IFF the entry is absent, its status is Received, or its status is Processing
+	// but its lease has expired (reclaiming a dead processor). "now" comes from redis.call('TIME') (the
+	// SERVER clock) so competing app instances never decide expiry with a skewed local clock. The lease
+	// expiry is written into the entry JSON (LeaseExpiresAt, unix-ms) server-side via cjson.
+	// KEYS[1] = entry key. ARGV[1] = new Processing entry JSON; ARGV[2] = lease ms; ARGV[3] = Received
+	// status; ARGV[4] = Processing status. Returns 1 on claim/reclaim, 0 otherwise.
+	private const string LeaseClaimScript =
+		"""
+		local cur = redis.call('GET', KEYS[1])
+		local t = redis.call('TIME')
+		local now_ms = (tonumber(t[1]) * 1000) + math.floor(tonumber(t[2]) / 1000)
+		local lease_ms = tonumber(ARGV[2])
+		local received = tonumber(ARGV[3])
+		local processing = tonumber(ARGV[4])
+		local failed = tonumber(ARGV[5])
+		local claimable = false
+		local carried_retry = 0
+		if not cur then
+			claimable = true
+		else
+			local ok, doc = pcall(cjson.decode, cur)
+			if ok and doc then
+				local status = tonumber(doc.Status)
+				carried_retry = tonumber(doc.RetryCount) or 0
+				if status == received then
+					claimable = true
+				elseif status == failed then
+					claimable = true
+				elseif status == processing then
+					-- A Processing entry is reclaimable ONLY if it carries an EXPIRED lease (a dead
+					-- processor). A nil LeaseExpiresAt means a live claim with no lease (e.g. the non-lease
+					-- MarkProcessing path) — treat it as LIVE, never reclaimable, or two claimants could both
+					-- admit the same message (double-processing).
+					local exp = tonumber(doc.LeaseExpiresAt)
+					if (exp ~= nil) and (exp < now_ms) then claimable = true end
+				end
+			end
+		end
+		if not claimable then return 0 end
+		local ok2, newdoc = pcall(cjson.decode, ARGV[1])
+		if not ok2 or not newdoc then return 0 end
+		newdoc.LeaseExpiresAt = now_ms + lease_ms
+		newdoc.RetryCount = carried_retry
+		redis.call('SET', KEYS[1], cjson.encode(newdoc))
+		return 1
+		""";
+
 	private static readonly CompositeFormat EntryAlreadyExistsFormat =
 		CompositeFormat.Parse("Inbox entry already exists for message '{0}' and handler '{1}'.");
 
@@ -51,8 +140,15 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 	private readonly RedisInboxOptions _options;
 	private readonly ILogger<RedisInboxStore> _logger;
+
+	// Ambient tenant context. When active, the tenant is composed INTO the Redis key (via GetKey) so two
+	// tenants' identical (messageId, handlerType) never collide on the dedup key, and stamped on write. When
+	// null / no resolved tenant (non-multi-tenant), keys and rows are byte-identical to the un-scoped form.
+	private readonly ITenantContext? _tenantContext;
+
 	private ConnectionMultiplexer? _connection;
 	private IDatabase? _database;
+	private bool _ownsConnection;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -60,9 +156,11 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	/// </summary>
 	/// <param name="options">The Redis inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">Optional ambient tenant context; when active it scopes the Redis dedup key and stamps the tenant on write (null = non-multi-tenant, byte-identical behavior).</param>
 	public RedisInboxStore(
 		IOptions<RedisInboxOptions> options,
-		ILogger<RedisInboxStore> logger)
+		ILogger<RedisInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -70,6 +168,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_tenantContext = tenantContext;
 	}
 
 	/// <summary>
@@ -78,10 +177,12 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	/// <param name="connection">An existing Redis connection multiplexer.</param>
 	/// <param name="options">The Redis inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">Optional ambient tenant context; when active it scopes the Redis dedup key and stamps the tenant on write (null = non-multi-tenant, byte-identical behavior).</param>
 	public RedisInboxStore(
 		ConnectionMultiplexer connection,
 		IOptions<RedisInboxOptions> options,
-		ILogger<RedisInboxStore> logger)
+		ILogger<RedisInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 		ArgumentNullException.ThrowIfNull(options);
@@ -91,7 +192,15 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_tenantContext = tenantContext;
 		_database = connection.GetDatabase(_options.DatabaseId);
+	}
+
+	// The tenant to stamp on a written row: the ambient tenant when scoped, else the entry's own tenant.
+	private string? StampTenant(string? fallback = null)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		return scope.IsScoped ? scope.TenantId : fallback;
 	}
 
 	/// <inheritdoc/>
@@ -166,25 +275,25 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		}
 
 		var entry = DeserializeEntry(value!);
-
-		if (entry.Status == InboxStatus.Processed)
-		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.InvariantCulture,
-					EntryAlreadyProcessedFormat,
-					messageId,
-					handlerType));
-		}
-
 		entry.MarkProcessed();
 
-		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+		// Atomic finalize: refuse if the entry was concurrently finalized (already Processed) or removed, so the
+		// not-found / already-processed contracts hold even under concurrent finalizers (no GET-then-SET race).
+		var finalizeResult = (long)await db.ScriptEvaluateAsync(
+			FinalizeProcessedScript,
+			[key],
+			[(int)InboxStatus.Processed, SerializeEntry(entry), _options.DefaultTtlSeconds]).ConfigureAwait(false);
 
-		// Update TTL if configured
-		if (_options.DefaultTtlSeconds > 0)
+		if (finalizeResult == -1)
 		{
-			_ = await db.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
+			throw new InvalidOperationException(
+				string.Format(CultureInfo.InvariantCulture, EntryNotFoundFormat, messageId, handlerType));
+		}
+
+		if (finalizeResult == 0)
+		{
+			throw new InvalidOperationException(
+				string.Format(CultureInfo.InvariantCulture, EntryAlreadyProcessedFormat, messageId, handlerType));
 		}
 
 		LogProcessedEntry(_logger, messageId, handlerType, null);
@@ -214,9 +323,23 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		var entry = DeserializeEntry(value!);
 		entry.MarkProcessing();
 
-		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry back to Processing,
+		// which would re-admit the message → double-processing. Refused (terminal) → no-op.
+		var transitionResult = (long)await db.ScriptEvaluateAsync(
+			GuardedTransitionIfNotProcessedScript,
+			[key],
+			[(int)InboxStatus.Processed, SerializeEntry(entry)]).ConfigureAwait(false);
 
-		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		if (transitionResult == 1)
+		{
+			_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug(
+				"Skipped Processing transition for message {MessageId} and handler {HandlerType} (entry finalized or removed concurrently)",
+				messageId, handlerType);
+		}
 	}
 
 	/// <inheritdoc/>
@@ -241,20 +364,21 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		var value = SerializeEntry(entry);
 
-		// Use SETNX for atomic first-writer-wins
+		// Use SETNX for atomic first-writer-wins. Value + retention TTL are written in a SINGLE
+		// atomic SET so a crash between the two cannot leave a terminal (Processed) entry with no
+		// expiry — an immortal dedup key. This is the terminal transition, so the retention TTL is safe.
+		var expiry = _options.DefaultTtlSeconds > 0
+			? TimeSpan.FromSeconds(_options.DefaultTtlSeconds)
+			: (TimeSpan?)null;
+
 		var wasSet = await db.StringSetAsync(
 			key,
 			value,
+			expiry,
 			when: When.NotExists).ConfigureAwait(false);
 
 		if (wasSet)
 		{
-			// Set TTL if configured
-			if (_options.DefaultTtlSeconds > 0)
-			{
-				_ = await db.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.DefaultTtlSeconds)).ConfigureAwait(false);
-			}
-
 			LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
 			return true;
 		}
@@ -299,6 +423,54 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		else
 		{
 			_logger.LogDebug("Claim denied (already claimed/processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+
+		return claimed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryClaimAsync(
+		string messageId,
+		string handlerType,
+		TimeSpan leaseDuration,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
+
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+		var key = GetKey(messageId, handlerType);
+
+		var entry = new InboxEntry
+		{
+			MessageId = messageId,
+			HandlerType = handlerType,
+			MessageType = "Unknown",
+			Status = InboxStatus.Processing,
+			ReceivedAt = DateTimeOffset.UtcNow,
+		};
+
+		var result = (long)await db.ScriptEvaluateAsync(
+			LeaseClaimScript,
+			[key],
+			[
+				SerializeEntry(entry),
+				(long)leaseDuration.TotalMilliseconds,
+				(int)InboxStatus.Received,
+				(int)InboxStatus.Processing,
+				(int)InboxStatus.Failed
+			]).ConfigureAwait(false);
+
+		var claimed = result == 1;
+
+		if (claimed)
+		{
+			_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+		}
+		else
+		{
+			_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}", messageId, handlerType);
 		}
 
 		return claimed;
@@ -389,7 +561,11 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		var entry = DeserializeEntry(value!);
 		entry.MarkFailed(errorMessage);
 
-		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry to Failed.
+		_ = await db.ScriptEvaluateAsync(
+			GuardedTransitionIfNotProcessedScript,
+			[key],
+			[(int)InboxStatus.Processed, SerializeEntry(entry)]).ConfigureAwait(false);
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
 	}
@@ -427,7 +603,11 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		entry.RetryCount = retryCount;
 		entry.LastAttemptAt = DateTimeOffset.UtcNow;
 
-		_ = await db.StringSetAsync(key, SerializeEntry(entry)).ConfigureAwait(false);
+		// Atomic guarded write: never downgrade a concurrently-finalized (Processed) entry to Failed.
+		_ = await db.ScriptEvaluateAsync(
+			GuardedTransitionIfNotProcessedScript,
+			[key],
+			[(int)InboxStatus.Processed, SerializeEntry(entry)]).ConfigureAwait(false);
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
 	}
@@ -444,21 +624,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		var entries = new List<InboxEntry>();
 		var pattern = $"{_options.KeyPrefix}:*";
 
-		await foreach (var key in ScanKeysAsync(pattern).ConfigureAwait(false))
+		foreach (var entry in await ReadAllEntriesAsync(db, pattern, cancellationToken).ConfigureAwait(false))
 		{
-			if (cancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
-
-			var value = await db.StringGetAsync(key).ConfigureAwait(false);
-			if (value.IsNullOrEmpty)
-			{
-				continue;
-			}
-
-			var entry = DeserializeEntry(value!);
-
 			if (entry.Status == InboxStatus.Failed && entry.RetryCount < maxRetries)
 			{
 				if (!olderThan.HasValue || entry.LastAttemptAt < olderThan)
@@ -475,14 +642,17 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		return entries;
 	}
 
-	/// <inheritdoc/>
-	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	/// <summary>
+	/// Enumerates every entry under <paramref name="pattern"/> using a SCAN to collect the keys and a
+	/// single <c>MGET</c> (<c>IDatabase.StringGetAsync</c>) round-trip to
+	/// read the values, rather than one <c>StringGetAsync</c> await per key (N round-trips).
+	/// </summary>
+	private async Task<List<InboxEntry>> ReadAllEntriesAsync(
+		IDatabase db,
+		string pattern,
+		CancellationToken cancellationToken)
 	{
-		var db = await GetDatabaseAsync().ConfigureAwait(false);
-
-		var entries = new List<InboxEntry>();
-		var pattern = $"{_options.KeyPrefix}:*";
-
+		var keys = new List<RedisKey>();
 		await foreach (var key in ScanKeysAsync(pattern).ConfigureAwait(false))
 		{
 			if (cancellationToken.IsCancellationRequested)
@@ -490,7 +660,20 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 				break;
 			}
 
-			var value = await db.StringGetAsync(key).ConfigureAwait(false);
+			keys.Add(key);
+		}
+
+		if (keys.Count == 0)
+		{
+			return new List<InboxEntry>();
+		}
+
+		// Single MGET round-trip for all scanned keys.
+		var values = await db.StringGetAsync(keys.ToArray()).ConfigureAwait(false);
+
+		var entries = new List<InboxEntry>(values.Length);
+		foreach (var value in values)
+		{
 			if (!value.IsNullOrEmpty)
 			{
 				entries.Add(DeserializeEntry(value!));
@@ -498,6 +681,15 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		}
 
 		return entries;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
+	{
+		var db = await GetDatabaseAsync().ConfigureAwait(false);
+
+		var pattern = $"{_options.KeyPrefix}:*";
+		return await ReadAllEntriesAsync(db, pattern, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -512,20 +704,8 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		var pattern = $"{_options.KeyPrefix}:*";
 
-		await foreach (var key in ScanKeysAsync(pattern).ConfigureAwait(false))
+		foreach (var entry in await ReadAllEntriesAsync(db, pattern, cancellationToken).ConfigureAwait(false))
 		{
-			if (cancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
-
-			var value = await db.StringGetAsync(key).ConfigureAwait(false);
-			if (value.IsNullOrEmpty)
-			{
-				continue;
-			}
-
-			var entry = DeserializeEntry(value!);
 			total++;
 
 			switch (entry.Status)
@@ -563,6 +743,9 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		var deleted = 0;
 		var pattern = $"{_options.KeyPrefix}:*";
 
+		const int scanChunkSize = 256;
+		var buffer = new List<RedisKey>(scanChunkSize);
+
 		await foreach (var key in ScanKeysAsync(pattern).ConfigureAwait(false))
 		{
 			if (cancellationToken.IsCancellationRequested)
@@ -570,24 +753,69 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 				break;
 			}
 
-			var value = await db.StringGetAsync(key).ConfigureAwait(false);
+			buffer.Add(key);
+			if (buffer.Count >= scanChunkSize)
+			{
+				deleted += await CleanupExpiredChunkAsync(db, buffer, cutoff).ConfigureAwait(false);
+				buffer.Clear();
+			}
+		}
+
+		if (buffer.Count > 0 && !cancellationToken.IsCancellationRequested)
+		{
+			deleted += await CleanupExpiredChunkAsync(db, buffer, cutoff).ConfigureAwait(false);
+		}
+
+		LogCleanedUpEntries(_logger, deleted, null);
+		return deleted;
+	}
+
+	/// <summary>
+	/// MGETs a batch of scanned keys in one pipelined round-trip, then pipelines the deletes for the
+	/// entries eligible for cleanup — avoiding a per-key GET+DELETE network RTT during SCAN iteration.
+	/// </summary>
+	private async Task<int> CleanupExpiredChunkAsync(IDatabase db, IReadOnlyList<RedisKey> keys, DateTimeOffset cutoff)
+	{
+		var values = await db.StringGetAsync([.. keys]).ConfigureAwait(false);
+
+		var toDelete = new List<RedisKey>(keys.Count);
+		for (var i = 0; i < values.Length; i++)
+		{
+			var value = values[i];
 			if (value.IsNullOrEmpty)
 			{
 				continue;
 			}
 
 			var entry = DeserializeEntry(value!);
-
 			if (entry.Status == InboxStatus.Processed && entry.ProcessedAt.HasValue && entry.ProcessedAt < cutoff)
 			{
-				if (await db.KeyDeleteAsync(key).ConfigureAwait(false))
-				{
-					deleted++;
-				}
+				toDelete.Add(keys[i]);
 			}
 		}
 
-		LogCleanedUpEntries(_logger, deleted, null);
+		if (toDelete.Count == 0)
+		{
+			return 0;
+		}
+
+		var deleteTasks = new Task<bool>[toDelete.Count];
+		for (var i = 0; i < toDelete.Count; i++)
+		{
+			deleteTasks[i] = db.KeyDeleteAsync(toDelete[i]);
+		}
+
+		var results = await Task.WhenAll(deleteTasks).ConfigureAwait(false);
+
+		var deleted = 0;
+		foreach (var removed in results)
+		{
+			if (removed)
+			{
+				deleted++;
+			}
+		}
+
 		return deleted;
 	}
 
@@ -601,7 +829,9 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 
 		_disposed = true;
 
-		if (_connection != null)
+		// Only tear down a multiplexer this store created. A caller-supplied multiplexer is shared and
+		// owned by the caller — disposing it here would break other consumers of the same connection.
+		if (_ownsConnection && _connection != null)
 		{
 			await _connection.CloseAsync().ConfigureAwait(false);
 			_connection.Dispose();
@@ -616,7 +846,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		"Trimming",
 		"IL2026:Members annotated with RequiresUnreferencedCode may break with trimming",
 		Justification = "Inbox entries include dynamic metadata that requires runtime serialization.")]
-	private static string SerializeEntry(InboxEntry entry)
+	private string SerializeEntry(InboxEntry entry)
 	{
 		var document = new RedisInboxDocument
 		{
@@ -632,7 +862,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 			RetryCount = entry.RetryCount,
 			LastAttemptAt = entry.LastAttemptAt,
 			CorrelationId = entry.CorrelationId,
-			TenantId = entry.TenantId,
+			TenantId = StampTenant(entry.TenantId),
 			Source = entry.Source
 		};
 
@@ -697,8 +927,15 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 	[LoggerMessage(DataRedisEventId.InboxCleanedUp, LogLevel.Information, "Cleaned up {Count} inbox entries")]
 	private static partial void LogCleanedUpEntries(ILogger logger, int count, Exception? exception);
 
-	private string GetKey(string messageId, string handlerType) =>
-		$"{_options.KeyPrefix}:{messageId}:{handlerType}";
+	// Composes the tenant INTO the Redis key when multi-tenancy is active (byte-identical when None), so the
+	// dedup/claim key — and thus every keyed read/write — is tenant-isolated by construction.
+	private string GetKey(string messageId, string handlerType)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		return scope.IsScoped
+			? $"{_options.KeyPrefix}:{scope.TenantId}:{messageId}:{handlerType}"
+			: $"{_options.KeyPrefix}:{messageId}:{handlerType}";
+	}
 
 	/// <summary>
 	/// Ensures the Redis connection is established and returns the database instance.
@@ -722,6 +959,7 @@ public sealed partial class RedisInboxStore : IInboxStore, IProcessingTrackingIn
 		}
 
 		_connection = await ConnectionMultiplexer.ConnectAsync(configOptions).ConfigureAwait(false);
+		_ownsConnection = true;
 		_database = _connection.GetDatabase(_options.DatabaseId);
 		return _database;
 	}

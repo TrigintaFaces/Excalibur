@@ -25,8 +25,29 @@ namespace Excalibur.LeaderElection.Kubernetes;
 /// <summary>
 /// Kubernetes-based implementation of leader election using the Lease API.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Split-brain safety invariant (at-most-one-leader-EFFECT).</b> Every leader-gated side effect is
+/// protected by EITHER (a) a monotonic fencing token checked at the action's authority, OR (b) a monotonic
+/// self-relinquish bound at the incumbent (the leader ceases before any challenger can acquire; grace period
+/// &gt; clock skew). This provider satisfies <b>(a)</b>: it is a <em>native-authority</em> election, so the
+/// fencing token is the Lease's native <c>leaseTransitions</c> counter — monotonic, and int32-exhaustion
+/// fails closed by relinquishing rather than wrapping into a non-monotonic token. A takeover increments the
+/// counter, so a stale (partitioned) incumbent's fenced writes carry a strictly lower token and are rejected
+/// fail-closed at the resource.
+/// </para>
+/// <para>
+/// This is why the challenger's takeover comparison is <em>correctly</em> wall-clock
+/// (<c>now &gt; RenewTime + LeaseDuration + GracePeriod</c>): <c>RenewTime</c> is the API server's
+/// server-stamped, inherently cross-process timestamp, and the added grace period is the clock-skew cushion.
+/// A monotonic self-relinquish is <em>not</em> required for correctness here because safety is carried by the
+/// fencing token, not by the incumbent demoting itself — though adding one would make <c>IsLeader</c> honest
+/// during a partition (a defense-in-depth liveness improvement, not a safety fix).
+/// </para>
+/// </remarks>
 public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElection, IDisposable, IAsyncDisposable
 {
+	private readonly TimeProvider _timeProvider;
 	private readonly IKubernetes _kubernetesClient;
 	private readonly KubernetesLeaderElectionOptions _options;
 	private readonly ILogger<KubernetesLeaderElection> _logger;
@@ -45,6 +66,11 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	private volatile bool _disposed;
 	private volatile bool _isLeader;
 	private volatile string? _currentLeaderId;
+	// 3g58kl: the native Lease.spec.leaseTransitions counter observed at the most recent leadership
+	// transition (the fencing token per SA ruling), and UTC ticks of the instant that tenure began.
+	// Accessed lock-free via Interlocked, mirroring the existing volatile-field pattern on this type.
+	private long _currentFencingToken;
+	private long _leadershipAcquiredAtTicks;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KubernetesLeaderElection" /> class.
@@ -53,16 +79,22 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	/// <param name="resourceName"> The resource to elect a leader for. </param>
 	/// <param name="options"> The Kubernetes leader election options. </param>
 	/// <param name="logger"> The logger. </param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
+	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
+	/// </param>
 	public KubernetesLeaderElection(
 		IKubernetes kubernetesClient,
 		string resourceName,
 		IOptions<KubernetesLeaderElectionOptions>? options,
-		ILogger<KubernetesLeaderElection>? logger)
+		ILogger<KubernetesLeaderElection>? logger,
+		TimeProvider? timeProvider = null)
 	{
 		_kubernetesClient = kubernetesClient ?? throw new ArgumentNullException(nameof(kubernetesClient));
 		_resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger<KubernetesLeaderElection>.Instance;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		// Determine the lease name
 		_leaseName = _options.LeaseName ?? $"{resourceName}-leader-election";
@@ -84,7 +116,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				DelayGenerator = args =>
 				{
 					var delay = TimeSpan.FromMilliseconds(Math.Min(1000 * Math.Pow(2, args.AttemptNumber),
-						_options.MaxRetryDelayMilliseconds));
+						_options.MaxRetryDelay.TotalMilliseconds));
 					return ValueTask.FromResult<TimeSpan?>(delay);
 				},
 				ShouldHandle = new PredicateBuilder()
@@ -108,6 +140,9 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
 
 	/// <inheritdoc />
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+	/// <inheritdoc/>
 	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
 	/// <inheritdoc />
@@ -115,6 +150,22 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 
 	/// <inheritdoc />
 	public bool IsLeader => _isLeader;
+
+	/// <inheritdoc />
+	public Leadership? CurrentLeadership
+	{
+		get
+		{
+			if (!_isLeader)
+			{
+				return null;
+			}
+
+			var token = Interlocked.Read(ref _currentFencingToken);
+			var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
+			return new Leadership(token == 0 ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
+		}
+	}
 
 	/// <inheritdoc />
 	public string? CurrentLeaderId => _currentLeaderId;
@@ -141,7 +192,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		_trackedTasks.Add(RunElectionLoopAsync(_runningTokenSource.Token));
 
 		// Start renewal timer
-		var renewInterval = TimeSpan.FromMilliseconds(_options.RenewIntervalMilliseconds);
+		var renewInterval = _options.RenewInterval;
 		_ = _renewalTimer.Change(renewInterval, renewInterval);
 	}
 
@@ -426,7 +477,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				Spec = new V1LeaseSpec
 				{
 					HolderIdentity = null,
-					LeaseDurationSeconds = _options.LeaseDurationSeconds,
+					LeaseDurationSeconds = (int)_options.LeaseDuration.TotalSeconds,
 					AcquireTime = null,
 					RenewTime = null,
 				},
@@ -448,7 +499,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				await TryAcquireOrRenewLeaseAsync(cancellationToken).ConfigureAwait(false);
 
 				// Wait before next attempt
-				await Task.Delay(TimeSpan.FromMilliseconds(_options.RetryIntervalMilliseconds), cancellationToken).ConfigureAwait(false);
+				await Task.Delay(_options.RetryInterval, cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
@@ -457,8 +508,31 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 			catch (Exception ex)
 			{
 				LogElectionLoopError(ex, _leaseName);
-				await Task.Delay(TimeSpan.FromMilliseconds(_options.RetryIntervalMilliseconds), cancellationToken).ConfigureAwait(false);
+
+				// An error while not holding leadership is a failed acquisition attempt.
+				if (!IsLeader)
+				{
+					RaiseAcquisitionFailed("error during acquisition", ex);
+				}
+
+				await Task.Delay(_options.RetryInterval, cancellationToken).ConfigureAwait(false);
 			}
+		}
+	}
+
+	/// <summary>
+	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
+	/// can never break the acquisition/renewal loop.
+	/// </summary>
+	private void RaiseAcquisitionFailed(string reason, Exception? exception)
+	{
+		try
+		{
+			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
+		}
+		catch (Exception)
+		{
+			// A throwing subscriber must never break the acquire loop.
 		}
 	}
 
@@ -477,7 +551,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				cancellationToken).ConfigureAwait(false);
 
 			_currentLease = lease;
-			var now = DateTimeOffset.UtcNow;
+			var now = _timeProvider.GetUtcNow();
 			var previousLeaderId = CurrentLeaderId;
 
 			// Check if we can acquire or renew the lease
@@ -498,8 +572,8 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 			else if (lease.Spec.RenewTime.HasValue)
 			{
 				// Check if the lease has expired
-				var expiry = lease.Spec.RenewTime.Value.AddSeconds(lease.Spec.LeaseDurationSeconds ?? _options.LeaseDurationSeconds);
-				if (now > expiry.AddSeconds(_options.GracePeriodSeconds))
+				var expiry = lease.Spec.RenewTime.Value.AddSeconds(lease.Spec.LeaseDurationSeconds ?? (int)_options.LeaseDuration.TotalSeconds);
+				if (now > expiry.Add(_options.GracePeriod))
 				{
 					canAcquire = true;
 					LogLeaseExpired(_leaseName, lease.Spec.HolderIdentity, lease.Spec.RenewTime, expiry);
@@ -508,9 +582,27 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 
 			if (canAcquire)
 			{
+				// A leadership TRANSITION (takeover from a different/absent prior holder, not a self-renew)
+				// advances the native Lease.spec.leaseTransitions counter — the monotonic fencing token
+				// (SA ruling: K8s reads the native counter, never a self-minted one). If the int32 counter is
+				// exhausted, relinquish (fail-closed) rather than wrap it into a non-monotonic token.
+				var isTransition = !string.Equals(previousLeaderId, CandidateId, StringComparison.Ordinal);
+				if (isTransition)
+				{
+					var currentTransitions = lease.Spec.LeaseTransitions ?? 0;
+					if (currentTransitions >= int.MaxValue)
+					{
+						LogFencingTokenExhausted(CandidateId, _leaseName);
+						RaiseAcquisitionFailed("fencing token (leaseTransitions) domain exhausted", exception: null);
+						return;
+					}
+
+					lease.Spec.LeaseTransitions = currentTransitions + 1;
+				}
+
 				// Update the lease
 				lease.Spec.HolderIdentity = CandidateId;
-				lease.Spec.LeaseDurationSeconds = _options.LeaseDurationSeconds;
+				lease.Spec.LeaseDurationSeconds = (int)_options.LeaseDuration.TotalSeconds;
 				lease.Spec.RenewTime = now.UtcDateTime;
 
 				if (!lease.Spec.AcquireTime.HasValue || !string.Equals(previousLeaderId, CandidateId, StringComparison.Ordinal))
@@ -537,9 +629,11 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					var wasLeader = IsLeader;
 					_isLeader = true;
 					_currentLeaderId = CandidateId;
+					Interlocked.Exchange(ref _currentFencingToken, lease.Spec.LeaseTransitions ?? 0);
 
 					if (!wasLeader)
 					{
+						Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
 						LogAcquiredLeadership(_resourceName);
 						BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
 					}
@@ -554,12 +648,20 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 					// Another candidate won the race
 					LogLostRace(_leaseName);
 					await UpdateLeadershipStateFromLeaseAsync(lease).ConfigureAwait(false);
+					if (!IsLeader)
+					{
+						RaiseAcquisitionFailed("lost the acquisition race", exception: null);
+					}
 				}
 			}
 			else
 			{
-				// Update our state based on the current lease
+				// Another candidate holds a valid lease — we could not acquire this attempt.
 				await UpdateLeadershipStateFromLeaseAsync(lease).ConfigureAwait(false);
+				if (!IsLeader)
+				{
+					RaiseAcquisitionFailed("lost the acquisition race", exception: null);
+				}
 			}
 		}
 		finally
@@ -739,6 +841,10 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 
 	[LoggerMessage(LeaderElectionEventId.KubernetesLostRace, LogLevel.Debug, "Lost race to acquire lease '{LeaseName}'")]
 	partial void LogLostRace(string leaseName);
+
+	[LoggerMessage(LeaderElectionEventId.KubernetesFencingTokenExhausted, LogLevel.Critical,
+		"Candidate {CandidateId} cannot take leadership of lease {LeaseName} — leaseTransitions (int32 fencing token) is exhausted; relinquishing (fail-closed) rather than wrapping to a non-monotonic token")]
+	partial void LogFencingTokenExhausted(string candidateId, string leaseName);
 
 	[LoggerMessage(LeaderElectionEventId.KubernetesLostLeadership, LogLevel.Warning, "Lost leadership for resource '{Resource}'")]
 	partial void LogLostLeadership(string resource);

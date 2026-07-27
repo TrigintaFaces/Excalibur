@@ -10,7 +10,9 @@ using Excalibur.Security;
 using Excalibur.Security.Aws;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -60,6 +62,44 @@ public static class DispatchSecurityAwsServiceCollectionExtensions
 			_ = services.AddSingleton<ICredentialStore>(sp => sp.GetRequiredService<AwsSecretsManagerCredentialStore>());
 			_ = services.AddSingleton<IWritableCredentialStore>(sp => sp.GetRequiredService<AwsSecretsManagerCredentialStore>());
 		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers an AWS Secrets Manager-backed <see cref="IKeyProvider"/> for message-signing keys.
+	/// Key material is stored as the secret's binary payload, retrieved keys are cached with a bounded
+	/// TTL, and an unknown key fails closed (a <see cref="SigningException"/> is thrown — no key is minted
+	/// on the retrieval path).
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Optional configuration for the provider options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is null.</exception>
+	[RequiresUnreferencedCode("AWS Secrets Manager integration depends on AWSSDK.SecretsManager (v3), whose reflection-based serialization cannot be statically analyzed by the trimmer; this registration is not trim-compatible.")]
+	[RequiresDynamicCode("AWS Secrets Manager integration depends on AWSSDK.SecretsManager (v3), which uses runtime code generation; this registration is not compatible with Native AOT.")]
+	public static IServiceCollection AddAwsSecretsManagerKeyProvider(
+		this IServiceCollection services,
+		Action<AwsSecretsManagerKeyProviderOptions>? configure = null)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var optionsBuilder = services.AddOptions<AwsSecretsManagerKeyProviderOptions>();
+		if (configure is not null)
+		{
+			_ = optionsBuilder.Configure(configure);
+		}
+
+		_ = optionsBuilder.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<AwsSecretsManagerKeyProviderOptions>,
+			AwsSecretsManagerKeyProviderOptionsValidator>());
+
+		services.TryAddSingleton(TimeProvider.System);
+		services.TryAddSingleton<IKeyProvider>(sp => new AwsSecretsManagerKeyProvider(
+			sp.GetRequiredService<ILogger<AwsSecretsManagerKeyProvider>>(),
+			sp.GetRequiredService<IOptions<AwsSecretsManagerKeyProviderOptions>>(),
+			sp.GetRequiredService<TimeProvider>()));
 
 		return services;
 	}

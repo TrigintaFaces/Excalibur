@@ -12,7 +12,7 @@ namespace Excalibur.Cdc;
 /// Post-configures <see cref="CdcOptions"/> by merging tracked tables
 /// from an <see cref="IConfiguration"/> section. Tables already registered
 /// by code (via <c>TrackTable</c>) take precedence — duplicates by
-/// <see cref="CdcTableTrackingOptions.TableName"/> (case-insensitive)
+/// <see cref="CdcTableConfig.TableName"/> (case-insensitive)
 /// are skipped.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(

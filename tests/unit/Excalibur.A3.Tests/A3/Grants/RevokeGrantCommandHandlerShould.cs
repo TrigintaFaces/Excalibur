@@ -6,6 +6,7 @@ using Excalibur.A3.Authorization.Grants;
 using GrantAggregate = Excalibur.A3.Authorization.Grants.Grant;
 using Excalibur.A3.Exceptions;
 using Excalibur.Domain;
+using Excalibur.Domain.Model;
 
 using Microsoft.Extensions.Caching.Distributed;
 
@@ -158,6 +159,6 @@ public sealed class RevokeGrantCommandHandlerShould
 		var addedEvent = new GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", "ActivityGroup", "orders",
 			DateTimeOffset.UtcNow.AddDays(30), "admin", DateTimeOffset.UtcNow.AddDays(-1));
-		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
+		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [new HistoricEvent(addedEvent, 0)]);
 	}
 }

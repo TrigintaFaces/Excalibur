@@ -1,78 +1,123 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+
 using System.Collections.Concurrent;
 
-using Microsoft.Extensions.Logging;
+using Excalibur.Dispatch.Middleware;
 
 namespace Excalibur.Dispatch.Middleware.Ordering;
 
 /// <summary>
-/// Optional middleware that detects out-of-order messages via sequence number tracking.
+/// Enforces strictly-increasing per-key ordering for messages that carry a stamped ordering sequence.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This middleware logs warnings when messages arrive out of order but does NOT block processing.
-/// It is opt-in via <c>builder.UseOrderingValidation()</c>.
+/// This middleware is <strong>opt-in and fail-closed</strong>. Ordering enforcement is opted into by
+/// registering it (<c>AddOrderingValidation()</c>); once active it requires <em>every</em> message it
+/// sees to carry an ordering sequence — stamped automatically at a first-party transport receive
+/// boundary (Kafka offset, Azure Service Bus <c>SequenceNumber</c>) or explicitly by the consumer via
+/// <see cref="OrderingContextExtensions.SetOrderingSequence(IMessageContext, long, string?)"/> (the
+/// opt-in arm for transports without a native monotonic sequence, e.g. Pub/Sub).
 /// </para>
 /// <para>
-/// Ordering guarantees vary by transport:
-/// <list type="bullet">
-/// <item>In-memory: FIFO within single dispatcher</item>
-/// <item>RabbitMQ: FIFO per queue (single consumer)</item>
-/// <item>Kafka: FIFO per partition</item>
-/// <item>SQS FIFO: FIFO per message group</item>
-/// <item>Azure Service Bus: FIFO per session</item>
-/// <item>gRPC: FIFO per connection (streaming)</item>
-/// <item>Google Pub/Sub: Best-effort (no strict ordering)</item>
-/// </list>
+/// <strong>Fail-closed completeness:</strong> a message reaching this active middleware with <em>no</em>
+/// resolvable sequence is a misconfiguration (ordering advertised but unfed) and is <em>rejected</em> by
+/// throwing <see cref="OutOfOrderMessageException"/> — never silently passed. A missing sequence being
+/// expressible as a silent pass would re-open the original advertised-but-unwired degrade.
+/// </para>
+/// <para>
+/// When a stamped sequence is not strictly greater than the last sequence already accepted for the same
+/// ordering key, the message is likewise <em>rejected</em> by throwing
+/// <see cref="OutOfOrderMessageException"/> — it is never processed out of order.
 /// </para>
 /// </remarks>
-internal sealed partial class OrderingValidationMiddleware : IDispatchMiddleware
+internal sealed partial class OrderingValidationMiddleware : DispatchMiddlewareBase
 {
-	private readonly ConcurrentDictionary<string, long> _lastSequenceBySource = new(StringComparer.Ordinal);
-	private readonly ILogger<OrderingValidationMiddleware> _logger;
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="OrderingValidationMiddleware"/> class.
-	/// </summary>
-	/// <param name="logger">The logger instance.</param>
-	public OrderingValidationMiddleware(ILogger<OrderingValidationMiddleware> logger)
-	{
-		_logger = logger;
-	}
+	// Per-ordering-key high-water sequence. A partition/stream is processed sequentially, so contention
+	// is low; the CAS loop below keeps the check-and-advance atomic without a lock.
+	private readonly ConcurrentDictionary<string, long> _lastSequences = new(StringComparer.Ordinal);
 
 	/// <inheritdoc />
-	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PreProcessing;
+	public override DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Validation;
 
 	/// <inheritdoc />
-	public async ValueTask<IMessageResult> InvokeAsync(
+	protected override async ValueTask<IMessageResult> ProcessAsync(
 		IDispatchMessage message,
 		IMessageContext context,
 		DispatchRequestDelegate nextDelegate,
 		CancellationToken cancellationToken)
 	{
-		// Check for sequence number in context properties
-		if (context.Items.TryGetValue("SequenceNumber", out var seqObj) && seqObj is long sequenceNumber)
+		ArgumentNullException.ThrowIfNull(context);
+		ArgumentNullException.ThrowIfNull(nextDelegate);
+
+		// Fail-closed completeness: this middleware is active, so a message MUST carry a resolvable
+		// ordering sequence (auto-stamped by a native-sequence transport or consumer-stamped). A missing
+		// sequence is an advertised-but-unfed misconfiguration — reject it rather than silently pass
+		// (a silent pass would re-open the original non-enforcing degrade).
+		if (!context.TryGetOrderingSequence(out var sequence, out var orderingKey))
 		{
-			var source = context.Items.TryGetValue("Source", out var srcObj) && srcObj is string src
-				? src
-				: "default";
-
-			var lastSequence = _lastSequenceBySource.GetOrAdd(source, -1L);
-
-			if (sequenceNumber <= lastSequence)
-			{
-				LogOutOfOrder(_logger, sequenceNumber, lastSequence, source);
-			}
-
-			_lastSequenceBySource[source] = sequenceNumber;
+			throw new OutOfOrderMessageException(
+				"Ordering validation is active but the message carries no ordering sequence. Stamp one via "
+				+ "SetOrderingSequence (auto-stamped for Kafka/Azure Service Bus; consumer-stamped otherwise) "
+				+ "or do not register AddOrderingValidation for this pipeline.");
 		}
 
-		return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		// smeh4k: verify order BEFORE processing, but advance the watermark only AFTER the handler
+		// succeeds. Advancing on receipt breaks at-least-once retry: if the handler for seq-N throws and
+		// the transport redelivers N, an already-advanced watermark would reject the redelivery as
+		// "out of order" and the message would be stuck forever. Advancing on success means a
+		// failed-then-redelivered N is re-attempted in order, while N+1 still can't jump ahead of an
+		// unprocessed N.
+		EnsureInOrder(orderingKey, sequence);
+
+		var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+
+		// Handler completed without throwing — commit the new high-water mark for this ordering key.
+		AdvanceWatermark(orderingKey, sequence);
+
+		return result;
 	}
 
-	[LoggerMessage(2215, LogLevel.Warning,
-		"Out-of-order message detected: sequence {SequenceNumber} <= last {LastSequence} from source '{Source}'.")]
-	private static partial void LogOutOfOrder(ILogger logger, long sequenceNumber, long lastSequence, string source);
+	// Fail-closed order check: a non-increasing sequence (a duplicate or an out-of-order arrival) throws
+	// OutOfOrderMessageException and does NOT invoke the rest of the pipeline. Does not mutate the
+	// watermark — that happens only after successful processing (smeh4k).
+	private void EnsureInOrder(string orderingKey, long sequence)
+	{
+		if (_lastSequences.TryGetValue(orderingKey, out var last) && sequence <= last)
+		{
+			throw new OutOfOrderMessageException(orderingKey, sequence, last);
+		}
+	}
+
+	// Advances the key's high-water mark to the just-processed sequence. Idempotent and race-safe: if a
+	// concurrent processor already advanced past this sequence, this is a no-op.
+	private void AdvanceWatermark(string orderingKey, long sequence)
+	{
+		while (true)
+		{
+			if (_lastSequences.TryGetValue(orderingKey, out var last))
+			{
+				if (sequence <= last)
+				{
+					return; // already at/past this sequence (concurrent advance) — nothing to do
+				}
+
+				if (_lastSequences.TryUpdate(orderingKey, sequence, last))
+				{
+					return;
+				}
+
+				// A competing thread advanced the key; re-read and re-check.
+				continue;
+			}
+
+			if (_lastSequences.TryAdd(orderingKey, sequence))
+			{
+				return;
+			}
+
+			// A competing thread added the key first; re-read and re-check.
+		}
+	}
 }

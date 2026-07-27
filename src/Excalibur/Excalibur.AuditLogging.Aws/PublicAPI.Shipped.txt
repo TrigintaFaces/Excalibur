@@ -24,6 +24,13 @@ Excalibur.AuditLogging.Aws.AwsCloudWatchAuditExporter.CheckHealthAsync(System.Th
 Excalibur.AuditLogging.Aws.AwsCloudWatchAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
 Excalibur.AuditLogging.Aws.AwsCloudWatchAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportBatchResult!>!
 Excalibur.AuditLogging.Aws.AwsCloudWatchAuditExporter.Name.get -> string!
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.BatchSize(int batchSize) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.LogGroupName(string! logGroupName) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.Region(string! region) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
+Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.StreamName(string! streamName) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
 Microsoft.Extensions.DependencyInjection.AwsAuditServiceCollectionExtensions
 const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.BatchForwarded = 93481 -> int
 const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.EventForwarded = 93480 -> int
@@ -33,11 +40,4 @@ const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedStatus = 93
 const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedTimeout = 93489 -> int
 const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardRetried = 93486 -> int
 const Excalibur.AuditLogging.Aws.AwsAuditLoggingEventId.HealthCheckFailed = 93487 -> int
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.BatchSize(int batchSize) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.LogGroupName(string! logGroupName) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.Region(string! region) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
-Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder.StreamName(string! streamName) -> Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!
 static Microsoft.Extensions.DependencyInjection.AwsAuditServiceCollectionExtensions.AddAwsAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Aws.IAuditLoggingAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

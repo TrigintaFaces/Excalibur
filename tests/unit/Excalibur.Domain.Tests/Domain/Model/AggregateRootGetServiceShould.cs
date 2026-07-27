@@ -73,6 +73,6 @@ public sealed class AggregateRootGetServiceShould
 	{
 		public TestAggregate(string id) : base(id) { }
 
-		protected override void ApplyEventInternal(IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 	}
 }

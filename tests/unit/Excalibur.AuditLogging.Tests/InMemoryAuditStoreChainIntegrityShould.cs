@@ -109,28 +109,67 @@ public sealed class InMemoryAuditStoreChainIntegrityShould : IDisposable
         result.ViolationDescription.ShouldNotBeNullOrWhiteSpace();
     }
 
-    // Reaches the store's private event map and replaces one stored event with a content-mutated copy that
+    // Reaches the store's private event maps and replaces one stored event with a content-mutated copy that
     // retains the original (now-stale) EventHash/PreviousEventHash, simulating post-write tampering. Reflection
     // (not widened production visibility) per the internal-first rule; throws rather than passing vacuously if
-    // the field/event can't be located (the store shape changed -> update this guard).
+    // a field/event can't be located (the store shape changed -> update this guard).
+    //
+    // THE STORE KEEPS TWO INDICES AND TAMPERING MUST REACH BOTH. `_eventsById` is flat across tenants;
+    // `_eventsByTenant` is partitioned and is what the tenant-scoped read paths -- including chain
+    // verification -- actually walk. Because `AuditEvent` is a record, `with` produces a NEW instance, so
+    // replacing only the by-id entry leaves the partition holding the pristine original: the store then
+    // verifies clean and this test fails while reporting nothing about tampering. That is not a regression
+    // in the store, it is this helper mutating an index the verifier no longer reads.
     private void TamperStoredEventAction(string eventId, string tamperedAction)
     {
-        var field = typeof(InMemoryAuditStore).GetField("_eventsById", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException(
-                "fq9x3u — InMemoryAuditStore._eventsById not found; the store's storage shape changed — update this tamper guard.");
+        var byId = ReadPrivateField<ConcurrentDictionary<string, AuditEvent>>("_eventsById");
+        var byTenant = ReadPrivateField<ConcurrentDictionary<string, List<AuditEvent>>>("_eventsByTenant");
 
-        var map = (ConcurrentDictionary<string, AuditEvent>?)field.GetValue(_sut)
-            ?? throw new InvalidOperationException("fq9x3u — _eventsById was null.");
-
-        var key = map.FirstOrDefault(kvp => string.Equals(kvp.Value.EventId, eventId, StringComparison.Ordinal)).Key
+        var key = byId.FirstOrDefault(kvp => string.Equals(kvp.Value.EventId, eventId, StringComparison.Ordinal)).Key
             ?? throw new InvalidOperationException(
                 $"fq9x3u — stored event '{eventId}' not found in _eventsById; cannot tamper (refusing to pass vacuously).");
 
-        var stored = map[key];
+        var stored = byId[key];
         stored.Action.ShouldNotBe(tamperedAction, "The tampered Action must differ from the original.");
 
         // Keep EventHash + PreviousEventHash; change only the canonical content -> stored MAC becomes stale.
-        map[key] = stored with { Action = tamperedAction };
+        var tampered = stored with { Action = tamperedAction };
+        byId[key] = tampered;
+
+        // The partitioned index is the one the verifier reads. Refuse to pass vacuously if the event is not
+        // reachable there either -- a tamper that lands in neither index proves nothing.
+        var replacements = 0;
+
+        foreach (var partition in byTenant.Values)
+        {
+            lock (partition)
+            {
+                for (var i = 0; i < partition.Count; i++)
+                {
+                    if (string.Equals(partition[i].EventId, eventId, StringComparison.Ordinal))
+                    {
+                        partition[i] = tampered;
+                        replacements++;
+                    }
+                }
+            }
+        }
+
+        replacements.ShouldBe(
+            1,
+            $"fq9x3u — expected stored event '{eventId}' in exactly one tenant partition; the store's "
+            + "storage shape changed and this tamper guard no longer reaches what the verifier reads");
+    }
+
+    private T ReadPrivateField<T>(string fieldName)
+        where T : class
+    {
+        var field = typeof(InMemoryAuditStore).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)
+            ?? throw new InvalidOperationException(
+                $"fq9x3u — InMemoryAuditStore.{fieldName} not found; the store's storage shape changed — update this tamper guard.");
+
+        return (T?)field.GetValue(_sut)
+            ?? throw new InvalidOperationException($"fq9x3u — {fieldName} was null.");
     }
 
     [Fact]

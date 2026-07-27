@@ -17,6 +17,16 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 	private readonly ConcurrentDictionary<Guid, ErasureRequestData> _requests = new();
 	private readonly ConcurrentDictionary<Guid, ErasureCertificate> _certificates = new();
 	private readonly ConcurrentDictionary<Guid, Guid> _requestToCertificate = new();
+	private readonly IDataSubjectHasher _dataSubjectHasher;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemoryErasureStore"/> class.
+	/// </summary>
+	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
+	public InMemoryErasureStore(IDataSubjectHasher dataSubjectHasher)
+	{
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
+	}
 
 	/// <summary>
 	/// Gets the count of requests in the store.
@@ -350,8 +360,8 @@ internal sealed class InMemoryErasureStore : IErasureStore, IErasureCertificateS
 			UpdatedAt = data.UpdatedAt
 		};
 
-	private static string HashDataSubjectId(string dataSubjectId) =>
-		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+	private string HashDataSubjectId(string dataSubjectId) =>
+		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
 	private sealed class ErasureRequestData
 	{

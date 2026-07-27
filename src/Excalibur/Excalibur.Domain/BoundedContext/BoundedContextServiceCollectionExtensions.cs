@@ -8,6 +8,7 @@ using Excalibur.Domain.BoundedContext;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,6 +34,8 @@ public static class BoundedContextServiceCollectionExtensions
 		_ = services.AddOptions<BoundedContextOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BoundedContextOptions>>(new BoundedContextOptionsValidator()));
 
 		services.TryAddSingleton<IBoundedContextValidator, DefaultBoundedContextValidator>();
 
@@ -72,6 +75,8 @@ public static class BoundedContextServiceCollectionExtensions
 		_ = services.AddOptions<BoundedContextOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BoundedContextOptions>>(new BoundedContextOptionsValidator()));
 
 		services.TryAddSingleton<IBoundedContextValidator, DefaultBoundedContextValidator>();
 

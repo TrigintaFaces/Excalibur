@@ -127,7 +127,6 @@ public sealed class LruCache<TKey, TValue> : IDisposable
 		{
 			lock (_lock)
 			{
-				_ = _hits + _misses;
 				return new CacheStatistics
 				{
 					Hits = _hits,

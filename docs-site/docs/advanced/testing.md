@@ -23,7 +23,8 @@ This guide covers testing patterns for Excalibur applications, from unit testing
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Testing` | Aggregate test fixtures, conformance test kits |
+| `Excalibur.Testing` | Aggregate test fixtures and shared test doubles |
+| `Excalibur.Testing.Conformance` | Conformance test kits for provider contracts |
 | Your test framework | xUnit, NUnit, or MSTest (framework-agnostic) |
 | Assertion library | Shouldly, FluentAssertions, or built-in |
 | Mocking library | FakeItEasy, Moq, or NSubstitute |
@@ -360,7 +361,7 @@ public class SqlServerIntegrationTests : IAsyncLifetime
 
 ## Conformance Testing
 
-The `Excalibur.Testing` package includes conformance test kits for verifying custom implementations.
+The `Excalibur.Testing.Conformance` package includes conformance test kits for verifying custom implementations. (The kits are **not** in `Excalibur.Testing` — installing that package alone gets you the aggregate test fixtures and no kits.)
 
 ### Event Store Conformance
 

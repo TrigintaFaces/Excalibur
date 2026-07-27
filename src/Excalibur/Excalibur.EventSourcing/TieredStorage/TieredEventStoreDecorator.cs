@@ -28,13 +28,15 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	private readonly IEventStore _hotStore;
 	private readonly IColdEventStore _coldStore;
 	private readonly ISnapshotStore? _snapshotStore;
+	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<TieredEventStoreDecorator> _logger;
 
 	internal TieredEventStoreDecorator(
 		IEventStore hotStore,
 		IColdEventStore coldStore,
 		ILogger<TieredEventStoreDecorator> logger,
-		ISnapshotStore? snapshotStore = null)
+		ISnapshotStore? snapshotStore = null,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(hotStore);
 		ArgumentNullException.ThrowIfNull(coldStore);
@@ -43,8 +45,17 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		_hotStore = hotStore;
 		_coldStore = coldStore;
 		_snapshotStore = snapshotStore;
+		_tenantContext = tenantContext;
 		_logger = logger;
 	}
+
+	/// <summary>
+	/// The tenant partition for the current read. This decorator sits on the consumer read path, where an
+	/// ambient tenant is established per request, so the cold read is addressed to the same tenant the hot
+	/// read was. This is distinct from the archive service, which enumerates every tenant in one pass and
+	/// therefore has no ambient tenant to inherit.
+	/// </summary>
+	private KeyedTenantPartition CurrentTenant => KeyedTenantPartition.FromContext(_tenantContext);
 
 	/// <inheritdoc />
 	public ValueTask<AppendResult> AppendAsync(
@@ -112,7 +123,7 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		if (hotEvents.Count == 0)
 		{
 			// All events might be in cold storage
-			var coldEvents = await _coldStore.ReadAsync(aggregateId, fromVersion, cancellationToken)
+			var coldEvents = await _coldStore.ReadAsync(CurrentTenant, aggregateId, fromVersion, cancellationToken)
 				.ConfigureAwait(false);
 			return coldEvents;
 		}
@@ -125,14 +136,14 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		string aggregateId,
 		CancellationToken cancellationToken)
 	{
-		if (!await _coldStore.HasArchivedEventsAsync(aggregateId, cancellationToken).ConfigureAwait(false))
+		if (!await _coldStore.HasArchivedEventsAsync(CurrentTenant, aggregateId, cancellationToken).ConfigureAwait(false))
 		{
 			return Array.Empty<StoredEvent>();
 		}
 
 		_logger.LoadingFromColdStorage(aggregateId);
 
-		return await _coldStore.ReadAsync(aggregateId, cancellationToken).ConfigureAwait(false);
+		return await _coldStore.ReadAsync(CurrentTenant, aggregateId, cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<IReadOnlyList<StoredEvent>> MergeWithColdAsync(
@@ -143,7 +154,7 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	{
 		_logger.LoadingColdAndHotEvents(aggregateId, hotEvents.Count, fromVersion);
 
-		var coldEvents = await _coldStore.ReadAsync(aggregateId, fromVersion, cancellationToken)
+		var coldEvents = await _coldStore.ReadAsync(CurrentTenant, aggregateId, fromVersion, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (coldEvents.Count == 0)

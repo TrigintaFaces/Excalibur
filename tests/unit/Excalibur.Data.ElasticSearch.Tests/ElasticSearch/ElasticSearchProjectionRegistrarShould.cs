@@ -54,12 +54,12 @@ public sealed class ElasticSearchProjectionRegistrarShould : UnitTestBase
 		_ = services.AddLogging();
 
 		services.AddElasticSearchProjections(SharedNodeUri, p =>
-			p.Add<ProjectionA>(opts => opts.IndexPrefix = "custom-prefix"));
+			p.Add<ProjectionA>(opts => opts.Index.IndexPrefix = "custom-prefix"));
 
 		using var provider = services.BuildServiceProvider();
 		var monitor = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 		var options = monitor.Get(nameof(ProjectionA));
-		options.IndexPrefix.ShouldBe("custom-prefix");
+		options.Index.IndexPrefix.ShouldBe("custom-prefix");
 	}
 
 	#endregion
@@ -88,13 +88,13 @@ public sealed class ElasticSearchProjectionRegistrarShould : UnitTestBase
 		_ = services.AddLogging();
 
 		services.AddElasticSearchProjections(
-			opts => { opts.NodeUri = SharedNodeUri; opts.IndexPrefix = "shared"; },
-			p => p.Add<ProjectionA>(opts => opts.IndexPrefix = "override"));
+			opts => { opts.NodeUri = SharedNodeUri; opts.Index.IndexPrefix = "shared"; },
+			p => p.Add<ProjectionA>(opts => opts.Index.IndexPrefix = "override"));
 
 		using var provider = services.BuildServiceProvider();
 		var monitor = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 		var options = monitor.Get(nameof(ProjectionA));
-		options.IndexPrefix.ShouldBe("override");
+		options.Index.IndexPrefix.ShouldBe("override");
 	}
 
 	[Fact]

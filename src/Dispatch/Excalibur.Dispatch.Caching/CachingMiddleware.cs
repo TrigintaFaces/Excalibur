@@ -225,11 +225,13 @@ internal sealed class CachingMiddleware(
 	/// <param name="processedResult">The message result to extract from.</param>
 	/// <returns>The extracted return value, or null if not found.</returns>
 	/// <remarks>
-	/// Uses <see cref="IMessageResult{T}"/> pattern match instead of reflection,
-	/// making this AOT-safe without <c>Type.GetProperty</c>.
+	/// Uses the non-generic <see cref="IMessageResult.UntypedReturnValue"/> accessor instead of reflection,
+	/// making this AOT-safe without <c>Type.GetProperty</c>. Unlike an <c>IMessageResult&lt;object&gt;</c>
+	/// pattern match, this also extracts value-type results (e.g. <c>IMessageResult&lt;int&gt;</c>), which
+	/// are not covariantly assignable to <c>IMessageResult&lt;object&gt;</c>.
 	/// </remarks>
 	private static object? ExtractReturnValue(IMessageResult? processedResult)
-		=> processedResult is IMessageResult<object> typed ? typed.ReturnValue : null;
+		=> processedResult?.UntypedReturnValue;
 
 	/// <summary>
 	/// Gets the ICacheable interface information from a message.
@@ -417,7 +419,7 @@ internal sealed class CachingMiddleware(
 
 		return await ExecuteWithCacheAsync(
 			key,
-			async ct => await CreateCacheValueAsync(message, context, nextDelegate, ct).ConfigureAwait(false),
+			async ct => await CreateCacheValueAsync(message, context, nextDelegate, cacheableInfo, ct).ConfigureAwait(false),
 			expiration,
 			tags,
 			message,
@@ -546,6 +548,7 @@ internal sealed class CachingMiddleware(
 	/// <param name="message">The message to process.</param>
 	/// <param name="context">The message context.</param>
 	/// <param name="nextDelegate">The next middleware delegate.</param>
+	/// <param name="cacheableInfo">The resolved ICacheable interface information for the message.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>The cached value.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL3050:Using RequiresDynamicCode member in AOT",
@@ -554,6 +557,7 @@ internal sealed class CachingMiddleware(
 		IDispatchMessage message,
 		IMessageContext context,
 		DispatchRequestDelegate nextDelegate,
+		CacheableInfo cacheableInfo,
 		CancellationToken cancellationToken)
 	{
 		// Cache miss - execute the delegate
@@ -561,7 +565,12 @@ internal sealed class CachingMiddleware(
 
 		// Get the return value if it's a generic result
 		var returnValue = ExtractReturnValue(messageResult);
-		var shouldCache = ShouldCache(message, returnValue);
+
+		// Honor BOTH the registered cache policy AND the message's own ICacheable<T>.ShouldCache
+		// decision. On the interface caching path the policy alone previously drove the decision,
+		// so an ICacheable result returning ShouldCache=false was silently cached anyway.
+		var shouldCache = ShouldCache(message, returnValue)
+			&& cacheableInfo.ShouldCache(message, returnValue);
 
 		// Store the return value in context
 		if (returnValue != null)

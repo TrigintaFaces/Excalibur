@@ -94,9 +94,24 @@ internal sealed class CosmosDbSnapshotDocument
 	/// CosmosDb document IDs cannot contain: / \ ? #
 	/// Uses URL-safe Base64 encoding to handle all special characters safely.
 	/// </remarks>
-	public static string CreateId(string aggregateId)
+	public static string CreateId(string aggregateId) => CreateId(aggregateId, null);
+
+	/// <summary>
+	/// Creates the document identifier, including the tenant when the host is multi-tenant.
+	/// </summary>
+	/// <remarks>
+	/// The tenant goes in the DOCUMENT ID, not the partition key. Cosmos partition keys cannot be changed
+	/// without recreating the container, whereas ids are per-document — so keying on the id is the change
+	/// a consumer can actually adopt. The composite is encoded as a whole, so the encoded form of a
+	/// tenant-scoped id can never collide with an unscoped one.
+	/// </remarks>
+	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="tenantId">The owning tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <returns>The URL-safe document identifier.</returns>
+	public static string CreateId(string aggregateId, string? tenantId)
 	{
-		var bytes = System.Text.Encoding.UTF8.GetBytes(aggregateId);
+		var composite = string.IsNullOrEmpty(tenantId) ? aggregateId : $"t:{tenantId}:{aggregateId}";
+		var bytes = System.Text.Encoding.UTF8.GetBytes(composite);
 		return Convert.ToBase64String(bytes)
 			.Replace('+', '-')  // URL-safe
 			.Replace('/', '_')  // URL-safe
@@ -107,12 +122,13 @@ internal sealed class CosmosDbSnapshotDocument
 	/// Creates a document from a snapshot.
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
+	/// <param name="tenantId">The ambient tenant, or <see langword="null"/> in a single-tenant host.</param>
 	/// <returns>The Cosmos DB document representation.</returns>
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "JSON serialization is used with known types at runtime")]
-	public static CosmosDbSnapshotDocument FromSnapshot(ISnapshot snapshot) =>
+	public static CosmosDbSnapshotDocument FromSnapshot(ISnapshot snapshot, string? tenantId = null) =>
 		new()
 		{
-			Id = CreateId(snapshot.AggregateId),
+			Id = CreateId(snapshot.AggregateId, tenantId),
 			AggregateId = snapshot.AggregateId,
 			AggregateType = snapshot.AggregateType,
 			SnapshotId = snapshot.SnapshotId,

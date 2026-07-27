@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
@@ -139,78 +139,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 	#endregion
 
-	#region WithCleanup Tests
-
-	[Fact]
-	public void WithCleanup_AppliesEnableAutoCleanup()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(c => c.EnableAutoCleanup(false));
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void WithCleanup_AppliesRetentionPeriod()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(c => c.RetentionPeriod(TimeSpan.FromDays(30)));
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-	}
-
-	[Fact]
-	public void WithCleanup_AppliesCleanupInterval()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(c => c.CleanupInterval(TimeSpan.FromHours(6)));
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
-	}
-
-	[Fact]
-	public void WithCleanup_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburOutbox(builder =>
-			{
-				_ = builder.WithCleanup(null!);
-			}));
-	}
-
-	#endregion
-
 	#region EnableBackgroundProcessing Tests
 
 	[Fact]
@@ -252,36 +180,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 	#region Fluent Chaining Tests
 
 	[Fact]
-	public void WithProcessing_ReturnsBuilder_ForChaining()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert - should compile and chain
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder
-				.WithProcessing(p => p.BatchSize(100))
-				.WithCleanup(c => c.RetentionPeriod(TimeSpan.FromDays(7)));
-		});
-	}
-
-	[Fact]
-	public void WithCleanup_ReturnsBuilder_ForChaining()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert - should compile and chain
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder
-				.WithCleanup(c => c.EnableAutoCleanup(true))
-				.WithProcessing(p => p.MaxRetryCount(5));
-		});
-	}
-
-	[Fact]
 	public void EnableBackgroundProcessing_ReturnsBuilder_ForChaining()
 	{
 		// Arrange
@@ -313,10 +211,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 					.RetryDelay(TimeSpan.FromMinutes(10))
 					.ProcessorId("worker-1")
 					.EnableParallelProcessing(16))
-				.WithCleanup(c => c
-					.EnableAutoCleanup(true)
-					.RetentionPeriod(TimeSpan.FromDays(14))
-					.CleanupInterval(TimeSpan.FromHours(4)))
 				.EnableBackgroundProcessing();
 		});
 		var provider = services.BuildServiceProvider();
@@ -330,9 +224,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 		options.ProcessorId.ShouldBe("worker-1");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(16);
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(4));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 

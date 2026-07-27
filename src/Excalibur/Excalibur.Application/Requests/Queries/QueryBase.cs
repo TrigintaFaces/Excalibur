@@ -48,12 +48,6 @@ public abstract class QueryBase<TResponse>(Guid correlationId, string? tenantId 
 	public string MessageType => GetType().FullName ?? GetType().Name;
 
 	/// <summary>
-	/// Gets the kind of message this query represents.
-	/// </summary>
-	/// <value> Always returns <see cref="MessageKinds.Action" /> for queries. </value>
-	public MessageKinds Kind { get; protected init; } = MessageKinds.Action;
-
-	/// <summary>
 	/// Gets the message headers.
 	/// </summary>
 	/// <value> A read-only dictionary containing the query's metadata headers. </value>

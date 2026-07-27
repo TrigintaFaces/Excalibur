@@ -343,6 +343,27 @@ public sealed class DispatchMiddlewareBaseShould
 		ex.InnerException!.Message.ShouldBe("Test error");
 	}
 
+	// wtezay (safety-critical): a fail-closed exception marked with IFailClosedException MUST reach the
+	// caller UNWRAPPED — the base's diagnostic InvalidOperationException wrap would mask the typed contract
+	// (e.g. OutOfOrderMessageException / an authorization deny) that consumers catch by type. RED on a base
+	// that wraps everything; GREEN once InvokeAsync rethrows the marked exception via ExceptionDispatchInfo.
+	[Fact]
+	public async Task InvokeAsync_PropagatesFailClosedException_Unwrapped_WhenOnErrorReturnsNull()
+	{
+		// Arrange
+		var middleware = new ErrorRethrowMiddleware();
+		var message = CreateTestAction();
+		var context = A.Fake<IMessageContext>();
+		var failClosed = new TestFailClosedException("fail-closed must reach the caller");
+		var next = CreateNextDelegate(_ => throw failClosed);
+
+		// Act & Assert — the ORIGINAL marked exception surfaces, not an InvalidOperationException wrapper.
+		var ex = await Should.ThrowAsync<TestFailClosedException>(
+			middleware.InvokeAsync(message, context, next, CancellationToken.None).AsTask());
+		ex.ShouldBeSameAs(failClosed, "an IFailClosedException must propagate unwrapped (same instance), never re-wrapped.");
+		ex.Message.ShouldBe("fail-closed must reach the caller");
+	}
+
 	#endregion
 
 	#region Default Property Tests
@@ -596,6 +617,10 @@ public sealed class DispatchMiddlewareBaseShould
 			CancellationToken cancellationToken)
 			=> nextDelegate(message, context, cancellationToken);
 	}
+
+	// A throwaway fail-closed exception (marker only) to prove the base propagates the IFailClosedException
+	// family unwrapped, independent of any concrete domain exception.
+	private sealed class TestFailClosedException(string message) : Exception(message), IFailClosedException;
 
 	private sealed class CustomStageMiddleware(DispatchMiddlewareStage stage) : DispatchMiddlewareBase
 	{

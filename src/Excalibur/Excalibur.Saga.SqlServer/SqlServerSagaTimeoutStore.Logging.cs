@@ -26,4 +26,8 @@ public sealed partial class SqlServerSagaTimeoutStore
 	[LoggerMessage(SagaEventId.TimeoutMarkedDelivered, LogLevel.Debug,
 		"Marked timeout {TimeoutId} as delivered")]
 	private partial void LogTimeoutDelivered(string timeoutId);
+
+	[LoggerMessage(SagaEventId.TimeoutsClaimed, LogLevel.Debug,
+		"Claimed {Count} due timeouts for processor {ProcessorId}")]
+	private partial void LogTimeoutsClaimed(int count, string processorId);
 }

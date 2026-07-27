@@ -88,8 +88,8 @@ internal sealed partial class StreamingPipelineBypassGuard
 	{
 		try
 		{
-			var evaluator = serviceProvider.GetService<IDispatchMiddlewareApplicabilityEvaluator>();
-			if (evaluator is null)
+			var strategy = serviceProvider.GetService<IMiddlewareApplicabilityStrategy>();
+			if (strategy is null)
 			{
 				return [];
 			}
@@ -97,17 +97,13 @@ internal sealed partial class StreamingPipelineBypassGuard
 			var bypassed = new List<string>();
 			foreach (var middleware in serviceProvider.GetServices<IDispatchMiddleware>())
 			{
-				// The filtered invoker is the pipeline host itself, not a bypassed cross-cutting concern.
-				if (middleware is FilteredDispatchMiddlewareInvoker)
-				{
-					continue;
-				}
-
 				try
 				{
 					// Document is the message kind streamed documents would carry through the standard pipeline,
 					// so All/Document-scoped middleware are exactly those a document dispatch would run.
-					if (evaluator.IsApplicable(middleware, MessageKinds.Document))
+					// Applicability resolves from the middleware's ApplicableMessageKinds property — the single
+					// source of truth the whole live pipeline consumes.
+					if (strategy.ShouldApplyMiddleware(middleware.ApplicableMessageKinds, MessageKinds.Document))
 					{
 						bypassed.Add(middleware.GetType().Name);
 					}

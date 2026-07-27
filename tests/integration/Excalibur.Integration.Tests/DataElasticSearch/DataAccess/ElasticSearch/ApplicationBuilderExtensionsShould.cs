@@ -59,7 +59,9 @@ public sealed class ApplicationBuilderExtensionsShould(ElasticsearchContainerFix
 
 	/// <inheritdoc/>
 	protected override void ConfigureHostApplication(WebApplication app) =>
+			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			app.InitializeElasticsearchIndexesAsync().GetAwaiter().GetResult();
+			#pragma warning restore RS0030
 
 	/// <inheritdoc/>
 	protected override Task InitializePersistenceAsync() => Task.CompletedTask;

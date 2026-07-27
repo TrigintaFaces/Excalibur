@@ -40,13 +40,6 @@ public sealed class NotificationBaseShould
 	}
 
 	[Fact]
-	public void DefaultToEventKind()
-	{
-		var notification = new TestNotification();
-		notification.Kind.ShouldBe(MessageKinds.Event);
-	}
-
-	[Fact]
 	public void HaveEmptyHeaders()
 	{
 		var notification = new TestNotification();

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox;
@@ -47,8 +47,6 @@ public enum OutboxPreset
 	///   <item>MaxRetryCount: 3</item>
 	///   <item>RetryDelay: 1 minute</item>
 	///   <item>ParallelProcessing: Enabled (8 threads)</item>
-	///   <item>RetentionPeriod: 1 day</item>
-	///   <item>CleanupInterval: 15 minutes</item>
 	/// </list>
 	/// </remarks>
 	HighThroughput,
@@ -64,8 +62,6 @@ public enum OutboxPreset
 	///   <item>MaxRetryCount: 5</item>
 	///   <item>RetryDelay: 5 minutes</item>
 	///   <item>ParallelProcessing: Enabled (4 threads)</item>
-	///   <item>RetentionPeriod: 7 days</item>
-	///   <item>CleanupInterval: 1 hour</item>
 	/// </list>
 	/// </remarks>
 	Balanced,
@@ -81,8 +77,6 @@ public enum OutboxPreset
 	///   <item>MaxRetryCount: 10</item>
 	///   <item>RetryDelay: 15 minutes</item>
 	///   <item>ParallelProcessing: Disabled (sequential)</item>
-	///   <item>RetentionPeriod: 30 days</item>
-	///   <item>CleanupInterval: 6 hours</item>
 	/// </list>
 	/// </remarks>
 	HighReliability,

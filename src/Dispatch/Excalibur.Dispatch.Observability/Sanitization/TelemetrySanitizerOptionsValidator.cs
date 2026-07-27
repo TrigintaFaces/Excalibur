@@ -31,6 +31,18 @@ internal sealed partial class TelemetrySanitizerOptionsValidator(
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
+		// A set-but-empty pepper is a footgun: it reads as "keyed" yet derives an HMAC under an empty key,
+		// which is no stronger than the unkeyed digest while presenting as secured. Fail fast. A null pepper
+		// stays valid — it is the documented zero-config, honestly-weak default.
+		if (options.Pepper is { Length: 0 })
+		{
+			return ValidateOptionsResult.Fail(
+				$"{nameof(TelemetrySanitizerOptions)}.{nameof(TelemetrySanitizerOptions.Pepper)} is set but empty. " +
+				"Provide a high-entropy secret from your secret manager / KMS, or leave it unset (null) to use the " +
+				"documented unkeyed fingerprint. An empty pepper is rejected because it presents as keyed while " +
+				"providing no keyed protection.");
+		}
+
 		if (options.IncludeRawPii && !hostEnvironment.IsDevelopment())
 		{
 			LogPiiSanitizationBypassed(hostEnvironment.EnvironmentName);

@@ -53,22 +53,9 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 
 		var serializer = new MemoryPackSerializer();
 
-		// DI registrations
-		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
-		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
-		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
-		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
-		services.RemoveAll<ISerializer>();
-		services.AddSingleton<ISerializer>(serializer);
+		// MemoryPack-specific: binary envelope support for inbox/outbox processors.
 		services.TryAddSingleton<IBinaryEnvelopeDeserializer, MemoryPackEnvelopeDeserializer>();
 
-		// Serializer registry: register MemoryPack and set as current
-		services.PostConfigure<PluggableSerializationOptions>(options =>
-		{
-			options.AddRegistration(registry => registry.Register(SerializerIds.MemoryPack, serializer));
-			options.CurrentSerializerName = "MemoryPack";
-		});
-
-		return services;
+		return services.SetCurrentSerializer(SerializerIds.MemoryPack, serializer, "MemoryPack");
 	}
 }

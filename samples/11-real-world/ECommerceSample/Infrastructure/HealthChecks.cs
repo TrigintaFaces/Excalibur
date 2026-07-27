@@ -200,6 +200,8 @@ public sealed partial class EnhancedStoreHealthCheck(
 			await _outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 
 			// Get unsent messages to verify staging worked
+			// This probe drains in-process, so no leadership tenure applies. The token is stated, never defaulted:
+			// a caller that omits it is not choosing an unfenced write, and a fenced deployment must pass its own token.
 			var unsentMessages = await _outboxStore.GetUnsentMessagesAsync(10, cancellationToken)
 				.ConfigureAwait(false);
 			if (!unsentMessages.Any(m => m.Id == testMessageId))

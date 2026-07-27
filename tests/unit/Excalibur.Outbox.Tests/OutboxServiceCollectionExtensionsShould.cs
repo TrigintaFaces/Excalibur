@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Delivery;
@@ -181,27 +181,6 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddExcaliburOutbox_WithBuilderAction_AppliesCleanupConfiguration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(outbox =>
-		{
-			_ = outbox.WithCleanup(c => c
-				.EnableAutoCleanup(false)
-				.RetentionPeriod(TimeSpan.FromDays(30)));
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-	}
-
-	[Fact]
 	public void AddExcaliburOutbox_WithBuilderAction_AppliesFullConfiguration()
 	{
 		// Arrange
@@ -218,10 +197,6 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 					.RetryDelay(TimeSpan.FromMinutes(2))
 					.ProcessorId("my-processor")
 					.EnableParallelProcessing(8))
-				.WithCleanup(c => c
-					.EnableAutoCleanup(true)
-					.RetentionPeriod(TimeSpan.FromDays(14))
-					.CleanupInterval(TimeSpan.FromHours(6)))
 				.EnableBackgroundProcessing();
 		});
 		var provider = services.BuildServiceProvider();
@@ -235,9 +210,6 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 		options.ProcessorId.ShouldBe("my-processor");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(8);
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 

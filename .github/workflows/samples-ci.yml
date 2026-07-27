@@ -1,4 +1,4 @@
-# Sprint 427 T427.2: Sample Build Validation Workflow
+# Sample Build Validation Workflow
 # Purpose: Build all samples to catch breaking changes early
 # Owner: PlatformDeveloper
 # Beads ID: 0ppk0
@@ -52,7 +52,7 @@ jobs:
       sample_count: ${{ steps.list.outputs.sample_count }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -94,13 +94,13 @@ jobs:
         sample: ${{ fromJson(needs.enumerate-samples.outputs.samples) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -108,7 +108,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-samples-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -123,9 +123,11 @@ jobs:
 
       - name: Build sample
         id: build
+        # -warnaserror: shipped samples must build warning-clean — a warning is a defect a consumer
+        # copies. This is the single enforcement path for sample warnings-as-errors.
         run: |
           echo "🔨 Building ${{ matrix.sample }}..."
-          if dotnet build samples/${{ matrix.sample }} --configuration Release --no-restore --verbosity minimal; then
+          if dotnet build samples/${{ matrix.sample }} --configuration Release --no-restore -warnaserror --verbosity minimal; then
             echo "✅ ${{ matrix.sample }} built successfully"
             echo "status=success" >> $GITHUB_OUTPUT
           else
@@ -178,7 +180,7 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Sprint 427 T427.2 - Sample CI Validation*" >> $GITHUB_STEP_SUMMARY
+          echo "*Sample CI Validation*" >> $GITHUB_STEP_SUMMARY
 
       - name: Check overall status
         if: needs.enumerate-samples.outputs.sample_count != '0' && needs.build-samples.result != 'success'

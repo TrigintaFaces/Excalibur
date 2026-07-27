@@ -8,8 +8,10 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 /// <param name="Adapter"> The transport adapter. </param>
 /// <param name="TransportType"> The transport type. </param>
+/// <param name="Locality"> Whether the transport delivers in-process or across a network boundary. </param>
 /// <param name="Options"> The transport options. </param>
 public sealed record TransportRegistration(
 	ITransportAdapter Adapter,
 	string TransportType,
+	TransportLocality Locality,
 	Dictionary<string, object> Options);

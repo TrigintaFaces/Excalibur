@@ -22,7 +22,9 @@ public sealed class InMemoryTransportSenderConformanceShould : TransportSenderCo
 	public void Dispose()
 	{
 		// InMemoryTransportReceiver.DisposeAsync is synchronous (returns ValueTask.CompletedTask)
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		_receiver?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+		#pragma warning restore RS0030
 		_receiver = null;
 	}
 

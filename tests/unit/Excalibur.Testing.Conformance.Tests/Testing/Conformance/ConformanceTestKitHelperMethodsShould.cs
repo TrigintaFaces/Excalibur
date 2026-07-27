@@ -202,35 +202,10 @@ public sealed class ConformanceTestKitHelperMethodsShould
 		events.Count.ShouldBe(5);
 	}
 
-	[Fact]
-	public void EventStore_CreateTestEvents_ShouldSetCorrectVersions()
-	{
-		// Arrange
-		var testKit = new TestableEventStoreKit();
-		var aggregateId = "test-aggregate";
-
-		// Act
-		var events = testKit.PublicCreateTestEvents(aggregateId, 3, startVersion: 10);
-
-		// Assert
-		events[0].Version.ShouldBe(10);
-		events[1].Version.ShouldBe(11);
-		events[2].Version.ShouldBe(12);
-	}
-
-	[Fact]
-	public void EventStore_CreateTestEvents_ShouldSetCorrectAggregateId()
-	{
-		// Arrange
-		var testKit = new TestableEventStoreKit();
-		var aggregateId = "my-aggregate-999";
-
-		// Act
-		var events = testKit.PublicCreateTestEvents(aggregateId, 2);
-
-		// Assert
-		events.All(e => e.AggregateId == aggregateId).ShouldBeTrue();
-	}
+	// Removed EventStore_CreateTestEvents_ShouldSetCorrectVersions and
+	// EventStore_CreateTestEvents_ShouldSetCorrectAggregateId: IDomainEvent no longer exposes
+	// Version/AggregateId — those moved to the persistence envelope (StoredEvent.Version/AggregateId,
+	// HistoricEvent.Version), covered by the event-store persistence conformance tests.
 
 	[Fact]
 	public void EventStore_GenerateAggregateId_ShouldReturnValidGuid()

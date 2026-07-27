@@ -89,37 +89,6 @@ public sealed class ServerlessServiceCollectionExtensionsShould : UnitTestBase
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IServerlessHostProviderFactory));
 	}
-
-	[Fact]
-	public void AddAwsLambdaHosting_WithConfigureAction_Succeeds()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddAwsLambdaHosting(options =>
-		{
-			options.Runtime = "dotnet10";
-		});
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IServerlessHostProviderFactory));
-	}
-
-	[Fact]
-	public void AddAwsLambdaHosting_WithConfigureAction_ConfiguresPreferredPlatformAndAwsOptions()
-	{
-		var services = new ServiceCollection();
-
-		_ = services.AddAwsLambdaHosting(options => options.Runtime = "dotnet10");
-		using var provider = services.BuildServiceProvider();
-		var hostOptions = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
-		var awsOptions = provider.GetRequiredService<IOptions<AwsLambdaOptions>>().Value;
-
-		hostOptions.PreferredPlatform.ShouldBe(ServerlessPlatform.AwsLambda);
-		awsOptions.Runtime.ShouldBe("dotnet10");
-	}
-
 	#endregion
 
 	#region AddAzureFunctionsHosting Tests
@@ -144,37 +113,6 @@ public sealed class ServerlessServiceCollectionExtensionsShould : UnitTestBase
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IServerlessHostProviderFactory));
 	}
-
-	[Fact]
-	public void AddAzureFunctionsHosting_WithConfigureAction_Succeeds()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddAzureFunctionsHosting(options =>
-		{
-			options.EnableDurableFunctions = true;
-		});
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IServerlessHostProviderFactory));
-	}
-
-	[Fact]
-	public void AddAzureFunctionsHosting_WithConfigureAction_ConfiguresPreferredPlatformAndAzureOptions()
-	{
-		var services = new ServiceCollection();
-
-		_ = services.AddAzureFunctionsHosting(options => options.EnableDurableFunctions = true);
-		using var provider = services.BuildServiceProvider();
-		var hostOptions = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
-		var azureOptions = provider.GetRequiredService<IOptions<AzureFunctionsOptions>>().Value;
-
-		hostOptions.PreferredPlatform.ShouldBe(ServerlessPlatform.AzureFunctions);
-		azureOptions.EnableDurableFunctions.ShouldBeTrue();
-	}
-
 	#endregion
 
 	#region AddGoogleCloudFunctionsHosting Tests
@@ -199,37 +137,6 @@ public sealed class ServerlessServiceCollectionExtensionsShould : UnitTestBase
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(IServerlessHostProviderFactory));
 	}
-
-	[Fact]
-	public void AddGoogleCloudFunctionsHosting_WithConfigureAction_Succeeds()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddGoogleCloudFunctionsHosting(options =>
-		{
-			options.MinInstances = 1;
-		});
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IServerlessHostProviderFactory));
-	}
-
-	[Fact]
-	public void AddGoogleCloudFunctionsHosting_WithConfigureAction_ConfiguresPreferredPlatformAndGoogleOptions()
-	{
-		var services = new ServiceCollection();
-
-		_ = services.AddGoogleCloudFunctionsHosting(options => options.MinInstances = 2);
-		using var provider = services.BuildServiceProvider();
-		var hostOptions = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
-		var googleOptions = provider.GetRequiredService<IOptions<GoogleCloudFunctionsOptions>>().Value;
-
-		hostOptions.PreferredPlatform.ShouldBe(ServerlessPlatform.GoogleCloudFunctions);
-		googleOptions.MinInstances.ShouldBe(2);
-	}
-
 	#endregion
 
 	#region AddCustomServerlessProvider Tests

@@ -133,4 +133,32 @@ public sealed class IntervalSnapshotStrategyShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => strategy.ShouldCreateSnapshot(null!));
 	}
+
+	[Fact]
+	public void Constructor_ThrowArgumentOutOfRange_WhenIntervalIsZero()
+	{
+		// interval==0 would throw DivideByZeroException on every snapshot-decision call.
+		// Fail fast at configuration time instead.
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => new IntervalSnapshotStrategy(interval: 0));
+	}
+
+	[Theory]
+	[InlineData(-1)]
+	[InlineData(-100)]
+	public void Constructor_ThrowArgumentOutOfRange_WhenIntervalIsNegative(int interval)
+	{
+		// A negative interval yields nonsensical modulo results — reject it up front.
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => new IntervalSnapshotStrategy(interval));
+	}
+
+	[Fact]
+	public void Constructor_Succeed_WhenIntervalIsPositive()
+	{
+		// Liveness: the honest configuration path still constructs and evaluates.
+		var strategy = new IntervalSnapshotStrategy(interval: 1);
+		var aggregate = A.Fake<IAggregateRoot>();
+		_ = A.CallTo(() => aggregate.Version).Returns(1);
+
+		strategy.ShouldCreateSnapshot(aggregate).ShouldBeTrue();
+	}
 }

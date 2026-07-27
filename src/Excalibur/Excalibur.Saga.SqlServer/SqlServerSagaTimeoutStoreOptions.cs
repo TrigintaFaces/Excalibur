@@ -39,6 +39,24 @@ public sealed class SqlServerSagaTimeoutStoreOptions
 	public string QualifiedTableName => $"[{SchemaName}].[{TableName}]";
 
 	/// <summary>
+	/// Gets or sets the identifier this processor uses when claiming due timeouts.
+	/// </summary>
+	/// <value>
+	/// A value that uniquely identifies this process among all processors sharing the timeout
+	/// table. Defaults to <c>{MachineName}:{ProcessId}</c>.
+	/// </value>
+	[Required]
+	public string ProcessorId { get; set; } = $"{Environment.MachineName}:{Environment.ProcessId}";
+
+	/// <summary>
+	/// Gets or sets the number of seconds a claim lease is held before it is considered stale
+	/// and eligible for another processor to reclaim.
+	/// </summary>
+	/// <value>The lease duration, in seconds. Defaults to 120 seconds.</value>
+	[Range(1, int.MaxValue)]
+	public int LeaseTimeoutSeconds { get; set; } = 120;
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	public void Validate()
@@ -56,5 +74,10 @@ public sealed class SqlServerSagaTimeoutStoreOptions
 		}
 
 		SqlIdentifierValidator.ThrowIfInvalid(TableName, nameof(TableName));
+
+		if (string.IsNullOrWhiteSpace(ProcessorId))
+		{
+			throw new InvalidOperationException("ProcessorId is required.");
+		}
 	}
 }

@@ -11,7 +11,7 @@ namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
 /// Decorator that routes <see cref="ISagaStore"/> operations to the correct
-/// tenant's shard based on the current <see cref="ITenantId"/>.
+/// tenant's shard based on the current <see cref="ITenantContext"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,7 +22,7 @@ namespace Excalibur.EventSourcing.Sharding;
 internal sealed class TenantRoutingSagaStore : ISagaStore
 {
 	private readonly ITenantStoreResolver<ISagaStore> _resolver;
-	private readonly ITenantId _tenantId;
+	private readonly ITenantContext _tenantContext;
 
 	// Binds each saga instance to the tenant it was resolved under, so a later save under a different
 	// ambient tenant (cross-tenant step, background timeout, retry on a drifted scope) is detected
@@ -32,13 +32,13 @@ internal sealed class TenantRoutingSagaStore : ISagaStore
 
 	internal TenantRoutingSagaStore(
 		ITenantStoreResolver<ISagaStore> resolver,
-		ITenantId tenantId)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(resolver);
-		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_resolver = resolver;
-		_tenantId = tenantId;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc />
@@ -88,13 +88,49 @@ internal sealed class TenantRoutingSagaStore : ISagaStore
 		_loadedTenants[sagaState.SagaId] = tenantId;
 	}
 
+	/// <inheritdoc />
+	/// <remarks>
+	/// Purges completed sagas on the <b>current ambient tenant's shard</b>, consistent with this decorator's
+	/// per-tenant routing model (saga state lives on its initiating tenant's shard). Retention is driven
+	/// per-tenant; call once per tenant scope to purge each shard.
+	/// </remarks>
+	public Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		var tenantId = ResolveTenant();
+		var store = _resolver.Resolve(tenantId);
+		return store.PurgeCompletedBeforeAsync(threshold, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// <para>
+	/// <b>Not supported by a sharded store, deliberately.</b> An estate-wide purge must reach every shard, and
+	/// <see cref="ITenantStoreResolver{TStore}"/> resolves a shard for a tenant it is given — it cannot enumerate
+	/// the tenants or shards that exist. There is no way to visit them all from here.
+	/// </para>
+	/// <para>
+	/// This throws rather than forwarding to the ambient tenant's shard, because forwarding would purge one
+	/// shard while reporting a count that reads as estate-wide. A partial deletion that reports success is worse
+	/// than a refusal: the operator would believe retention ran and every other shard would silently grow. Drive
+	/// retention per shard instead — establish each tenant's scope and call
+	/// <see cref="PurgeCompletedBeforeAsync"/> once per tenant.
+	/// </para>
+	/// </remarks>
+	public Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			"A tenant-routing saga store cannot purge across all tenants: the shard resolver routes a known " +
+			"tenant to its shard and cannot enumerate the shards that exist, so no estate-wide sweep is " +
+			"reachable from here. Purging only the ambient tenant's shard would report a count that reads as " +
+			"estate-wide while every other shard kept growing. Drive retention per shard: establish each " +
+			"tenant's scope and call PurgeCompletedBeforeAsync once per tenant.");
+
 	private string ResolveTenant()
 	{
-		var tenantId = _tenantId.Value;
+		var tenantId = _tenantContext.TenantId;
 		if (string.IsNullOrEmpty(tenantId))
 		{
 			throw new InvalidOperationException(
-				"Tenant ID is not set. Ensure ITenantId is populated before accessing the saga store.");
+				"No ambient tenant is resolved. Ensure the tenant is established (TenantContextHolder.BeginScope) before accessing the saga store.");
 		}
 
 		return tenantId;

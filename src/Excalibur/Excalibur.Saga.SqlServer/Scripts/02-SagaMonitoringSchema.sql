@@ -7,7 +7,7 @@
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dispatch.sagas') AND name = 'CompletedAt')
 BEGIN
     ALTER TABLE dispatch.sagas
-    ADD CompletedAt DATETIME2 NULL;
+    ADD CompletedAt DATETIMEOFFSET(7) NULL;
 END
 GO
 

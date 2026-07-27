@@ -4,8 +4,12 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 using Dapper;
+
+using Excalibur.Data;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 
@@ -34,13 +38,18 @@ namespace Excalibur.EventSourcing.Postgres;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TProjection>
+public sealed partial class PostgresProjectionStore<TProjection> : IProjectionStore<TProjection>
 	where TProjection : class
 {
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly string _tableName;
 	private readonly ILogger<PostgresProjectionStore<TProjection>> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
+	private readonly ITenantContext? _tenantContext;
+
+	// Row-level tenant discriminator predicate, single-sourced so the Postgres column name and
+	// parameter (tenant_id = @TenantId) are not repeated across the read/delete/query builders.
+	private const string TenantColumnPredicate = "tenant_id = @TenantId";
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresProjectionStore{TProjection}"/> class.
@@ -49,6 +58,14 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tableName">Optional table name. Defaults to projection type name in snake_case.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Every query is scoped to the resolved tenant (row-level <c>tenant_id</c>
+	/// discriminator) in the same atomic statement, and fails closed: if no tenant resolves — because the
+	/// context is <see langword="null"/> or its ambient tenant is null/whitespace — the operation throws
+	/// <see cref="System.ArgumentException"/> rather than returning every tenant's rows. Dependency injection
+	/// always registers a non-null default context, so single-tenant applications resolve the built-in
+	/// default tenant automatically.
+	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
 	/// </remarks>
@@ -56,8 +73,9 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		string connectionString,
 		ILogger<PostgresProjectionStore<TProjection>> logger,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null)
-		: this(CreateDataSource(connectionString), logger, tableName, jsonOptions)
+		JsonSerializerOptions? jsonOptions = null,
+		ITenantContext? tenantContext = null)
+		: this(CreateDataSource(connectionString), logger, tableName, jsonOptions, tenantContext)
 	{
 	}
 
@@ -71,6 +89,9 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tableName">Optional table name. Defaults to projection type name in snake_case.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context for row-level tenant scoping (see the simple constructor's remarks).
+	/// </param>
 	/// <remarks>
 	/// This is the advanced constructor for scenarios requiring custom connection management.
 	/// </remarks>
@@ -78,16 +99,19 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresProjectionStore<TProjection>> logger,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null)
+		JsonSerializerOptions? jsonOptions = null,
+		ITenantContext? tenantContext = null)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext;
 		_tableName = tableName ?? ToSnakeCase(typeof(TProjection).Name);
-		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
-		{
-			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			WriteIndented = false
-		};
+		// Read-model serialization — intentionally NOT the event canonical contract (a view is not an event;
+		// consumer-injectable). The projection read-model contract preserves numeric enums: this JSON is a
+		// queryable, consumer-facing surface (SQL/search filters) where enum-as-string would break
+		// range/equality queries. Sourced from the shared ProjectionSerializationDefaults factory so every
+		// projection store persists a consistent document shape.
+		_jsonOptions = jsonOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 	/// <inheritdoc/>
 	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
@@ -101,14 +125,22 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-		var sql = $"""
-		           SELECT data FROM "{_tableName}" WHERE id = @Id
-		           """;
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		var tenantPredicate = " AND " + TenantColumnPredicate;
+		var sql = $"SELECT data FROM \"{_tableName}\" WHERE id = @Id{tenantPredicate}";
+
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		var json = await connection.QuerySingleOrDefaultAsync<string>(
-				new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken))
+				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
 		if (json is null)
@@ -132,22 +164,43 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 		ArgumentNullException.ThrowIfNull(projection);
 
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+
+		// Tenant scoping rides the upsert atomically: the tenant discriminator is stamped on INSERT and is
+		// part of the ON CONFLICT target, so a tenant-A upsert can never conflict with (and overwrite) a
+		// tenant-B row that shares the same id — they are distinct (id, tenant_id) rows. Tenant-facing write —
+		// fails closed: a null/blank ambient tenant is rejected up front. (Requires a composite UNIQUE
+		// (id, tenant_id) in the tenant-scoped table DDL.)
+		var insertTenantColumn = ", tenant_id";
+		var insertTenantValue = ", @TenantId";
+		var conflictTarget = "(id, tenant_id)";
+
 		var sql = $"""
-		           INSERT INTO "{_tableName}" (id, data, created_at, updated_at)
-		           VALUES (@Id, @Data::jsonb, @UpdatedAt, @UpdatedAt)
-		           ON CONFLICT (id)
+		           INSERT INTO "{_tableName}" (id, data, created_at, updated_at{insertTenantColumn})
+		           VALUES (@Id, @Data::jsonb, @UpdatedAt, @UpdatedAt{insertTenantValue})
+		           ON CONFLICT {conflictTarget}
 		           DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
 		           """;
 
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
 		var now = DateTimeOffset.UtcNow;
 
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@Data", json);
+		parameters.Add("@UpdatedAt", now);
+		parameters.Add("@TenantId", tenantId);
+
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		_ = await connection.ExecuteAsync(
 				new CommandDefinition(
 					sql,
-					new { Id = id, Data = json, UpdatedAt = now },
+					parameters,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -161,14 +214,22 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-		var sql = $"""
-		           DELETE FROM "{_tableName}" WHERE id = @Id
-		           """;
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		var tenantPredicate = " AND " + TenantColumnPredicate;
+		var sql = $"DELETE FROM \"{_tableName}\" WHERE id = @Id{tenantPredicate}";
+
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		_ = await connection.ExecuteAsync(
-				new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken))
+				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
 		_logger.LogDebug("Deleted projection {ProjectionType}/{Id}", typeof(TProjection).Name, id);
@@ -180,7 +241,7 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		QueryOptions? options,
 		CancellationToken cancellationToken)
 	{
-		var (whereClause, parameters) = BuildWhereClause(filters);
+		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 		var orderByClause = BuildOrderByClause(options);
 		var paginationClause = BuildPaginationClause(options, parameters);
 
@@ -206,7 +267,7 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		IDictionary<string, object>? filters,
 		CancellationToken cancellationToken)
 	{
-		var (whereClause, parameters) = BuildWhereClause(filters);
+		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 
 		var sql = $"""
 		           SELECT COUNT(*) FROM "{_tableName}"
@@ -248,6 +309,37 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		return result.ToString();
 	}
 
+	/// <summary>
+	/// Builds the filter WHERE clause and appends the row-level tenant predicate
+	/// (<c>tenant_id = @TenantId</c>) so every read is scoped to the current tenant in the same statement.
+	/// Fails closed: a null or whitespace ambient tenant throws <see cref="System.ArgumentException"/>
+	/// rather than returning every tenant's rows.
+	/// </summary>
+	private (string WhereClause, DynamicParameters Parameters) BuildTenantScopedWhereClause(
+		IDictionary<string, object>? filters)
+	{
+		var (whereClause, parameters) = BuildWhereClause(filters);
+
+		// Fail closed: a projection query is a tenant-facing consumer read, so a null ambient tenant under
+		// multi-tenancy must throw rather than silently return every tenant's rows (symmetric with the
+		// keyed ops and the event-store fdepwq fix). The single-tenant default context is non-null.
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+
+		parameters.Add("@TenantId", tenantId);
+		whereClause = string.IsNullOrEmpty(whereClause)
+			? "WHERE " + TenantColumnPredicate
+			: whereClause + " AND " + TenantColumnPredicate;
+
+		return (whereClause, parameters);
+	}
+
+	[GeneratedRegex(@"^[a-zA-Z][a-zA-Z0-9_]*$")]
+	private static partial Regex ValidPropertyNameRegex();
+
 	private static (string WhereClause, DynamicParameters Parameters) BuildWhereClause(
 		IDictionary<string, object>? filters)
 	{
@@ -264,6 +356,19 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		foreach (var (key, value) in filters)
 		{
 			var parsed = FilterParser.Parse(key);
+
+			// Validate the property name to prevent SQL injection via the JSON path (parity with the
+			// SqlServer sibling): the name is interpolated into the statement, so a non-identifier name
+			// could break out of the data->>'…' literal. Covers the In operator too — BuildInCondition
+			// receives the jsonPath derived from this validated name.
+			if (!ValidPropertyNameRegex().IsMatch(parsed.PropertyName))
+			{
+				throw new ArgumentException(
+					$"Filter property name '{parsed.PropertyName}' contains invalid characters. " +
+					"Only alphanumeric characters and underscores are allowed, starting with a letter.",
+					nameof(filters));
+			}
+
 			var paramName = $"p{paramIndex++}";
 
 			// For Postgres JSONB, use ->> for text extraction
@@ -334,6 +439,16 @@ public sealed class PostgresProjectionStore<TProjection> : IProjectionStore<TPro
 		if (options?.OrderBy is null)
 		{
 			return "ORDER BY id"; // Default ordering for consistent pagination
+		}
+
+		// Validate the OrderBy property name to prevent SQL injection via the JSON path (parity with the
+		// SqlServer sibling): the name is interpolated into the ORDER BY clause.
+		if (!ValidPropertyNameRegex().IsMatch(options.OrderBy))
+		{
+			throw new ArgumentException(
+				$"OrderBy property name '{options.OrderBy}' contains invalid characters. " +
+				"Only alphanumeric characters and underscores are allowed, starting with a letter.",
+				nameof(options));
 		}
 
 		var jsonPath = char.ToLowerInvariant(options.OrderBy[0]) + options.OrderBy[1..];

@@ -171,12 +171,21 @@ public sealed class TransportAdapterIspShould
 	private static InMemoryTransportAdapter CreateInMemoryAdapter() =>
 		new(NullLogger<InMemoryTransportAdapter>.Instance);
 
-	private static CronTimerTransportAdapter CreateCronTimerAdapter() =>
-		new(
+	private static CronTimerTransportAdapter CreateCronTimerAdapter()
+	{
+		// The adapter ctor resolves an OPTIONAL TimeProvider via serviceProvider.GetService<TimeProvider>()
+		// (falls back to TimeProvider.System when absent). A bare A.Fake<IServiceProvider>() returns a
+		// non-null proxy for every GetService call, which then fails to cast to TimeProvider. Return null so
+		// the ctor takes its documented System-clock fallback.
+		var serviceProvider = A.Fake<IServiceProvider>();
+		_ = A.CallTo(() => serviceProvider.GetService(typeof(TimeProvider))).Returns(null);
+
+		return new(
 			NullLogger<CronTimerTransportAdapter>.Instance,
 			A.Fake<Excalibur.Dispatch.Delivery.ICronScheduler>(),
-			A.Fake<IServiceProvider>(),
+			serviceProvider,
 			new CronTimerTransportAdapterOptions { CronExpression = "*/5 * * * *" });
+	}
 
 	#endregion
 }

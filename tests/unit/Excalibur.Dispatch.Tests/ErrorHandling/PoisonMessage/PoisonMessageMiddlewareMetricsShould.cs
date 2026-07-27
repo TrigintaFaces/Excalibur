@@ -55,8 +55,12 @@ public sealed class PoisonMessageMiddlewareMetricsShould
 	[Fact]
 	public async Task RecordDeadLettered_WhenPoisonMovedToDeadLetterQueue()
 	{
+		// Unique per-test detector name so the assertion attributes measurements to THIS invocation and is
+		// immune to foreign emissions on the process-global static counter (see NotRecord… test remarks).
+		var detectorName = "TestDetector-" + Guid.NewGuid().ToString("N");
+
 		var recorded = await CaptureAsync(
-			PoisonDetectionResult.Poison(reason: "bad payload", detectorName: "TestDetector"),
+			PoisonDetectionResult.Poison(reason: "bad payload", detectorName: detectorName),
 			expectThrow: false);
 
 		// w4m560: the free-form detection reason ("bad payload") must NOT appear in the metric tag —
@@ -65,7 +69,7 @@ public sealed class PoisonMessageMiddlewareMetricsShould
 		recorded.Any(m =>
 			m.Name == DeadLetteredCounter
 			&& m.Value == 1
-			&& m.Tags.Any(t => t.Key == "poison.detector" && (string?)t.Value == "TestDetector")
+			&& m.Tags.Any(t => t.Key == "poison.detector" && (string?)t.Value == detectorName)
 			&& m.Tags.Any(t => t.Key == "poison.reason"
 				&& (string?)t.Value == nameof(Excalibur.Dispatch.ErrorHandling.DeadLetterReason.PoisonMessage)))
 			.ShouldBeTrue("dead-lettering a poison message must emit dispatch.poison.dead_lettered with a bounded poison.reason");
@@ -75,9 +79,25 @@ public sealed class PoisonMessageMiddlewareMetricsShould
 	public async Task NotRecordDeadLettered_WhenFailureIsNotPoison()
 	{
 		// Not poison ⇒ the middleware re-throws and never routes to the DLQ, so the counter must not fire.
-		var recorded = await CaptureAsync(PoisonDetectionResult.NotPoison(), expectThrow: true);
+		//
+		// Determinism (bd-0vdh57): PoisonMeter/DeadLetteredCounter are process-global `static` instruments
+		// (ADR-142 lifecycle), so a MeterListener bound to the meter captures EVERY measurement during its
+		// window — including a late/background emission from another test in the assembly under heavy
+		// (superset-sweep) load. A bare `recorded.Any(name == DeadLetteredCounter)` therefore flaked
+		// (foreign contamination). We attribute the measurement to THIS invocation by keying on a unique
+		// detector name: the middleware tags the counter with `poison.detector = detectionResult.DetectorName`,
+		// so a mutant that emits on the not-poison path is still caught (RED), while foreign emissions bearing
+		// other detector names are correctly ignored.
+		var detectorName = "NotPoisonDetector-" + Guid.NewGuid().ToString("N");
 
-		recorded.Any(m => m.Name == DeadLetteredCounter).ShouldBeFalse();
+		var recorded = await CaptureAsync(
+			new PoisonDetectionResult { IsPoison = false, DetectorName = detectorName },
+			expectThrow: true);
+
+		recorded.Any(m =>
+			m.Name == DeadLetteredCounter
+			&& m.Tags.Any(t => t.Key == "poison.detector" && (string?)t.Value == detectorName))
+			.ShouldBeFalse("a non-poison failure must not emit dispatch.poison.dead_lettered");
 	}
 
 	private static async Task<List<RecordedMeasurement>> CaptureAsync(PoisonDetectionResult detection, bool expectThrow)

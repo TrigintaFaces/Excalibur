@@ -82,16 +82,6 @@ public sealed class DeliveryOptionsShould
 	}
 
 	[Fact]
-	public void FilteredInvokerOptions_HaveDefaults()
-	{
-		var opts = new FilteredInvokerOptions();
-
-		opts.EnableCaching.ShouldBeTrue();
-		opts.IncludeMiddlewareOnFilterError.ShouldBeFalse();
-		opts.MaxCachedEntries.ShouldBe(64);
-	}
-
-	[Fact]
 	public void InboxOptions_HaveDefaults()
 	{
 		var opts = new DeliveryInboxOptions();
@@ -200,15 +190,6 @@ public sealed class DeliveryOptionsShould
 
 		opts.ThreadLocalCacheSize.ShouldBe(16);
 		opts.EnableTelemetry.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void MiddlewareApplicabilityOptions_HaveDefaults()
-	{
-		var opts = new MiddlewareApplicabilityOptions();
-
-		opts.IncludeOnError.ShouldBeFalse();
-		opts.EnableCaching.ShouldBeTrue();
 	}
 
 	[Fact]

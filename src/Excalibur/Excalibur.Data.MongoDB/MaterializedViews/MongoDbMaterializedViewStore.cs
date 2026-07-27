@@ -29,10 +29,12 @@ namespace Excalibur.Data.MongoDB.MaterializedViews;
 /// </list>
 /// </para>
 /// <para>
-/// Uses ReplaceOneAsync with IsUpsert=true for thread-safe upsert operations.
+/// View documents are written with an upserting replace. Checkpoint positions are never replaced: every
+/// write path advances them with <c>$max</c>, so a delayed or retried write carrying an older position
+/// cannot rewind the checkpoint and replay events the projection has already applied.
 /// </para>
 /// </remarks>
-public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStore, IAsyncDisposable
+public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedViewStore, IAsyncDisposable
 {
 	private readonly MongoDbMaterializedViewStoreOptions _options;
 	private readonly ILogger<MongoDbMaterializedViewStore> _logger;
@@ -213,21 +215,105 @@ public sealed partial class MongoDbMaterializedViewStore : IMaterializedViewStor
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var now = DateTimeOffset.UtcNow;
-		var document = new MongoDbMaterializedViewPositionDocument
+
+		// Monotonic position advance ($max never lowers a higher checkpoint), matching SaveViewAndPositionAsync.
+		// A blind replace would let a delayed or retried write carrying an older position rewind the checkpoint,
+		// replaying events the projection has already applied. $max is evaluated by the server, so concurrent
+		// writers need no read-then-write coordination here.
+		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
+		var update = Builders<MongoDbMaterializedViewPositionDocument>.Update
+			.Max(d => d.Position, position)
+			.Set(d => d.ViewName, viewName)
+			.Set(d => d.UpdatedAt, now)
+			.SetOnInsert(d => d.CreatedAt, now);
+		var updateOptions = new UpdateOptions { IsUpsert = true };
+
+		_ = await _positionsCollection!.UpdateOneAsync(filter, update, updateOptions, cancellationToken)
+			.ConfigureAwait(false);
+
+		LogPositionSaved(viewName, position);
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Reads the option that actually governs the behaviour rather than a proxy for it. MongoDB commits the
+	/// view and the checkpoint together only inside a multi-document transaction, which requires
+	/// <c>UseTransactions</c> and a replica set or sharded cluster. With it disabled the two writes are
+	/// unsynchronised, so this store reports that it cannot currently deliver exactly-once.
+	/// </remarks>
+	public bool SupportsAtomicWrites => _options.UseTransactions;
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Crash-atomic: the view replace and the checkpoint advance run in one multi-document ACID transaction,
+	/// which requires <c>UseTransactions</c> and a replica set or sharded cluster. When <c>UseTransactions</c>
+	/// is disabled the two writes cannot be committed together and this method throws rather than degrade to
+	/// at-least-once; <see cref="SupportsAtomicWrites"/> reports that state before it is reached. The position
+	/// advance is monotonic (<c>$max</c>), so a delayed write never rewinds the checkpoint.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException"><c>UseTransactions</c> is disabled.</exception>
+	public async ValueTask SaveViewAndPositionAsync<TView>(
+		string viewName,
+		string viewId,
+		TView view,
+		long position,
+		CancellationToken cancellationToken)
+		where TView : class
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewId);
+		ArgumentNullException.ThrowIfNull(view);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var now = DateTimeOffset.UtcNow;
+		var viewDocument = new MongoDbMaterializedViewDocument
 		{
-			Id = viewName,
+			Id = MongoDbMaterializedViewDocument.CreateId(viewName, viewId),
 			ViewName = viewName,
-			Position = position,
+			ViewId = viewId,
+			Data = view.ToBsonDocument(),
 			CreatedAt = now,
 			UpdatedAt = now
 		};
-
-		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
+		var viewFilter = Builders<MongoDbMaterializedViewDocument>.Filter.Eq(d => d.Id, viewDocument.Id);
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
-		_ = await _positionsCollection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
-			.ConfigureAwait(false);
+		// Monotonic position advance ($max never lowers a higher checkpoint).
+		var positionFilter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(d => d.Id, viewName);
+		var positionUpdate = Builders<MongoDbMaterializedViewPositionDocument>.Update
+			.Max(d => d.Position, position)
+			.Set(d => d.ViewName, viewName)
+			.Set(d => d.UpdatedAt, now)
+			.SetOnInsert(d => d.CreatedAt, now);
+		var updateOptions = new UpdateOptions { IsUpsert = true };
 
+		// The view and the position live in two collections, so only a multi-document transaction commits
+		// them together. Without one this method cannot keep the promise its interface makes, and quietly
+		// issuing the two writes anyway would degrade an exactly-once projection to at-least-once at
+		// runtime — invisibly, and only observable as a double-counted view after a crash. Refuse instead.
+		// A caller reaching this throw was constructed past MaterializedViewProcessor's startup check.
+		if (!_options.UseTransactions)
+		{
+			throw new InvalidOperationException(
+				"MongoDbMaterializedViewStore cannot save a view and its checkpoint atomically because "
+				+ "UseTransactions is disabled. Multi-document transactions require a replica set or sharded "
+				+ "cluster; enable UseTransactions on MongoDbMaterializedViewStoreOptions, or back exactly-once "
+				+ "projections with a store whose atomic writes are unconditional.");
+		}
+
+		using var session = await _client!.StartSessionAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+		_ = await session.WithTransactionAsync(
+			async (s, ct) =>
+			{
+				_ = await _viewsCollection!.ReplaceOneAsync(s, viewFilter, viewDocument, replaceOptions, ct).ConfigureAwait(false);
+				_ = await _positionsCollection!.UpdateOneAsync(s, positionFilter, positionUpdate, updateOptions, ct).ConfigureAwait(false);
+				return true;
+			},
+			cancellationToken: cancellationToken).ConfigureAwait(false);
+
+		LogViewSaved(viewName, viewId);
 		LogPositionSaved(viewName, position);
 	}
 

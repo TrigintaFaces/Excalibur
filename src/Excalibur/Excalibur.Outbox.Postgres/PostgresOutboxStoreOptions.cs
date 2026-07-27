@@ -48,9 +48,39 @@ public sealed class PostgresOutboxStoreOptions : DispatchOutboxOptions
 			$"\"{SchemaName}\".\"{DeadLetterTableName}\"";
 
 	/// <summary>
+	/// Gets or sets the name of the table that holds the leadership-fencing high-water mark.
+	/// </summary>
+	/// <value>
+	/// The fence control-table name. Defaults to "outbox_fence". This dedicated single-row-per-scope
+	/// control table stores the fencing high-water mark durably, independent of the outbox rows themselves,
+	/// so the high-water survives the delete-on-sent drain (unlike a live-row <c>MAX(fencing_token)</c>,
+	/// which would reset once the winning rows are deleted).
+	/// </value>
+	[Required]
+	public string FenceTableName { get; set; } = "outbox_fence";
+
+	/// <summary>
+	/// Gets the fully qualified name for the fence control table.
+	/// </summary>
+	/// <value>The qualified table name in format "schema"."table".</value>
+	public string QualifiedFenceTableName => $"\"{SchemaName}\".\"{FenceTableName}\"";
+
+	/// <summary>
 	/// Gets or sets the timeout duration (in seconds) for message reservation operations.
 	/// </summary>
 	/// <value>The reservation timeout in seconds for outbox message processing. Defaults to 300 (5 minutes).</value>
 	[Range(1, int.MaxValue)]
 	public int ReservationTimeout { get; set; } = 300;
+
+	/// <summary>
+	/// Gets or sets the failure-backoff floor F, in seconds: after <c>MarkFailedAsync</c> records a
+	/// sub-ceiling failure, the message is not re-claimable by the drain until F has elapsed. This bounds the
+	/// retry cadence of the plain (no fine-grained backoff) path so it cannot hot-loop the drain, while the
+	/// message remains eventually re-claimable (at-least-once). F is a DEDICATED backoff floor, decoupled
+	/// from <see cref="ReservationTimeout"/> (the reservation window), and MUST exceed the outbox polling
+	/// interval (default 5 s) — the default satisfies that for the default polling interval.
+	/// </summary>
+	/// <value>The failure-backoff floor in seconds. Defaults to 30 (uniform across the outbox family).</value>
+	[Range(1, int.MaxValue)]
+	public int FailureBackoffFloorSeconds { get; set; } = 30;
 }

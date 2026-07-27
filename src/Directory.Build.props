@@ -10,6 +10,17 @@
 		<IsPackable>true</IsPackable>
 		<IsShippingProject>true</IsShippingProject>
 		<ProjectClassification>Shipping</ProjectClassification>
+
+		<!-- Restore writes packages.lock.json, recording the resolved TRANSITIVE closure. Central
+		     Package Management pins DIRECT versions; only a lock file records what the transitive
+		     graph resolved to, which is what makes a published package reproducible.
+
+		     DUPLICATED from the repository-root Directory.Build.props rather than imported: this
+		     file does not chain to the root (no GetPathOfFileAbove import), and adding one would
+		     pull in 25 properties to obtain this one, several of them Visual-Studio build settings
+		     that have no business applying to shipping projects. Duplicating the single property
+		     is the smaller change. If the root copy is ever edited, edit this one too. -->
+		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -86,6 +97,19 @@
 		<Authors>The Excalibur Project Contributors</Authors>
 		<Product>Excalibur</Product>
 		<Copyright>Copyright (c) 2026 The Excalibur Project</Copyright>
+		<!-- Consumer-visible package identity. This file does NOT import the repository-root
+		     Directory.Build.props (MSBuild takes the nearest file and does not merge), so every
+		     package-facing property must be declared here or it never reaches a shipping package.
+		     These four were declared only at the root and therefore never shipped: nuget.org showed
+		     no project website, no icon and no release notes, and RepositoryUrl fell through to
+		     SourceLink's git-origin value, which names the private source repository rather than
+		     the public one consumers are given. An explicit RepositoryUrl takes precedence over
+		     PublishRepositoryUrl, so declaring it here is what corrects the shipped link. -->
+		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+		<PackageIcon>icon.png</PackageIcon>
 		<!-- Banned API analyzer policy -->
 		<EnableBannedApiAnalyzers Condition="'$(EnableBannedApiAnalyzers)' == ''">true</EnableBannedApiAnalyzers>
 		<BannedApiStrict Condition="'$(BannedApiStrict)' == ''">false</BannedApiStrict>
@@ -111,6 +135,14 @@
 	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
 		<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />
+	</ItemGroup>
+
+	<!-- Ship a provider's schema scripts inside its package. A store that queries a table it never gives the
+	     consumer a way to create is unusable out of the box, so packaging is not optional for these files.
+	     Declared centrally rather than per-project: any package that grows a Scripts directory is covered
+	     without a second edit, which is the only way this stays true as providers are added. -->
+	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\Scripts')">
+		<None Include="$(MSBuildProjectDirectory)\Scripts\**\*.sql" Pack="true" PackagePath="scripts\" />
 	</ItemGroup>
 
 	<!-- MinVer: git-tag-driven versioning for shipping packages (Polly pattern).

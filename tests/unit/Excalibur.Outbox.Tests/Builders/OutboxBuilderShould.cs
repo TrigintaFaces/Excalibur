@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
@@ -263,132 +263,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 	}
 
 	[Fact]
-	public void WithCleanup_ThrowsOnNullConfigure()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddExcaliburOutbox(builder =>
-			{
-				_ = builder.WithCleanup(null!);
-			}));
-	}
-
-	[Fact]
-	public void WithCleanup_EnablesAutoCleanup()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(cleanup =>
-			{
-				_ = cleanup.EnableAutoCleanup(true);
-			});
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void WithCleanup_DisablesAutoCleanup()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(cleanup =>
-			{
-				_ = cleanup.EnableAutoCleanup(false);
-			});
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void WithCleanup_ConfiguresRetentionPeriod()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var expectedPeriod = TimeSpan.FromDays(30);
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(cleanup =>
-			{
-				_ = cleanup.RetentionPeriod(expectedPeriod);
-			});
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(expectedPeriod);
-	}
-
-	[Fact]
-	public void WithCleanup_ConfiguresCleanupInterval()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var expectedInterval = TimeSpan.FromHours(6);
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(cleanup =>
-			{
-				_ = cleanup.CleanupInterval(expectedInterval);
-			});
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.CleanupInterval.ShouldBe(expectedInterval);
-	}
-
-	[Fact]
-	public void WithCleanup_SupportsFluentChaining()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(builder =>
-		{
-			_ = builder.WithCleanup(cleanup =>
-			{
-				_ = cleanup
-					.EnableAutoCleanup(true)
-					.RetentionPeriod(TimeSpan.FromDays(14))
-					.CleanupInterval(TimeSpan.FromHours(2));
-			});
-		});
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(2));
-	}
-
-	[Fact]
 	public void EnableBackgroundProcessing_SetsOptionFlag()
 	{
 		// Arrange
@@ -417,7 +291,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 		{
 			_ = builder
 				.WithProcessing(p => p.BatchSize(100).PollingInterval(TimeSpan.FromSeconds(10)))
-				.WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromDays(7)))
 				.EnableBackgroundProcessing();
 		});
 		var provider = services.BuildServiceProvider();
@@ -426,8 +299,6 @@ public sealed class OutboxBuilderShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(100);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 }

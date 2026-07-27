@@ -22,8 +22,8 @@ namespace Excalibur.Dispatch.Migration.CodeFixes;
 /// <c>using Excalibur.Dispatch.Compat.MediatR;</c>.
 /// </summary>
 /// <remarks>
-/// Implements FR-12 / AC-15 of EPIC w2zq7d. The fix is idempotent and avoids duplicate/orphaned usings
-/// (EC-7 / EC-8): if the compat namespace is already imported in the same container, the redundant
+/// The fix is idempotent and avoids duplicate/orphaned usings:
+/// if the compat namespace is already imported in the same container, the redundant
 /// <c>using MediatR;</c> is removed rather than producing a duplicate import.
 /// </remarks>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(MediatRUsingDirectiveCodeFixProvider))]

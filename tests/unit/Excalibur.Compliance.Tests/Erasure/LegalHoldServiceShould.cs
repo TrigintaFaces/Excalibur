@@ -23,7 +23,7 @@ public sealed class LegalHoldServiceShould
 
 		_sut = new LegalHoldService(
 			_store,
-			NullLogger<LegalHoldService>.Instance);
+			TestDataSubjectHasher.Instance, NullLogger<LegalHoldService>.Instance);
 	}
 
 	[Fact]
@@ -383,7 +383,7 @@ public sealed class LegalHoldServiceShould
 	public void Throw_when_store_is_null()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new LegalHoldService(null!, NullLogger<LegalHoldService>.Instance));
+			() => new LegalHoldService(null!, TestDataSubjectHasher.Instance, NullLogger<LegalHoldService>.Instance));
 	}
 
 	[Fact]
@@ -394,7 +394,7 @@ public sealed class LegalHoldServiceShould
 			.Returns(A.Fake<ILegalHoldQueryStore>());
 
 		Should.Throw<ArgumentNullException>(
-			() => new LegalHoldService(store, null!));
+			() => new LegalHoldService(store, TestDataSubjectHasher.Instance, null!));
 	}
 
 	[Fact]
@@ -405,7 +405,7 @@ public sealed class LegalHoldServiceShould
 			.Returns(null);
 
 		Should.Throw<InvalidOperationException>(
-			() => new LegalHoldService(store, NullLogger<LegalHoldService>.Instance));
+			() => new LegalHoldService(store, TestDataSubjectHasher.Instance, NullLogger<LegalHoldService>.Instance));
 	}
 
 	// Sprint 678 T.4 -- ProcessExpiredHoldsAsync partial failure handling

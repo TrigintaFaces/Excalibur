@@ -50,6 +50,12 @@ internal static class CdcTelemetryConstants
 
 		/// <summary>Number of events in a processed batch.</summary>
 		public const string BatchSize = "excalibur.cdc.batch.size";
+
+		/// <summary>
+		/// Count of times the in-memory CDC idempotency filter reached capacity and deduplication degraded
+		/// (a not-yet-seen event failed closed, or a processed event could not be tracked).
+		/// </summary>
+		public const string IdempotencyCapacityExceeded = "excalibur.cdc.idempotency.capacity_exceeded";
 	}
 
 	/// <summary>

@@ -81,15 +81,26 @@ public sealed class ConfidentialityControlValidatorShould
 	}
 
 	[Fact]
-	public async Task Validate_data_disposal_without_erasure_service()
+	public async Task Surface_the_gap_when_data_disposal_has_no_erasure_service()
 	{
 		var sut = new ConfidentialityControlValidator(erasureService: null);
 
 		var result = await sut.ValidateAsync("CNF-003", CancellationToken.None).ConfigureAwait(false);
 
-		// Still passes — manual procedures accepted
+		// CNF-003's declared disposal control is automated cryptographic erasure. With no IErasureService
+		// the declared mechanism is absent, so the result must SURFACE the gap (fail-closed-with-visibility)
+		// rather than launder a PASS on unverifiable manual procedures.
 		result.ControlId.ShouldBe("CNF-003");
-		result.IsEffective.ShouldBeTrue();
+		result.IsEffective.ShouldBeFalse();
+		// The issue must name the missing dependency AND say the declared control is unverified. It must NOT
+		// carry an internal document reference: this text is emitted into the consumer's audit evidence, and
+		// asserting on such a reference here is what kept one in the shipped output.
+		result.ConfigurationIssues.ShouldContain(i =>
+			i.Contains("IErasureService", StringComparison.Ordinal)
+			&& i.Contains("unverified", StringComparison.Ordinal));
+		result.ConfigurationIssues.ShouldNotContain(i => i.Contains("ADR-", StringComparison.Ordinal));
+		// Partial score: compensating manual procedures may exist, but the declared control is unverified.
+		result.EffectivenessScore.ShouldBe(40);
 	}
 
 	[Fact]

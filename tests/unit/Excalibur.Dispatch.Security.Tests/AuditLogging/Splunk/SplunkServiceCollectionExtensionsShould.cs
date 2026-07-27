@@ -160,10 +160,18 @@ public sealed class SplunkServiceCollectionExtensionsShould
 			splunk.BindConfiguration("Splunk"));
 		using var provider = services.BuildServiceProvider();
 
-		// Assert - resolve HttpClient through the factory to trigger the config lambda
+		// Assert - the per-request timeout now lives on the standard resilience pipeline's AttemptTimeout
+		// (bd-b7i6rh: the Polly-backed resilience handler owns timeouts, so HttpClient.Timeout is left
+		// Infinite and RequestTimeout binds into the handler instead). Assert RequestTimeout flowed there.
+		var resilience = provider
+			.GetRequiredService<IOptionsMonitor<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>>()
+			.Get(nameof(SplunkAuditExporter));
+		resilience.AttemptTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(42));
+
+		// ...and the HttpClient itself is deliberately Infinite (the pipeline bounds each attempt).
 		var factory = provider.GetRequiredService<IHttpClientFactory>();
 		using var client = factory.CreateClient(nameof(SplunkAuditExporter));
-		client.Timeout.ShouldBe(TimeSpan.FromSeconds(42));
+		client.Timeout.ShouldBe(System.Threading.Timeout.InfiniteTimeSpan);
 	}
 
 	[Fact]

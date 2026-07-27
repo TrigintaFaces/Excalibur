@@ -60,12 +60,20 @@ public sealed class KafkaDeadLetterQueueManagerShould : IDisposable
 			dlqOptions,
 			NullLogger<KafkaDeadLetterProducer>.Instance);
 
-		// Build the internal consumer — we need to use the fake IConsumer
-		// Since KafkaDeadLetterConsumer creates its own IConsumer internally,
-		// we test the manager indirectly through the Kafka IConsumer mock.
-		// Instead, we construct the consumer with faked Kafka options and DLQ options.
+		// The fake IConsumer this comment used to ask for now exists.
+		//
+		// This previously built a real consumer against localhost:9092 because the class constructed its
+		// own IConsumer. That opened live librdkafka connections to a broker that is not running, which
+		// retry on background threads for the rest of the process and, under a parallel run, accumulate
+		// until the native library aborts the host after the tests have passed.
+		// Consume must be configured to return null explicitly: an unconfigured fake yields a dummy
+		// ConsumeResult with a null Message, a shape the real client never produces, and converting it
+		// throws. Null is what a real poll returns when it times out with nothing to read.
+		var dlqConsumer = A.Fake<IConsumer<string, byte[]>>();
+		A.CallTo(() => dlqConsumer.Consume(A<TimeSpan>._)).Returns(null);
+
 		var consumer = new KafkaDeadLetterConsumer(
-			kafkaOptions,
+			dlqConsumer,
 			dlqOptions,
 			NullLogger<KafkaDeadLetterConsumer>.Instance);
 

@@ -297,8 +297,8 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		return StageMessageAsync(outboundMessage, cancellationToken);
 	}
 
-	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize = 100,
-		CancellationToken cancellationToken = default)
+	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize,
+		CancellationToken cancellationToken)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
@@ -310,7 +310,7 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		return new ValueTask<IEnumerable<OutboundMessage>>(unsent);
 	}
 
-	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken = default)
+	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(messageId);
 
@@ -374,7 +374,7 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		return new ValueTask<IEnumerable<OutboundMessage>>(scheduled);
 	}
 
-	public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000,
+	public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000,
 		CancellationToken cancellationToken = default)
 	{
 		var toRemove = _messages.Values

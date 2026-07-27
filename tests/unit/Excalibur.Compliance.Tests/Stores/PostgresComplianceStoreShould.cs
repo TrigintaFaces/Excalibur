@@ -30,6 +30,7 @@ public sealed class PostgresComplianceStoreShould
 			() => new PostgresComplianceStore(
 				(Func<NpgsqlConnection>)null!,
 				options,
+				null,
 				_logger));
 	}
 
@@ -44,6 +45,7 @@ public sealed class PostgresComplianceStoreShould
 			() => new PostgresComplianceStore(
 				factory,
 				(PostgresComplianceOptions?)null,
+				null,
 				_logger));
 	}
 
@@ -59,6 +61,7 @@ public sealed class PostgresComplianceStoreShould
 			() => new PostgresComplianceStore(
 				factory,
 				options,
+				null,
 				null!));
 	}
 
@@ -69,6 +72,7 @@ public sealed class PostgresComplianceStoreShould
 		Should.Throw<ArgumentNullException>(
 			() => new PostgresComplianceStore(
 				(IOptions<PostgresComplianceOptions>)null!,
+				null,
 				_logger));
 	}
 
@@ -80,7 +84,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new PostgresComplianceStore(options, null!));
+			() => new PostgresComplianceStore(options, null, null!));
 	}
 
 	[Fact]
@@ -91,7 +95,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(options, _logger));
+			() => new PostgresComplianceStore(options, null, _logger));
 	}
 
 	[Fact]
@@ -102,7 +106,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(options, _logger));
+			() => new PostgresComplianceStore(options, null, _logger));
 	}
 
 	[Theory]
@@ -120,7 +124,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(factory, options, _logger));
+			() => new PostgresComplianceStore(factory, options, null, _logger));
 	}
 
 	[Theory]
@@ -136,7 +140,7 @@ public sealed class PostgresComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentException>(
-			() => new PostgresComplianceStore(factory, options, _logger));
+			() => new PostgresComplianceStore(factory, options, null, _logger));
 	}
 
 	[Theory]
@@ -151,7 +155,7 @@ public sealed class PostgresComplianceStoreShould
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
 
 		// Act -- should not throw
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -169,7 +173,7 @@ public sealed class PostgresComplianceStoreShould
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
 
 		// Act -- should not throw
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -181,7 +185,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -197,7 +201,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -213,7 +217,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -229,7 +233,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -242,7 +246,7 @@ public sealed class PostgresComplianceStoreShould
 		// Arrange
 		var options = new PostgresComplianceOptions();
 		Func<NpgsqlConnection> factory = () => new NpgsqlConnection();
-		var store = new PostgresComplianceStore(factory, options, _logger);
+		var store = new PostgresComplianceStore(factory, options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(

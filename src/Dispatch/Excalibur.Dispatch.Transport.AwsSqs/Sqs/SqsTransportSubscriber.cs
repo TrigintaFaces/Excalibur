@@ -51,6 +51,7 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 
 	private readonly string _queueUrl;
 	private readonly AwsSqsVisibilityHeartbeatOptions _heartbeat;
+	private readonly int? _maxPayloadBytes;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -62,18 +63,31 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 	/// <param name="queueUrl">The SQS queue URL to consume from.</param>
 	/// <param name="heartbeatOptions">The in-flight visibility-timeout heartbeat options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length, in bytes, enforced before the body is materialized;
+	/// <see langword="null"/> opts out of the size limit. Defaults to the SQS provider ceiling (256 KiB).
+	/// </param>
 	public SqsTransportSubscriber(
 		IAmazonSQS sqsClient,
 		string source,
 		string queueUrl,
 		AwsSqsVisibilityHeartbeatOptions heartbeatOptions,
-		ILogger<SqsTransportSubscriber> logger)
+		ILogger<SqsTransportSubscriber> logger,
+		int? maxPayloadBytes = AwsSqsTransportAdapterOptions.SqsMaxPayloadBytes)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_queueUrl = queueUrl ?? throw new ArgumentNullException(nameof(queueUrl));
 		_heartbeat = heartbeatOptions ?? throw new ArgumentNullException(nameof(heartbeatOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = maxPayloadBytes;
+
+		// Enforce the heartbeat cross-property invariants at the consumption point, independent of how the
+		// options were configured. The builder's ConfigureVisibilityHeartbeat only runs Validate() when the
+		// consumer calls it; a heartbeat enabled via any other path would otherwise reach the run loop
+		// unchecked. These options are builder-configured (not IOptions-registered), so this ctor — not
+		// ValidateOnStart — is the invariant-enforcing seam. Validate() is a no-op when the heartbeat is disabled.
+		_heartbeat.Validate();
 	}
 
 	/// <inheritdoc />
@@ -117,10 +131,27 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 				for (var i = 0; i < response.Messages.Count; i++)
 				{
 					var sqsMessage = response.Messages[i];
-					var received = ConvertToReceivedMessage(sqsMessage);
-					LogMessageReceived(received.Id, Source);
-
 					var entryId = i.ToString(CultureInfo.InvariantCulture);
+
+					TransportReceivedMessage received;
+					try
+					{
+						received = ConvertToReceivedMessage(sqsMessage);
+					}
+					catch (PayloadTooLargeException ex)
+					{
+						// Oversized poison message: delete it (no requeue) before it can loop; SQS routes
+						// to the DLQ via the redrive policy. Never deserialize the oversized body.
+						LogPayloadTooLargeRejected(Source, Encoding.UTF8.GetByteCount(sqsMessage.Body ?? string.Empty), ex);
+						deleteEntries.Add(new DeleteMessageBatchRequestEntry
+						{
+							Id = entryId,
+							ReceiptHandle = sqsMessage.ReceiptHandle,
+						});
+						continue;
+					}
+
+					LogMessageReceived(received.Id, Source);
 
 					try
 					{
@@ -352,6 +383,12 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 
 	private TransportReceivedMessage ConvertToReceivedMessage(Message sqsMessage)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (Encoding.UTF8.GetBytes below). The raw SQS wire length is the UTF-8 byte count of the message
+		// Body string; GetByteCount measures without allocating. Fail-closed — throws
+		// PayloadTooLargeException, which the subscribe loop catches to delete the poison message.
+		PayloadSizeGuard.EnsureWithinLimit(Encoding.UTF8.GetByteCount(sqsMessage.Body ?? string.Empty), _maxPayloadBytes);
+
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 
 		if (sqsMessage.MessageAttributes is { Count: > 0 })
@@ -462,4 +499,8 @@ internal sealed partial class SqsTransportSubscriber : ITransportSubscriber
 	[LoggerMessage(AwsSqsEventId.TransportSubscriberDisposed, LogLevel.Debug,
 		"SQS transport subscriber disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(AwsSqsEventId.TransportSubscriberPayloadTooLarge, LogLevel.Warning,
+		"SQS transport subscriber: rejected an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization (deleted; dead-lettered if a redrive policy is configured)")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

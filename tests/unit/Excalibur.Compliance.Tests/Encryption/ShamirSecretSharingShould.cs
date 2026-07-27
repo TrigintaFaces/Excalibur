@@ -243,4 +243,74 @@ public sealed class ShamirSecretSharingShould
 		Should.Throw<ArgumentException>(
 			() => ShamirSecretSharing.Reconstruct(badShares));
 	}
+
+	// Regression lock for the constant-time GF(256) field-arithmetic rewrite (bd-p4a40r): the branchless
+	// GfMultiply/GfInverse/GfDivide must be exactly equivalent to the previous table-lookup form. Lagrange
+	// interpolation over GF(256) recovers the secret iff every field operation is correct, so reconstructing
+	// from EVERY threshold-sized subset across a config matrix exercises a wide span of distinct operand
+	// pairs (including zero operands, which previously took the special-cased early-return path). A single
+	// wrong product/inverse would corrupt at least one subset's reconstruction.
+	[Theory]
+	[InlineData(2, 3)]
+	[InlineData(3, 5)]
+	[InlineData(4, 6)]
+	[InlineData(5, 5)]
+	public void Reconstruct_from_every_threshold_subset_after_constant_time_field_rewrite(int threshold, int totalShares)
+	{
+		// A secret that includes zero bytes and 0xFF bytes so the field ops see boundary operands.
+		var secret = new byte[24];
+		RandomNumberGenerator.Fill(secret.AsSpan(0, 16));
+		// bytes 16..23 left as 0x00, plus a couple of 0xFF sentinels
+		secret[20] = 0xFF;
+		secret[23] = 0xFF;
+
+		var shares = ShamirSecretSharing.Split(secret, totalShares, threshold);
+
+		foreach (var subset in Combinations(totalShares, threshold))
+		{
+			var picked = new byte[threshold][];
+			for (var i = 0; i < threshold; i++)
+			{
+				picked[i] = shares[subset[i]];
+			}
+
+			var reconstructed = ShamirSecretSharing.Reconstruct(picked);
+
+			reconstructed.ShouldBe(
+				secret,
+				$"reconstruction from share subset [{string.Join(",", subset)}] must recover the secret exactly");
+		}
+	}
+
+	// Enumerates every size-k index subset of {0..n-1} (k-combinations), in lexicographic order.
+	private static IEnumerable<int[]> Combinations(int n, int k)
+	{
+		var indices = new int[k];
+		for (var i = 0; i < k; i++)
+		{
+			indices[i] = i;
+		}
+
+		while (true)
+		{
+			yield return (int[])indices.Clone();
+
+			var pivot = k - 1;
+			while (pivot >= 0 && indices[pivot] == n - k + pivot)
+			{
+				pivot--;
+			}
+
+			if (pivot < 0)
+			{
+				yield break;
+			}
+
+			indices[pivot]++;
+			for (var i = pivot + 1; i < k; i++)
+			{
+				indices[i] = indices[i - 1] + 1;
+			}
+		}
+	}
 }

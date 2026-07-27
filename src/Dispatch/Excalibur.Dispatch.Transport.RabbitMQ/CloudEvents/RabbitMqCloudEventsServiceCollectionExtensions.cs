@@ -43,6 +43,7 @@ public static class RabbitMqCloudEventsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
+		_ = services.AddCloudEventOptionsValidation();
 		if (configureOptions is not null)
 		{
 			_ = services.Configure(configureOptions);
@@ -63,7 +64,7 @@ public static class RabbitMqCloudEventsServiceCollectionExtensions
 	/// <param name="configureRabbitMq"> Action to configure RabbitMQ-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForRabbitMq(
+	public static IServiceCollection AddCloudEventsForRabbitMq(
 		this IServiceCollection services,
 		Action<RabbitMqCloudEventOptions>? configureRabbitMq = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -84,7 +85,7 @@ public static class RabbitMqCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(static sp => sp.GetRequiredService<IOptions<RabbitMqCloudEventOptions>>().Value);
 
 		services.TryAddSingleton<IRabbitMqCloudEventAdapter, RabbitMqCloudEventAdapter>();
-		services.TryAddSingleton<ICloudEventMapper<(IBasicProperties properties, ReadOnlyMemory<byte> body)>>(static sp =>
+		services.AddCloudEventMapper<(IBasicProperties properties, ReadOnlyMemory<byte> body)>(static sp =>
 			(RabbitMqCloudEventAdapter)sp.GetRequiredService<IRabbitMqCloudEventAdapter>());
 
 		return services;
@@ -112,8 +113,8 @@ public static class RabbitMqCloudEventsServiceCollectionExtensions
 				var hasTraceParent = cloudEvent.GetAttribute("traceparent") != null;
 				var hasTimestamp = cloudEvent.Time.HasValue;
 
-				// At minimum require tracing for audit compliance
-				return Task.FromResult(hasTraceParent || hasCorrelationId);
+				// DoD compliance requires correlationId, userId, and traceParent — all mandatory.
+				return Task.FromResult(hasCorrelationId && hasUserId && hasTraceParent);
 			});
 		}
 

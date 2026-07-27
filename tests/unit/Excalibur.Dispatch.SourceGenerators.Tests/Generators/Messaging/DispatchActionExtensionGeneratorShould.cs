@@ -99,27 +99,8 @@ public sealed class DispatchActionExtensionGeneratorShould
 		text.ShouldContain("global::System.Guid");
 	}
 
-	[Fact]
-	public void GenerateDispatchChildAsyncOverload_ForConcreteActionType()
-	{
-		const string source = """
-			using System;
-			using System.Threading;
-			using System.Threading.Tasks;
-			using Excalibur.Dispatch;
-
-			namespace TestApp
-			{
-			    public class CreateOrderCommand : IDispatchAction<Guid> { }
-			}
-			""";
-
-		var result = RunGenerator(source);
-		var text = GetGeneratedText(result, "TypedDispatchExtensions.g.cs");
-
-		text.ShouldContain("DispatchChildAsync");
-		text.ShouldContain("global::TestApp.CreateOrderCommand");
-	}
+	// NOTE: DispatchChildAsync generation was retired (yensbc / ADR-343) — the context-free DispatchAsync
+	// auto-childs under an ambient context, so a separate generated child overload no longer exists.
 
 	[Fact]
 	public void GenerateContextOverload_ForConcreteActionType()
@@ -331,13 +312,13 @@ public sealed class DispatchActionExtensionGeneratorShould
 		var result = RunGenerator(source);
 		var text = GetGeneratedText(result, "TypedDispatchExtensions.g.cs");
 
-		// Count method signatures for CreateOrderCommand — should be exactly 3
-		// (DispatchAsync, DispatchAsync with context, DispatchChildAsync)
+		// Count method signatures for CreateOrderCommand — should be exactly 2
+		// (DispatchAsync, DispatchAsync with context). DispatchChildAsync was retired (yensbc / ADR-343).
 		var methodSignatures = text.Split('\n')
 			.Where(l => l.Contains("global::TestApp.CreateOrderCommand") &&
-			            (l.Contains("DispatchAsync") || l.Contains("DispatchChildAsync")))
+			            l.Contains("DispatchAsync"))
 			.ToList();
-		methodSignatures.Count.ShouldBe(3);
+		methodSignatures.Count.ShouldBe(2);
 	}
 
 	[Fact]
@@ -413,9 +394,9 @@ public sealed class DispatchActionExtensionGeneratorShould
 		var result = RunGenerator(source);
 		var text = GetGeneratedText(result, "TypedDispatchExtensions.g.cs");
 
-		// Verify the generated methods forward to the correct existing methods
+		// Verify the generated methods forward to the correct existing methods.
+		// (DispatchChildAsync forwarding was retired — yensbc / ADR-343.)
 		text.ShouldContain("DispatcherContextExtensions.DispatchAsync<");
-		text.ShouldContain("DispatcherContextExtensions.DispatchChildAsync<");
 	}
 
 	[Fact]

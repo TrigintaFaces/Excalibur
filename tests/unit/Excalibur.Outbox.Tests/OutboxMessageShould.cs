@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Delivery;
+using System.Text;
 
 namespace Excalibur.Outbox.Tests;
 
@@ -23,7 +23,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 			MessageId = "msg-1",
 			MessageType = "TestType",
 			MessageMetadata = "{}",
-			MessageBody = "{}",
+			MessageBody = Encoding.UTF8.GetBytes("{}"),
 			CreatedAt = DateTimeOffset.UtcNow
 		};
 
@@ -37,13 +37,35 @@ public sealed class OutboxMessageShould : UnitTestBase
 	}
 
 	[Fact]
+	public void EqualsAndGetHashCode_WithNullMessageBody_DoNotThrow()
+	{
+		// MessageBody is declared non-null (required), but Dapper hydration can materialize a null payload
+		// column. Equals/GetHashCode must be null-safe (05f5q4) rather than NRE on the byte-array compare.
+		var withNullBody = new OutboxMessage
+		{
+			MessageId = "m", MessageType = "T", MessageMetadata = "{}",
+			MessageBody = null!, CreatedAt = DateTimeOffset.UnixEpoch,
+		};
+		var withBody = withNullBody with { MessageBody = [1, 2, 3] };
+		var alsoNullBody = withNullBody with { };
+
+		// GetHashCode never throws with a null body.
+		_ = Should.NotThrow(() => withNullBody.GetHashCode());
+
+		// Equals never throws in either direction and yields the correct value.
+		withNullBody.Equals(withBody).ShouldBeFalse();   // null vs non-null body
+		withBody.Equals(withNullBody).ShouldBeFalse();   // non-null vs null body
+		withNullBody.Equals(alsoNullBody).ShouldBeTrue(); // null vs null body -> equal
+	}
+
+	[Fact]
 	public void RequiredPropertiesConstructor_SetAllRequiredProperties()
 	{
 		// Arrange
 		var messageId = "msg-123";
 		var messageType = "OrderCreated";
 		var messageMetadata = "{\"correlationId\": \"abc\"}";
-		var messageBody = "{\"orderId\": 123}";
+		var messageBody = Encoding.UTF8.GetBytes("{\"orderId\": 123}");
 		var createdAt = DateTimeOffset.UtcNow;
 
 		// Act
@@ -65,7 +87,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 		var messageId = "msg-456";
 		var messageType = "OrderShipped";
 		var messageMetadata = "{}";
-		var messageBody = "{}";
+		var messageBody = Encoding.UTF8.GetBytes("{}");
 		var createdAt = DateTimeOffset.UtcNow;
 		var expiresAt = createdAt.AddHours(24);
 
@@ -84,7 +106,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 		var createdAt = DateTimeOffset.UtcNow;
 
 		// Act
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt, null);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt, null);
 
 		// Assert
 		message.ExpiresAt.ShouldBeNull();
@@ -97,7 +119,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 		var messageId = "msg-789";
 		var messageType = "PaymentProcessed";
 		var messageMetadata = "{}";
-		var messageBody = "{}";
+		var messageBody = Encoding.UTF8.GetBytes("{}");
 		var createdAt = DateTimeOffset.UtcNow;
 		var attempts = 3;
 		var dispatcherId = "worker-1";
@@ -122,7 +144,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 		var createdAt = DateTimeOffset.UtcNow;
 
 		// Act
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt, 0, null, null);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt, 0, null, null);
 
 		// Assert
 		message.DispatcherId.ShouldBeNull();
@@ -137,7 +159,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void Attempts_CanBeModified()
 	{
 		// Arrange
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.UtcNow);
 
 		// Act
 		message.Attempts = 5;
@@ -150,7 +172,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void DispatcherId_CanBeModified()
 	{
 		// Arrange
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.UtcNow);
 
 		// Act
 		message.DispatcherId = "new-worker";
@@ -163,7 +185,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void DispatcherTimeout_CanBeModified()
 	{
 		// Arrange
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.UtcNow);
 		var timeout = DateTimeOffset.UtcNow.AddMinutes(10);
 
 		// Act
@@ -177,7 +199,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void ExpiresAt_CanBeModified()
 	{
 		// Arrange
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.UtcNow);
 		var expiresAt = DateTimeOffset.UtcNow.AddDays(1);
 
 		// Act
@@ -196,8 +218,8 @@ public sealed class OutboxMessageShould : UnitTestBase
 	{
 		// Arrange
 		var createdAt = DateTimeOffset.UtcNow;
-		var message1 = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt);
-		var message2 = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt);
+		var message1 = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt);
+		var message2 = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt);
 
 		// Act & Assert
 		message1.ShouldBe(message2);
@@ -208,8 +230,8 @@ public sealed class OutboxMessageShould : UnitTestBase
 	{
 		// Arrange
 		var createdAt = DateTimeOffset.UtcNow;
-		var message1 = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt);
-		var message2 = new OutboxMessage("msg-2", "Type", "{}", "{}", createdAt);
+		var message1 = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt);
+		var message2 = new OutboxMessage("msg-2", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt);
 
 		// Act & Assert
 		message1.ShouldNotBe(message2);
@@ -220,8 +242,8 @@ public sealed class OutboxMessageShould : UnitTestBase
 	{
 		// Arrange
 		var createdAt = DateTimeOffset.UtcNow;
-		var message1 = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt) { Attempts = 1 };
-		var message2 = new OutboxMessage("msg-1", "Type", "{}", "{}", createdAt) { Attempts = 2 };
+		var message1 = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt) { Attempts = 1 };
+		var message2 = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), createdAt) { Attempts = 2 };
 
 		// Act & Assert - mutable properties affect equality in records
 		message1.ShouldNotBe(message2);
@@ -231,7 +253,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void WithExpression_CreatesCopyWithModifiedProperty()
 	{
 		// Arrange
-		var original = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.UtcNow);
+		var original = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.UtcNow);
 
 		// Act
 		var modified = original with { MessageId = "msg-2" };
@@ -255,7 +277,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 			MessageId = "",
 			MessageType = "",
 			MessageMetadata = "",
-			MessageBody = "",
+			MessageBody = Array.Empty<byte>(),
 			CreatedAt = DateTimeOffset.UtcNow
 		};
 
@@ -263,14 +285,14 @@ public sealed class OutboxMessageShould : UnitTestBase
 		message.MessageId.ShouldBe("");
 		message.MessageType.ShouldBe("");
 		message.MessageMetadata.ShouldBe("");
-		message.MessageBody.ShouldBe("");
+		message.MessageBody.ShouldBe(Array.Empty<byte>());
 	}
 
 	[Fact]
 	public void Message_WithLargePayload_IsValid()
 	{
 		// Arrange
-		var largeBody = new string('x', 100000);
+		var largeBody = Encoding.UTF8.GetBytes(new string('x', 100000));
 
 		// Act
 		var message = new OutboxMessage("msg-1", "Type", "{}", largeBody, DateTimeOffset.UtcNow);
@@ -283,7 +305,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void Message_WithMaxAttempts_IsValid()
 	{
 		// Arrange & Act
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.UtcNow)
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.UtcNow)
 		{
 			Attempts = int.MaxValue
 		};
@@ -296,7 +318,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void Message_WithMinDateTimeOffset_IsValid()
 	{
 		// Arrange & Act
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.MinValue);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.MinValue);
 
 		// Assert
 		message.CreatedAt.ShouldBe(DateTimeOffset.MinValue);
@@ -306,7 +328,7 @@ public sealed class OutboxMessageShould : UnitTestBase
 	public void Message_WithMaxDateTimeOffset_IsValid()
 	{
 		// Arrange & Act
-		var message = new OutboxMessage("msg-1", "Type", "{}", "{}", DateTimeOffset.MaxValue);
+		var message = new OutboxMessage("msg-1", "Type", "{}", Encoding.UTF8.GetBytes("{}"), DateTimeOffset.MaxValue);
 
 		// Assert
 		message.CreatedAt.ShouldBe(DateTimeOffset.MaxValue);

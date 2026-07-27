@@ -568,6 +568,27 @@ See [Data Providers](../data-providers/index.md) for provider-specific details a
 
 For hot/cold storage separation at petabyte scale, archived events are moved from the primary (hot) store to a cold store in blob/object storage. All cold store providers implement `IColdEventStore` (4 methods: `WriteAsync`, `ReadAsync`, `ReadAsync(fromVersion)`, `HasArchivedEventsAsync`) and use a gzip-compressed JSON format.
 
+#### `WriteAsync` returns a durable watermark
+
+`Task<long> WriteAsync(KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events, CancellationToken cancellationToken)`
+
+Every `IColdEventStore` method takes a `KeyedTenantPartition` as its first parameter. Cold storage keys are composed from that partition, so events archived under one tenant are not addressable from another tenant's read or watermark check.
+
+The returned value is the **durable low-water mark**: the highest version `V` such that *every* version `<= V` for that aggregate is durably committed in cold storage. It is a contiguous durable prefix, never the merely-submitted maximum. The archive service deletes hot events only up to this watermark, so a partial or deferred cold write bounds hot deletion instead of destroying the only remaining copy.
+
+Defined returns:
+
+| Case | Return |
+|------|--------|
+| `events` is empty | `-1` — nothing durably added by this call; delete nothing |
+| Every submitted version is already present in cold storage | The confirmed maximum of the submitted range |
+| The upload receipt has been awaited and acknowledged | The submitted maximum |
+| Only part of the batch is durable (or a buffered write is deferred) | The highest contiguously-durable version |
+
+:::warning If you implement `IColdEventStore` yourself
+Return the submitted maximum **only after** the storage receipt confirms durability. Returning it earlier authorizes the caller to delete not-yet-archived events from the hot tier. Callers must likewise honour the returned value — awaiting a `Task<long>` and discarding the result compiles cleanly and reintroduces the data-loss path.
+:::
+
 ### Azure Blob Storage
 
 ```bash

@@ -21,7 +21,6 @@ This package provides database-agnostic data access abstractions using the Data 
 - `ResourceException` - Resource operation exception
 - `ConcurrencyException` - Optimistic concurrency exception
 - `IQueryExecutor` - Query execution abstraction
-- `IDocumentDb` - Document database abstraction
 
 ## Quick Start
 

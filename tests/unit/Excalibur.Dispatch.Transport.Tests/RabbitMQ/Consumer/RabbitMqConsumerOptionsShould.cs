@@ -20,15 +20,16 @@ public sealed class RabbitMqConsumerOptionsShould
 		// Assert
 		options.AckMode.ShouldBe(AckMode.Manual);
 		options.RetryPolicy.ShouldNotBeNull();
-		options.DeadLetterExchange.ShouldBeNull();
-		options.DeadLetterRoutingKey.ShouldBeNull();
-		options.RequeueOnReject.ShouldBeFalse();
+		options.DeadLetter.ShouldNotBeNull();
+		options.DeadLetter.Exchange.ShouldBeNull();
+		options.DeadLetter.RoutingKey.ShouldBeNull();
+		options.DeadLetter.RequeueOnReject.ShouldBeFalse();
 		options.PrefetchCount.ShouldBe((ushort)100);
 		options.PrefetchGlobal.ShouldBeFalse();
 		options.BatchAckSize.ShouldBe(100);
 		options.BatchAckTimeout.ShouldBe(TimeSpan.FromMilliseconds(100));
 		options.ConsumerTag.ShouldBe("dispatch-consumer");
-		options.IncludeDeathHeaders.ShouldBeTrue();
+		options.DeadLetter.IncludeDeathHeaders.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -39,27 +40,30 @@ public sealed class RabbitMqConsumerOptionsShould
 		{
 			AckMode = AckMode.Batch,
 			RetryPolicy = RabbitMqRetryPolicy.Fixed(maxRetries: 5, delay: TimeSpan.FromSeconds(2)),
-			DeadLetterExchange = "dlx",
-			DeadLetterRoutingKey = "dlq-key",
-			RequeueOnReject = true,
+			DeadLetter =
+			{
+				Exchange = "dlx",
+				RoutingKey = "dlq-key",
+				RequeueOnReject = true,
+				IncludeDeathHeaders = false,
+			},
 			PrefetchCount = 50,
 			PrefetchGlobal = true,
 			BatchAckSize = 200,
 			BatchAckTimeout = TimeSpan.FromMilliseconds(500),
 			ConsumerTag = "my-consumer",
-			IncludeDeathHeaders = false,
 		};
 
 		// Assert
 		options.AckMode.ShouldBe(AckMode.Batch);
-		options.DeadLetterExchange.ShouldBe("dlx");
-		options.DeadLetterRoutingKey.ShouldBe("dlq-key");
-		options.RequeueOnReject.ShouldBeTrue();
+		options.DeadLetter.Exchange.ShouldBe("dlx");
+		options.DeadLetter.RoutingKey.ShouldBe("dlq-key");
+		options.DeadLetter.RequeueOnReject.ShouldBeTrue();
 		options.PrefetchCount.ShouldBe((ushort)50);
 		options.PrefetchGlobal.ShouldBeTrue();
 		options.BatchAckSize.ShouldBe(200);
 		options.BatchAckTimeout.ShouldBe(TimeSpan.FromMilliseconds(500));
 		options.ConsumerTag.ShouldBe("my-consumer");
-		options.IncludeDeathHeaders.ShouldBeFalse();
+		options.DeadLetter.IncludeDeathHeaders.ShouldBeFalse();
 	}
 }

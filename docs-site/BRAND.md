@@ -367,8 +367,8 @@ All text must meet WCAG AA contrast requirements:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0 | 2025-12-03 | Initial brand guidelines for Sprint 68 |
+| 1.0 | 2025-12-03 | Initial brand guidelines |
 
 ---
 
-*Excalibur.Dispatch Brand Guidelines - Sprint 68*
+*Excalibur.Dispatch Brand Guidelines*

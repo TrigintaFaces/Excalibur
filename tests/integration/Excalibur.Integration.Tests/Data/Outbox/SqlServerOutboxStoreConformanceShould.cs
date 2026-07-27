@@ -46,6 +46,11 @@ public sealed class SqlServerOutboxStoreConformanceShould : OutboxStoreConforman
 		_fixture = fixture;
 	}
 
+	// The durable OutboxFence control table now backs the SqlServer fence high-water (it survives the
+	// cleanup that purges token-bearing message rows), so Fencing_HighWaterSurvivesCleanup runs here with
+	// no documented-pending gap — the SqlServer store is held to the same durable-fence contract as Mongo
+	// and Postgres.
+
 	/// <inheritdoc/>
 	protected override async Task<IOutboxStore> CreateStoreAsync()
 	{
@@ -58,15 +63,82 @@ public sealed class SqlServerOutboxStoreConformanceShould : OutboxStoreConforman
 		var options = Options.Create(new SqlServerOutboxOptions
 		{
 			ConnectionString = _fixture.ConnectionString,
-			SchemaName = _fixture.SchemaName,
-			OutboxTableName = _fixture.OutboxTableName,
-			TransportsTableName = _fixture.TransportsTableName,
-			CommandTimeoutSeconds = 30,
+			Tables =
+			{
+				SchemaName = _fixture.SchemaName,
+				OutboxTableName = _fixture.OutboxTableName,
+				TransportsTableName = _fixture.TransportsTableName,
+			},
+			Processing = { CommandTimeoutSeconds = 30 },
 		});
 
 		// Options-only constructor: the consumer-default surface — builds the SqlConnection factory from
 		// the connection string and uses the default System.Text.Json payload serialization.
 		return new SqlServerOutboxStore(options, NullLogger<SqlServerOutboxStore>.Instance);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task<IOutboxStore?> CreateStoreWithReclaimFloorAsync(int floorSeconds)
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"SQL Server container must be available - real-infra re-claim-floor conformance is never skipped.");
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+
+		var options = Options.Create(new SqlServerOutboxOptions
+		{
+			ConnectionString = _fixture.ConnectionString,
+			Tables =
+			{
+				SchemaName = _fixture.SchemaName,
+				OutboxTableName = _fixture.OutboxTableName,
+				TransportsTableName = _fixture.TransportsTableName,
+			},
+			Processing =
+			{
+				CommandTimeoutSeconds = 30,
+				FailureBackoffFloorSeconds = floorSeconds,
+			},
+		});
+
+		return new SqlServerOutboxStore(options, NullLogger<SqlServerOutboxStore>.Instance);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task<bool> TryReserveMessageUnderForeignDispatcherAsync(IOutboxStore store, string messageId)
+	{
+		// SqlServer exposes no explicit-dispatcher reserve method (unlike Postgres/Oracle's
+		// ReserveOutboxMessagesAsync(dispatcherId, ...)), but reservation ownership keys on
+		// SqlServerOutboxOptions.ProcessorId — the value written to LeasedBy on claim, and the R2 guard in
+		// MarkMessageFailedRequest is "WHERE Id = @MessageId AND (LeasedBy IS NULL OR LeasedBy = @LeasedBy)".
+		// So build a SECOND store over the SAME fixture DB with a DISTINCT ProcessorId and claim the row
+		// through its GetUnsentMessages lease path: the row is now owned by a FOREIGN ProcessorId, different
+		// from `store`'s. This is NON-VACUOUS precisely because ProcessorId is a settable per-options value —
+		// two SqlServer stores do NOT share it (contrast Postgres/Oracle, whose static per-process DispatcherId
+		// two in-process instances DO share, making a two-instance reserve vacuous there). SqlServerOutboxStore
+		// holds no disposable state (connections are opened+disposed per call), so the foreign store needs no
+		// disposal; the lease it writes is a persisted DB column that outlives it.
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+
+		var foreignOptions = Options.Create(new SqlServerOutboxOptions
+		{
+			ConnectionString = _fixture.ConnectionString,
+			Tables =
+			{
+				SchemaName = _fixture.SchemaName,
+				OutboxTableName = _fixture.OutboxTableName,
+				TransportsTableName = _fixture.TransportsTableName,
+			},
+			Processing = { CommandTimeoutSeconds = 30 },
+			ProcessorId = "conformance-foreign-leader",
+		});
+
+		var foreignStore = new SqlServerOutboxStore(foreignOptions, NullLogger<SqlServerOutboxStore>.Instance);
+
+		// Claiming under the foreign ProcessorId leases the row (LeasedBy = "conformance-foreign-leader"),
+		// giving it an owner distinct from the caller of IOutboxStore.MarkFailedAsync (whose ProcessorId is
+		// the fixture default) — the only way to actually exercise the R2 ownership guard.
+		var claimed = await foreignStore.GetUnsentMessagesAsync(50, CancellationToken.None).ConfigureAwait(false);
+		return claimed.Any(m => m.Id == messageId);
 	}
 
 	/// <inheritdoc/>

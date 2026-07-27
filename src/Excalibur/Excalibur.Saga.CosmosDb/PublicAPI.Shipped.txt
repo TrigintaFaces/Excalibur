@@ -17,13 +17,14 @@ Excalibur.Saga.CosmosDb.CosmosDbSagaOptions.PartitionKeyPath.get -> string!
 Excalibur.Saga.CosmosDb.CosmosDbSagaOptions.PartitionKeyPath.set -> void
 Excalibur.Saga.CosmosDb.CosmosDbSagaOptions.Validate() -> void
 Excalibur.Saga.CosmosDb.CosmosDbSagaStore
-Excalibur.Saga.CosmosDb.CosmosDbSagaStore.CosmosDbSagaStore(Microsoft.Azure.Cosmos.CosmosClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.CosmosDb.CosmosDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.CosmosDb.CosmosDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
-Excalibur.Saga.CosmosDb.CosmosDbSagaStore.CosmosDbSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.CosmosDb.CosmosDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.CosmosDb.CosmosDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
+Excalibur.Saga.CosmosDb.CosmosDbSagaStore.CosmosDbSagaStore(Microsoft.Azure.Cosmos.CosmosClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.CosmosDb.CosmosDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.CosmosDb.CosmosDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Saga.CosmosDb.CosmosDbSagaStore.CosmosDbSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.CosmosDb.CosmosDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.CosmosDb.CosmosDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Saga.CosmosDb.CosmosDbSagaStore.Dispose() -> void
 Excalibur.Saga.CosmosDb.CosmosDbSagaStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Saga.CosmosDb.CosmosDbSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
+Excalibur.Saga.CosmosDb.CosmosDbSagaStore.PurgeAllTenantsCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.CosmosDb.CosmosDbSagaStore.PurgeCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Saga.CosmosDb.CosmosDbSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Saga.CosmosDb.SagaBuilderCosmosDbExtensions
 Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder
 Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder!
 Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder!
@@ -32,4 +33,5 @@ Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder.ConnectionString(string! connection
 Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder.ContainerName(string! containerName) -> Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder!
 Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder.DatabaseName(string! databaseName) -> Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder!
 Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder!
+Excalibur.Saga.CosmosDb.SagaBuilderCosmosDbExtensions
 static Excalibur.Saga.CosmosDb.SagaBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.CosmosDb.ICosmosDbSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

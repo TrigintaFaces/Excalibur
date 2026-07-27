@@ -37,4 +37,25 @@ public interface ISubscriptionCheckpointStore
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
 	Task StoreCheckpointAsync(string subscriptionName, long position, CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Enumerates every stored subscription checkpoint.
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// All persisted checkpoints, one per named subscription. Returns an empty list when no
+	/// checkpoints have been stored.
+	/// </returns>
+	/// <remarks>
+	/// Enables projection-lag reporting: pairing each subscription's checkpoint with the global
+	/// stream head position yields the per-stream lag.
+	/// </remarks>
+	Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A single stored subscription checkpoint: the named subscription and its last checkpointed position.
+/// </summary>
+/// <param name="SubscriptionName">The unique subscription identifier.</param>
+/// <param name="Position">The last checkpointed global-stream position.</param>
+public readonly record struct SubscriptionCheckpoint(string SubscriptionName, long Position);

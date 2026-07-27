@@ -332,6 +332,12 @@ public static class DataFirestoreEventId
 	/// <summary>Inbox entries cleaned up.</summary>
 	public const int InboxCleanedUp = 106405;
 
+	/// <summary>TryClaim succeeded (entry claimed into non-terminal Processing state).</summary>
+	public const int InboxTryClaimSuccess = 106406;
+
+	/// <summary>TryClaim detected an already-claimed/processed duplicate.</summary>
+	public const int InboxTryClaimDuplicate = 106407;
+
 	// ========================================
 	// 106500-106599: Saga Store
 	// ========================================
@@ -341,4 +347,7 @@ public static class DataFirestoreEventId
 
 	/// <summary>Saga state saved.</summary>
 	public const int SagaSaved = 106501;
+
+	/// <summary>Completed sagas purged by retention age.</summary>
+	public const int SagasPurged = 106502;
 }

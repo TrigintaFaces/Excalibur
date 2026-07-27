@@ -11,6 +11,9 @@ using Excalibur.Jobs.Aws;
 
 using Microsoft.Extensions.Configuration;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -40,6 +43,8 @@ public static class AwsJobsServiceCollectionExtensions
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSchedulerOptions>, AwsSchedulerOptionsValidator>());
 
 		// Add AWS EventBridge Scheduler client
 		_ = services.AddAWSService<IAmazonScheduler>();
@@ -76,6 +81,8 @@ public static class AwsJobsServiceCollectionExtensions
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSchedulerOptions>, AwsSchedulerOptionsValidator>());
 
 		// Add AWS EventBridge Scheduler client
 		_ = services.AddAWSService<IAmazonScheduler>();
@@ -113,6 +120,8 @@ public static class AwsJobsServiceCollectionExtensions
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSchedulerOptions>, AwsSchedulerOptionsValidator>());
 
 		// Add AWS EventBridge Scheduler client with options
 		_ = services.AddAWSService<IAmazonScheduler>(awsOptions);
@@ -152,6 +161,8 @@ public static class AwsJobsServiceCollectionExtensions
 		_ = services.AddOptions<AwsSchedulerOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSchedulerOptions>, AwsSchedulerOptionsValidator>());
 
 		// Add AWS EventBridge Scheduler client with options
 		_ = services.AddAWSService<IAmazonScheduler>(awsOptions);

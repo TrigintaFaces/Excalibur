@@ -240,7 +240,9 @@ internal sealed class InMemoryTransportHarness : ITransportTestHarness
 
 	private static void Drain(SemaphoreSlim semaphore)
 	{
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		while (semaphore.Wait(0))
+		#pragma warning restore RS0030
 		{
 		}
 	}

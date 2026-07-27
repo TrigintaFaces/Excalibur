@@ -9,7 +9,12 @@ namespace Excalibur.Dispatch.Messages;
 /// <summary>
 /// Represents timer trigger information.
 /// </summary>
-public sealed class TimerInfo : IDispatchMessage
+/// <remarks>
+/// A timer firing is a notification that a moment arrived, not an instruction to perform work — the handler decides that. It is therefore
+/// an event rather than an action, and classifying it explicitly keeps it out of the unclassifiable set that the pipeline refuses to
+/// dispatch.
+/// </remarks>
+public sealed class TimerInfo : IDispatchEvent
 {
 	private readonly Dictionary<string, object> _headers = [];
 	private readonly DefaultMessageFeatures _features = new();
@@ -95,7 +100,4 @@ public sealed class TimerInfo : IDispatchMessage
 
 	/// <inheritdoc />
 	public Guid Id => Guid.TryParse(MessageId, out var guid) ? guid : Guid.Empty;
-
-	/// <inheritdoc />
-	public MessageKinds Kind => MessageKinds.Event;
 }

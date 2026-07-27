@@ -28,16 +28,23 @@ public sealed class BreachNotificationServiceDepthShould
 	}
 
 	[Fact]
-	public async Task Report_breach_with_auto_notify()
+	public async Task Refuse_auto_notify_but_still_record_the_breach()
 	{
 		_options.AutoNotify = true;
 		var sut = CreateService();
 		var report = CreateBreachReport();
 
-		var result = await sut.ReportBreachAsync(report, CancellationToken.None).ConfigureAwait(false);
+		// FLIPPED: asserted that AutoNotify stamps SubjectsNotified on a service with no transport. That
+		// status + timestamp is the GDPR Art. 34 evidence a controller shows a regulator, so writing it
+		// without notifying anyone fabricates a compliance record. Contract is now refusal.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.ReportBreachAsync(report, CancellationToken.None)).ConfigureAwait(false);
 
-		result.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
-		result.SubjectsNotifiedAt.ShouldNotBeNull();
+		var recorded = await sut.GetBreachStatusAsync(report.BreachId, CancellationToken.None).ConfigureAwait(false);
+
+		recorded.ShouldNotBeNull("the breach must still be recorded even when auto-notification is refused");
+		recorded.Status.ShouldNotBe(BreachNotificationStatus.SubjectsNotified);
+		recorded.SubjectsNotifiedAt.ShouldBeNull();
 	}
 
 	[Fact]
@@ -82,17 +89,22 @@ public sealed class BreachNotificationServiceDepthShould
 	}
 
 	[Fact]
-	public async Task Notify_affected_subjects_changes_status()
+	public async Task Refuse_to_write_the_notified_status_without_notifying()
 	{
 		_options.AutoNotify = false;
 		var sut = CreateService();
 		var report = CreateBreachReport();
 		await sut.ReportBreachAsync(report, CancellationToken.None).ConfigureAwait(false);
 
-		var result = await sut.NotifyAffectedSubjectsAsync(report.BreachId, CancellationToken.None).ConfigureAwait(false);
+		// FLIPPED: asserted the status transition that only a real notification may write.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.NotifyAffectedSubjectsAsync(report.BreachId, CancellationToken.None)).ConfigureAwait(false);
 
-		result.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
-		result.SubjectsNotifiedAt.ShouldNotBeNull();
+		var after = await sut.GetBreachStatusAsync(report.BreachId, CancellationToken.None).ConfigureAwait(false);
+
+		after.ShouldNotBeNull();
+		after.Status.ShouldNotBe(BreachNotificationStatus.SubjectsNotified);
+		after.SubjectsNotifiedAt.ShouldBeNull();
 	}
 
 	[Fact]
@@ -105,28 +117,35 @@ public sealed class BreachNotificationServiceDepthShould
 	}
 
 	[Fact]
-	public async Task Throw_when_notifying_already_notified_breach()
+	public async Task Refuse_every_manual_notification_attempt()
 	{
 		_options.AutoNotify = false;
 		var sut = CreateService();
 		var report = CreateBreachReport();
+		// FLIPPED: the double-notification guard was reachable only by first writing the false attestation.
+		// Every attempt now refuses, which is strictly stronger — there is no state in which this service
+		// reports a notification as done.
 		await sut.ReportBreachAsync(report, CancellationToken.None).ConfigureAwait(false);
-		await sut.NotifyAffectedSubjectsAsync(report.BreachId, CancellationToken.None).ConfigureAwait(false);
 
-		await Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.NotifyAffectedSubjectsAsync(report.BreachId, CancellationToken.None)).ConfigureAwait(false);
+
+		_ = await Should.ThrowAsync<NotSupportedException>(
 			() => sut.NotifyAffectedSubjectsAsync(report.BreachId, CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
-	public async Task Throw_when_notifying_auto_notified_breach()
+	public async Task Refuse_auto_notify_at_report_time()
 	{
 		_options.AutoNotify = true;
 		var sut = CreateService();
 		var report = CreateBreachReport();
-		await sut.ReportBreachAsync(report, CancellationToken.None).ConfigureAwait(false);
+		// FLIPPED: with AutoNotify refused, the report itself is the call that throws — the "already
+		// auto-notified" state is no longer reachable, because it never represented a real notification.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.ReportBreachAsync(report, CancellationToken.None)).ConfigureAwait(false);
 
-		// Auto-notified breach should throw when manually notifying
-		await Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<NotSupportedException>(
 			() => sut.NotifyAffectedSubjectsAsync(report.BreachId, CancellationToken.None)).ConfigureAwait(false);
 	}
 

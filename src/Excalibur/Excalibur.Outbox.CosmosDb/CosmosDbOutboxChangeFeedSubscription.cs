@@ -232,6 +232,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 			CorrelationId = doc.CorrelationId,
 			CausationId = doc.CausationId,
 			TenantId = doc.TenantId,
+			Destination = doc.Destination,
 			CreatedAt = DateTimeOffset.Parse(doc.CreatedAt, CultureInfo.InvariantCulture),
 			PublishedAt = !string.IsNullOrEmpty(doc.PublishedAt) ? DateTimeOffset.Parse(doc.PublishedAt, CultureInfo.InvariantCulture) : null,
 			RetryCount = doc.RetryCount,
@@ -293,6 +294,7 @@ public sealed partial class CosmosDbOutboxChangeFeedSubscription : IChangeFeedSu
 		public string? CorrelationId { get; set; }
 		public string? CausationId { get; set; }
 		public string? TenantId { get; set; }
+		public string? Destination { get; set; }
 		public required string CreatedAt { get; set; }
 		public string? PublishedAt { get; set; }
 		public bool IsPublished { get; set; }

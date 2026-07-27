@@ -48,7 +48,6 @@ public sealed class CloudNativeOptions
 	/// are not available.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="Enabled"/> value.</value>
 	public bool Enabled { get; set; } = true;
 
 	/// <summary>
@@ -71,7 +70,6 @@ public sealed class CloudNativeOptions
 	/// When enabled, log entries are enriched with cloud-specific metadata and formatted for optimal integration with cloud observability platforms.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="UseCloudLogging"/> value.</value>
 	public bool UseCloudLogging { get; set; } = true;
 
 	/// <summary>
@@ -95,7 +93,6 @@ public sealed class CloudNativeOptions
 	/// cloud service costs.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="UseCloudMetrics"/> value.</value>
 	public bool UseCloudMetrics { get; set; } = true;
 
 	/// <summary>
@@ -119,7 +116,6 @@ public sealed class CloudNativeOptions
 	/// OpenTelemetry-compatible systems for vendor-neutral observability.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="UseCloudTracing"/> value.</value>
 	public bool UseCloudTracing { get; set; } = true;
 
 	/// <summary>
@@ -143,7 +139,6 @@ public sealed class CloudNativeOptions
 	/// multi-cloud or provider-agnostic deployments.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="Provider"/> value.</value>
 	public string Provider { get; set; } = string.Empty;
 
 	/// <summary>
@@ -165,7 +160,6 @@ public sealed class CloudNativeOptions
 	/// The environment setting influences security policies, performance tuning, and observability configuration to match operational requirements.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="Environment"/> value.</value>
 	[Required]
 	public string Environment { get; set; } = "production";
 
@@ -190,7 +184,6 @@ public sealed class CloudNativeOptions
 	/// region-specific behavior.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="Region"/> value.</value>
 	public string Region { get; set; } = string.Empty;
 
 	/// <summary>
@@ -214,7 +207,6 @@ public sealed class CloudNativeOptions
 	/// organization's tagging strategy for consistent resource management across deployments.
 	/// </para>
 	/// </remarks>
-	/// <value>The current <see cref="Tags"/> value.</value>
 	public Dictionary<string, string> Tags { get; init; } = [];
 
 	/// <summary>

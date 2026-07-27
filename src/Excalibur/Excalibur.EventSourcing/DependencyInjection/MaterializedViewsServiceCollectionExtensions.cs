@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Views;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using System.Linq;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,10 +29,6 @@ public static class MaterializedViewsServiceCollectionExtensions
 	/// to register view builders and configure stores.
 	/// </para>
 	/// </remarks>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddMaterializedViews(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -43,6 +39,13 @@ public static class MaterializedViewsServiceCollectionExtensions
 
 		// Register default processor (consumers can override via UseProcessor<T>)
 		services.TryAddSingleton<IMaterializedViewProcessor, MaterializedViewProcessor>();
+		MarkDefaultProcessorIfItWon(services);
+
+		// Fail at host start, not at first refresh. The processor's constructor rejects a non-atomic store,
+		// but the processor is resolved lazily inside the refresh service's retry loop, which catches and
+		// logs — so that throw never reaches an operator. This puts the same check in the startup pipeline.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AtomicMaterializedViewStoreValidator>());
 
 		return services;
 	}
@@ -89,8 +92,34 @@ public static class MaterializedViewsServiceCollectionExtensions
 
 		// Register default processor AFTER configure so UseProcessor<T> wins via TryAdd
 		services.TryAddSingleton<IMaterializedViewProcessor, MaterializedViewProcessor>();
+		MarkDefaultProcessorIfItWon(services);
+
+		// Fail at host start, not at first refresh. The processor's constructor rejects a non-atomic store,
+		// but the processor is resolved lazily inside the refresh service's retry loop, which catches and
+		// logs — so that throw never reaches an operator. This puts the same check in the startup pipeline.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AtomicMaterializedViewStoreValidator>());
 
 		return services;
+	}
+
+
+	/// <summary>
+	/// Records whether the built-in processor won registration, by reading the descriptor that actually won.
+	/// </summary>
+	/// <remarks>
+	/// A consumer's <c>UseProcessor&lt;TProcessor&gt;()</c> registers first, so the <c>TryAdd</c> above is a
+	/// no-op and the winning descriptor names their type. Inspecting that descriptor is a statement about the
+	/// container rather than a guess about the call order that produced it.
+	/// </remarks>
+	private static void MarkDefaultProcessorIfItWon(IServiceCollection services)
+	{
+		var descriptor = services.LastOrDefault(d => d.ServiceType == typeof(IMaterializedViewProcessor));
+
+		if (descriptor?.GetImplementationType() == typeof(MaterializedViewProcessor))
+		{
+			services.TryAddSingleton<DefaultMaterializedViewProcessorMarker>();
+		}
 	}
 
 	/// <summary>

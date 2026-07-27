@@ -502,6 +502,9 @@ public static class KafkaEventId
 	/// <summary>Transport receiver: offset cache exceeded expected bounds.</summary>
 	public const int TransportReceiverOffsetCacheOverflow = 22917;
 
+	/// <summary>Transport receiver: oversized inbound payload rejected before materialization.</summary>
+	public const int TransportReceiverPayloadTooLarge = 22918;
+
 	// ========================================
 	// 22920-22927: ITransportSubscriber
 	// ========================================
@@ -529,4 +532,7 @@ public static class KafkaEventId
 
 	/// <summary>Transport subscriber: disposed.</summary>
 	public const int TransportSubscriberDisposed = 22927;
+
+	/// <summary>Transport subscriber: oversized inbound payload rejected before materialization.</summary>
+	public const int TransportSubscriberPayloadTooLarge = 22928;
 }

@@ -19,7 +19,14 @@ namespace Excalibur.EventSourcing.Redis;
 /// <remarks>
 /// <para>
 /// Uses Redis Streams for the event log: one stream per aggregate (<c>es:{aggregateType}:{aggregateId}</c>).
-/// Optimistic concurrency is enforced via a Lua script that checks stream length before appending.
+/// </para>
+/// <para>
+/// Optimistic concurrency is enforced against an authoritative per-stream version counter (a companion
+/// key holding the highest version appended), never against the raw stream length. Stream length
+/// (<c>XLEN</c>) drifts below the true version when entries are trimmed or deleted (<c>XTRIM</c>/
+/// <c>XDEL</c>), which would corrupt a length-based concurrency check; the stored counter is immune to
+/// trimming. The counter check, increment, and event append all execute inside a single Lua script so
+/// they are atomic.
 /// </para>
 /// </remarks>
 public sealed partial class RedisEventStore : IEventStore
@@ -28,30 +35,44 @@ public sealed partial class RedisEventStore : IEventStore
 	private readonly RedisEventStoreOptions _options;
 	private readonly ILogger<RedisEventStore> _logger;
 
+	// The single canonical event contract (camelCase + string-enum + null-ignore) shared by every event
+	// store. Using the default serializer here would write PascalCase / enum-as-number bodies that mis-read
+	// when loaded through the canonical read path (the i2eabb cross-path fault).
+	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
+
 	/// <summary>
 	/// Lua script for atomic append with optimistic concurrency control.
-	/// For a new-aggregate create (<c>expectedVersion == -1</c>) the stream must be empty;
-	/// otherwise the current stream length must equal the expected version before appending events.
-	/// Returns the new stream length on success, or -1 on concurrency conflict.
+	/// The current aggregate version is read from an authoritative version counter (<c>KEYS[2]</c>),
+	/// NOT from the stream length, so trimmed or deleted stream entries can never produce a false
+	/// concurrency match. For a new-aggregate create (<c>expectedVersion == -1</c>) the counter must be
+	/// absent; otherwise the stored version must equal the expected version before appending. On success
+	/// the counter is advanced to the new highest version atomically with the appends. Returns the new
+	/// version on success, or <c>-1</c> plus the actual stored version on concurrency conflict.
 	/// </summary>
 	/// <remarks>
-	/// KEYS[1] = stream key.
+	/// KEYS[1] = stream key; KEYS[2] = version counter key.
 	/// </remarks>
 	private static readonly string AppendScript = """
 		local stream_key = KEYS[1]
+		local version_key = KEYS[2]
 		local expected_version = tonumber(ARGV[1])
 		local event_count = tonumber(ARGV[2])
 
-		-- Check current stream length for concurrency control
-		local current_length = redis.call('XLEN', stream_key)
-		-- New-aggregate create (expected_version == -1): the stream MUST be empty.
-		-- Without this guard two concurrent creates would both append (lost-write / double-create).
-		if expected_version == -1 and current_length ~= 0 then
-			return {-1, current_length}
+		-- Authoritative current version comes from the stored counter, NOT XLEN.
+		-- XLEN drifts below the true version under XTRIM/XDEL, which would corrupt this check.
+		local stored = redis.call('GET', version_key)
+		local current_version
+		if stored == false then
+			current_version = -1
+		else
+			current_version = tonumber(stored)
 		end
-		-- Existing-aggregate append: stream length must match the expected version.
-		if expected_version >= 0 and current_length ~= expected_version then
-			return {-1, current_length}
+
+		-- Optimistic concurrency: the stored version must match the caller's expectation.
+		-- Create (expected_version == -1) requires an absent counter (current_version == -1);
+		-- without this guard two concurrent creates would both append (lost-write / double-create).
+		if current_version ~= expected_version then
+			return {-1, current_version}
 		end
 
 		-- Append each event to the stream
@@ -66,8 +87,10 @@ public sealed partial class RedisEventStore : IEventStore
 			end
 		end
 
-		local new_length = redis.call('XLEN', stream_key)
-		return {new_length, first_id or '0-0'}
+		-- Advance the authoritative version counter atomically with the appends.
+		local new_version = expected_version + event_count
+		redis.call('SET', version_key, new_version)
+		return {new_version, first_id or '0-0'}
 		""";
 
 	/// <summary>
@@ -100,7 +123,7 @@ public sealed partial class RedisEventStore : IEventStore
 
 		var entries = await db.StreamRangeAsync(streamKey, "-", "+").ConfigureAwait(false);
 
-		var events = ParseStreamEntries(entries);
+		var events = ParseStreamEntries(entries, _jsonOptions);
 		LogEventsLoaded(aggregateId, aggregateType, events.Count);
 
 		return events;
@@ -122,7 +145,7 @@ public sealed partial class RedisEventStore : IEventStore
 		// Load all events then filter by version (Redis Streams don't have native version filtering)
 		var entries = await db.StreamRangeAsync(streamKey, "-", "+").ConfigureAwait(false);
 
-		var allEvents = ParseStreamEntries(entries);
+		var allEvents = ParseStreamEntries(entries, _jsonOptions);
 		var filtered = allEvents.Where(e => e.Version > fromVersion).ToList();
 
 		LogEventsLoaded(aggregateId, aggregateType, filtered.Count);
@@ -145,7 +168,9 @@ public sealed partial class RedisEventStore : IEventStore
 		var eventList = events.ToList();
 		if (eventList.Count == 0)
 		{
-			return AppendResult.CreateSuccess(expectedVersion, 0);
+			// Redis tracks only a per-stream version counter, not a store-wide global sequence, so there
+			// is no meaningful global first-event position to report; global ordering is unsupported here.
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
 		}
 
 		var db = GetDatabase();
@@ -168,40 +193,56 @@ public sealed partial class RedisEventStore : IEventStore
 				aggregateType,
 				evt.EventType,
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-				JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType()),
+				JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions),
 #pragma warning restore IL2026, IL3050
 				null,
 				nextVersion,
 				evt.OccurredAt);
 
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-			var serialized = JsonSerializer.Serialize(storedEvent);
+			var serialized = JsonSerializer.Serialize(storedEvent, _jsonOptions);
 #pragma warning restore IL2026, IL3050
 			args.Add(evt.EventId);
 			args.Add(serialized);
 		}
 
-		var result = (RedisResult[]?)await db.ScriptEvaluateAsync(
-			AppendScript,
-			[streamKey],
-			args.ToArray()).ConfigureAwait(false);
+		var versionKey = GetVersionKey(streamKey);
 
-		if (result == null || result.Length < 2)
+		try
 		{
-			return AppendResult.CreateFailure("Unexpected Lua script result.");
+			var result = (RedisResult[]?)await db.ScriptEvaluateAsync(
+				AppendScript,
+				[streamKey, versionKey],
+				args.ToArray()).ConfigureAwait(false);
+
+			if (result == null || result.Length < 2)
+			{
+				return AppendResult.CreateFailure("Unexpected Lua script result.");
+			}
+
+			var statusValue = (long)result[0];
+
+			if (statusValue == -1)
+			{
+				var actualVersion = (long)result[1];
+				LogConcurrencyConflict(aggregateId, aggregateType, expectedVersion, actualVersion);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
+			}
+
+			LogEventsAppended(aggregateId, aggregateType, eventList.Count, nextVersion);
+			// Per-stream version counter only — no store-wide global sequence, so no global first-event position.
+			return AppendResult.CreateSuccess(nextVersion, firstEventPosition: null);
 		}
-
-		var statusValue = (long)result[0];
-
-		if (statusValue == -1)
+		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
+		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is
+		// wrong. Neither is a store outcome, and neither should be retried by a resilience pipeline.
+		catch (RedisException ex)
 		{
-			var actualVersion = (long)result[1];
-			LogConcurrencyConflict(aggregateId, aggregateType, expectedVersion, actualVersion);
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, actualVersion);
+			// Liskov (MS-01): a transient Redis fault (connection loss, timeout) is REPORTED as a failed
+			// result — never propagated as a raw RedisException. Version conflicts are returned above; a
+			// leaked provider exception is the substitutability violation this normalizes away.
+			return AppendResult.CreateFailure(ex.Message);
 		}
-
-		LogEventsAppended(aggregateId, aggregateType, eventList.Count, nextVersion);
-		return AppendResult.CreateSuccess(nextVersion, expectedVersion + 1);
 	}
 
 	private IDatabase GetDatabase() =>
@@ -212,7 +253,12 @@ public sealed partial class RedisEventStore : IEventStore
 	private string GetStreamKey(string aggregateType, string aggregateId) =>
 		$"{_options.StreamKeyPrefix}:{aggregateType}:{aggregateId}";
 
-	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries)
+	// The authoritative per-stream version counter lives in a companion key. The stream key is wrapped
+	// in a Redis Cluster hash tag so the counter always hashes to the same slot as its stream, keeping
+	// the multi-key append script single-slot (and therefore cluster-safe).
+	private static string GetVersionKey(string streamKey) => $"{{{streamKey}}}:ver";
+
+	private static List<StoredEvent> ParseStreamEntries(StreamEntry[] entries, JsonSerializerOptions options)
 	{
 		var events = new List<StoredEvent>(entries.Length);
 
@@ -224,7 +270,7 @@ public sealed partial class RedisEventStore : IEventStore
 			{
 				var json = nv.Value.ToString();
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-				var storedEvent = JsonSerializer.Deserialize<StoredEvent>(json);
+				var storedEvent = JsonSerializer.Deserialize<StoredEvent>(json, options);
 #pragma warning restore IL2026, IL3050
 				if (storedEvent != null)
 				{

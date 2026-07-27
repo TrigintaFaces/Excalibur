@@ -81,10 +81,15 @@ public sealed class ComplianceEncryptionBuilderShould
 	public async Task ThrowAtStartup_WhenEncryptionOptionsAreInvalid()
 	{
 		// A non-null whitespace DefaultPurpose is rejected by AesGcmEncryptionOptionsValidator.
+		// WithInMemoryKeyManagement() is stated explicitly so the key-durability gate is satisfied and the
+		// encryption-options defect is the ONLY startup failure — otherwise two independent validators fail
+		// and ValidateOnStart aggregates them, which would let this arm pass on the wrong defect.
 		using var host = BuildHost(services => services.AddComplianceEncryption(builder =>
-			builder.WithEncryption(o => o.DefaultPurpose = "   ")));
+			builder.WithEncryption(o => o.DefaultPurpose = "   ").WithInMemoryKeyManagement()));
 
-		await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
+		var error = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync());
+
+		error.Message.ShouldContain(nameof(AesGcmEncryptionOptions.DefaultPurpose));
 	}
 
 	[Fact]

@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using Excalibur.Data.CosmosDb.Diagnostics;
+using Excalibur.Data.Validation;
 using Excalibur.EventSourcing;
 
 using Microsoft.Azure.Cosmos;
@@ -35,7 +36,7 @@ namespace Excalibur.Data.CosmosDb.Projections;
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
 public sealed partial class CosmosDbProjectionStore<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
-	: IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, IAsyncDisposable, IDisposable
+	: IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, ICursorProjectionStore<TProjection>, IAsyncDisposable, IDisposable
 	where TProjection : class
 {
 	/// <summary>
@@ -102,7 +103,7 @@ public sealed partial class CosmosDbProjectionStore<
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_jsonOptions = _options.JsonSerializerOptions ?? new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = false };
+		_jsonOptions = _options.JsonSerializerOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 
 	/// <summary>
@@ -419,6 +420,95 @@ public sealed partial class CosmosDbProjectionStore<
 		return new PagedResult<TProjection>(items, pageNumber, pageSize, totalCount);
 	}
 
+	/// <inheritdoc/>
+	public async Task<CursorPagedResult<TProjection>> QueryCursorAsync(
+		IDictionary<string, object>? filters,
+		string? cursor,
+		int pageSize,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		var (whereClause, parameters) = BuildWhereClause(filters);
+
+		// Cursor-based paging uses Cosmos DB's native continuation token instead of OFFSET/LIMIT,
+		// which is O(offset) in RU cost on deep pages. A stable ORDER BY (default c.id) makes
+		// page boundaries deterministic under concurrent writes.
+		var orderByClause = BuildOrderByClause(null);
+		var queryText = $"SELECT VALUE c FROM c WHERE c.{PartitionKeyField} = @projectionType{whereClause}{orderByClause}";
+
+		var queryDefinition = new QueryDefinition(queryText)
+			.WithParameter("@projectionType", _projectionType);
+		foreach (var (paramName, paramValue) in parameters)
+		{
+			queryDefinition = queryDefinition.WithParameter(paramName, paramValue);
+		}
+
+		// The cursor carries both the Cosmos continuation token AND the total record count. The
+		// total is computed ONCE (on the first page) and carried forward so continuation pages
+		// never re-issue a COUNT query.
+		var (continuation, carriedTotal) = DecodeCursor(cursor);
+
+		// Fill exactly one page of MATCHED items. The iterator is recreated each round with the
+		// prior round's continuation token and MaxItemCount set to only what is still needed, so a
+		// round never over-reads past the page boundary (no skip/duplicate across pages) even when
+		// StripAndDeserialize discards a malformed document.
+		var results = new List<TProjection>(pageSize);
+		do
+		{
+			var remaining = pageSize - results.Count;
+			using var iterator = _container!.GetItemQueryIterator<JsonElement>(
+				queryDefinition,
+				continuation,
+				new QueryRequestOptions { MaxItemCount = remaining });
+
+			if (!iterator.HasMoreResults)
+			{
+				continuation = null;
+				break;
+			}
+
+			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			foreach (var item in response)
+			{
+				var projection = StripAndDeserialize(JsonNode.Parse(item.GetRawText()));
+				if (projection is not null)
+				{
+					results.Add(projection);
+				}
+			}
+
+			continuation = response.ContinuationToken;
+		}
+		while (results.Count < pageSize && !string.IsNullOrEmpty(continuation));
+
+		// Compute the total once (first page) and carry it forward on continuation pages.
+		var totalRecords = carriedTotal ?? await CountAsync(filters, cancellationToken).ConfigureAwait(false);
+
+		// Surface a next cursor only when Cosmos signalled more results. When the query is exhausted
+		// (continuation null/empty) the walk ends cleanly with no phantom next page.
+		var nextCursor = string.IsNullOrEmpty(continuation)
+			? null
+			: CursorEncoder.Encode(continuation, totalRecords);
+
+		return new CursorPagedResult<TProjection>(results, pageSize, totalRecords, nextCursor);
+	}
+
+	private static (string? Continuation, long? Total) DecodeCursor(string? cursor)
+	{
+		var values = CursorEncoder.Decode(cursor);
+		if (values is not { Length: > 0 } || values[0] is not string continuation)
+		{
+			return (null, null);
+		}
+
+		var total = values.Length > 1 && values[1] is long carried ? carried : (long?)null;
+		return (continuation, total);
+	}
+
 	private async Task<List<TProjection>> ExecuteQueryAsync(
 		QueryDefinition queryDefinition,
 		CancellationToken cancellationToken)
@@ -503,6 +593,11 @@ public sealed partial class CosmosDbProjectionStore<
 			var parsed = FilterParser.Parse(key);
 			var paramName = $"@p{paramIndex++}";
 
+			// Cosmos DB does not support parameterized identifiers, so the property name is
+			// interpolated into the SQL. Allowlist-validate it (ASCII letters/digits/underscore)
+			// to prevent SQL injection via crafted filter keys before interpolation.
+			SqlIdentifierValidator.ThrowIfInvalid(parsed.PropertyName, nameof(filters));
+
 			// Cosmos DB uses direct property access with camelCase naming
 			var propertyName = $"{char.ToLowerInvariant(parsed.PropertyName[0])}{parsed.PropertyName[1..]}";
 
@@ -575,17 +670,26 @@ public sealed partial class CosmosDbProjectionStore<
 		return $"ARRAY_CONTAINS({arrayParamName}, c.{propertyName})";
 	}
 
-	private static string BuildOrderByClause(QueryOptions? options)
+	internal static string BuildOrderByClause(QueryOptions? options)
 	{
 		if (options?.OrderBy is null)
 		{
 			return " ORDER BY c.id"; // Default ordering for consistent pagination
 		}
 
+		// OrderBy is interpolated into Cosmos SQL (identifiers cannot be parameterized).
+		// Allowlist-validate to prevent SQL injection via a crafted OrderBy value.
+		SqlIdentifierValidator.ThrowIfInvalid(options.OrderBy, nameof(options));
+
 		var propertyName = $"{char.ToLowerInvariant(options.OrderBy[0])}{options.OrderBy[1..]}";
 		var direction = options.Descending ? "DESC" : "ASC";
 
-		return $" ORDER BY c.{propertyName} {direction}";
+		// Always append the unique `c.id` tiebreaker so page boundaries are deterministic even when the
+		// consumer-supplied OrderBy is non-unique (y6swku). Without it, documents with equal sort values have
+		// undefined relative order across page requests and can be skipped or duplicated between adjacent pages.
+		return string.Equals(propertyName, "id", StringComparison.Ordinal)
+			? $" ORDER BY c.{propertyName} {direction}"
+			: $" ORDER BY c.{propertyName} {direction}, c.id";
 	}
 
 	private static string BuildPaginationClause(QueryOptions? options)
@@ -611,12 +715,11 @@ public sealed partial class CosmosDbProjectionStore<
 
 	private static string CreateDocumentId(string projectionId)
 	{
-		// URL-safe encoding for document ID
+		// URL-safe (unpadded base64url) encoding for the document ID via the BCL primitive — byte-identical
+		// to the former Convert.ToBase64String + '+'/'-' , '/'/'_' , TrimEnd('=') hand-roll, so existing
+		// document IDs remain valid.
 		var bytes = System.Text.Encoding.UTF8.GetBytes(projectionId);
-		return Convert.ToBase64String(bytes)
-			.Replace('+', '-')
-			.Replace('/', '_')
-			.TrimEnd('=');
+		return System.Buffers.Text.Base64Url.EncodeToString(bytes);
 	}
 
 	private CosmosClientOptions CreateClientOptions()
@@ -628,7 +731,7 @@ public sealed partial class CosmosDbProjectionStore<
 			EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
 			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
 			ConnectionMode = _options.Client.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
-			UseSystemTextJsonSerializerWithOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+			UseSystemTextJsonSerializerWithOptions = _options.JsonSerializerOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions()
 		};
 
 		if (_options.Client.ConsistencyLevel.HasValue)

@@ -19,9 +19,12 @@
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
-  <!-- Enable testing of internal types -->
+  <!-- Provider stores call the internal InboxSchemaContract; the Oracle test project unit-tests it. -->
   <ItemGroup>
-    <InternalsVisibleTo Include="Excalibur.Inbox.Tests" />
     <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.Oracle" />
+    <InternalsVisibleTo Include="Excalibur.Inbox.Oracle.Tests" />
   </ItemGroup>
 </Project>

@@ -48,6 +48,7 @@ public class Function
         var services = new ServiceCollection();
         ConfigureServices(services);
         var serviceProvider = services.BuildServiceProvider();
+        serviceProvider.ValidateStartupGates();
 
         _dispatcher = serviceProvider.GetRequiredService<IDispatcher>();
     }
@@ -95,6 +96,10 @@ public class Function
     }
 }
 ```
+
+:::note Fail-fast on a host-less container
+This function builds the container with `BuildServiceProvider()` and never starts an `IHost`, so the framework's fail-fast startup gates (missing-provider prerequisite checks and the durability gates registered with `ValidateOnStart()`) do not fire on their own. Calling `ValidateStartupGates()` immediately after building the provider runs them once — surfacing a misconfiguration at cold start instead of at first message. See [Startup Prerequisite Validation](../core-concepts/dependency-injection.md#host-less-containers-must-trigger-the-gates-explicitly). On the isolated-worker model (which builds an `IHost` and calls `StartAsync`), the gates already run and this call is unnecessary.
+:::
 
 ### Project File
 
@@ -478,12 +483,14 @@ public class DynamoDbEventStore : IEventStore
     {
         var transactItems = new List<TransactWriteItem>();
 
+        // The store assigns each event's stream version; the event payload no longer carries one.
+        var version = expectedVersion;
         foreach (var @event in events)
         {
             var document = new Document
             {
                 ["AggregateId"] = aggregateId,
-                ["Version"] = @event.Version,
+                ["Version"] = ++version,
                 ["EventType"] = @event.EventType,
                 ["EventData"] = JsonSerializer.Serialize(@event),
                 ["OccurredAt"] = @event.OccurredAt.ToString("o")

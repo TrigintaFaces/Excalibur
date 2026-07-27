@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Operations.Dashboard.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Operations.Dashboard.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+    <!-- ASP.NET Core TestServer/WebApplicationFactory for the /saga/stuck HTTP endpoint lock -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Operations.Dashboard\Excalibur.Operations.Dashboard.csproj" />
+    <!-- Projection-lag panel lives in a dedicated event-sourcing package; referenced for the /projections/lag endpoint lock (8gj5m3). -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Operations.Dashboard.EventSourcing\Excalibur.Operations.Dashboard.EventSourcing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

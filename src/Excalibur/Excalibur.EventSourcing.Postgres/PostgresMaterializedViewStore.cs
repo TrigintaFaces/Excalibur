@@ -33,12 +33,20 @@ namespace Excalibur.EventSourcing.Postgres;
 /// for common patterns where the operation completes synchronously or is already cached.
 /// </para>
 /// </remarks>
-public sealed partial class PostgresMaterializedViewStore : IMaterializedViewStore
+public sealed partial class PostgresMaterializedViewStore : IAtomicMaterializedViewStore
 {
 	private const string DefaultViewTableName = "materialized_views";
 	private const string DefaultPositionTableName = "materialized_view_positions";
 
 	private readonly NpgsqlDataSource _dataSource;
+
+	/// <summary>
+	/// Test-only fault hook invoked inside <see cref="SaveViewAndPositionAsync{TView}"/> AFTER the view
+	/// upsert and BEFORE the position advance, within the same transaction. Default <see langword="null"/>
+	/// (no-op) in production — zero behavior change. A test sets it to a throwing delegate to simulate a
+	/// crash between the two writes and assert the transaction rolls BOTH back (exactly-once, no torn write).
+	/// </summary>
+	internal Func<CancellationToken, Task>? OnAfterViewBeforePositionAsync { get; set; }
 	private readonly string _viewTableName;
 	private readonly string _positionTableName;
 	private readonly ILogger<PostgresMaterializedViewStore> _logger;
@@ -84,6 +92,9 @@ public sealed partial class PostgresMaterializedViewStore : IMaterializedViewSto
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_viewTableName = viewTableName ?? DefaultViewTableName;
 		_positionTableName = positionTableName ?? DefaultPositionTableName;
+		// Read-model serialization — intentionally NOT the event canonical contract (a view is not an event;
+		// consumer-injectable). The numeric-enum representation is preserved: this JSON is a queryable,
+		// consumer-facing surface (SQL/search filters) where enum-as-string would break range/equality queries.
 		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -224,11 +235,16 @@ public sealed partial class PostgresMaterializedViewStore : IMaterializedViewSto
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
 
+		// The WHERE clause makes the advance monotonic, matching the position upsert inside
+		// SaveViewAndPositionAsync. Without it a delayed or retried write carrying an older position rewinds the
+		// checkpoint, and the projection replays events it has already applied. Both methods write this same row,
+		// so both must enforce the invariant: a guarantee held by only one of a state's writers is not held.
 		var sql = $"""
 			INSERT INTO {_positionTableName} (view_name, position, created_at, updated_at)
 			VALUES (@view_name, @position, @updated_at, @updated_at)
 			ON CONFLICT (view_name)
 			DO UPDATE SET position = EXCLUDED.position, updated_at = EXCLUDED.updated_at
+			WHERE {_positionTableName}.position < EXCLUDED.position
 			""";
 
 		var now = DateTimeOffset.UtcNow;
@@ -242,6 +258,87 @@ public sealed partial class PostgresMaterializedViewStore : IMaterializedViewSto
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
+		LogPositionSaved(viewName, position);
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>Always <see langword="true"/>: both writes run inside one SQL transaction, unconditionally.</remarks>
+	public bool SupportsAtomicWrites => true;
+
+	/// <inheritdoc/>
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[RequiresUnreferencedCode("JSON serialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("JSON serialization might require runtime code generation.")]
+	public async ValueTask SaveViewAndPositionAsync<TView>(
+		string viewName,
+		string viewId,
+		TView view,
+		long position,
+		CancellationToken cancellationToken)
+		where TView : class
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewId);
+		ArgumentNullException.ThrowIfNull(view);
+
+		// Atomic (iqx3x3): the view upsert and the checkpoint advance run in ONE transaction, so a crash
+		// can never leave the view updated while the position lags (or vice versa) -- the exactly-once
+		// contract. The position advance is monotonic: the DO UPDATE only fires when the new position is
+		// strictly greater, so a lower position never overwrites a higher one.
+		var viewSql = $"""
+			INSERT INTO {_viewTableName} (view_name, view_id, data, created_at, updated_at)
+			VALUES (@view_name, @view_id, @data::jsonb, @updated_at, @updated_at)
+			ON CONFLICT (view_name, view_id)
+			DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
+			""";
+
+		var positionSql = $"""
+			INSERT INTO {_positionTableName} (view_name, position, created_at, updated_at)
+			VALUES (@view_name, @position, @updated_at, @updated_at)
+			ON CONFLICT (view_name)
+			DO UPDATE SET position = EXCLUDED.position, updated_at = EXCLUDED.updated_at
+			WHERE {_positionTableName}.position < EXCLUDED.position
+			""";
+
+		var json = JsonSerializer.Serialize(view, _jsonOptions);
+		var now = DateTimeOffset.UtcNow;
+
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			_ = await connection.ExecuteAsync(
+				new CommandDefinition(
+					viewSql,
+					new { view_name = viewName, view_id = viewId, data = json, updated_at = now },
+					transaction,
+					cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			if (OnAfterViewBeforePositionAsync is not null)
+			{
+				await OnAfterViewBeforePositionAsync(cancellationToken).ConfigureAwait(false);
+			}
+
+			_ = await connection.ExecuteAsync(
+				new CommandDefinition(
+					positionSql,
+					new { view_name = viewName, position, updated_at = now },
+					transaction,
+					cancellationToken: cancellationToken))
+				.ConfigureAwait(false);
+
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch
+		{
+			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+			throw;
+		}
+
+		LogViewSaved(viewName, viewId);
 		LogPositionSaved(viewName, position);
 	}
 

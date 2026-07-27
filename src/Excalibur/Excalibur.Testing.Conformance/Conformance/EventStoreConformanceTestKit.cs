@@ -147,6 +147,90 @@ public abstract class EventStoreConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that when many appends race at the same expected version, exactly one succeeds and every
+	/// other attempt is rejected as a concurrency conflict — the optimistic-concurrency guarantee under
+	/// concurrent contention, not merely the sequential wrong-version case.
+	/// </summary>
+	public virtual async Task ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed()
+	{
+		var store = CreateStore();
+		var aggregateId = GenerateAggregateId();
+
+		// Seed the stream so it sits at version 0 (a single event appended to a new stream).
+		_ = await store.AppendAsync(
+			aggregateId,
+			DefaultAggregateType,
+			CreateTestEvents(aggregateId, 1),
+			-1,
+			CancellationToken.None).ConfigureAwait(false);
+
+		const int concurrentAttempts = 10;
+		var tasks = new List<Task<AppendResult>>(concurrentAttempts);
+		for (var i = 0; i < concurrentAttempts; i++)
+		{
+			// Every racer expects the stream to still be at version 0. Invoke AppendAsync directly and
+			// collect the tasks so they run concurrently (Task.Run is banned here, RS0030); each call
+			// starts before the WhenAll await, so async stores genuinely overlap.
+			tasks.Add(store.AppendAsync(
+				aggregateId,
+				DefaultAggregateType,
+				CreateTestEvents(aggregateId, 1),
+				0,
+				CancellationToken.None).AsTask());
+		}
+
+		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+		// Safety: exactly one racer may win.
+		var successCount = results.Count(r => r.Success);
+		if (successCount != 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected exactly one concurrent append at the same expected version to succeed but {successCount} did.");
+		}
+
+		// Honesty: every loser must be reported as a concurrency conflict — not a silent no-op, a crash,
+		// or a lost write.
+		var conflicts = results.Count(r => !r.Success && r.IsConcurrencyConflict);
+		if (conflicts != concurrentAttempts - 1)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected the other {concurrentAttempts - 1} racers to be concurrency conflicts but {conflicts} were.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that concurrent appends to DIFFERENT aggregates all succeed — the store must not serialize
+	/// or falsely conflict independent streams (the liveness counterpart to the same-version race).
+	/// </summary>
+	public virtual async Task ConcurrentAppend_DifferentAggregates_AllShouldSucceed()
+	{
+		var store = CreateStore();
+
+		const int concurrentAttempts = 10;
+		var tasks = new List<Task<AppendResult>>(concurrentAttempts);
+		for (var i = 0; i < concurrentAttempts; i++)
+		{
+			var aggregateId = GenerateAggregateId();
+			tasks.Add(store.AppendAsync(
+				aggregateId,
+				DefaultAggregateType,
+				CreateTestEvents(aggregateId, 1),
+				-1,
+				CancellationToken.None).AsTask());
+		}
+
+		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+		var failed = results.Count(r => !r.Success);
+		if (failed != 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"Expected all {concurrentAttempts} concurrent appends to independent aggregates to succeed but {failed} failed.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that appending with correct expected version succeeds.
 	/// </summary>
 	public virtual async Task AppendAsync_WithCorrectExpectedVersion_ShouldSucceed()

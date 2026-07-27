@@ -70,7 +70,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			{
 				ControlId = ControlCnf001,
 				Name = "Data Classification",
-				Description = "Data is classified according to sensitivity using ADR-053 classification attributes",
+				Description = "Data is classified according to sensitivity using classification attributes",
 				Implementation = "[PersonalData], [Sensitive], [Confidential] attributes for classification",
 				Type = ControlType.Preventive,
 				Frequency = ControlFrequency.Continuous
@@ -80,7 +80,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 				ControlId = ControlCnf002,
 				Name = "Data Protection",
 				Description = "Classified data is protected with field-level encryption",
-				Implementation = "ADR-051 Field encryption based on classification level",
+				Implementation = "Field encryption based on classification level",
 				Type = ControlType.Preventive,
 				Frequency = ControlFrequency.Continuous
 			},
@@ -88,7 +88,7 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 			{
 				ControlId = ControlCnf003,
 				Name = "Data Disposal",
-				Description = "Data disposal follows ADR-054 cryptographic erasure procedures",
+				Description = "Data disposal follows cryptographic erasure procedures",
 				Implementation = "GDPR Right to Erasure with cryptographic key destruction",
 				Type = ControlType.Corrective,
 				Frequency = ControlFrequency.OnDemand
@@ -148,19 +148,29 @@ public sealed class ConfidentialityControlValidator : BaseControlValidator
 
 		if (_erasureService == null)
 		{
-			// Erasure service is optional - can use manual procedures
+			// CNF-003's DECLARED disposal control is automated cryptographic erasure (ADR-054). A null
+			// IErasureService means that declared mechanism is ABSENT; returning PASS on unverifiable
+			// "manual procedures apply" would launder a false-green. Surface the gap with visibility
+			// instead (compliance-ASSISTANCE: honesty-of-signal is the value) so an auditor sees the
+			// unverified control rather than a green that hides it.
+			issues.Add(
+				"Automated cryptographic erasure (IErasureService) not configured — the declared disposal "
+				+ "control is unverified; manual/compensating procedures require independent attestation.");
+
 			evidence.Add(CreateEvidence(
 				EvidenceType.Configuration,
-				"IErasureService not configured - manual disposal procedures apply",
+				"IErasureService not configured - the declared cryptographic-erasure disposal control is absent; manual procedures require independent attestation",
 				nameof(ConfidentialityControlValidator)));
+
+			// Partial score: a compensating manual procedure MAY exist, but the declared automated
+			// control is absent and unverifiable here — not a full failure, not a pass.
+			return CreateFailureResult(ControlCnf003, issues, effectivenessScore: 40, evidence);
 		}
-		else
-		{
-			evidence.Add(CreateEvidence(
-				EvidenceType.Configuration,
-				"Cryptographic erasure available via IErasureService",
-				nameof(ConfidentialityControlValidator)));
-		}
+
+		evidence.Add(CreateEvidence(
+			EvidenceType.Configuration,
+			"Cryptographic erasure available via IErasureService",
+			nameof(ConfidentialityControlValidator)));
 
 		evidence.Add(CreateEvidence(
 			EvidenceType.TestResult,

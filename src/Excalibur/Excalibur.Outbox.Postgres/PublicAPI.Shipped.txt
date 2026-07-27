@@ -5,7 +5,7 @@ Excalibur.Outbox.Postgres.DeadLetterRecord.Attempts.set -> void
 Excalibur.Outbox.Postgres.DeadLetterRecord.DeadLetterRecord() -> void
 Excalibur.Outbox.Postgres.DeadLetterRecord.ErrorMessage.get -> string?
 Excalibur.Outbox.Postgres.DeadLetterRecord.ErrorMessage.set -> void
-Excalibur.Outbox.Postgres.DeadLetterRecord.MessageBody.get -> string!
+Excalibur.Outbox.Postgres.DeadLetterRecord.MessageBody.get -> byte[]!
 Excalibur.Outbox.Postgres.DeadLetterRecord.MessageBody.set -> void
 Excalibur.Outbox.Postgres.DeadLetterRecord.MessageId.get -> string!
 Excalibur.Outbox.Postgres.DeadLetterRecord.MessageId.set -> void
@@ -33,13 +33,13 @@ Excalibur.Outbox.Postgres.IPostgresOutboxBuilder.TableName(string! tableName) ->
 Excalibur.Outbox.Postgres.IncrementOutboxMessageAttempts
 Excalibur.Outbox.Postgres.IncrementOutboxMessageAttempts.IncrementOutboxMessageAttempts(string! messageId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.InsertOutboxMessage
-Excalibur.Outbox.Postgres.InsertOutboxMessage.InsertOutboxMessage(string! messageId, string! messageType, string! messageMetadata, string! messageBody, string? tenantId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Postgres.InsertOutboxMessage.InsertOutboxMessage(string! messageId, string! messageType, string! messageMetadata, byte[]! messageBody, System.DateTimeOffset createdAt, string? tenantId, string? destination, string? correlationId, string? causationId, int priority, System.DateTimeOffset? scheduledAt, string? partitionKey, string? groupKey, long sequenceNumber, string? targetTransports, bool isMultiTransport, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.MoveOutboxMessageToDeadLetter
 Excalibur.Outbox.Postgres.MoveOutboxMessageToDeadLetter.MoveOutboxMessageToDeadLetter(string! messageId, string! outboxTableName, string! deadLetterTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
 Excalibur.Outbox.Postgres.OutboxBuilderPostgresExtensions
 Excalibur.Outbox.Postgres.PostgresOutboxBuilderExtensions
 Excalibur.Outbox.Postgres.PostgresOutboxStore
-Excalibur.Outbox.Postgres.PostgresOutboxStore.CleanupSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.Postgres.PostgresOutboxStore.CleanupAllTenantsSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Excalibur.Outbox.Postgres.PostgresOutboxStore.DeleteOutboxRecord(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.DeleteOutboxRecordsBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.Dispose() -> void
@@ -48,20 +48,22 @@ Excalibur.Outbox.Postgres.PostgresOutboxStore.GetFailedMessagesAsync(int maxRetr
 Excalibur.Outbox.Postgres.PostgresOutboxStore.GetScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Postgres.PostgresOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
 Excalibur.Outbox.Postgres.PostgresOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
+Excalibur.Outbox.Postgres.PostgresOutboxStore.GetUnsentMessagesAsync(int batchSize, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Postgres.PostgresOutboxStore.IncreaseAttempts(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.IncreaseAttemptsBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Postgres.PostgresOutboxStore.MarkSentAsync(string! messageId, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MoveToDeadLetter(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.MoveToDeadLetterBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Outbox.Postgres.PostgresOutboxStore.PostgresOutboxStore(Excalibur.Data.IDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.Postgres.PostgresOutboxStore!>! logger, Excalibur.Outbox.Postgres.PostgresOutboxStoreMetrics? metrics = null) -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStore.ReserveOutboxMessagesAsync(string! dispatcherId, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IOutboxMessage!>!>!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.SaveMessagesAsync(System.Collections.Generic.ICollection<Excalibur.Dispatch.IOutboxMessage!>! outboxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.Outbox.Postgres.PostgresOutboxStore.ScheduleMessageAsync(Excalibur.Dispatch.Delivery.OutboxMessage! message, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Outbox.Postgres.PostgresOutboxStore.ScheduleMessageAsync(Excalibur.Outbox.OutboxMessage! message, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.Postgres.PostgresOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Postgres.PostgresOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Postgres.PostgresOutboxStore.SupportsSentTracking.get -> bool
 Excalibur.Outbox.Postgres.PostgresOutboxStore.UnReserveOutboxMessagesAsync(string! dispatcherId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreMetrics
 Excalibur.Outbox.Postgres.PostgresOutboxStoreMetrics.Dispose() -> void
@@ -78,17 +80,22 @@ Excalibur.Outbox.Postgres.PostgresOutboxStoreMetrics.RecordUnreserveMessages(dou
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.DeadLetterTableName.get -> string!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.DeadLetterTableName.set -> void
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.FailureBackoffFloorSeconds.get -> int
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.FailureBackoffFloorSeconds.set -> void
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.FenceTableName.get -> string!
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.FenceTableName.set -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.OutboxTableName.get -> string!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.OutboxTableName.set -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.PostgresOutboxStoreOptions() -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.QualifiedDeadLetterTableName.get -> string!
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.QualifiedFenceTableName.get -> string!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.QualifiedOutboxTableName.get -> string!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.ReservationTimeout.get -> int
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.ReservationTimeout.set -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.SchemaName.get -> string!
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions.SchemaName.set -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptionsValidator
-Excalibur.Outbox.Postgres.PostgresOutboxStoreOptionsValidator.PostgresOutboxStoreOptionsValidator() -> void
+Excalibur.Outbox.Postgres.PostgresOutboxStoreOptionsValidator.PostgresOutboxStoreOptionsValidator(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions!>! processingOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Partitioning.OutboxPartitionOptions!>! partitionOptions) -> void
 Excalibur.Outbox.Postgres.PostgresOutboxStoreOptionsValidator.Validate(string? name, Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
 Excalibur.Outbox.Postgres.ReserveOutboxMessages
 Excalibur.Outbox.Postgres.ReserveOutboxMessages.ReserveOutboxMessages(string! dispatcherId, int batchSize, int reservationTimeout, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void

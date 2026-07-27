@@ -52,17 +52,15 @@ Excalibur.Compliance.Aws.AwsKmsOptions.UseFipsEndpoint.get -> bool
 Excalibur.Compliance.Aws.AwsKmsOptions.UseFipsEndpoint.set -> void
 Excalibur.Compliance.Aws.AwsKmsProvider
 Excalibur.Compliance.Aws.AwsKmsProvider.AwsKmsProvider(Amazon.KeyManagementService.IAmazonKeyManagementService! kmsClient, Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Aws.AwsKmsOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Aws.AwsKmsProvider!>! logger, Microsoft.Extensions.Caching.Memory.IMemoryCache? metadataCache = null) -> void
-Excalibur.Compliance.Aws.AwsKmsProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Aws.AwsKmsProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyDestructionOutcome>!
 Excalibur.Compliance.Aws.AwsKmsProvider.Dispose() -> void
 Excalibur.Compliance.Aws.AwsKmsProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Aws.AwsKmsProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Aws.AwsKmsProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Aws.AwsKmsProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Aws.AwsKmsProvider.ReactivateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Aws.AwsKmsProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
 Excalibur.Compliance.Aws.AwsKmsProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Compliance.Aws.IHistoricalKeyProvider
-Excalibur.Compliance.Aws.IHistoricalKeyProvider.GetKeyVersionAsync(string! keyId, System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
-Excalibur.Compliance.Aws.IHistoricalKeyProvider.ListKeyVersionsAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
 Excalibur.Compliance.Aws.IComplianceAwsBuilder
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.Environment(string! environment) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
@@ -70,5 +68,8 @@ Excalibur.Compliance.Aws.IComplianceAwsBuilder.KeyAliasPrefix(string! prefix) ->
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.Region(string! region) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
 Excalibur.Compliance.Aws.IComplianceAwsBuilder.UseFipsEndpoint(bool useFips = true) -> Excalibur.Compliance.Aws.IComplianceAwsBuilder!
+Excalibur.Compliance.Aws.IHistoricalKeyProvider
+Excalibur.Compliance.Aws.IHistoricalKeyProvider.GetKeyVersionAsync(string! keyId, System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
+Excalibur.Compliance.Aws.IHistoricalKeyProvider.ListKeyVersionsAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
 Microsoft.Extensions.DependencyInjection.AwsComplianceServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.AwsComplianceServiceCollectionExtensions.AddAwsKmsKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Aws.IComplianceAwsBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

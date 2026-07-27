@@ -107,7 +107,9 @@ public sealed class OrderedEventProcessorCoverageShould
     {
         // Arrange
         var processor = new OrderedEventProcessor();
+        #pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
         processor.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        #pragma warning restore RS0030
 
         // Act & Assert - should not throw
         processor.Dispose();

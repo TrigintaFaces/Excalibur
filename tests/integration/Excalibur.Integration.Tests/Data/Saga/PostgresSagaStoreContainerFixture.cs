@@ -24,17 +24,6 @@ public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 	private bool _initialized;
 
 	/// <summary>
-	/// Static constructor to enable Npgsql legacy timestamp behavior.
-	/// This ensures TIMESTAMPTZ columns are mapped to DateTimeOffset instead of DateTime.
-	/// Must be set before any Npgsql connection is opened.
-	/// </summary>
-	static PostgresSagaStoreContainerFixture()
-	{
-		// Enable legacy timestamp behavior so TIMESTAMPTZ maps to DateTimeOffset
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-	}
-
-	/// <summary>
 	/// Gets the connection string for the Postgres container.
 	/// </summary>
 	public string ConnectionString => _container?.GetConnectionString()
@@ -85,13 +74,23 @@ public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 			CREATE SCHEMA IF NOT EXISTS {Schema};
 
 			CREATE TABLE IF NOT EXISTS "{Schema}"."{TableName}" (
-				saga_id UUID PRIMARY KEY,
+				saga_id UUID NOT NULL,
 				saga_type VARCHAR(256) NOT NULL,
 				state_json JSONB NOT NULL,
 				is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+				-- Mirrors the shipped Scripts/01-SagaSchema.sql: NOT NULL with the reserved untenanted
+				-- sentinel. A nullable discriminator here would let the fixture accept rows the shipped
+				-- schema rejects, and the store's upsert now names (tenant_id, saga_id) as its ON CONFLICT
+				-- target, which must exist as a unique constraint or every save raises 42P10.
+				tenant_id VARCHAR(200) NOT NULL DEFAULT '__untenanted__',
 				version BIGINT NOT NULL DEFAULT 0,
 				created_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				updated_utc TIMESTAMPTZ NOT NULL DEFAULT NOW()
+				updated_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				completed_at TIMESTAMPTZ NULL,
+				-- Composite key matching the shipped schema. Required, not cosmetic: it is both the
+				-- ON CONFLICT (tenant_id, saga_id) target the upsert names, and the only shape under which
+				-- two tenants can hold the same saga_id at all — so a cross-tenant test case is expressible.
+				CONSTRAINT pk_{TableName} PRIMARY KEY (tenant_id, saga_id)
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_sagas_saga_type
@@ -99,6 +98,12 @@ public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 
 			CREATE INDEX IF NOT EXISTS idx_sagas_is_completed
 				ON "{Schema}"."{TableName}"(is_completed) WHERE is_completed = FALSE;
+
+			-- w8aqq3: completed_at is a REAL INDEXED COLUMN (SA ruling — not a state_json JSONB proxy),
+			-- backing ISagaStore.PurgeCompletedBeforeAsync's completed-and-before-cutoff query (d0wpug lock).
+			-- The partial index keeps the retention purge sargable rather than a full scan.
+			CREATE INDEX IF NOT EXISTS idx_sagas_completed_at
+				ON "{Schema}"."{TableName}"(completed_at) WHERE completed_at IS NOT NULL;
 			""";
 
 		await using var command = new NpgsqlCommand(createSchemaSql, connection);

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
@@ -167,6 +168,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 
 	internal static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
+		// NOTE: the ITenantScopingCapability<IEventStore> marker is emitted by AddTenantScopedStore at the
+		// concrete store registration (RegisterEventStore), inseparably from the store wiring (S886 rw2ull) —
+		// not here, where it was decoupled from the store that must honor the tenant.
 		services.AddKeyedSingleton<IEventStore>("postgres", (sp, _) =>
 		{
 			var meterFactory = sp.GetService<IMeterFactory>();

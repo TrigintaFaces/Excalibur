@@ -5,6 +5,7 @@ using Excalibur.A3.Authorization.Grants;
 using GrantAggregate = Excalibur.A3.Authorization.Grants.Grant;
 using Excalibur.A3.Exceptions;
 using Excalibur.Domain;
+using Excalibur.Domain.Model;
 
 using Microsoft.Extensions.Caching.Distributed;
 
@@ -182,7 +183,7 @@ public sealed class AddGrantCommandHandlerShould
 		var addedEvent = new Excalibur.A3.Authorization.Events.GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", "ActivityGroup", "orders",
 			DateTimeOffset.UtcNow.AddDays(30), "admin", DateTimeOffset.UtcNow.AddDays(-1));
-		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
+		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [new HistoricEvent(addedEvent, 0)]);
 	}
 
 	private static GrantAggregate CreateExpiredGrant()
@@ -190,6 +191,6 @@ public sealed class AddGrantCommandHandlerShould
 		var addedEvent = new Excalibur.A3.Authorization.Events.GrantAdded(
 			"target-user", "Target User", "TestApp", "tenant-1", "ActivityGroup", "orders",
 			DateTimeOffset.UtcNow.AddDays(-1), "admin", DateTimeOffset.UtcNow.AddDays(-5));
-		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [addedEvent]);
+		return GrantAggregate.FromEvents("target-user:tenant-1:ActivityGroup:orders", [new HistoricEvent(addedEvent, 0)]);
 	}
 }

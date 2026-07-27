@@ -490,8 +490,23 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	}
 
 	/// <summary>
-	/// Empty message used as a placeholder when context is in the pool.
+	/// Stands in for a message on a context that does not have one yet.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is not only the pooling placeholder. It is also what <see cref="CreateForDeserialization" /> installs, so every context built
+	/// by a factory that does not take a message carries it: creating a default context, building one from transport headers, and
+	/// deserializing one from a transport attribute dictionary on the receive side. A context obtained that way holds this instance until a
+	/// real message is dispatched through it.
+	/// </para>
+	/// <para>
+	/// It implements <see cref="IDispatchMessage" /> and nothing else, which would classify as the least-protected kind were it ever
+	/// classified. It is not: middleware applicability is determined from the type of the message passed to the pipeline, never from the
+	/// message a context happens to be carrying, so this type does not reach the classifier from any of those factories. That is a property
+	/// of where the classification input comes from, not a property of this type — if a caller is ever added that classifies a context's own
+	/// message, this becomes reachable and must be exempted explicitly at the classifier rather than left to the default.
+	/// </para>
+	/// </remarks>
 	internal sealed class EmptyMessage : IDispatchMessage
 	{
 		public static readonly EmptyMessage Instance = new();
@@ -520,9 +535,6 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 
 		/// <inheritdoc />
 		public Guid Id => Guid.Empty;
-
-		/// <inheritdoc />
-		public MessageKinds Kind => MessageKinds.Action;
 	}
 
 	/// <summary>

@@ -245,12 +245,12 @@ public static class SecurityMiddlewareExtensions
 	}
 
 	/// <summary>
-	/// Adds asymmetric message signing services with support for HMAC, ECDSA, and Ed25519 algorithms.
+	/// Adds asymmetric message signing services with support for HMAC, ECDSA, and RSA algorithms.
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// This registers a <see cref="CompositeMessageSigningService"/> that delegates to algorithm-specific
-	/// <see cref="ISignatureAlgorithmProvider"/> instances. All standard providers (HMAC, ECDSA, Ed25519)
+	/// <see cref="ISignatureAlgorithmProvider"/> instances. All standard providers (HMAC, ECDSA, RSA)
 	/// are registered via <see cref="ServiceCollectionDescriptorExtensions.TryAddEnumerable(IServiceCollection, ServiceDescriptor)"/>.
 	/// </para>
 	/// <para>
@@ -286,7 +286,7 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, EcdsaSignatureAlgorithmProvider>());
 		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, Ed25519SignatureAlgorithmProvider>());
+			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, RsaSignatureAlgorithmProvider>());
 
 		// Composite replaces HMAC-only service (Replace ensures single registration)
 		services.RemoveAll<IMessageSigningService>();

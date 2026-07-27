@@ -355,35 +355,63 @@ public sealed class VerificationScenarioTests
 	/// AddExcaliburOutbox() registers outbox infrastructure that resolves
 	/// without DI errors. Smoke-level (no Docker/transport required).
 	/// </summary>
+	// Async because the resolved OutboxProcessor implements IAsyncDisposable ONLY, and the container
+	// refuses a synchronous Dispose when it holds one. The storeless version of this scenario never
+	// resolved a real processor, so a sync `using` sufficed; resolving one for real makes async disposal
+	// part of the contract being verified.
 	[Fact]
-	public void Scenario7_Outbox_ServicesCompose_AndResolve()
+	public async Task Scenario7_Outbox_ServicesCompose_AndResolve()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
 
-		// Register outbox via builder chain (includes AddDispatch internally per ADR-078)
+		// A STORE IS SELECTED HERE, and that is the point of the scenario.
+		//
+		// This previously composed the outbox with NO store and expected GetService<IOutboxProcessor>() to
+		// hand back null. It does not, and the product is right: IOutboxProcessor IS registered, so .NET
+		// resolves it, its dependency reaches the non-keyed IOutboxStore alias, and that alias forwards to
+		// the keyed "default" store nobody selected. GetService returns null for an UNREGISTERED service --
+		// it does not swallow an exception thrown by a registered service's factory. Storeless outbox is a
+		// configuration the framework deliberately refuses (that is what OutboxPrerequisiteValidator is
+		// for), so the old expectation was asserting the absence of a guard that now exists.
 		var regException = Record.Exception(() =>
 		{
-			services.AddExcalibur(excalibur => excalibur.AddOutbox(_ => { }));
+			services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UseInMemory()));
 		});
 		regException.ShouldBeNull();
 
 		// Act
-		using var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 
 		// Assert -- core outbox services resolve
 		var dispatcher = provider.GetService<IDispatcher>();
 		dispatcher.ShouldNotBeNull("IDispatcher should resolve from outbox stack");
 
-		// IOutboxProcessor is the key outbox service
+		// LIVENESS: with a store selected, the processor must actually resolve. Asserting only that
+		// composition "builds without errors" is satisfied by a stack that resolves nothing at all --
+		// which is precisely how the storeless version of this scenario passed for so long.
 		var outboxProcessor = provider.GetService<IOutboxProcessor>();
-		// Note: IOutboxProcessor may not be registered without a store implementation
-		// The key assertion is that the outbox DI composition builds without errors
-		_output.WriteLine($"IDispatcher resolved: {dispatcher.GetType().Name}");
-		_output.WriteLine($"IOutboxProcessor resolved: {(outboxProcessor != null ? outboxProcessor.GetType().Name : "null (requires store implementation)")}");
+		outboxProcessor.ShouldNotBeNull(
+			"with an in-memory store selected the outbox processor must resolve -- if this is null the "
+			+ "outbox composes into a stack that cannot actually dispatch anything");
 
-		_output.WriteLine("Scenario 7 PASSED: Outbox DI composition builds and key services resolve");
+		// SAFETY: the storeless composition must FAIL, and fail loudly. Without this arm a regression that
+		// silently accepted a storeless outbox would leave a consumer with a dispatcher that drops
+		// everything, and the liveness arm above would keep passing.
+		var storeless = new ServiceCollection();
+		storeless.AddLogging();
+		storeless.AddExcalibur(excalibur => excalibur.AddOutbox(_ => { }));
+		await using var storelessProvider = storeless.BuildServiceProvider();
+
+		_ = Should.Throw<InvalidOperationException>(
+			() => storelessProvider.GetService<IOutboxProcessor>(),
+			"composing an outbox without selecting a store must fail loudly rather than yielding a "
+			+ "silently non-functional outbox");
+
+		_output.WriteLine($"IDispatcher resolved: {dispatcher.GetType().Name}");
+		_output.WriteLine($"IOutboxProcessor resolved: {outboxProcessor.GetType().Name}");
+		_output.WriteLine("Scenario 7 PASSED: outbox composes and resolves WITH a store, and refuses without one");
 	}
 }
 

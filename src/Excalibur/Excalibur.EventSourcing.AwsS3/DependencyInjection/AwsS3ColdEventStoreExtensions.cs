@@ -95,6 +95,8 @@ public static class AwsS3ColdEventStoreExtensions
 		}
 
 		builder.Services.AddOptionsWithValidateOnStart<AwsS3ColdEventStoreOptions>();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsS3ColdEventStoreOptions>, AwsS3ColdEventStoreOptionsValidator>());
 
 		// Register IAmazonS3 based on connection path
 		var hasBuilderClient = s3Builder.ClientInstance is not null

@@ -50,6 +50,9 @@ public sealed class ErasureServiceCollectionExtensionsShould
 		// Act
 		services.AddInMemoryErasureStore();
 
+		// The keyed data-subject hasher is fail-closed and requires a pepper before the store can resolve.
+		_ = services.Configure<DataSubjectHashingOptions>(o => o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
+
 		// Assert
 		var provider = services.BuildServiceProvider();
 		provider.GetService<IErasureStore>().ShouldNotBeNull();
@@ -65,11 +68,21 @@ public sealed class ErasureServiceCollectionExtensionsShould
 
 		// Act
 		services.AddLegalHoldService();
+		services.AddLogging();
+		services.AddInMemoryLegalHoldStore();
+		_ = services.Configure<DataSubjectHashingOptions>(o => o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
 
 		// Assert
 		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(ILegalHoldService));
 		descriptor.ShouldNotBeNull();
 		descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+		// B3 regression: the standalone AddLegalHoldService path must self-register IDataSubjectHasher so the
+		// service RESOLVES (before the fix this threw: "Unable to resolve IDataSubjectHasher").
+		using var provider = services.BuildServiceProvider(validateScopes: true);
+		using var scope = provider.CreateScope();
+		scope.ServiceProvider.GetRequiredService<ILegalHoldService>().ShouldNotBeNull();
+		provider.GetRequiredService<IDataSubjectHasher>().ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -95,11 +108,22 @@ public sealed class ErasureServiceCollectionExtensionsShould
 
 		// Act
 		services.AddDataInventoryService();
+		services.AddLogging();
+		services.AddInMemoryDataInventoryStore();
+		services.AddSingleton(A.Fake<IKeyManagementProvider>());
+		_ = services.Configure<DataSubjectHashingOptions>(o => o.Pepper = "test-pepper-0123456789abcdef0123456789ab");
 
 		// Assert
 		var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IDataInventoryService));
 		descriptor.ShouldNotBeNull();
 		descriptor.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+		// B3 regression: the standalone AddDataInventoryService path must self-register IDataSubjectHasher so
+		// the service RESOLVES (before the fix this threw: "Unable to resolve IDataSubjectHasher").
+		using var provider = services.BuildServiceProvider(validateScopes: true);
+		using var scope = provider.CreateScope();
+		scope.ServiceProvider.GetRequiredService<IDataInventoryService>().ShouldNotBeNull();
+		provider.GetRequiredService<IDataSubjectHasher>().ShouldNotBeNull();
 	}
 
 	[Fact]

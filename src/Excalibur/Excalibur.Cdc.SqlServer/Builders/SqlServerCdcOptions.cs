@@ -49,28 +49,9 @@ public sealed class SqlServerCdcOptions
 	public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
-	/// Gets or sets the connection string for the SQL Server database.
+	/// Gets the connection-identity options for the SQL Server CDC processor.
 	/// </summary>
-	[Required]
-	public string? ConnectionString { get; set; }
-
-	/// <summary>
-	/// Gets or sets the database name for CDC processing.
-	/// </summary>
-	/// <value>The database name, or <see langword="null"/> if not configured via the builder.</value>
-	public string? DatabaseName { get; set; }
-
-	/// <summary>
-	/// Gets or sets the unique identifier for the CDC source database connection.
-	/// </summary>
-	/// <value>The connection identifier, or <see langword="null"/> if not configured via the builder.</value>
-	public string? DatabaseConnectionIdentifier { get; set; }
-
-	/// <summary>
-	/// Gets or sets the unique identifier for the state store database connection.
-	/// </summary>
-	/// <value>The connection identifier, or <see langword="null"/> if not configured via the builder.</value>
-	public string? StateConnectionIdentifier { get; set; }
+	public SqlServerCdcConnectionOptions Connection { get; } = new();
 
 	/// <summary>
 	/// Gets or sets the CDC capture instances to process.
@@ -87,7 +68,7 @@ public sealed class SqlServerCdcOptions
 	/// <summary>
 	/// Gets a value indicating whether database configuration was provided via the builder.
 	/// </summary>
-	internal bool HasDatabaseConfig => DatabaseName is not null;
+	internal bool HasDatabaseConfig => Connection.DatabaseName is not null;
 
 	/// <summary>
 	/// Validates the options and throws if invalid.

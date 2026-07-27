@@ -135,7 +135,9 @@ public sealed class ConsulLeaderElectionShould
 		var result = sut.CurrentLeaderId;
 
 		// Assert — should return quickly without blocking
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		// If it was still using .GetAwaiter().GetResult(), this would potentially hang
+		#pragma warning restore RS0030
 		result.ShouldBeNull("Default CurrentLeaderId should be null (cached value)");
 	}
 

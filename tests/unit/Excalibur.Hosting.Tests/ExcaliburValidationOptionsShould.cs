@@ -18,17 +18,17 @@ public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 		// Assert
 		options.Enabled.ShouldBeTrue();
 		options.FailFast.ShouldBeTrue();
-		options.ValidateDatabases.ShouldBeTrue();
-		options.TestDatabaseConnections.ShouldBeFalse();
-		_ = options.DatabaseConnections.ShouldNotBeNull();
-		options.DatabaseConnections.ShouldBeEmpty();
-		options.ValidateCloudProviders.ShouldBeTrue();
-		options.UseAws.ShouldBeFalse();
-		options.UseAzure.ShouldBeFalse();
-		options.UseGoogleCloud.ShouldBeFalse();
-		options.ValidateMessageBrokers.ShouldBeTrue();
-		options.UseRabbitMq.ShouldBeFalse();
-		options.UseKafka.ShouldBeFalse();
+		options.Databases.Enabled.ShouldBeTrue();
+		options.Databases.TestConnections.ShouldBeFalse();
+		_ = options.Databases.Connections.ShouldNotBeNull();
+		options.Databases.Connections.ShouldBeEmpty();
+		options.CloudProviders.Enabled.ShouldBeTrue();
+		options.CloudProviders.UseAws.ShouldBeFalse();
+		options.CloudProviders.UseAzure.ShouldBeFalse();
+		options.CloudProviders.UseGoogleCloud.ShouldBeFalse();
+		options.MessageBrokers.Enabled.ShouldBeTrue();
+		options.MessageBrokers.UseRabbitMq.ShouldBeFalse();
+		options.MessageBrokers.UseKafka.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -64,10 +64,10 @@ public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 		var options = new ExcaliburValidationOptions();
 
 		// Act
-		options.ValidateDatabases = false;
+		options.Databases.Enabled = false;
 
 		// Assert
-		options.ValidateDatabases.ShouldBeFalse();
+		options.Databases.Enabled.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -77,10 +77,10 @@ public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 		var options = new ExcaliburValidationOptions();
 
 		// Act
-		options.TestDatabaseConnections = true;
+		options.Databases.TestConnections = true;
 
 		// Assert
-		options.TestDatabaseConnections.ShouldBeTrue();
+		options.Databases.TestConnections.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -90,10 +90,10 @@ public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 		var options = new ExcaliburValidationOptions();
 
 		// Act
-		options.UseAws = true;
+		options.CloudProviders.UseAws = true;
 
 		// Assert
-		options.UseAws.ShouldBeTrue();
+		options.CloudProviders.UseAws.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -103,10 +103,10 @@ public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 		var options = new ExcaliburValidationOptions();
 
 		// Act
-		options.UseRabbitMq = true;
+		options.MessageBrokers.UseRabbitMq = true;
 
 		// Assert
-		options.UseRabbitMq.ShouldBeTrue();
+		options.MessageBrokers.UseRabbitMq.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -116,9 +116,9 @@ public sealed class ExcaliburValidationOptionsShould : UnitTestBase
 		var options = new ExcaliburValidationOptions();
 
 		// Act
-		options.UseKafka = true;
+		options.MessageBrokers.UseKafka = true;
 
 		// Assert
-		options.UseKafka.ShouldBeTrue();
+		options.MessageBrokers.UseKafka.ShouldBeTrue();
 	}
 }

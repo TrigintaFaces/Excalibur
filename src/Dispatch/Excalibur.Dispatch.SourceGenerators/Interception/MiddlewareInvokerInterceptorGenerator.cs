@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.SourceGenerators.Interception;
 /// a <c>MiddlewareInvokerRegistry</c> with typed invoker delegates stored in a FrozenDictionary.
 /// </para>
 /// <para>
-/// Unlike <see cref="DispatchInterceptorGenerator"/> which intercepts call sites, this generator
+/// Unlike <c>DispatchInterceptorGenerator</c> which intercepts call sites, this generator
 /// creates a runtime registry because middleware types are resolved dynamically at runtime.
 /// The registry eliminates interface dispatch by using direct casts to concrete types.
 /// </para>

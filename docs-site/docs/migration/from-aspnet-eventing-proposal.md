@@ -403,7 +403,7 @@ Unlike a proposal, Excalibur has **working implementations** with full consumer 
 
 | Aspect | Proposed API | Excalibur |
 |--------|--------------|-----------|
-| **Status** | Closed, not implemented | Production-ready, ~36,000 tests |
+| **Status** | Closed, not implemented | Production-ready, 55,000+ tests |
 | **Queue Consumers** | Proposed only | Full implementations for 6 providers (`Excalibur.Dispatch.Transport.*`) |
 | **Timer/Cron** | Proposed only | `AddCronTimerTransport<TTimer>()` with typed `CronTimerTriggerMessage<TTimer>` handlers |
 | **Type Safety** | String-based event names | Strongly-typed `IActionHandler<T>` |

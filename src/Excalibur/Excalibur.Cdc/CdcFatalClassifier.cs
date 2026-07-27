@@ -60,6 +60,9 @@ public static class CdcFatalClassifier
 	{
 		// Cancellation is cooperative, not a fault — never fatal (callers handle the token separately).
 		OperationCanceledException => false,
+		// A superseded leadership fencing token is terminal: retrying the checkpoint write with the same
+		// stale token is rejected identically, so the demoted instance must stop rather than spin.
+		CdcLeadershipSupersededException => true,
 		System.Security.Authentication.AuthenticationException => true,
 		UnauthorizedAccessException => true,
 		NotSupportedException => true,

@@ -483,11 +483,11 @@ builder.Services.AddExcalibur(excalibur =>
 The excalibur-ddd and excalibur-cqrs templates demonstrate the correct event application pattern using **switch expressions** (no reflection):
 
 ```csharp
-protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 {
     OrderCreated e => Apply(e),
     OrderShipped e => Apply(e),
-    _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+    _ => false
 };
 ```
 

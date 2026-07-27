@@ -17,9 +17,25 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// This is the most common snapshot strategy, providing predictable snapshot frequency.
 /// </para>
 /// </remarks>
-/// <param name="interval">The number of events between snapshots. Default is 100.</param>
-public sealed class IntervalSnapshotStrategy(int interval = 100) : ISnapshotStrategy
+public sealed class IntervalSnapshotStrategy : ISnapshotStrategy
 {
+	private readonly int _interval;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="IntervalSnapshotStrategy"/> class.
+	/// </summary>
+	/// <param name="interval">The number of events between snapshots. Default is 100. Must be greater than zero.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown when <paramref name="interval"/> is less than or equal to zero. Validating here fails fast at
+	/// configuration time rather than throwing <see cref="DivideByZeroException"/> on the snapshot-decision
+	/// path for every aggregate (interval==0), or producing nonsensical results (negative interval).
+	/// </exception>
+	public IntervalSnapshotStrategy(int interval = 100)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(interval);
+		_interval = interval;
+	}
+
 	/// <inheritdoc />
 	[RequiresUnreferencedCode(
 		"Snapshot strategy evaluation may require types that cannot be statically analyzed. Consider using source generation.")]
@@ -27,6 +43,6 @@ public sealed class IntervalSnapshotStrategy(int interval = 100) : ISnapshotStra
 	public bool ShouldCreateSnapshot(IAggregateRoot aggregate)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
-		return aggregate.Version > 0 && aggregate.Version % interval == 0;
+		return aggregate.Version > 0 && aggregate.Version % _interval == 0;
 	}
 }

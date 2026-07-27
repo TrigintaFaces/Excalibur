@@ -149,12 +149,12 @@ public class Order : AggregateRoot<Guid>
         RaiseEvent(new OrderSubmitted(Id));
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => Apply(e),
         OrderLineAdded e => Apply(e),
         OrderSubmitted e => Apply(e),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool Apply(OrderCreated e)
@@ -180,20 +180,11 @@ public class Order : AggregateRoot<Guid>
 }
 
 // Domain Events extend DomainEvent abstract record
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
-public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent;
 
-public record OrderSubmitted(Guid OrderId) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderSubmitted(Guid OrderId) : DomainEvent;
 ```
 
 ## Design Guidelines

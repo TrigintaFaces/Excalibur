@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox;
@@ -33,11 +33,6 @@ namespace Excalibur.Outbox;
 ///                   .PollingInterval(TimeSpan.FromSeconds(5))
 ///                   .MaxRetryCount(5)
 ///                   .RetryDelay(TimeSpan.FromMinutes(1));
-///     })
-///     .WithCleanup(cleanup =>
-///     {
-///         cleanup.EnableAutoCleanup(true)
-///                .RetentionPeriod(TimeSpan.FromDays(14));
 ///     })
 ///     .EnableBackgroundProcessing();
 /// }));
@@ -79,32 +74,6 @@ public interface IOutboxBuilder
 	/// </code>
 	/// </example>
 	IOutboxBuilder WithProcessing(Action<IOutboxProcessingBuilder> configure);
-
-	/// <summary>
-	/// Configures outbox cleanup settings using a fluent builder.
-	/// </summary>
-	/// <param name="configure">The cleanup configuration action.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown when <paramref name="configure"/> is null.
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// Use this method to configure automatic cleanup of processed messages,
-	/// including retention periods and cleanup intervals.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// outbox.WithCleanup(cleanup =>
-	/// {
-	///     cleanup.EnableAutoCleanup(true)
-	///            .RetentionPeriod(TimeSpan.FromDays(14))
-	///            .CleanupInterval(TimeSpan.FromHours(1));
-	/// });
-	/// </code>
-	/// </example>
-	IOutboxBuilder WithCleanup(Action<IOutboxCleanupBuilder> configure);
 
 	/// <summary>
 	/// Enables background processing of outbox messages.

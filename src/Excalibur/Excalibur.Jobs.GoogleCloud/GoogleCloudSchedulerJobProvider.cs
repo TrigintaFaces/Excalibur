@@ -21,7 +21,7 @@ namespace Excalibur.Jobs.GoogleCloud;
 public sealed partial class GoogleCloudSchedulerJobProvider(
 	CloudSchedulerClient schedulerClient,
 	GoogleCloudSchedulerOptions options,
-	ILogger<GoogleCloudSchedulerJobProvider> logger) : IDisposable
+	ILogger<GoogleCloudSchedulerJobProvider> logger) : IJobSchedulerProvider, IDisposable
 {
 	private readonly CloudSchedulerClient _schedulerClient = schedulerClient ?? throw new ArgumentNullException(nameof(schedulerClient));
 	private readonly GoogleCloudSchedulerOptions _options = options ?? throw new ArgumentNullException(nameof(options));

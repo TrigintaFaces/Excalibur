@@ -51,9 +51,9 @@ Excalibur.A3.Authorization.AuthorizationDecision.Effect.init -> void
 Excalibur.A3.Authorization.AuthorizationDecision.Reason.get -> string?
 Excalibur.A3.Authorization.AuthorizationDecision.Reason.init -> void
 Excalibur.A3.Authorization.AuthorizationEffect
-Excalibur.A3.Authorization.AuthorizationEffect.Deny = 1 -> Excalibur.A3.Authorization.AuthorizationEffect
+Excalibur.A3.Authorization.AuthorizationEffect.Deny = 0 -> Excalibur.A3.Authorization.AuthorizationEffect
 Excalibur.A3.Authorization.AuthorizationEffect.Indeterminate = 2 -> Excalibur.A3.Authorization.AuthorizationEffect
-Excalibur.A3.Authorization.AuthorizationEffect.Permit = 0 -> Excalibur.A3.Authorization.AuthorizationEffect
+Excalibur.A3.Authorization.AuthorizationEffect.Permit = 1 -> Excalibur.A3.Authorization.AuthorizationEffect
 Excalibur.A3.Authorization.AuthorizationResource
 Excalibur.A3.Authorization.AuthorizationResource.Attributes.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
 Excalibur.A3.Authorization.AuthorizationResource.Attributes.init -> void
@@ -103,6 +103,7 @@ Excalibur.A3.Authorization.IActivityGroupStore.FindActivityGroupsAsync(System.Th
 Excalibur.A3.Authorization.IActivityGroupStore.GetService(System.Type! serviceType) -> object?
 Excalibur.A3.Authorization.IAuthorizationEvaluator
 Excalibur.A3.Authorization.IAuthorizationEvaluator.EvaluateAsync(Excalibur.A3.Authorization.AuthorizationSubject! subject, Excalibur.A3.Authorization.AuthorizationAction! action, Excalibur.A3.Authorization.AuthorizationResource! resource, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.AuthorizationDecision!>!
+Excalibur.A3.Authorization.IDurableGrantStore
 Excalibur.A3.Authorization.IGrantCommand
 Excalibur.A3.Authorization.IGrantCommand.GrantType.get -> string!
 Excalibur.A3.Authorization.IGrantCommand.Qualifier.get -> string!
@@ -115,7 +116,6 @@ Excalibur.A3.Authorization.IGrantStore.DeleteGrantAsync(string! userId, string! 
 Excalibur.A3.Authorization.IGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.A3.Authorization.IGrantStore.GetAllGrantsAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!>!
 Excalibur.A3.Authorization.IGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.Grant?>!
-Excalibur.A3.Authorization.IGrantStore.GetService(System.Type! serviceType) -> object?
 Excalibur.A3.Authorization.IGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.A3.Authorization.IGrantStore.SaveGrantAsync(Excalibur.A3.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.A3.Authorization.IRoleStore

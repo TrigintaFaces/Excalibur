@@ -7,6 +7,7 @@ using Dapper;
 
 using Excalibur.Compliance.Erasure;
 using Excalibur.Data.Validation;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -29,17 +30,31 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, IDataInventoryQueryStore
 {
 	private readonly SqlServerDataInventoryStoreOptions _options;
+	private readonly IDataSubjectHasher _dataSubjectHasher;
+	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<SqlServerDataInventoryStore> _logger;
 	private volatile bool _initialized;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerDataInventoryStore"/> class.
 	/// </summary>
+	/// <param name="options">The store options.</param>
+	/// <param name="dataSubjectHasher">The data-subject hasher.</param>
+	/// <param name="logger">The logger.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Optional
+	/// and last so existing callers keep compiling; a host without multi-tenancy resolves the reserved
+	/// untenanted partition rather than an absent tenant term.
+	/// </param>
 	public SqlServerDataInventoryStore(
 		IOptions<SqlServerDataInventoryStoreOptions> options,
-		ILogger<SqlServerDataInventoryStore> logger)
+		IDataSubjectHasher dataSubjectHasher,
+		ILogger<SqlServerDataInventoryStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
+		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
@@ -49,6 +64,25 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		SqlIdentifierValidator.ThrowIfInvalid(_options.RegistrationsTableName, nameof(_options.RegistrationsTableName));
 		SqlIdentifierValidator.ThrowIfInvalid(_options.DiscoveredLocationsTableName, nameof(_options.DiscoveredLocationsTableName));
 	}
+
+	/// <summary>
+	/// Resolves the tenant term every read and write of this store is confined to.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Resolved from ambient context per call rather than fixed at construction: the store is a singleton
+	/// and a construction-time capture would bind every caller to whichever tenant happened to be current
+	/// when the container built it.
+	/// </para>
+	/// <para>
+	/// This is the tenant VALUE. It is unrelated to <c>TenantIdColumn</c>, which is the NAME of a column in
+	/// the consumer's own table — the two were previously conflated, and that conflation is why a caller
+	/// supplying a tenant received every tenant's registrations: the supplied value was used as a
+	/// null-check on a column name and never bound as a term.
+	/// </para>
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
 
 	/// <inheritdoc />
 	public async Task SaveRegistrationAsync(
@@ -60,8 +94,10 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 
 		var sql = $@"
 			MERGE {_options.FullRegistrationsTableName} AS target
-			USING (VALUES (@TableName, @FieldName)) AS source (TableName, FieldName)
-			ON target.TableName = source.TableName AND target.FieldName = source.FieldName
+			USING (VALUES (@TableName, @FieldName, @TenantId)) AS source (TableName, FieldName, TenantId)
+			ON target.TableName = source.TableName
+			   AND target.FieldName = source.FieldName
+			   AND target.TenantId = source.TenantId
 			WHEN MATCHED THEN
 				UPDATE SET DataCategory = @DataCategory,
 						   DataSubjectIdColumn = @DataSubjectIdColumn,
@@ -71,9 +107,9 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 						   Description = @Description,
 						   UpdatedAt = @Now
 			WHEN NOT MATCHED THEN
-				INSERT (TableName, FieldName, DataCategory, DataSubjectIdColumn, IdType,
+				INSERT (TableName, FieldName, TenantId, DataCategory, DataSubjectIdColumn, IdType,
 						KeyIdColumn, TenantIdColumn, Description, CreatedAt, UpdatedAt)
-				VALUES (@TableName, @FieldName, @DataCategory, @DataSubjectIdColumn, @IdType,
+				VALUES (@TableName, @FieldName, @TenantId, @DataCategory, @DataSubjectIdColumn, @IdType,
 						@KeyIdColumn, @TenantIdColumn, @Description, @Now, @Now);";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
@@ -88,6 +124,10 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			IdType = (int)registration.IdType,
 			registration.KeyIdColumn,
 			registration.TenantIdColumn,
+			// The tenant this registration BELONGS to, bound as a value and part of the merge key above.
+			// Taken from ambient scope rather than from the registration, so a caller cannot write into
+			// another tenant's partition by populating the field.
+			TenantId = CurrentTenantTerm,
 			registration.Description,
 			Now = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken)).ConfigureAwait(false);
@@ -105,15 +145,21 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		// The tenant term is on the DELETE, and this is the most consequential predicate in the file.
+		// Without it, deregistering a field removes EVERY tenant's registration for that table and field,
+		// not merely the caller's: cross-tenant destruction from an ordinary public method. And because a
+		// registration is what the erasure path uses to know a field holds personal data, destroying
+		// another tenant's row silently removes that field from their erasure coverage — their next
+		// erasure reports success and never visits it.
 		var sql = $@"
 			DELETE FROM {_options.FullRegistrationsTableName}
-			WHERE TableName = @TableName AND FieldName = @FieldName";
+			WHERE TableName = @TableName AND FieldName = @FieldName AND TenantId = @ScopedTenantId";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var affected = await connection.ExecuteAsync(new CommandDefinition(sql,
-			new { TableName = tableName, FieldName = fieldName },
+			new { TableName = tableName, FieldName = fieldName, ScopedTenantId = CurrentTenantTerm },
 			cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return affected > 0;
@@ -125,17 +171,22 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		// "GetAll" means all of the CALLER'S — never all of everyone's. This query previously carried no
+		// WHERE clause whatsoever, so a single call returned every tenant's registrations: the whole
+		// compliance inventory of the estate, from a method whose name invites exactly that call.
 		var sql = $@"
 			SELECT TableName, FieldName, DataCategory, DataSubjectIdColumn, IdType,
 				   KeyIdColumn, TenantIdColumn, Description
 			FROM {_options.FullRegistrationsTableName}
+			WHERE TenantId = @ScopedTenantId
 			ORDER BY TableName, FieldName";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<RegistrationRow>(
-			new CommandDefinition(sql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			new CommandDefinition(sql, new { ScopedTenantId = CurrentTenantTerm },
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToRegistration()).ToList();
 	}
@@ -154,21 +205,22 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 
 		var sql = $@"
 			MERGE {_options.FullDiscoveredLocationsTableName} AS target
-			USING (VALUES (@DataSubjectIdHash, @TableName, @FieldName, @RecordId)) AS source
-				(DataSubjectIdHash, TableName, FieldName, RecordId)
+			USING (VALUES (@DataSubjectIdHash, @TableName, @FieldName, @RecordId, @TenantId)) AS source
+				(DataSubjectIdHash, TableName, FieldName, RecordId, TenantId)
 			ON target.DataSubjectIdHash = source.DataSubjectIdHash
 			   AND target.TableName = source.TableName
 			   AND target.FieldName = source.FieldName
 			   AND target.RecordId = source.RecordId
+			   AND target.TenantId = source.TenantId
 			WHEN MATCHED THEN
 				UPDATE SET DataCategory = @DataCategory,
 						   KeyId = @KeyId,
 						   IsAutoDiscovered = @IsAutoDiscovered,
 						   UpdatedAt = @Now
 			WHEN NOT MATCHED THEN
-				INSERT (DataSubjectIdHash, TableName, FieldName, RecordId, DataCategory,
+				INSERT (DataSubjectIdHash, TableName, FieldName, RecordId, TenantId, DataCategory,
 						KeyId, IsAutoDiscovered, CreatedAt, UpdatedAt)
-				VALUES (@DataSubjectIdHash, @TableName, @FieldName, @RecordId, @DataCategory,
+				VALUES (@DataSubjectIdHash, @TableName, @FieldName, @RecordId, @TenantId, @DataCategory,
 						@KeyId, @IsAutoDiscovered, @Now, @Now);";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
@@ -183,6 +235,10 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			location.DataCategory,
 			location.KeyId,
 			location.IsAutoDiscovered,
+			// Part of the merge key above. A discovered location is evidence about one tenant's data
+			// subject; without the tenant in the key, two tenants discovering the same record collapse
+			// into one row and the second write overwrites the first tenant's finding.
+			TenantId = CurrentTenantTerm,
 			Now = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
@@ -216,10 +272,19 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		var parameters = new DynamicParameters();
 		parameters.Add("IdType", (int)idType);
 
-		if (!string.IsNullOrEmpty(tenantId))
-		{
-			whereClauses.Add("TenantIdColumn IS NOT NULL");
-		}
+		// The tenant term is a SCOPE, added UNCONDITIONALLY from ambient context — not a filter the caller
+		// opts into. It previously sat behind `if (tenantId is not null)` and, when present, added
+		// `TenantIdColumn IS NOT NULL`: a null-check on a COLUMN NAME. The caller's tenant was never bound,
+		// so passing one changed nothing and omitting one changed nothing — every caller read every tenant.
+		whereClauses.Add("TenantId = @ScopedTenantId");
+		parameters.Add("ScopedTenantId", CurrentTenantTerm);
+
+		// The tenantId ARGUMENT is deliberately not consulted, matching the audit stores' settled contract:
+		// a caller cannot widen the read by omitting it, nor redirect the read by naming another tenant.
+		// There is no admin or estate-wide inventory interface in this framework, so there is no contract
+		// under which an unchecked caller-supplied tenant would be legitimate. The parameter remains on the
+		// shipped signature; honouring it would reintroduce exactly the authorisation hole this closes.
+		_ = tenantId;
 
 		var whereClause = string.Join(" AND ", whereClauses);
 
@@ -250,14 +315,14 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		var sql = $@"
 			SELECT TableName, FieldName, DataCategory, RecordId, KeyId, IsAutoDiscovered
 			FROM {_options.FullDiscoveredLocationsTableName}
-			WHERE DataSubjectIdHash = @DataSubjectIdHash
+			WHERE DataSubjectIdHash = @DataSubjectIdHash AND TenantId = @ScopedTenantId
 			ORDER BY TableName, FieldName";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<DiscoveredLocationRow>(
-			new CommandDefinition(sql, new { DataSubjectIdHash = HashDataSubjectId(dataSubjectId) },
+			new CommandDefinition(sql, new { DataSubjectIdHash = HashDataSubjectId(dataSubjectId), ScopedTenantId = CurrentTenantTerm },
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToDataLocation()).ToList();
@@ -274,10 +339,15 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		var sql = $@"
 			SELECT r.TableName, r.FieldName, r.DataCategory, r.Description,
 				   CAST(0 AS BIT) AS IsAutoDiscovered,
+				   -- The correlated count is scoped too. Correlating only on table and field made RecordCount
+				   -- the number of discovered records ACROSS EVERY TENANT for that field, so a RoPA report
+				   -- disclosed the volume of other tenants' personal data holdings — a count is smaller than
+				   -- a row and still information about another tenant's data.
 				   (SELECT COUNT(*) FROM {_options.FullDiscoveredLocationsTableName} d
-				    WHERE d.TableName = r.TableName AND d.FieldName = r.FieldName) AS RecordCount
+				    WHERE d.TableName = r.TableName AND d.FieldName = r.FieldName
+				      AND d.TenantId = r.TenantId) AS RecordCount
 			FROM {_options.FullRegistrationsTableName} r
-			{(tenantId is not null ? "WHERE r.TenantIdColumn IS NOT NULL" : string.Empty)}
+			WHERE r.TenantId = @ScopedTenantId
 			ORDER BY r.TableName, r.FieldName";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
@@ -289,8 +359,8 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		return rows.Select(r => r.ToDataMapEntry()).ToList();
 	}
 
-	private static string HashDataSubjectId(string dataSubjectId) =>
-		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+	private string HashDataSubjectId(string dataSubjectId) =>
+		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
 	[LoggerMessage(LogLevel.Debug, "Saved data inventory registration for {TableName}.{FieldName}")]
 	private partial void LogSavedRegistration(string tableName, string fieldName);
@@ -312,8 +382,47 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
+		else
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		_initialized = true;
+	}
+
+	/// <summary>
+	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// </summary>
+	/// <remarks>
+	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
+	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
+	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
+	{
+		const string ExistsSql = "SELECT CASE WHEN OBJECT_ID(@TableName, 'U') IS NULL THEN 0 ELSE 1 END";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullRegistrationsTableName, _options.FullDiscoveredLocationsTableName })
+		{
+			var exists = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!exists)
+			{
+				throw new InvalidOperationException(
+					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
+					$"Either create the schema out of band, or set {nameof(SqlServerDataInventoryStoreOptions)}."
+					+ $"{nameof(SqlServerDataInventoryStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+			}
+		}
 	}
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
@@ -336,11 +445,21 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					DataSubjectIdColumn NVARCHAR(256) NOT NULL,
 					IdType INT NOT NULL,
 					KeyIdColumn NVARCHAR(256) NOT NULL,
+					-- The NAME of a tenant column in the consumer's own table. Nullable because a consumer's
+					-- table may genuinely have none. NOT a tenant identity — see TenantId below.
 					TenantIdColumn NVARCHAR(256) NULL,
+					-- The tenant this registration BELONGS to. NOT NULL with an explicit sentinel default:
+					-- a nullable tenant makes global and forgot-to-set indistinguishable, and the store
+					-- cannot tell which one it is holding.
+					TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL
+						CONSTRAINT DF_{_options.RegistrationsTableName}_TenantId DEFAULT '__untenanted__',
 					Description NVARCHAR(1000) NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
-					CONSTRAINT PK_{_options.RegistrationsTableName} PRIMARY KEY (TableName, FieldName),
+					-- TenantId is part of the KEY, not merely a column: without it two tenants registering
+					-- the same table and field are ONE row, and the second write silently destroys the
+					-- first — taking with it the erasure path's only record that the field exists.
+					CONSTRAINT PK_{_options.RegistrationsTableName} PRIMARY KEY (TableName, FieldName, TenantId),
 					INDEX IX_{_options.RegistrationsTableName}_DataCategory (DataCategory)
 				)
 			END";
@@ -358,10 +477,17 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 					DataCategory NVARCHAR(256) NOT NULL,
 					KeyId NVARCHAR(256) NOT NULL,
 					IsAutoDiscovered BIT NOT NULL DEFAULT 1,
+					-- The tenant this discovered location belongs to. NOT NULL with an explicit sentinel,
+					-- for the same reason as the registrations table: a nullable tenant cannot distinguish
+					-- global from forgot-to-set.
+					TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL
+						CONSTRAINT DF_{_options.DiscoveredLocationsTableName}_TenantId DEFAULT '__untenanted__',
 					CreatedAt DATETIMEOFFSET NOT NULL,
 					UpdatedAt DATETIMEOFFSET NOT NULL,
+					-- TenantId is in the KEY: two tenants discovering the same record for the same data
+					-- subject are two distinct findings, not one overwriting the other.
 					CONSTRAINT PK_{_options.DiscoveredLocationsTableName}
-						PRIMARY KEY (DataSubjectIdHash, TableName, FieldName, RecordId),
+						PRIMARY KEY (DataSubjectIdHash, TableName, FieldName, RecordId, TenantId),
 					INDEX IX_{_options.DiscoveredLocationsTableName}_DataSubject (DataSubjectIdHash),
 					INDEX IX_{_options.DiscoveredLocationsTableName}_Table (TableName, FieldName)
 				)

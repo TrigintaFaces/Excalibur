@@ -26,6 +26,14 @@ internal sealed class CronTimerTransportAdapterOptionsValidator : IValidateOptio
 				$"Configure it via services.Configure<{nameof(CronTimerTransportAdapterOptions)}>(o => o.TimeZone = TimeZoneInfo.Utc).");
 		}
 
+		if (options.CatchUpPolicy == CronTimerCatchUpPolicy.FireAll && options.MaxCatchUpOccurrences < 1)
+		{
+			failures.Add(
+				$"{nameof(CronTimerTransportAdapterOptions)}.{nameof(CronTimerTransportAdapterOptions.MaxCatchUpOccurrences)} " +
+				$"must be at least 1 when {nameof(CronTimerTransportAdapterOptions.CatchUpPolicy)} is " +
+				$"{nameof(CronTimerCatchUpPolicy)}.{nameof(CronTimerCatchUpPolicy.FireAll)}.");
+		}
+
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

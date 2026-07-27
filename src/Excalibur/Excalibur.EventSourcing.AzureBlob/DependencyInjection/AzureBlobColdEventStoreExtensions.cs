@@ -95,6 +95,8 @@ public static class AzureBlobColdEventStoreExtensions
 		}
 
 		builder.Services.AddOptionsWithValidateOnStart<AzureBlobColdEventStoreOptions>();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureBlobColdEventStoreOptions>, AzureBlobColdEventStoreOptionsValidator>());
 
 		// Register BlobServiceClient based on connection path
 		var hasBuilderClient = blobBuilder.ClientInstance is not null

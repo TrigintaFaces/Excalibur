@@ -9,6 +9,9 @@ using Google.Cloud.Scheduler.V1;
 
 using Microsoft.Extensions.Configuration;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -37,6 +40,8 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 		_ = services.AddOptions<GoogleCloudSchedulerOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GoogleCloudSchedulerOptions>, GoogleCloudSchedulerOptionsValidator>());
 		_ = services.AddSingleton(static _ => CloudSchedulerClient.Create());
 		_ = services.AddSingleton<GoogleCloudSchedulerJobProvider>();
 
@@ -66,6 +71,8 @@ public static class GoogleCloudJobsServiceCollectionExtensions
 		_ = services.AddOptions<GoogleCloudSchedulerOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GoogleCloudSchedulerOptions>, GoogleCloudSchedulerOptionsValidator>());
 		_ = services.AddSingleton(static _ => CloudSchedulerClient.Create());
 		_ = services.AddSingleton<GoogleCloudSchedulerJobProvider>();
 

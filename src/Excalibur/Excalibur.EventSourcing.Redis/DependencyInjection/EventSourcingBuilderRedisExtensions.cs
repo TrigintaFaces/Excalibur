@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using StackExchange.Redis;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.Redis;
 
@@ -115,6 +116,10 @@ public static class EventSourcingBuilderRedisExtensions
 		// Register ValidateOnStart for both options types
 		builder.Services.AddOptions<RedisEventStoreOptions>().ValidateOnStart();
 		builder.Services.AddOptions<RedisSnapshotStoreOptions>().ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisEventStoreOptions>>(new RedisEventStoreOptionsValidator()));
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RedisSnapshotStoreOptions>>(new RedisSnapshotStoreOptionsValidator()));
 
 		// Register ConnectionMultiplexer based on connection path
 		if (hasBuilderConnection)

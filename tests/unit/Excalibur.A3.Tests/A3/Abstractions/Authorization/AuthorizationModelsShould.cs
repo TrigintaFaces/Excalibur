@@ -13,13 +13,14 @@ public sealed class AuthorizationModelsShould
 	[Fact]
 	public void DefinePermitEffect()
 	{
-		AuthorizationEffect.Permit.ShouldBe((AuthorizationEffect)0);
+		AuthorizationEffect.Permit.ShouldBe((AuthorizationEffect)1);
 	}
 
 	[Fact]
 	public void DefineDenyEffect()
 	{
-		AuthorizationEffect.Deny.ShouldBe((AuthorizationEffect)1);
+		// Deny is the zero value so a defaulted effect fails closed (39wqia).
+		AuthorizationEffect.Deny.ShouldBe((AuthorizationEffect)0);
 	}
 
 	[Fact]

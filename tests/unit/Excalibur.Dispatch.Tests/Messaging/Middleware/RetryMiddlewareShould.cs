@@ -206,9 +206,18 @@ public sealed class RetryMiddlewareShould
     [Fact]
     public async Task ExhaustedRetries_ViaRetryableException_ReturnFailLoudTerminal_NeverSilentDrop()
     {
-        // Arrange — make the exception retryable so every attempt re-tries to the cap.
+        // Arrange — a GENUINELY-retryable exception (NOT in the default NonRetryableExceptions floor) so every
+        // attempt re-tries to the cap and the exception→exhaustion path actually fires.
+        //
+        // IMPORTANT (wjp8nb / a6d1ba1e8): the original form of this test allowlisted InvalidOperationException,
+        // but that type is in the NonRetryableExceptions FLOOR, and the floor takes PRECEDENCE over the
+        // allowlist (a TenantIsolationViolationException : InvalidOperationException must never be retried —
+        // a tenant-isolation security invariant). So it was correctly rejected after one attempt and never
+        // reached exhaustion; the assertion below was stale. The floor-precedence guarantee is proven by the
+        // companion safety arm NonRetryableFloorException_AllowlistedButNeverRetried below — do NOT flip this
+        // back to a floor exception (that would require weakening the floor, reopening the isolation hole).
         var options = new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
-        options.RetryableExceptions.Add(typeof(InvalidOperationException));
+        options.RetryableExceptions.Add(typeof(TransientTestException));
         var sut = CreateSut(options);
         var callCount = 0;
 
@@ -218,15 +227,48 @@ public sealed class RetryMiddlewareShould
             (_, _, _) =>
             {
                 callCount++;
-                throw new InvalidOperationException("transient — never recovers");
+                throw new TransientTestException("transient — never recovers");
             },
             CancellationToken.None);
 
-        // Assert — fail-loud terminal, never silent; genuine exhaustion (every attempt used).
+        // Assert (LIVENESS) — fail-loud exhaustion terminal, never silent; genuine exhaustion (every attempt used).
         result.Succeeded.ShouldBeFalse();
         result.ProblemDetails.ShouldNotBeNull();
         result.ProblemDetails!.Type.ShouldBe("RetryExhausted"); // jj9gon: reachable distinct terminal (exception path)
+        result.ProblemDetails!.Detail.ShouldNotBeNullOrWhiteSpace(); // the failure is surfaced, not dropped
         callCount.ShouldBe(options.MaxAttempts);
+    }
+
+    [Fact]
+    public async Task NonRetryableFloorException_AllowlistedButNeverRetried_FailsLoudAfterOneAttempt()
+    {
+        // SECURITY SAFETY ARM (guards wjp8nb / a6d1ba1e8 floor-first precedence): a NonRetryableExceptions-floor
+        // type — InvalidOperationException, the base of TenantIsolationViolationException — must NEVER be retried,
+        // EVEN when a consumer explicitly allowlists it. The floor takes precedence over RetryableExceptions, so
+        // retrying a permanent cross-tenant violation can never be enabled by configuration. This turns the
+        // near-miss that produced the stale sibling above into a permanent structural guard: if a future change
+        // let the allowlist override the floor, this test goes RED (callCount would climb to MaxAttempts).
+        var options = new RetryOptions { MaxAttempts = 3, BaseDelay = TimeSpan.FromMilliseconds(1) };
+        options.RetryableExceptions.Add(typeof(InvalidOperationException)); // allowlist attempt — the floor must override it
+        var sut = CreateSut(options);
+        var callCount = 0;
+
+        // Act
+        var result = await sut.InvokeAsync(
+            A.Fake<IDispatchMessage>(), new MessageContext(),
+            (_, _, _) =>
+            {
+                callCount++;
+                throw new InvalidOperationException("non-retryable floor exception — must not be retried");
+            },
+            CancellationToken.None);
+
+        // Assert (SAFETY) — rejected after ONE attempt via the non-retryable terminal; still fail-loud (no silent
+        // drop), but NOT the exhaustion terminal because it was never retried.
+        result.Succeeded.ShouldBeFalse();
+        result.ProblemDetails.ShouldNotBeNull();
+        result.ProblemDetails!.Type.ShouldBe("RetryError"); // non-retryable terminal, NOT RetryExhausted
+        callCount.ShouldBe(1); // the floor holds — never retried, even though allowlisted
     }
 
     [Fact]
@@ -323,5 +365,13 @@ public sealed class RetryMiddlewareShould
 
         result.Succeeded.ShouldBeFalse();
         result.ProblemDetails!.Type.ShouldBe("RetryError");
+    }
+
+    // A genuinely-retryable test exception: intentionally NOT a subtype of any default NonRetryableExceptions
+    // floor type (InvalidOperationException, etc.), so allowlisting it actually makes it retryable to exhaustion.
+    // Used to exercise the exception→RetryExhausted path without touching the security floor.
+    private sealed class TransientTestException : Exception
+    {
+        public TransientTestException(string message) : base(message) { }
     }
 }

@@ -38,6 +38,7 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	private readonly ElasticsearchClient _client;
 	private readonly ElasticsearchInboxOptions _options;
 	private readonly ILogger<ElasticsearchInboxStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticsearchInboxStore"/> class.
@@ -45,14 +46,20 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	/// <param name="client">The Elasticsearch client.</param>
 	/// <param name="options">The inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. An absent context
+	/// resolves to the reserved untenanted term, so the document id has the same shape either way.
+	/// </param>
 	public ElasticsearchInboxStore(
 		ElasticsearchClient client,
 		IOptions<ElasticsearchInboxOptions> options,
-		ILogger<ElasticsearchInboxStore> logger)
+		ILogger<ElasticsearchInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -225,14 +232,14 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 
 		if (response.IsValidResponse)
 		{
-			LogTryMarkProcessedSuccess(messageId, handlerType);
+			LogTryClaimSuccess(messageId, handlerType);
 			return true;
 		}
 
 		// 409 = already exists = already claimed/processed = duplicate.
 		if (response.ElasticsearchServerError?.Status == 409)
 		{
-			LogTryMarkProcessedDuplicate(messageId, handlerType);
+			LogTryClaimDuplicate(messageId, handlerType);
 			return false;
 		}
 
@@ -478,8 +485,21 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 		return deleted;
 	}
 
-	private static string GetDocumentId(string messageId, string handlerType) =>
-		$"{messageId}_{handlerType}";
+	/// <summary>
+	/// Composes the deduplication document id for an entry, discriminated by the ambient tenant.
+	/// </summary>
+	/// <remarks>
+	/// The tenant term is part of the id, not merely a field on the document. Carrying TenantId as an
+	/// attribute while keying on (messageId, handlerType) leaves the dedup decision tenant-blind: two
+	/// tenants processing messages that share a message id resolve to the same document, so the second
+	/// is treated as a duplicate and silently dropped. That is a cross-tenant isolation breach and a
+	/// message-loss bug, and it fails on the success path where nothing prompts an investigation.
+	/// <para>
+	/// Every call site routes through here, so the write id and the lookup id cannot drift apart.
+	/// </para>
+	/// </remarks>
+	private string GetDocumentId(string messageId, string handlerType) =>
+		$"{KeyedTenantPartition.FromContext(_tenantContext).TenantId}_{messageId}_{handlerType}";
 
 	private Refresh GetRefresh() =>
 		_options.RefreshPolicy == "true" ? Refresh.True
@@ -570,6 +590,14 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	[LoggerMessage(DataElasticsearchEventId.DocumentExistsChecked, LogLevel.Debug,
 		"TryMarkAsProcessed detected duplicate for message '{MessageId}' and handler '{HandlerType}'")]
 	private partial void LogTryMarkProcessedDuplicate(string messageId, string handlerType);
+
+	[LoggerMessage(DataElasticsearchEventId.InboxTryClaimSuccess, LogLevel.Debug,
+		"TryClaim succeeded for message '{MessageId}' and handler '{HandlerType}'")]
+	private partial void LogTryClaimSuccess(string messageId, string handlerType);
+
+	[LoggerMessage(DataElasticsearchEventId.InboxTryClaimDuplicate, LogLevel.Debug,
+		"TryClaim detected duplicate for message '{MessageId}' and handler '{HandlerType}'")]
+	private partial void LogTryClaimDuplicate(string messageId, string handlerType);
 
 	[LoggerMessage(DataElasticsearchEventId.VersionConflict, LogLevel.Warning,
 		"Marked inbox entry as failed for message '{MessageId}' and handler '{HandlerType}': {ErrorMessage}")]

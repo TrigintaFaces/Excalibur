@@ -49,6 +49,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 	private readonly ICronScheduler _cronScheduler;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly CronTimerTransportAdapterOptions _options;
+	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _executionLock = new(1, 1);
 
 	private ICronExpression? _cronExpression;
@@ -63,6 +64,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 	private long _successfulTriggers;
 	private long _failedTriggers;
 	private long _skippedOverlapTriggers;
+	private long _catchUpTriggers;
 	private DateTimeOffset _lastTriggerTime;
 	private DateTimeOffset? _nextScheduledTrigger;
 	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
@@ -85,6 +87,11 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		_cronScheduler = cronScheduler ?? throw new ArgumentNullException(nameof(cronScheduler));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+
+		// Resolve the clock from DI when available so the timer loop is deterministically
+		// testable (a fake TimeProvider drives both "now" and Task.Delay). Falls back to the
+		// system clock when no TimeProvider is registered.
+		_timeProvider = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
 
 		if (string.IsNullOrWhiteSpace(options.CronExpression))
 		{
@@ -249,8 +256,10 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			["SuccessfulTriggers"] = _successfulTriggers,
 			["FailedTriggers"] = _failedTriggers,
 			["SkippedOverlapTriggers"] = _skippedOverlapTriggers,
+			["CatchUpTriggers"] = _catchUpTriggers,
 			["PreventOverlap"] = _options.PreventOverlap,
 			["RunOnStartup"] = _options.RunOnStartup,
+			["CatchUpPolicy"] = _options.CatchUpPolicy.ToString(),
 		};
 
 		if (_lastTriggerTime != default)
@@ -291,7 +300,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 				data);
 		}
 
-		_lastHealthCheck = DateTimeOffset.UtcNow;
+		_lastHealthCheck = _timeProvider.GetUtcNow();
 		_lastStatus = result.Status;
 
 		return Task.FromResult(result);
@@ -316,7 +325,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			TransportHealthCheckCategory.Connectivity,
 			stopwatch.Elapsed);
 
-		_lastHealthCheck = DateTimeOffset.UtcNow;
+		_lastHealthCheck = _timeProvider.GetUtcNow();
 		_lastStatus = status;
 
 		return Task.FromResult(result);
@@ -342,6 +351,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 				["SuccessfulTriggers"] = _successfulTriggers,
 				["FailedTriggers"] = _failedTriggers,
 				["SkippedOverlapTriggers"] = _skippedOverlapTriggers,
+				["CatchUpTriggers"] = _catchUpTriggers,
 				["CronExpression"] = _options.CronExpression,
 			});
 
@@ -387,7 +397,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		{
 			try
 			{
-				var now = DateTimeOffset.UtcNow;
+				var now = _timeProvider.GetUtcNow();
 				var nextOccurrence = _cronExpression?.GetNextOccurrenceUtc(now);
 
 				if (!nextOccurrence.HasValue)
@@ -403,10 +413,19 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 				var delay = nextOccurrence.Value - now;
 				if (delay > TimeSpan.Zero)
 				{
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 				}
 
-				await TriggerExecutionAsync(cancellationToken).ConfigureAwait(false);
+				await TriggerExecutionAsync(nextOccurrence.Value, cancellationToken).ConfigureAwait(false);
+
+				// Catch-up: occurrences may have elapsed while the execution above was running,
+				// or while the host was paused and Task.Delay over-slept. Depending on the
+				// configured policy, fire the missed occurrences (bounded) instead of silently
+				// dropping them (the default Skip policy preserves the drop-and-resume behavior).
+				if (_options.CatchUpPolicy != CronTimerCatchUpPolicy.Skip)
+				{
+					await ProcessCatchUpAsync(nextOccurrence.Value, cancellationToken).ConfigureAwait(false);
+				}
 			}
 			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
@@ -431,7 +450,10 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 	}
 
-	private async Task TriggerExecutionAsync(CancellationToken cancellationToken)
+	private Task TriggerExecutionAsync(CancellationToken cancellationToken) =>
+		TriggerExecutionAsync(occurrenceTimeUtc: null, cancellationToken);
+
+	private async Task TriggerExecutionAsync(DateTimeOffset? occurrenceTimeUtc, CancellationToken cancellationToken)
 	{
 		if (_dispatcher == null)
 		{
@@ -455,7 +477,9 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 		try
 		{
-			var triggerTime = DateTimeOffset.UtcNow;
+			// For catch-up fires the scheduled occurrence time is the meaningful trigger time;
+			// for a normal fire use the current clock reading.
+			var triggerTime = occurrenceTimeUtc ?? _timeProvider.GetUtcNow();
 			_lastTriggerTime = triggerTime;
 
 			_ = Interlocked.Increment(ref _totalTriggers);
@@ -483,6 +507,65 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 	}
 
+	/// <summary>
+	/// Fires (or accounts for) scheduled occurrences that elapsed between the occurrence just
+	/// handled and the current time, according to the configured <see cref="CronTimerCatchUpPolicy"/>.
+	/// The number of catch-up fires is bounded by <see cref="CronTimerTransportAdapterOptions.MaxCatchUpOccurrences"/>
+	/// to avoid a thundering herd after a long pause.
+	/// </summary>
+	private async Task ProcessCatchUpAsync(DateTimeOffset lastHandledOccurrenceUtc, CancellationToken cancellationToken)
+	{
+		if (_cronExpression is null)
+		{
+			return;
+		}
+
+		var now = _timeProvider.GetUtcNow();
+
+		// Occurrences strictly after the one just handled, up to and including now.
+		var missed = _cronExpression
+			.GetOccurrencesBetween(lastHandledOccurrenceUtc, now)
+			.Where(occurrence => occurrence > lastHandledOccurrenceUtc && occurrence <= now)
+			.ToList();
+
+		if (missed.Count == 0)
+		{
+			return;
+		}
+
+		// FireOnce fires a single make-up for the most recent missed occurrence; FireAll fires
+		// every missed occurrence up to the configured bound.
+		var fireCount = _options.CatchUpPolicy switch
+		{
+			CronTimerCatchUpPolicy.FireOnce => 1,
+			CronTimerCatchUpPolicy.FireAll => Math.Min(missed.Count, Math.Max(0, _options.MaxCatchUpOccurrences)),
+			_ => 0,
+		};
+
+		LogCatchUp(Name, missed.Count, fireCount, _options.CatchUpPolicy.ToString());
+
+		if (fireCount == 0)
+		{
+			return;
+		}
+
+		// FireAll replays the oldest missed occurrences first; FireOnce replays only the latest.
+		var startIndex = _options.CatchUpPolicy == CronTimerCatchUpPolicy.FireOnce
+			? missed.Count - 1
+			: 0;
+
+		for (var i = startIndex; i < missed.Count && (i - startIndex) < fireCount; i++)
+		{
+			if (cancellationToken.IsCancellationRequested)
+			{
+				break;
+			}
+
+			_ = Interlocked.Increment(ref _catchUpTriggers);
+			await TriggerExecutionAsync(missed[i], cancellationToken).ConfigureAwait(false);
+		}
+	}
+
 	[UnconditionalSuppressMessage(
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
@@ -506,7 +589,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 				MessageId = messageId,
 			};
 			context.SetMessageType(typeof(CronTimerTriggerMessage).FullName);
-			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+			context.SetReceivedTimestampUtc(_timeProvider.GetUtcNow());
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 
@@ -560,6 +643,10 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		"Skipping overlapping execution for cron timer '{Name}'")]
 	private partial void LogSkippingOverlap(string name);
 
+	[LoggerMessage(DeliveryEventId.CronTimerCatchUp, LogLevel.Information,
+		"Cron timer '{Name}' detected {MissedCount} missed occurrence(s); firing {FiredCount} using catch-up policy {CatchUpPolicy}")]
+	private partial void LogCatchUp(string name, int missedCount, int firedCount, string catchUpPolicy);
+
 	[LoggerMessage(DeliveryEventId.CronTimerSendNotSupported, LogLevel.Debug,
 		"SendAsync called on cron timer adapter - this is a no-op for trigger-only transports")]
 	private partial void LogSendAsyncNotSupported();
@@ -610,6 +697,26 @@ public sealed class CronTimerTransportAdapterOptions
 	public bool PreventOverlap { get; set; } = true;
 
 	/// <summary>
+	/// Gets or sets the policy controlling how occurrences that elapse while an execution is
+	/// running (or while the host is paused) are handled.
+	/// </summary>
+	/// <value>
+	/// The catch-up policy. Default is <see cref="CronTimerCatchUpPolicy.Skip" />, which drops
+	/// missed occurrences and resumes at the next future occurrence.
+	/// </value>
+	public CronTimerCatchUpPolicy CatchUpPolicy { get; set; } = CronTimerCatchUpPolicy.Skip;
+
+	/// <summary>
+	/// Gets or sets the maximum number of missed occurrences fired in a single catch-up pass
+	/// when <see cref="CatchUpPolicy" /> is <see cref="CronTimerCatchUpPolicy.FireAll" />.
+	/// </summary>
+	/// <value>
+	/// The upper bound on catch-up fires per pass. Default is 100. Bounding prevents a thundering
+	/// herd of triggers after a long pause.
+	/// </value>
+	public int MaxCatchUpOccurrences { get; set; } = 100;
+
+	/// <summary>
 	/// Gets or sets the factory function for creating trigger messages.
 	/// </summary>
 	/// <value>
@@ -627,6 +734,31 @@ public sealed class CronTimerTransportAdapterOptions
 	/// </para>
 	/// </remarks>
 	internal Func<string, string, DateTimeOffset, string, CronTimerTriggerMessage>? MessageFactory { get; set; }
+}
+
+/// <summary>
+/// Controls how a <see cref="CronTimerTransportAdapter" /> handles scheduled occurrences that
+/// elapse while a previous execution is still running, or while the host process is paused.
+/// </summary>
+public enum CronTimerCatchUpPolicy
+{
+	/// <summary>
+	/// Drop missed occurrences and resume at the next future occurrence. This is the default and
+	/// preserves the historical behavior.
+	/// </summary>
+	Skip = 0,
+
+	/// <summary>
+	/// Fire a single make-up trigger for the most recent missed occurrence, then resume normal
+	/// scheduling.
+	/// </summary>
+	FireOnce = 1,
+
+	/// <summary>
+	/// Fire every missed occurrence, oldest first, bounded by
+	/// <see cref="CronTimerTransportAdapterOptions.MaxCatchUpOccurrences" />.
+	/// </summary>
+	FireAll = 2,
 }
 
 /// <summary>

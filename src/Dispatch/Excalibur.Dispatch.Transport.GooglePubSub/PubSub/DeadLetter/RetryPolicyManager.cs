@@ -236,14 +236,33 @@ public sealed partial class RetryPolicyManager(
 					JitterFactor = 0.1,
 				})),
 
+			// AWS "Full Jitter": sample uniformly from [0, exponential ceiling] (the ceiling is the
+			// no-jitter exponential value capped at MaxDelay). Already jittered → excluded from the
+			// post-switch jitter block below.
+			BackoffStrategy.FullJitter => Enumerable.Range(1, strategy.MaxRetryAttempts)
+				.Select(i =>
+				{
+					var ceiling = ExponentialBackoff.Calculate(i, new BackoffParameters
+					{
+						BaseDelay = strategy.InitialDelay,
+						MaxDelay = strategy.MaxDelay,
+						Multiplier = 2.0,
+						UseJitter = false,
+						JitterFactor = 0,
+					});
+					return TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * ceiling.TotalMilliseconds);
+				}),
+
 			_ => throw new InvalidOperationException($"Unknown backoff type: {strategy.BackoffType}"),
 		};
 
 		// Apply max delay cap
 		delays = delays.Select(d => d > strategy.MaxDelay ? strategy.MaxDelay : d);
 
-		// Add jitter if enabled
-		if (strategy.JitterEnabled && strategy.BackoffType != BackoffStrategy.ExponentialWithJitter)
+		// Add jitter if enabled (skip strategies that already incorporate jitter)
+		if (strategy.JitterEnabled
+			&& strategy.BackoffType != BackoffStrategy.ExponentialWithJitter
+			&& strategy.BackoffType != BackoffStrategy.FullJitter)
 		{
 			delays = delays.Select(d =>
 				d + TimeSpan.FromMilliseconds(Random.Shared.Next(0, (int)(d.TotalMilliseconds * 0.2))));

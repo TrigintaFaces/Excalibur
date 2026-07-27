@@ -36,6 +36,34 @@ public sealed class SqlServerOutboxOptions
 	public string ApplicationName { get; set; } = "Excalibur.Outbox";
 
 	/// <summary>
+	/// Gets or sets the processor identifier used for lease ownership.
+	/// </summary>
+	/// <value>The processor ID. Defaults to machine name + process ID.</value>
+	public string ProcessorId { get; set; } = $"{Environment.MachineName}:{Environment.ProcessId}";
+
+	/// <summary>
+	/// Gets the table and schema naming options for the outbox tables.
+	/// </summary>
+	public SqlServerOutboxTableOptions Tables { get; } = new();
+
+	/// <summary>
+	/// Gets the processing options that control batching, retries, timeouts, and leasing.
+	/// </summary>
+	public SqlServerOutboxProcessingOptions Processing { get; } = new();
+}
+
+/// <summary>
+/// Table and schema naming options for the SQL Server outbox tables.
+/// </summary>
+public sealed class SqlServerOutboxTableOptions
+{
+	/// <summary>
+	/// Gets or sets the schema name for the outbox tables.
+	/// </summary>
+	/// <value>The schema name. Defaults to "dbo".</value>
+	public string SchemaName { get; set; } = "dbo";
+
+	/// <summary>
 	/// Gets or sets the name of the database table used for storing outbox messages.
 	/// </summary>
 	/// <value>The table name for outbox messages. Defaults to "OutboxMessages".</value>
@@ -53,6 +81,43 @@ public sealed class SqlServerOutboxOptions
 	/// <value>The table name for dead letter messages. Defaults to "OutboxDeadLetters".</value>
 	public string DeadLetterTableName { get; set; } = "OutboxDeadLetters";
 
+	/// <summary>
+	/// Gets or sets the name of the durable leadership-fence control table.
+	/// </summary>
+	/// <value>
+	/// The table name for the fence high-water control rows. Defaults to "OutboxFence". This table holds one
+	/// row per outbox table (keyed by the qualified outbox table name) recording the highest leadership
+	/// fencing token ever accepted. It is deliberately separate from the message table so routine cleanup —
+	/// which deletes sent, token-bearing message rows — never lowers the recorded high-water.
+	/// </value>
+	public string FenceTableName { get; set; } = "OutboxFence";
+
+	/// <summary>
+	/// Gets the fully qualified outbox table name.
+	/// </summary>
+	public string QualifiedOutboxTableName => $"[{SchemaName}].[{OutboxTableName}]";
+
+	/// <summary>
+	/// Gets the fully qualified leadership-fence control table name.
+	/// </summary>
+	public string QualifiedFenceTableName => $"[{SchemaName}].[{FenceTableName}]";
+
+	/// <summary>
+	/// Gets the fully qualified transports table name.
+	/// </summary>
+	public string QualifiedTransportsTableName => $"[{SchemaName}].[{TransportsTableName}]";
+
+	/// <summary>
+	/// Gets the fully qualified dead letter table name.
+	/// </summary>
+	public string QualifiedDeadLetterTableName => $"[{SchemaName}].[{DeadLetterTableName}]";
+}
+
+/// <summary>
+/// Processing options that control batching, retries, timeouts, and leasing for the SQL Server outbox.
+/// </summary>
+public sealed class SqlServerOutboxProcessingOptions
+{
 	/// <summary>
 	/// Gets or sets the command timeout in seconds for SQL operations.
 	/// </summary>
@@ -98,29 +163,14 @@ public sealed class SqlServerOutboxOptions
 	public int LeaseTimeoutSeconds { get; set; } = 120;
 
 	/// <summary>
-	/// Gets or sets the processor identifier used for lease ownership.
+	/// Gets or sets the failure-backoff floor F, in seconds: after <c>MarkFailedAsync</c> records a
+	/// sub-ceiling failure, the message is not re-claimable by the drain until F has elapsed. This bounds the
+	/// retry cadence of the plain (no fine-grained backoff) path so it cannot hot-loop the drain, while the
+	/// message remains eventually re-claimable (at-least-once). F is a DEDICATED backoff floor, decoupled
+	/// from <see cref="LeaseTimeoutSeconds"/> (the crash-recovery lease window), and MUST exceed the outbox
+	/// polling interval (default 5 s) — the default satisfies that for the default polling interval.
 	/// </summary>
-	/// <value>The processor ID. Defaults to machine name + process ID.</value>
-	public string ProcessorId { get; set; } = $"{Environment.MachineName}:{Environment.ProcessId}";
-
-	/// <summary>
-	/// Gets or sets the schema name for the outbox tables.
-	/// </summary>
-	/// <value>The schema name. Defaults to "dbo".</value>
-	public string SchemaName { get; set; } = "dbo";
-
-	/// <summary>
-	/// Gets the fully qualified outbox table name.
-	/// </summary>
-	public string QualifiedOutboxTableName => $"[{SchemaName}].[{OutboxTableName}]";
-
-	/// <summary>
-	/// Gets the fully qualified transports table name.
-	/// </summary>
-	public string QualifiedTransportsTableName => $"[{SchemaName}].[{TransportsTableName}]";
-
-	/// <summary>
-	/// Gets the fully qualified dead letter table name.
-	/// </summary>
-	public string QualifiedDeadLetterTableName => $"[{SchemaName}].[{DeadLetterTableName}]";
+	/// <value>The failure-backoff floor in seconds. Defaults to 30 (uniform across the outbox family).</value>
+	[Range(1, 3600)]
+	public int FailureBackoffFloorSeconds { get; set; } = 30;
 }

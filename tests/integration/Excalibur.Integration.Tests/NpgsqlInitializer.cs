@@ -27,7 +27,6 @@ public static class NpgsqlInitializer
 	[ModuleInitializer]
 	public static void Initialize()
 	{
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 		SqlMapper.AddTypeHandler(new DateTimeOffsetHandler());
 	}
 

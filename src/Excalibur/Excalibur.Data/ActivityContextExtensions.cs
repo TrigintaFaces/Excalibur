@@ -176,6 +176,6 @@ public static class ActivityContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.Get<ITenantId>(nameof(TenantId)).Value;
+		return context.Get<string>(nameof(TenantId));
 	}
 }

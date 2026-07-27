@@ -284,6 +284,9 @@ public static class DataMongoDbEventId
 	/// <summary>Saga state loaded.</summary>
 	public const int SagaStateLoaded = 104862;
 
+	/// <summary>Completed sagas purged by retention age.</summary>
+	public const int SagaStatePurged = 104863;
+
 	// ========================================
 	// 104870-104889: ProjectionStore
 	// ========================================
@@ -446,4 +449,10 @@ public static class DataMongoDbEventId
 
 	/// <summary>Leader election dispose error.</summary>
 	public const int LeaderElectionDisposeError = 104995;
+
+	/// <summary>A monotonic fencing token was issued on leadership acquisition.</summary>
+	public const int LeaderElectionFencingTokenIssued = 104996;
+
+	/// <summary>The fencing token domain was exhausted; leadership relinquished (fail-closed).</summary>
+	public const int LeaderElectionFencingTokenExhausted = 104997;
 }

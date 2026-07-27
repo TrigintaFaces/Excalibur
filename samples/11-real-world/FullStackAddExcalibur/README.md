@@ -66,10 +66,26 @@ introduced in the builder-unification epic.
 |---|-----------|----------------|
 | 1 | Event Sourcing   | `excalibur.AddEventSourcing(es => es.UseSqlServer(...))` |
 | 2 | Transactional Outbox | `excalibur.AddOutbox(outbox => outbox.UseSqlServer(...))` |
-| 3 | CDC (Change Data Capture) | `excalibur.AddCdc(cdc => cdc.UseSqlServer(...).EnableBackgroundProcessing())` |
+| 3 | CDC (Change Data Capture) | `excalibur.AddCdc(cdc => cdc.UseSqlServer(...))` — composition only; see note below |
 | 4 | IdentityMap (ACL ID mapping) | `excalibur.AddIdentityMap(identity => identity.UseSqlServer(...))` |
 | 5 | ElasticSearch projections | `services.AddElasticSearchProjections(...)` (composes alongside) |
 | 6 | DataProcessing pipeline | `services.AddDataProcessor<T>(config, section).EnableDataProcessingBackgroundService(...)` |
+
+> **Note on CDC (row 3).** This sample composes the CDC builder but does **not** call
+> `EnableBackgroundProcessing()`, because it ships no `IDataChangeHandler`.
+>
+> That is deliberate. `DataChangeEventProcessor` builds its handler map from
+> `GetServices<IDataChangeHandler>()`, which returns an **empty enumerable — not an
+> error — when nothing is registered.** Starting the poller here would make the sample
+> appear to process legacy changes while silently dropping every one of them.
+>
+> To make CDC actually run: implement `IDataChangeHandler` with
+> `TableNames => ["LegacyOrders"]`, register it as a **singleton** (the processor freezes
+> resolved handlers for the process lifetime), then uncomment `EnableBackgroundProcessing()`.
+> Keep `"StopOnMissingTableHandler": true` — it fails at startup if a tracked table has no
+> handler, which is the guard that catches exactly this mistake.
+>
+> A complete worked example is in `09-advanced/cdc/CdcEventStoreElasticsearch`.
 
 ### Operational flow (command → handler → outbox → projection → query)
 

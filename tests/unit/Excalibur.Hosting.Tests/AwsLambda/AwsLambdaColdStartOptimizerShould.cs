@@ -21,41 +21,32 @@ public sealed class AwsLambdaColdStartOptimizerShould : UnitTestBase
 	{
 		_serviceProvider = A.Fake<IServiceProvider>();
 		_logger = NullLogger<AwsLambdaColdStartOptimizer>.Instance;
-		_sut = new AwsLambdaColdStartOptimizer(_serviceProvider, _logger);
+		_sut = new AwsLambdaColdStartOptimizer(_serviceProvider, Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions()), _logger);
 	}
 
 	[Fact]
-	public void IsEnabled_ReturnsFalse_WhenNotInLambdaEnvironment()
+	public void IsEnabled_ReturnsFalse_WhenColdStartOptimizationDisabled()
 	{
-		// Arrange - Environment variable not set (default state)
-		Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", null);
+		// IsEnabled reads the AwsLambdaOptions flag (defaulted once at the composition root from
+		// AWS_LAMBDA_FUNCTION_NAME), NOT a direct environment read on each evaluation. Default = disabled.
+		var optimizer = new AwsLambdaColdStartOptimizer(
+			_serviceProvider,
+			Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions { ColdStartOptimizationEnabled = false }),
+			_logger);
 
-		// Act
-		var result = _sut.IsEnabled;
-
-		// Assert
-		result.ShouldBeFalse();
+		optimizer.IsEnabled.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void IsEnabled_ReturnsTrue_WhenInLambdaEnvironment()
+	public void IsEnabled_ReturnsTrue_WhenColdStartOptimizationEnabled()
 	{
-		// Arrange
-		Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", "test-function");
+		// The flag (set true at the composition root when AWS_LAMBDA_FUNCTION_NAME is present) drives IsEnabled.
+		var optimizer = new AwsLambdaColdStartOptimizer(
+			_serviceProvider,
+			Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions { ColdStartOptimizationEnabled = true }),
+			_logger);
 
-		try
-		{
-			// Act
-			var result = _sut.IsEnabled;
-
-			// Assert
-			result.ShouldBeTrue();
-		}
-		finally
-		{
-			// Cleanup
-			Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", null);
-		}
+		optimizer.IsEnabled.ShouldBeTrue();
 	}
 
 	[Fact]

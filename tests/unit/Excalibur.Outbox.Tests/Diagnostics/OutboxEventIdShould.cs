@@ -600,13 +600,6 @@ public sealed class OutboxEventIdShould : UnitTestBase
 		OutboxEventId.OutboxRetryWithBackoff.ShouldBe(131221);
 	}
 
-	[Fact]
-	public void HaveOutboxTransactionalFallbackInProcessorRange()
-	{
-		// Assert
-		OutboxEventId.OutboxTransactionalFallback.ShouldBe(131222);
-	}
-
 	#endregion OutboxProcessor Event IDs (131200-131399)
 
 	#region InboxProcessor Event IDs (132200-132399)
@@ -1102,7 +1095,6 @@ public sealed class OutboxEventIdShould : UnitTestBase
 			OutboxEventId.OutboxMessageRoutedToDlq,
 			OutboxEventId.OutboxCircuitBreakerOpen,
 			OutboxEventId.OutboxRetryWithBackoff,
-			OutboxEventId.OutboxTransactionalFallback,
 			// InboxProcessor
 			OutboxEventId.InboxNoRecord,
 			OutboxEventId.InboxEnqueuingBatch,

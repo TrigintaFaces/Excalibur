@@ -39,11 +39,7 @@ public sealed partial class UserCreatedV1ToV2Upgrader : IMessageUpcaster<UserCre
 			oldMessage.UserId,
 			oldMessage.Name,
 			oldMessage.Email,
-			Address: null) // V1 had no address
-		{
-			AggregateId = oldMessage.AggregateId,
-			Version = oldMessage.Version
-		};
+			Address: null); // V1 had no address
 	}
 }
 
@@ -68,11 +64,7 @@ public sealed class UserEmailChangedV1ToV2Upgrader : IMessageUpcaster<UserEmailC
 			oldMessage.UserId,
 			Name: "Unknown", // We don't have the name in email changed events
 			oldMessage.NewEmail,
-			Address: null)
-		{
-			AggregateId = oldMessage.AggregateId,
-			Version = oldMessage.Version
-		};
+			Address: null);
 	}
 }
 
@@ -103,11 +95,7 @@ public sealed partial class UserCreatedV2ToV3Upgrader : IMessageUpcaster<UserCre
 			Street: street,
 			City: city,
 			PostalCode: postalCode,
-			Country: country)
-		{
-			AggregateId = oldMessage.AggregateId,
-			Version = oldMessage.Version
-		};
+			Country: country);
 	}
 
 	/// <summary>
@@ -186,11 +174,7 @@ public sealed partial class UserAddressChangedV2ToV3Upgrader : IMessageUpcaster<
 			NewStreet: newStreet,
 			NewCity: newCity,
 			NewPostalCode: newPostalCode,
-			NewCountry: newCountry)
-		{
-			AggregateId = oldMessage.AggregateId,
-			Version = oldMessage.Version
-		};
+			NewCountry: newCountry);
 	}
 
 	private static (string? Street, string? City, string? PostalCode, string? Country) ParseAddress(string? address)
@@ -263,11 +247,7 @@ public sealed class UserCreatedV1ToV3DirectUpgrader : IMessageUpcaster<UserCreat
 			Street: null,
 			City: null,
 			PostalCode: null,
-			Country: null)
-		{
-			AggregateId = oldMessage.AggregateId,
-			Version = oldMessage.Version
-		};
+			Country: null);
 	}
 }
 

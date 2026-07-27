@@ -25,7 +25,7 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 /// Uses PutItemAsync for save operations (upsert) and UpdateItemAsync for soft deletes.
 /// </para>
 /// </remarks>
-public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, IAsyncDisposable, IDisposable
+public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore, IGrantQueryStore, IAsyncDisposable, IDisposable
 {
 	private readonly DynamoDbAuthorizationOptions _options;
 	private readonly ILogger<DynamoDbGrantStore> _logger;
@@ -416,6 +416,11 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IDurableGrantStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IGrantQueryStore))
 		{

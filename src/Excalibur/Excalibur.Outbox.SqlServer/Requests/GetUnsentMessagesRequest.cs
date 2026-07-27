@@ -26,16 +26,38 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 	/// <param name="leaseTimeoutSeconds">Lease timeout in seconds for stale lease reclamation.</param>
 	/// <param name="processorId">Identifier of the claiming processor.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="fencingToken">
+	/// The fencing token for the caller's current leadership tenure, or <see langword="null"/> when no
+	/// fencing applies. When non-null, rows are claimed only if <paramref name="fencingToken"/> is greater
+	/// than or equal to the recorded fencing high-water mark; claimed rows have their <c>FencingToken</c>
+	/// column atomically advanced to this value as part of the same claim. A stale (superseded) token
+	/// yields zero claimable rows rather than throwing.
+	/// <para>
+	/// The high-water mark is read from the durable <c>OutboxFence</c> control table (keyed by
+	/// <paramref name="fenceScope"/>), not from <c>MAX(FencingToken)</c> over the message rows. Because
+	/// cleanup never deletes that control row, the high-water outlives the purge of sent, token-bearing
+	/// rows, so a superseded leader's stale token stays rejected across a cleanup. This affects only the
+	/// leadership high-water guard; the per-message lease still prevents two processors from claiming the
+	/// same row.
+	/// </para>
+	/// </param>
+	/// <param name="fenceTableName">The qualified durable fence control table name.</param>
+	/// <param name="fenceScope">The fence scope key — the qualified outbox table name this fence guards.</param>
 	public GetUnsentMessagesRequest(
 		string tableName,
 		int batchSize,
 		int commandTimeout,
 		int leaseTimeoutSeconds,
 		string processorId,
+		long? fencingToken,
+		string fenceTableName,
+		string fenceScope,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(fenceTableName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(fenceScope);
 
 		// Atomic claim + fetch: an ordered CTE selects the eligible rows in partition/sequence order,
 		// then UPDATE sets lease ownership and OUTPUT returns the claimed rows.
@@ -56,10 +78,12 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 					AND (ScheduledAt IS NULL OR ScheduledAt <= @Now)
 					AND (NextAttemptAt IS NULL OR NextAttemptAt <= @Now)
 					AND (LeasedAt IS NULL OR LeasedAt < DATEADD(SECOND, -@LeaseTimeoutSeconds, GETUTCDATE()))
+					AND (@FencingToken IS NULL OR @FencingToken >= ISNULL((SELECT HighWaterToken FROM {fenceTableName} WHERE OutboxTable = @FenceScope), 0))
 				ORDER BY PartitionKey, SequenceNumber ASC
 			)
 			UPDATE Claimable
-			SET LeasedAt = GETUTCDATE(), LeasedBy = @ProcessorId
+			SET LeasedAt = GETUTCDATE(), LeasedBy = @ProcessorId,
+				FencingToken = CASE WHEN @FencingToken IS NULL THEN FencingToken ELSE @FencingToken END
 			OUTPUT
 				INSERTED.Id, INSERTED.MessageType, INSERTED.Payload, INSERTED.Headers,
 				INSERTED.Destination, INSERTED.CreatedAt, INSERTED.ScheduledAt, INSERTED.SentAt,
@@ -74,6 +98,8 @@ public sealed class GetUnsentMessagesRequest : DataRequestBase<IDbConnection, IE
 		parameters.Add("@Now", DateTimeOffset.UtcNow);
 		parameters.Add("@LeaseTimeoutSeconds", leaseTimeoutSeconds);
 		parameters.Add("@ProcessorId", processorId);
+		parameters.Add("@FencingToken", fencingToken);
+		parameters.Add("@FenceScope", fenceScope);
 
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
 

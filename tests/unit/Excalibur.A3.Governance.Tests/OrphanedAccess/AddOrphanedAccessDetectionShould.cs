@@ -92,37 +92,39 @@ public sealed class AddOrphanedAccessDetectionShould : UnitTestBase
 	#region ValidateOnStart
 
 	[Fact]
-	public void AcceptScanIntervalValue_WhenConfigured()
+	public void RejectScanInterval_WhenOutOfRange()
 	{
-		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
-		var services = new ServiceCollection();
-		services.AddExcaliburA3Core()
-			.AddGovernance(g => g.AddOrphanedAccessDetection(opts =>
-			{
-				opts.ScanIntervalHours = 0;
-			}));
+		// AOT-safe IValidateOptions + ValidateOnStart fail-fast: ScanIntervalHours must be 1..8760.
+		using var provider = BuildProvider(opts => opts.ScanIntervalHours = 0);
 
-		using var provider = services.BuildServiceProvider();
-
-		var options = provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value;
-		options.ScanIntervalHours.ShouldBe(0);
+		var ex = Should.Throw<OptionsValidationException>(
+			() => provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value);
+		ex.Message.ShouldContain(nameof(OrphanedAccessOptions.ScanIntervalHours));
 	}
 
 	[Fact]
-	public void AcceptGracePeriodValue_WhenConfigured()
+	public void RejectGracePeriod_WhenOutOfRange()
 	{
-		// ValidateDataAnnotations removed in Sprint 750 AOT migration -- range validation no longer enforced via DI
-		var services = new ServiceCollection();
-		services.AddExcaliburA3Core()
-			.AddGovernance(g => g.AddOrphanedAccessDetection(opts =>
-			{
-				opts.InactiveGracePeriodDays = 0;
-			}));
+		// AOT-safe IValidateOptions + ValidateOnStart fail-fast: InactiveGracePeriodDays must be 1..365.
+		using var provider = BuildProvider(opts => opts.InactiveGracePeriodDays = 0);
 
-		using var provider = services.BuildServiceProvider();
+		var ex = Should.Throw<OptionsValidationException>(
+			() => provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value);
+		ex.Message.ShouldContain(nameof(OrphanedAccessOptions.InactiveGracePeriodDays));
+	}
+
+	[Fact]
+	public void AcceptInRangeValues_WhenConfigured()
+	{
+		using var provider = BuildProvider(opts =>
+		{
+			opts.ScanIntervalHours = 12;
+			opts.InactiveGracePeriodDays = 30;
+		});
 
 		var options = provider.GetRequiredService<IOptions<OrphanedAccessOptions>>().Value;
-		options.InactiveGracePeriodDays.ShouldBe(0);
+		options.ScanIntervalHours.ShouldBe(12);
+		options.InactiveGracePeriodDays.ShouldBe(30);
 	}
 
 	#endregion

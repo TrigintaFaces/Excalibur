@@ -256,6 +256,9 @@ public static class DataCosmosDbEventId
 	/// <summary>Saga state saved.</summary>
 	public const int SagaStateSaved = 103102;
 
+	/// <summary>Completed sagas purged by retention age.</summary>
+	public const int SagaStatePurged = 103103;
+
 	// ========================================
 	// 103200-103299: Projection Store
 	// ========================================

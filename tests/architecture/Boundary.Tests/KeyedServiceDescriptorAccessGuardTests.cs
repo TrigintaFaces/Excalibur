@@ -100,6 +100,75 @@ public sealed class KeyedServiceDescriptorAccessGuardTests
     }
 
     [Fact]
+    public void Analyzer_Flags_ANullConditionalRawRead()
+    {
+        // THE ARM THAT DID NOT EXIST. Roslyn models `descriptor?.ImplementationType` as a
+        // ConditionalAccessExpressionSyntax whose WhenNotNull is a MemberBindingExpressionSyntax -- NOT a
+        // MemberAccessExpressionSyntax at any depth. A walk over MemberAccessExpressionSyntax alone is
+        // therefore blind to every '?.' read BY CONSTRUCTION. Two such reads exist in production source
+        // and were invisible to this gate, so converting the reads it DID report would have turned the
+        // gate green over a keyed-unsafe read that still shipped.
+        //
+        // This arm goes RED against the pre-fix analyzer. If it ever goes green while the plain-dot arm
+        // still passes, the walk has been narrowed back and every '?.' read is unguarded again.
+        const string source = """
+            using Microsoft.Extensions.DependencyInjection;
+            internal static class Offender
+            {
+                public static bool Read(ServiceDescriptor? descriptor)
+                {
+                    return descriptor?.ImplementationType == typeof(string);
+                }
+            }
+            """;
+
+        var hits = FindRawImplementationReads(source);
+
+        hits.ShouldNotBeEmpty(
+            "the analyzer MUST flag a null-conditional '?.ImplementationType' read. If this is empty, the "
+            + "walk only covers MemberAccessExpressionSyntax and every '?.' read of a banned "
+            + "ServiceDescriptor getter is invisible to this gate.");
+        hits.ShouldContain(h => h.Snippet.Contains("ImplementationType", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyzer_Flags_ANullConditionalRawRead_WhenTheAccessIsSplitAcrossLines()
+    {
+        // The multi-line form, which is how ServiceCollectionTransportExtensions.cs writes it: the '?'
+        // terminates one line and the member begins the next. A line-oriented text search for "?\." cannot
+        // match this at all -- I made exactly that mistake classifying these sites, which is why the
+        // syntax walk is the right instrument and why this case gets its own arm.
+        //
+        // It also pins the reported LINE to the banned member rather than to the start of the chained
+        // expression, because the per-line allowlist opt-out consults that line: report the receiver's
+        // line and an allowlist marker placed on the offending line would be silently ignored.
+        const string source = """
+            using System.Linq;
+            using Microsoft.Extensions.DependencyInjection;
+            internal static class Offender
+            {
+                public static object? Read(IServiceCollection services)
+                {
+                    return services
+                        .FirstOrDefault(static d => d.ServiceType == typeof(string))?
+                        .ImplementationInstance;
+                }
+            }
+            """;
+
+        var hits = FindRawImplementationReads(source);
+
+        hits.ShouldNotBeEmpty(
+            "the analyzer MUST flag a null-conditional read whose '?' and member sit on different lines.");
+        hits.ShouldContain(
+            h => h.Line == 9,
+            "the hit MUST be reported on the line carrying '.ImplementationInstance' (9), not on the line "
+            + "the chained expression starts at -- the per-line allowlist opt-out reads that line, so a "
+            + "misreported line makes the opt-out consult source the banned member is not on. Reported: "
+            + string.Join(", ", hits.Select(h => h.Line)));
+    }
+
+    [Fact]
     public void Analyzer_DoesNotFlag_MemberNameInsideStringLiteralOrXmlDocCref()
     {
         // Mirrors the legitimate DispatchServiceCollectionExtensions.cs:164 Justification string + an
@@ -134,15 +203,48 @@ public sealed class KeyedServiceDescriptorAccessGuardTests
         var root = tree.GetRoot();
         var hits = new List<(int Line, string Snippet)>();
 
-        foreach (var access in root.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+        // BOTH access shapes, because Roslyn models them as DIFFERENT node types and walking only the
+        // first is blind to the second BY CONSTRUCTION, not by tuning:
+        //
+        //   descriptor.ImplementationType     -> MemberAccessExpressionSyntax
+        //   descriptor?.ImplementationType    -> ConditionalAccessExpressionSyntax
+        //                                        whose .WhenNotNull is a MemberBindingExpressionSyntax
+        //
+        // The null-conditional form is NOT a MemberAccessExpression at any depth, so an OfType<
+        // MemberAccessExpressionSyntax>() walk cannot see it however the source is formatted -- including
+        // when the '?' and the member sit on different lines, which is how one of the two real sites in
+        // this repo is written:
+        //
+        //   .FirstOrDefault(static d => d.ServiceType == typeof(TransportValidationOptions))?
+        //   .ImplementationInstance as TransportValidationOptions;
+        //
+        // Converting only the reported sites would therefore turn this gate GREEN while a real
+        // keyed-unsafe read still shipped -- a false green in the gate built to prevent exactly that.
+        foreach (var node in root.DescendantNodes())
         {
-            if (!BannedMembers.Contains(access.Name.Identifier.ValueText))
+            SimpleNameSyntax? name = node switch
+            {
+                MemberAccessExpressionSyntax member => member.Name,
+                MemberBindingExpressionSyntax binding => binding.Name,
+                _ => null
+            };
+
+            if (name is null || !BannedMembers.Contains(name.Identifier.ValueText))
             {
                 continue;
             }
 
-            // 1-based line number of the member access.
-            var lineSpan = access.SyntaxTree.GetLineSpan(access.Span);
+            // For a null-conditional read, report the whole `receiver?.Member` expression rather than the
+            // bare `.Member` binding, so the diagnostic names something a reader can find in the source.
+            var access = node is MemberBindingExpressionSyntax
+                ? node.FirstAncestorOrSelf<ConditionalAccessExpressionSyntax>() ?? node
+                : node;
+
+            // 1-based line of the BANNED MEMBER ITSELF, not of the enclosing expression. A chained
+            // conditional access spans several lines and starts at its receiver, so keying off the
+            // expression would report the wrong line AND make the per-line allowlist opt-out below
+            // consult a line the banned member is not on.
+            var lineSpan = name.SyntaxTree.GetLineSpan(name.Span);
             var line = lineSpan.StartLinePosition.Line + 1;
 
             // Per-line opt-out for deliberately-raw non-shipped test code.

@@ -18,4 +18,6 @@ public sealed record ShardInfo(
 	string? SchemaName = null,
 	string? DatabaseName = null,
 	string? IndexPrefix = null,
-	string? Region = null);
+	string? Region = null)
+{
+}

@@ -75,7 +75,7 @@ These standalone methods remain available for consumers who prefer direct regist
 | `AddAzureServiceBusTransport()` | Azure Service Bus | `Excalibur.Dispatch.Transport.AzureServiceBus` |
 | `AddGooglePubSubTransport()` | Google Pub/Sub | `Excalibur.Dispatch.Transport.GooglePubSub` |
 | `AddDispatchObservability()` | Observability | `Excalibur.Dispatch.Observability` |
-| `UseDispatchResilience()` | Resilience (Polly) | `Excalibur.Dispatch.Resilience.Polly` |
+| `AddDispatchResilience()` | Resilience (Polly) | `Excalibur.Dispatch.Resilience.Polly` |
 | `UseCaching()` | Caching (on `IDispatchBuilder`) | `Excalibur.Dispatch.Caching` |
 | `UseSecurity()` | Security (on `IDispatchBuilder`) | `Excalibur.Security` |
 | `AddMessagePackSerializer()` | MessagePack serialization | `Excalibur.Dispatch.Serialization.MessagePack` |
@@ -204,6 +204,7 @@ In practice this means:
 - Selecting a strategy or provider that the active package cannot service is rejected during `IHost.StartAsync()`, not ignored on the hot path.
 - Provider registration paths fail fast on invalid options. For example, every serverless-hosting registration overload (`AddServerlessHosting(...)`) wires `ValidateOnStart()`, so misconfiguration surfaces at startup regardless of which overload you call.
 - A capability that a given store does not implement (for example, retry-backoff scheduling on a store that lacks it) falls back to the documented default behavior rather than throwing — fail-open for optional cross-cutting features, fail-loud for advertised configuration.
+- **Store durability is verified, not assumed.** Wiring a production host with a volatile (in-memory) audit, grant, key, or schedule store is rejected at startup — a volatile store would report every write as saved and then lose it on restart, which is exactly the failure a fail-fast gate exists to prevent. Each subsystem exposes an explicit opt-out for development and test hosts (`AuditLoggingOptions.AllowVolatileAuditStore`, `GrantDurabilityOptions.AllowVolatileGrantStore`, `KeyDurabilityOptions.AllowVolatileKeyProvider`, `ScheduleDurabilityOptions.AllowVolatileScheduleStore`); the default is the protective value you get by saying nothing. These gates run from host startup — a [host-less container](dependency-injection.md#host-less-containers-must-trigger-the-gates-explicitly) must call `ValidateStartupGates()` to trigger them.
 
 ### Built-In Validators
 

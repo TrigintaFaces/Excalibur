@@ -51,15 +51,10 @@ public sealed class CosmosSerializerNamingGuardTests
     /// invariant, each with a written reason (no silent omission). Keyed by file name; remove an entry when
     /// the underlying issue is resolved so the guard begins enforcing it.
     /// </summary>
-    private static readonly IReadOnlyDictionary<string, string> Allowlist = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["CosmosDbPersistenceProvider.cs"] =
-            "TRACKED OPEN FINDING (bd-7tdbiu): the generic cloud-native provider builds its client with " +
-            "neither serializer mechanism, so a consumer TDocument with PascalCase 'Id' may not emit the " +
-            "Cosmos-required lowercase 'id'. Whether a GENERIC provider must force naming (vs leaving it to " +
-            "the consumer's document attributes) is a Backend/SoftwareArchitect design call. Remove this " +
-            "allowlist entry when bd-7tdbiu is resolved (recommended fix mirrors CdcStateStore's CamelCase policy).",
-    };
+    // Zero allowlist entries: CosmosDbPersistenceProvider.cs (formerly tracked bd-7tdbiu) now configures a
+    // deterministic serializer, so it no longer violates — the allowlist-honesty guard requires the stale entry
+    // be removed. A future genuine-but-exempt violation is re-added here with a written reason.
+    private static readonly IReadOnlyDictionary<string, string> Allowlist = new Dictionary<string, string>(StringComparer.Ordinal);
 
     [Fact]
     public void EveryFrameworkBuiltCosmosClient_ForcesDeterministicPropertyNaming()

@@ -13,7 +13,7 @@ namespace Excalibur.Saga.DependencyInjection;
 /// configured (via <c>AddSagas(...)</c> / <c>AddExcaliburOrchestration()</c>) without registering a
 /// concrete <see cref="ISagaStore"/> — by omitting both a persistent provider (e.g.
 /// <c>.UseSqlServer(...)</c>) and the explicit in-memory opt-in (<c>AddInMemorySagaStore()</c> /
-/// <c>ISagaBuilder.UseInMemoryStore()</c>).
+/// <c>ISagaBuilder.WithInMemoryStore()</c>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -46,7 +46,7 @@ internal sealed class SagaPrerequisiteValidator : IHostedService
 			throw new InvalidOperationException(
 				"Excalibur sagas are configured but no ISagaStore is registered. Register a persistent saga " +
 				"store (for example a provider's UseSqlServer(...) extension) or explicitly opt into the " +
-				"in-memory store via AddInMemorySagaStore() / ISagaBuilder.UseInMemoryStore() before host " +
+				"in-memory store via AddInMemorySagaStore() / ISagaBuilder.WithInMemoryStore() before host " +
 				"startup. The in-memory store is never the silent default because it loses all in-flight " +
 				"saga state on restart or scale-out.");
 		}

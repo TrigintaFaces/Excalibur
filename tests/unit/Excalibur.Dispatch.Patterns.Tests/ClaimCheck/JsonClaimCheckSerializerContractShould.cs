@@ -99,6 +99,20 @@ public sealed class JsonClaimCheckSerializerContractShould
 			() => _serializer.Serialize(new PoisonPayload(), (IBufferWriter<byte>)null!));
 	}
 
+	[Fact]
+	public void ThrowUnwrappedArgumentNull_OnSerialize_WhenValueIsNull()
+	{
+		// txtc3n (S862, lane D) — Serialize<T> was missing ArgumentNullException.ThrowIfNull(value).
+		// Pre-fix: a null value silently serialized to the JSON `null` literal (no throw), diverging
+		// from the canonical SystemTextJsonSerializer guard ordering (value then bufferWriter). Post-fix:
+		// the value guard surfaces unwrapped (the `catch when (ex is not ArgumentNullException)` lets it
+		// pass through). RED on pre-fix HEAD (no throw); GREEN post-fix.
+		var bufferWriter = new ArrayBufferWriter<byte>();
+
+		_ = Should.Throw<ArgumentNullException>(
+			() => _serializer.Serialize<PoisonPayload>(null!, bufferWriter));
+	}
+
 	private sealed class PoisonPayload
 	{
 		public int Id { get; set; }

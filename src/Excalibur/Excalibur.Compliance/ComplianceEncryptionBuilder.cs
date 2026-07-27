@@ -51,6 +51,13 @@ internal sealed class ComplianceEncryptionBuilder : IComplianceEncryptionBuilder
 	{
 		EnsureKeyManagementNotAlreadySelected(KeyManagementSelection.InMemory);
 		_keyManagement = KeyManagementSelection.InMemory;
+
+		// Naming this method IS the host stating it accepts keys that do not survive a restart, and the
+		// option below records that choice so it stays distinguishable from a silent fallback. The startup
+		// durability gate installed by Build() READS this option: it is a real, enforced opt-out — without
+		// it a volatile provider fails startup.
+		_ = Services.Configure<KeyDurabilityOptions>(o => o.AllowVolatileKeyProvider = true);
+
 		ConfigureOptions(configure);
 		return this;
 	}
@@ -91,6 +98,14 @@ internal sealed class ComplianceEncryptionBuilder : IComplianceEncryptionBuilder
 		RegisterKeyManagement();
 		RegisterEncryptionProvider();
 		RegisterFipsValidation();
+
+		// Compliance encryption is a durability-REQUIRING composition: keys that vanish on restart make every
+		// value encrypted under them unrecoverable. Install the startup gate here so it fires on every host
+		// that composed encryption. It resolves the provider that actually won registration and refuses a
+		// volatile one UNLESS the host opted out explicitly (WithInMemoryKeyManagement sets
+		// AllowVolatileKeyProvider=true — the deliberate dev escape). The bare default (no key-management
+		// choice) leaves AllowVolatile=false + an in-memory provider, so it fails closed at startup.
+		Services.AddKeyDurabilityGate();
 	}
 
 	private void RegisterEncryptionOptions()
@@ -113,6 +128,11 @@ internal sealed class ComplianceEncryptionBuilder : IComplianceEncryptionBuilder
 		Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<InMemoryKeyManagementOptions>, InMemoryKeyManagementOptionsValidator>());
 		Services.AddOptions<InMemoryKeyManagementOptions>().ValidateOnStart();
 		Services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<InMemoryKeyManagementOptions>>().Value);
+		// This in-memory provider loses key material on restart and emits no durability attestation. The
+		// startup gate installed in Build() REFUSES this default (AllowVolatileKeyProvider stays false unless
+		// the host called WithInMemoryKeyManagement, which opts out explicitly) — a host that needs key
+		// material to survive a restart must register a durable provider, and encrypted data is unrecoverable
+		// without one.
 		Services.TryAddSingleton<InMemoryKeyManagementProvider>();
 		Services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
 		Services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());

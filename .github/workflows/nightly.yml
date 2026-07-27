@@ -44,10 +44,10 @@ jobs:
           - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf" }
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -55,7 +55,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -70,14 +70,15 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test ${{ matrix.shard.filter }} \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
+            ${{ matrix.shard.filter }} \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFilePrefix=nightly-unit-${{ matrix.shard.name }}" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
-            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Upload test results
@@ -97,10 +98,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -108,7 +109,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -125,7 +126,9 @@ jobs:
         id: integration-tests
         continue-on-error: true
         run: |
-          dotnet test eng/ci/shards/IntegrationTests.slnf \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "Category=Integration|Category=EndToEnd" -- \
+            eng/ci/shards/IntegrationTests.slnf \
             --configuration Release \
             --no-build \
             -m:1 \
@@ -133,7 +136,6 @@ jobs:
             --logger "trx;LogFilePrefix=nightly-integration" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
-            --filter "Category=Integration|Category=EndToEnd" \
             -- RunConfiguration.TestSessionTimeout=1800000
 
       - name: Verify integration test results
@@ -172,10 +174,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -183,7 +185,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -201,10 +203,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -239,7 +241,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Compute nightly results
         id: results

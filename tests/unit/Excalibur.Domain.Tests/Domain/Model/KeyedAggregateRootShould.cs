@@ -135,10 +135,10 @@ public sealed class KeyedAggregateRootShould
 		// Arrange
 		var orderId = Guid.NewGuid();
 		const string orderNumber = "ORD-2026-004";
-		var history = new List<IDomainEvent>
+		var history = new List<HistoricEvent>
 		{
-			new TestOrderCreated(orderId, orderNumber),
-			new TestOrderShipped("TRACK-456"),
+			new(new TestOrderCreated(orderId, orderNumber), 0),
+			new(new TestOrderShipped("TRACK-456"), 1),
 		};
 
 		var aggregate = new TestOrderAggregate();
@@ -226,7 +226,7 @@ public sealed class KeyedAggregateRootShould
 			RaiseEvent(new TestOrderNumberUpdated(newOrderNumber));
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			TestOrderCreated e => Apply(e),
 			TestOrderShipped e => Apply(e),
@@ -268,7 +268,7 @@ public sealed class KeyedAggregateRootShould
 
 		public override int BusinessKey => _accountNumber;
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			throw new NotImplementedException();
 		}

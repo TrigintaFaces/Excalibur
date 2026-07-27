@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.Dispatch.Hosting.AwsLambda;
 
 /// <summary>
@@ -11,15 +13,20 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// (X-Ray tracing, CloudWatch, environment variables).
 /// </remarks>
 /// <param name="serviceProvider">The service provider for DI container access.</param>
+/// <param name="options">The AWS Lambda options carrying the cold-start-optimization flag.</param>
 /// <param name="logger">The logger instance.</param>
 internal partial class AwsLambdaColdStartOptimizer(
 	IServiceProvider serviceProvider,
+	IOptions<AwsLambdaOptions> options,
 	ILogger<AwsLambdaColdStartOptimizer> logger) : ColdStartOptimizerBase(serviceProvider, logger)
 {
+	private readonly AwsLambdaOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Value;
 	private readonly ILogger<AwsLambdaColdStartOptimizer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public override bool IsEnabled => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME"));
+	// bfak2b — the "running on AWS Lambda?" decision is read from configuration (an Options flag defaulted at
+	// the composition root from AWS_LAMBDA_FUNCTION_NAME), not a direct environment read on each evaluation.
+	public override bool IsEnabled => _options.ColdStartOptimizationEnabled;
 
 	/// <inheritdoc />
 	protected override string PlatformName => "AWS Lambda";

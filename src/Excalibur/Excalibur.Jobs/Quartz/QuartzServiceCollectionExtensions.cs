@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Jobs;
-using Excalibur.Jobs.Quartz;
+using Excalibur.Jobs.Core;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -61,8 +61,10 @@ public static class QuartzServiceCollectionExtensions
 
 		_ = services.Configure<TOptions>(configurationSection);
 
-		// Register a factory-based hosted service that creates the actual service asynchronously This avoids blocking async calls during DI registration
-		_ = services.AddSingleton<IHostedService>(static sp => new AsyncFactoryHostedService<TJob, TOptions>(sp));
+		// Register the watcher directly as an IHostedService. It resolves the scheduler via
+		// ISchedulerFactory inside its own StartAsync (the BCL async-init seam) — no factory indirection.
+		_ = services.AddSingleton<IHostedService>(static sp =>
+			ActivatorUtilities.CreateInstance<JobOptionsHostedWatcherService<TJob, TOptions>>(sp));
 	}
 
 }

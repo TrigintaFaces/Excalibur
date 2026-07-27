@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.TieredStorage;
@@ -51,7 +52,7 @@ public sealed class TieredEventStoreDecoratorShould
 			"agg-1", "Order", Array.Empty<Dispatch.IDomainEvent>(), 0, CancellationToken.None);
 
 		result.Success.ShouldBeTrue();
-		A.CallTo(() => _coldStore.WriteAsync(A<string>._, A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, A<string>._, A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -67,7 +68,7 @@ public sealed class TieredEventStoreDecoratorShould
 		var result = await _decorator.LoadAsync("agg-1", "Order", CancellationToken.None);
 
 		result.Count.ShouldBe(3);
-		A.CallTo(() => _coldStore.ReadAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -78,11 +79,11 @@ public sealed class TieredEventStoreDecoratorShould
 	{
 		_ = A.CallTo(() => _hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._))
 			.Returns(new List<StoredEvent>());
-		_ = A.CallTo(() => _coldStore.HasArchivedEventsAsync("agg-1", A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._))
 			.Returns(true);
 
 		var coldEvents = CreateEvents("agg-1", 1, 2, 3);
-		_ = A.CallTo(() => _coldStore.ReadAsync("agg-1", A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._))
 			.Returns(coldEvents);
 
 		var result = await _decorator.LoadAsync("agg-1", "Order", CancellationToken.None);
@@ -95,7 +96,7 @@ public sealed class TieredEventStoreDecoratorShould
 	{
 		_ = A.CallTo(() => _hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._))
 			.Returns(new List<StoredEvent>());
-		_ = A.CallTo(() => _coldStore.HasArchivedEventsAsync("agg-1", A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._))
 			.Returns(false);
 
 		var result = await _decorator.LoadAsync("agg-1", "Order", CancellationToken.None);
@@ -116,7 +117,7 @@ public sealed class TieredEventStoreDecoratorShould
 			.Returns((ISnapshot?)null); // no snapshot
 
 		var coldEvents = CreateEvents("agg-1", 1, 2, 3, 4);
-		_ = A.CallTo(() => _coldStore.ReadAsync("agg-1", 0L, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", 0L, A<CancellationToken>._))
 			.Returns(coldEvents);
 
 		var result = await _decoratorNoSnapshot.LoadAsync("agg-1", "Order", CancellationToken.None);
@@ -145,9 +146,9 @@ public sealed class TieredEventStoreDecoratorShould
 		var result = await _decorator.LoadAsync("agg-1", "Order", CancellationToken.None);
 
 		result.Count.ShouldBe(3); // only hot events, no cold read
-		A.CallTo(() => _coldStore.ReadAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
-		A.CallTo(() => _coldStore.ReadAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -165,7 +166,7 @@ public sealed class TieredEventStoreDecoratorShould
 			.Returns(snapshot);
 
 		var coldEvents = CreateEvents("agg-1", 6, 7, 8, 9);
-		_ = A.CallTo(() => _coldStore.ReadAsync("agg-1", 0L, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", 0L, A<CancellationToken>._))
 			.Returns(coldEvents);
 
 		var result = await _decorator.LoadAsync("agg-1", "Order", CancellationToken.None);
@@ -185,7 +186,7 @@ public sealed class TieredEventStoreDecoratorShould
 		var result = await _decorator.LoadAsync("agg-1", "Order", 4, CancellationToken.None);
 
 		result.Count.ShouldBe(3);
-		A.CallTo(() => _coldStore.ReadAsync(A<string>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -196,7 +197,7 @@ public sealed class TieredEventStoreDecoratorShould
 			.Returns(new List<StoredEvent>());
 
 		var coldEvents = CreateEvents("agg-1", 1, 2, 3);
-		_ = A.CallTo(() => _coldStore.ReadAsync("agg-1", 0L, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", 0L, A<CancellationToken>._))
 			.Returns(coldEvents);
 
 		var result = await _decorator.LoadAsync("agg-1", "Order", 0, CancellationToken.None);

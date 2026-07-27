@@ -34,16 +34,10 @@ Use flexible serialization that ignores unknown properties:
 
 ```csharp
 // V1 - Original event
-public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent;
 
 // V2 - Added field (backward compatible)
-public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEvent;
 
 // Configure serializer to handle schema evolution
 services.AddJsonSerialization(options =>
@@ -64,7 +58,6 @@ public record OrderCreatedV1 : DomainEvent, IVersionedMessage
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
     public decimal TotalAmount { get; init; }
-    public override string AggregateId => OrderId.ToString();
 
     // IVersionedMessage implementation
     int IVersionedMessage.Version => 1;
@@ -77,7 +70,6 @@ public record OrderCreated : DomainEvent, IVersionedMessage
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
     public Money Total { get; init; } = default!;
-    public override string AggregateId => OrderId.ToString();
 
     // IVersionedMessage implementation
     int IVersionedMessage.Version => 2;
@@ -98,8 +90,6 @@ public class OrderCreatedV1ToV2 : IMessageUpcaster<OrderCreatedV1, OrderCreated>
             OrderId = source.OrderId,
             CustomerId = source.CustomerId,
             Total = Money.USD(source.TotalAmount),
-            AggregateId = source.AggregateId,
-            Version = source.Version,
             EventId = source.EventId,
             OccurredAt = source.OccurredAt
         };
@@ -217,7 +207,6 @@ public record OrderCreatedV1 : DomainEvent, IVersionedMessage
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
     public decimal TotalAmount { get; init; }
-    public override string AggregateId => OrderId.ToString();
 
     int IVersionedMessage.Version => 1;
     public string MessageType => "OrderCreated";
@@ -229,7 +218,6 @@ public record OrderCreated : DomainEvent, IVersionedMessage
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
     public Money Total { get; init; } = default!;
-    public override string AggregateId => OrderId.ToString();
 
     int IVersionedMessage.Version => 2;
     public string MessageType => "OrderCreated";
@@ -248,8 +236,6 @@ public class OrderCreatedUpcaster : IMessageUpcaster<OrderCreatedV1, OrderCreate
             OrderId = source.OrderId,
             CustomerId = source.CustomerId,
             Total = Money.USD(source.TotalAmount),
-            AggregateId = source.AggregateId,
-            Version = source.Version,
             EventId = source.EventId,
             OccurredAt = source.OccurredAt
         };
@@ -269,25 +255,18 @@ public record OrderProcessedV1 : DomainEvent, IVersionedMessage
     public string Status { get; init; } = string.Empty;
     public DateTime? ShippedAt { get; init; }
     public string? TrackingNumber { get; init; }
-    public override string AggregateId => OrderId.ToString();
 
     int IVersionedMessage.Version => 1;
     public string MessageType => "OrderProcessed";
 }
 
 // V2: Split into focused events
-public record OrderStatusChanged(Guid OrderId, string Status) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderStatusChanged(Guid OrderId, string Status) : DomainEvent;
 
-public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent;
 
 // Handle V1 events in aggregate by treating as multiple logical events
-protected override void ApplyEventInternal(IDomainEvent @event)
+protected override bool ApplyEventInternal(IDomainEvent @event)
 {
     switch (@event)
     {
@@ -300,14 +279,16 @@ protected override void ApplyEventInternal(IDomainEvent @event)
                 TrackingNumber = e.TrackingNumber;
                 ShippedAt = e.ShippedAt;
             }
-            break;
+            return true;
         case OrderStatusChanged e:
             Status = e.Status;
-            break;
+            return true;
         case OrderShipped e:
             TrackingNumber = e.TrackingNumber;
             ShippedAt = e.ShippedAt;
-            break;
+            return true;
+        default:
+            return false;
     }
 }
 ```
@@ -318,25 +299,16 @@ When separate events should become a single event, the aggregate handles both ol
 
 ```csharp
 // V1: Separate events
-public record AddressChangedV1(Guid OrderId, Address NewAddress) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record AddressChangedV1(Guid OrderId, Address NewAddress) : DomainEvent;
 
-public record ContactChangedV1(Guid OrderId, string Email, string Phone) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record ContactChangedV1(Guid OrderId, string Email, string Phone) : DomainEvent;
 
 // V2: Combined event
 public record CustomerDetailsUpdated(
     Guid OrderId,
     Address? NewAddress = null,
     string? Email = null,
-    string? Phone = null) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    string? Phone = null) : DomainEvent;
 ```
 
 ## Upcaster Pipeline
@@ -370,7 +342,7 @@ public class Order : AggregateRoot<Guid>
 
     private Order() { }
 
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
@@ -379,14 +351,17 @@ public class Order : AggregateRoot<Guid>
                 Id = e.OrderId;
                 CustomerId = e.CustomerId;
                 Total = e.Total;
-                break;
+                return true;
 
             // Handle legacy version (if upcaster not configured)
             case OrderCreatedV1 e:
                 Id = e.OrderId;
                 CustomerId = e.CustomerId;
                 Total = Money.USD(e.TotalAmount);
-                break;
+                return true;
+
+            default:
+                return false;
         }
     }
 }
@@ -401,10 +376,10 @@ public class EventVersioningTests
     public void Upcaster_Transforms_V1_To_V2()
     {
         // Arrange
-        var aggregateId = Guid.NewGuid().ToString();
-        var v1Event = new OrderCreatedV1(aggregateId, version: 1)
+        var orderId = Guid.NewGuid();
+        var v1Event = new OrderCreatedV1
         {
-            OrderId = Guid.Parse(aggregateId),
+            OrderId = orderId,
             CustomerId = "customer-1",
             TotalAmount = 100m
         };

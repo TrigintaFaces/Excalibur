@@ -311,6 +311,7 @@ public sealed class DataProtectionEncryptionDepthShould : IDisposable
 	{
 		return new DataProtectionMessageEncryptionService(
 			_provider,
+			A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(),
 			MsOptions.Create(options ?? new EncryptionOptions { IncludeMetadataHeader = false }),
 			NullLogger<DataProtectionMessageEncryptionService>.Instance);
 	}

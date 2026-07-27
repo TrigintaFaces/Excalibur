@@ -36,6 +36,13 @@ public sealed record Snapshot : ISnapshot
 	/// <inheritdoc />
 	public IDictionary<string, object>? Metadata { get; init; }
 
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Optional so a single-tenant host constructs a snapshot exactly as before. A multi-tenant host sets it,
+	/// and the store persists it as part of the snapshot's identity rather than as loose metadata.
+	/// </remarks>
+	public string? TenantId { get; init; }
+
 	/// <summary>
 	/// Creates a new <see cref="Snapshot"/> with a generated identifier and current timestamp.
 	/// </summary>

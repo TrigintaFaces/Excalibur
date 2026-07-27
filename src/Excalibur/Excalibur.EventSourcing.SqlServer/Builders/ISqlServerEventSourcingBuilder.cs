@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// <para>
 /// Provides the canonical 4 connection overloads plus subsystem-specific configuration
 /// for event store and snapshot store schemas and tables. Follows the builder pattern
-/// established by <see cref="Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder"/>.
+/// established by <c>ISqlServerCdcConnectionBuilder</c>.
 /// </para>
 /// <para>
 /// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection

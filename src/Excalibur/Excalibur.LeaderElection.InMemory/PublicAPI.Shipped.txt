@@ -1,12 +1,14 @@
 #nullable enable
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.CandidateId.get -> string!
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.Dispose() -> void
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>!
-Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.InMemoryLeaderElection(string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.InMemory.InMemoryLeaderElection!>? logger, Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState? sharedState = null) -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.InMemoryLeaderElection(string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.InMemory.InMemoryLeaderElection!>? logger, Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState? sharedState = null, System.TimeProvider? timeProvider = null) -> void
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.IsLeader.get -> bool
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?

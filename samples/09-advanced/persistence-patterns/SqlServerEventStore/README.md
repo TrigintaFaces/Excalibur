@@ -42,7 +42,7 @@ docker exec -i sqlserver-eventstore /opt/mssql-tools18/bin/sqlcmd \
 # Run the schema script
 docker exec -i sqlserver-eventstore /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'YourStrong@Passw0rd' -C \
-  -d EventStore -i /eng/create-schema.sql
+  -d EventStore -i /scripts/create-schema.sql
 ```
 
 ### 3. Run the Sample
@@ -71,15 +71,27 @@ CREATE TABLE [dbo].[EventStoreEvents] (
     [AggregateId]    NVARCHAR(256)         NOT NULL,
     [AggregateType]  NVARCHAR(256)         NOT NULL,
     [EventType]      NVARCHAR(256)         NOT NULL,
-    [EventData]      VARBINARY(MAX)        NOT NULL,
+    -- Nullable: GDPR erasure tombstones an event by setting EventData to NULL.
+    [EventData]      VARBINARY(MAX)        NULL,
     [Metadata]       VARBINARY(MAX)        NULL,
     [Version]        BIGINT                NOT NULL,
     [Timestamp]      DATETIMEOFFSET        NOT NULL,
+    -- Tenant discriminator: a component of the stream uniqueness key, so two tenants holding the same
+    -- aggregate identifier occupy separate rows instead of colliding. NOT NULL and no default — the store
+    -- writes a concrete term on every insert (the resolved tenant, or the '__untenanted__' sentinel when no
+    -- tenant context is established), so an untenanted event is a named partition, never a NULL. Omitting the
+    -- value must fail the INSERT, not silently land in a shared partition. The event store's read/erase paths
+    -- bind this column unconditionally, so a range operation is never un-tenant-bound.
+    [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2         NOT NULL,
 
     CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
-    CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version])
+    CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
 ```
+
+> **Migrating an existing table:** backfill legacy rows with an absent/NULL tenant to the `'__untenanted__'`
+> sentinel *before* applying the `NOT NULL` constraint — otherwise those rows become unreadable, because the
+> store's tenant-bound reads match the sentinel, not NULL.
 
 ### Snapshots Table
 
@@ -92,8 +104,14 @@ CREATE TABLE [dbo].[EventStoreSnapshots] (
     [Data]           VARBINARY(MAX)        NOT NULL,
     [CreatedAt]      DATETIMEOFFSET        NOT NULL,
     [Metadata]       VARBINARY(MAX)        NULL,
+    -- Part of the primary key so two tenants holding the same aggregate identifier occupy
+    -- separate rows instead of overwriting one another. NOT NULL and no default:
+    -- SQL Server forbids a nullable column in a PRIMARY KEY, and the reserved '__untenanted__'
+    -- sentinel is the single-tenant value the store writes explicitly — never NULL, never an empty
+    -- string — so omitting it must fail the INSERT, not silently land in that partition.
+    [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2         NOT NULL,
 
-    CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
+    CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
 );
 ```
 

@@ -16,6 +16,16 @@ namespace Excalibur.Data;
 /// where version or ETag checking is used.
 /// </para>
 /// <para>
+/// <b>Contract.</b> This is the canonical, typed signal for an optimistic-concurrency conflict across the
+/// framework. A store or repository that detects a lost update (a version, ETag, or timestamp mismatch)
+/// MUST surface <em>this</em> exception type — never a raw provider exception (for example a SQL error)
+/// and never a silent boolean failure — and MUST populate the version/ETag metadata
+/// (<see cref="ExpectedVersion"/>/<see cref="ActualVersion"/> or their string equivalents) so a caller can
+/// distinguish a conflict from other failures and decide whether to reload and retry. Because it derives
+/// from <see cref="ConflictException"/> (an application exception mapping to HTTP 409), framework
+/// data-execution paths propagate it to the caller unchanged rather than rewrapping it as a generic failure.
+/// </para>
+/// <para>
 /// Use this exception when:
 /// <list type="bullet">
 ///   <item><description>The expected version doesn't match the actual version</description></item>

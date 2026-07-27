@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.Postgres;
@@ -56,10 +57,21 @@ public static class PostgresSagaExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresSagaOptions>, PostgresSagaOptionsValidator>());
 
-		services.TryAddSingleton<PostgresSagaStore>();
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
+		// multi-tenant context still wins regardless of composition order.
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore threads the resolved ITenantContext into construction (dep-gated: absent
+		// context ⇒ resolution fails closed) AND emits the ITenantScopingCapability<ISagaStore> marker
+		// inseparably (S886 rw2ull (B) — a store built without the ambient tenant is inexpressible here).
+		services.AddTenantScopedStore<ISagaStore, PostgresSagaStore>(
+			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<PostgresSagaStore>(sp, tenantContext));
 		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("postgres"));
+
+		// Admin/query surface (dashboard + operational tooling) — the same store instance.
+		services.TryAddSingleton<ISagaStoreAdmin>(static sp => sp.GetRequiredService<PostgresSagaStore>());
 
 		return services;
 	}
@@ -89,17 +101,26 @@ public static class PostgresSagaExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresSagaOptions>, PostgresSagaOptionsValidator>());
 
-		services.TryAddSingleton(sp =>
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
+		// multi-tenant context still wins regardless of composition order.
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
+		// ITenantScopingCapability<ISagaStore> marker as one inseparable act (S886 rw2ull).
+		services.AddTenantScopedStore<ISagaStore, PostgresSagaStore>((sp, tenantContext) =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<PostgresSagaOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<PostgresSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new PostgresSagaStore(connectionFactory, options, logger, serializer);
+			return new PostgresSagaStore(connectionFactory, options, logger, serializer, tenantContext);
 		});
 		services.AddKeyedSingleton<ISagaStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("postgres"));
+
+		// Admin/query surface (dashboard + operational tooling) — the same store instance.
+		services.TryAddSingleton<ISagaStoreAdmin>(static sp => sp.GetRequiredService<PostgresSagaStore>());
 
 		return services;
 	}

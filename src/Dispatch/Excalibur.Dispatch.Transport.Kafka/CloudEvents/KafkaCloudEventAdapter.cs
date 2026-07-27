@@ -28,17 +28,21 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 {
 	private const string StructuredContentType = "application/cloudevents+json";
-	private const string ContentTypeHeader = "Content-Type";
-	private const string CePrefix = "ce-";
-	private const string CeSpecVersionHeader = "ce-specversion";
-	private const string CeTypeHeader = "ce-type";
-	private const string CeSourceHeader = "ce-source";
-	private const string CeIdHeader = "ce-id";
-	private const string CeTimeHeader = "ce-time";
-	private const string CeSubjectHeader = "ce-subject";
-	private const string CeDataContentTypeHeader = "ce-datacontenttype";
-	private const string CeDataSchemaHeader = "ce-dataschema";
-	private const string CeTimeoutHeader = "ce-timeout";
+
+	// CNCF CloudEvents Kafka Protocol Binding v1.0.2 §3.2: binary-mode attributes map to Kafka headers
+	// prefixed "ce_" (underscore — a Kafka header key cannot carry the HTTP-style "ce-"), and the message
+	// content type travels in the "content-type" header.
+	private const string ContentTypeHeader = "content-type";
+	private const string CePrefix = "ce_";
+	private const string CeSpecVersionHeader = "ce_specversion";
+	private const string CeTypeHeader = "ce_type";
+	private const string CeSourceHeader = "ce_source";
+	private const string CeIdHeader = "ce_id";
+	private const string CeTimeHeader = "ce_time";
+	private const string CeSubjectHeader = "ce_subject";
+	private const string CeDataContentTypeHeader = "ce_datacontenttype";
+	private const string CeDataSchemaHeader = "ce_dataschema";
+	private const string CeTimeoutHeader = "ce_timeout";
 	private const string TraceParentHeader = "traceparent";
 
 	private readonly JsonEventFormatter _jsonFormatter = new();
@@ -371,10 +375,11 @@ internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 			throw new InvalidOperationException("Missing CloudEvent specversion header.");
 		}
 
-		var specVersion = string.Equals(specVersionValue, CloudEventsSpecVersion.V1_0.VersionId,
-			StringComparison.Ordinal)
-			? CloudEventsSpecVersion.V1_0
-			: CloudEventsSpecVersion.V1_0;
+		// Resolve the actual spec version from the header via the CNCF SDK rather than coercing every value
+		// to V1_0 (the prior ternary returned V1_0 on both branches, silently accepting any/invalid version).
+		var specVersion = CloudEventsSpecVersion.FromVersionId(specVersionValue)
+			?? throw new InvalidOperationException(
+				$"Unsupported CloudEvent specversion '{specVersionValue}'.");
 
 		if (!TryGetHeader(headers, CeTypeHeader, out var typeValue))
 		{

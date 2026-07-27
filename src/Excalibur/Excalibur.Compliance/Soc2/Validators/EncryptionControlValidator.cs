@@ -64,7 +64,7 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 				ControlId = ControlSec001,
 				Name = "Encryption at Rest",
 				Description = "Sensitive data is encrypted using AES-256-GCM when stored",
-				Implementation = "ADR-051 Field Encryption with IEncryptionProvider",
+				Implementation = "Field Encryption with IEncryptionProvider",
 				Type = ControlType.Preventive,
 				Frequency = ControlFrequency.Continuous
 			},
@@ -82,7 +82,7 @@ public sealed class EncryptionControlValidator : BaseControlValidator
 				ControlId = ControlSec003,
 				Name = "Key Management",
 				Description = "Encryption keys are managed through a key management system",
-				Implementation = "ADR-051 Key Management Provider integration",
+				Implementation = "Key Management Provider integration",
 				Type = ControlType.Preventive,
 				Frequency = ControlFrequency.Continuous
 			},

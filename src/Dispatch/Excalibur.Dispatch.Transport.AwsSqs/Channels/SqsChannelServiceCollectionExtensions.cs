@@ -59,7 +59,9 @@ public static class SqsChannelServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<SqsChannelOptions>().Bind(configuration);
+		_ = services.AddOptions<SqsChannelOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqsChannelOptions>>(new SqsChannelOptionsValidator()));
 
 		_ = services.AddSingleton(static provider =>
 		{
@@ -82,7 +84,11 @@ public static class SqsChannelServiceCollectionExtensions
 		Action<SqsProcessorOptions> configureOptions)
 		where TProcessor : class, IMessageProcessor<Message>
 	{
-		_ = services.Configure(configureOptions);
+		_ = services.AddOptions<SqsProcessorOptions>()
+			.Configure(configureOptions)
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqsProcessorOptions>, SqsProcessorOptionsValidator>());
 		_ = services.AddTransient<IMessageProcessor<Message>, TProcessor>();
 
 		_ = services.AddSingleton(static provider =>
@@ -118,7 +124,11 @@ public static class SqsChannelServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<SqsProcessorOptions>().Bind(configuration);
+		_ = services.AddOptions<SqsProcessorOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqsProcessorOptions>, SqsProcessorOptionsValidator>());
 		_ = services.AddTransient<IMessageProcessor<Message>, TProcessor>();
 
 		_ = services.AddSingleton(static provider =>
@@ -173,7 +183,9 @@ public static class SqsChannelServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<SqsBatchOptions>().Bind(configuration);
+		_ = services.AddOptions<SqsBatchOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqsBatchOptions>>(new SqsBatchOptionsValidator()));
 
 		_ = services.AddSingleton(static provider =>
 		{
@@ -222,7 +234,9 @@ public static class SqsChannelServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<ChannelLongPollingOptions>().Bind(configuration);
+		_ = services.AddOptions<ChannelLongPollingOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ChannelLongPollingOptions>>(new ChannelLongPollingOptionsValidator()));
 
 		_ = services.AddSingleton(static provider =>
 		{
@@ -293,7 +307,7 @@ public static class SqsChannelServiceCollectionExtensions
 		});
 
 		// Add metrics collection
-		_ = services.AddSingleton<ISqsChannelMetricsCollector, SqsChannelMetricsCollector>();
+		services.TryAddSingleton<ISqsChannelMetricsCollector, SqsChannelMetricsCollector>();
 
 		return services;
 	}

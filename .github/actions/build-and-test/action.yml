@@ -40,6 +40,10 @@ inputs:
     description: 'Base test filter before quarantine processing'
     required: false
     default: '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+  extra-run-settings:
+    description: 'Extra RunSettings/xUnit args appended after the RunSettings separator (e.g. "xUnit.MaxParallelThreads=1 xUnit.ParallelizeTestCollections=false"). Requires collect-coverage or a session timeout so a "--" separator precedes them.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -62,7 +66,7 @@ runs:
         docker system prune -af 2>/dev/null || true
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: |
           8.0.x
@@ -70,7 +74,7 @@ runs:
           10.0.x
 
     - name: Cache NuGet packages
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: .nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -126,6 +130,13 @@ runs:
 
         if [ "${{ inputs.collect-coverage }}" != "true" ] && [ -n "${{ inputs.test-session-timeout }}" ]; then
           ARGS+=("--" "RunConfiguration.TestSessionTimeout=${{ inputs.test-session-timeout }}")
+        fi
+
+        # moe5g9: extra RunSettings/xUnit args (e.g. serial execution for the transport shard to avoid the
+        # concurrency-dependent librdkafka native-thread leak that roots the host). Word-split intentionally;
+        # a "--" separator already precedes them (from the coverage or session-timeout branch above).
+        if [ -n "${{ inputs.extra-run-settings }}" ]; then
+          ARGS+=(${{ inputs.extra-run-settings }})
         fi
 
         "${ARGS[@]}"

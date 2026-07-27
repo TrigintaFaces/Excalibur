@@ -157,9 +157,12 @@ Excalibur.Cdc.CosmosDb.CosmosDbStalePositionReasonCodes
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ChangeFeed(System.Action<Excalibur.Cdc.CosmosDb.CosmosDbChangeFeedOptions!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ClientFactory(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ContainerId(string! containerId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.DatabaseId(string! databaseId) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
+Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.WithStateStore(System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
 Excalibur.Cdc.CosmosDb.ICosmosDbCdcProcessor
@@ -212,6 +215,3 @@ static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExte
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CosmosDbCdcServiceCollectionExtensions.AddInMemoryCosmosDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.Client(Microsoft.Azure.Cosmos.CosmosClient! client) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.ClientFactory(System.Func<System.IServiceProvider!, Microsoft.Azure.Cosmos.CosmosClient!>! clientFactory) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!
-Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder.Endpoint(string! endpoint, string! authKey) -> Excalibur.Cdc.CosmosDb.ICosmosDbCdcBuilder!

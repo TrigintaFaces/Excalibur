@@ -46,6 +46,13 @@ public sealed class RetryMiddlewareMetricsShould
 	private const string AttemptsCounter = "dispatch.retry.attempts";
 	private const string ExhaustedCounter = "dispatch.retry.exhausted";
 
+	// Distinct, test-only message type so the retry counters' "message.type" tag isolates THIS test's
+	// emissions from any concurrent RetryMiddleware emitter in another assembly sharing the process-static
+	// meter (deterministic under the parallel shard host — the shared-meter contamination fix).
+	private sealed class RetryMetricProbeMessage : IDispatchMessage;
+
+	private const string ProbeMessageType = nameof(RetryMetricProbeMessage);
+
 	[Fact]
 	public async Task RecordRetryAttempts_OnEachRetry()
 	{
@@ -103,11 +110,24 @@ public sealed class RetryMiddlewareMetricsShould
 				l.EnableMeasurementEvents(instrument);
 			}
 		};
-		listener.SetMeasurementEventCallback<long>((instrument, value, _, _) => recorded.Add((instrument.Name, value)));
+		listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+		{
+			// Isolate to THIS SUT's emissions via the message.type tag, so a concurrent RetryMiddleware
+			// emitter (another assembly, real message type) sharing the process-static meter cannot
+			// contaminate the count.
+			foreach (var tag in tags)
+			{
+				if (tag.Key == "message.type" && (tag.Value as string) == ProbeMessageType)
+				{
+					recorded.Add((instrument.Name, value));
+					return;
+				}
+			}
+		});
 		listener.Start();
 
 		_ = await CreateSut(options).InvokeAsync(
-			A.Fake<IDispatchMessage>(), CreateContext(), next, CancellationToken.None);
+			new RetryMetricProbeMessage(), CreateContext(), next, CancellationToken.None);
 
 		return recorded;
 	}

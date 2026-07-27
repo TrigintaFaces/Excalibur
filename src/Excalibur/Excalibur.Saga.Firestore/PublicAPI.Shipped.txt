@@ -16,11 +16,12 @@ Excalibur.Saga.Firestore.FirestoreSagaOptions.TimeoutInSeconds.set -> void
 Excalibur.Saga.Firestore.FirestoreSagaOptions.Validate() -> void
 Excalibur.Saga.Firestore.FirestoreSagaStore
 Excalibur.Saga.Firestore.FirestoreSagaStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Saga.Firestore.FirestoreSagaStore.FirestoreSagaStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Firestore.FirestoreSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
-Excalibur.Saga.Firestore.FirestoreSagaStore.FirestoreSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Firestore.FirestoreSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
+Excalibur.Saga.Firestore.FirestoreSagaStore.FirestoreSagaStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Firestore.FirestoreSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Saga.Firestore.FirestoreSagaStore.FirestoreSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Firestore.FirestoreSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Firestore.FirestoreSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Saga.Firestore.FirestoreSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
+Excalibur.Saga.Firestore.FirestoreSagaStore.PurgeAllTenantsCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Firestore.FirestoreSagaStore.PurgeCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Saga.Firestore.FirestoreSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Microsoft.Extensions.DependencyInjection.SagaBuilderFirestoreExtensions
 Excalibur.Saga.Firestore.IFirestoreSagaBuilder
 Excalibur.Saga.Firestore.IFirestoreSagaBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
 Excalibur.Saga.Firestore.IFirestoreSagaBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
@@ -30,4 +31,5 @@ Excalibur.Saga.Firestore.IFirestoreSagaBuilder.CredentialsJson(string! credentia
 Excalibur.Saga.Firestore.IFirestoreSagaBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
 Excalibur.Saga.Firestore.IFirestoreSagaBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
 Excalibur.Saga.Firestore.IFirestoreSagaBuilder.ProjectId(string! projectId) -> Excalibur.Saga.Firestore.IFirestoreSagaBuilder!
+Microsoft.Extensions.DependencyInjection.SagaBuilderFirestoreExtensions
 static Microsoft.Extensions.DependencyInjection.SagaBuilderFirestoreExtensions.UseFirestore(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Firestore.IFirestoreSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

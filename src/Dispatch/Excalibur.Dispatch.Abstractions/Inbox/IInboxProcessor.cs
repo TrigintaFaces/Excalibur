@@ -32,7 +32,7 @@ public interface IInboxProcessor : IAsyncDisposable
 
 	/// <summary>
 	/// Asynchronously processes all pending messages in the inbox, dispatching them through the appropriate message handlers while
-	/// maintaining exactly-once delivery semantics.
+	/// maintaining effectively-once processing. Delivery remains at-least-once; a redelivered message is skipped rather than reprocessed.
 	/// </summary>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests during message processing. </param>
 	/// <returns>

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Dispatch.Configuration.Transport;
 
 /// <summary>
-/// Options-validation hook that surfaces <see cref="AddEventBindings"/> references
+/// Options-validation hook that surfaces <c>AddEventBindings</c> references
 /// to unregistered transports at host startup rather than at
 /// <see cref="BindingConfigurationBuilder.FromTransport"/> time.
 /// </summary>

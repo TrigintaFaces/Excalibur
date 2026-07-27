@@ -76,6 +76,30 @@ public sealed class DbConnectionExtensionsShould : UnitTestBase
 		exception.ShouldBe(apiException);
 	}
 
+	// Liskov L10 postcondition: an optimistic-concurrency conflict surfaces as a TYPED ConcurrencyException,
+	// carrying its version metadata, propagated UNCHANGED — never rewrapped into a generic OperationFailedException
+	// and never reduced to a bool. RED if the execute path stopped excluding ApiException from its wrapping (the
+	// contrast test ResolveAsync_ThrowsOperationFailedException_OnNonApiException is the non-vacuity partner:
+	// a non-API infra fault IS wrapped, so this test proves the un-wrap is specific to the typed conflict signal).
+	[Fact]
+	public async Task ResolveAsync_PropagatesConcurrencyException_Unwrapped_WithVersionMetadata()
+	{
+		// Arrange
+		var connection = A.Fake<IDbConnection>();
+		var conflict = new ConcurrencyException("Order", "order-123", expectedVersion: 4, actualVersion: 7);
+		var request = new ThrowingDataRequest { ExceptionToThrow = conflict };
+
+		// Act & Assert -- the typed conflict surfaces as-is (NOT OperationFailedException).
+		var surfaced = await Should.ThrowAsync<ConcurrencyException>(async () =>
+			await connection.ResolveAsync(request));
+
+		surfaced.ShouldBeSameAs(conflict);
+		surfaced.ExpectedVersion.ShouldBe(4);
+		surfaced.ActualVersion.ShouldBe(7);
+		surfaced.Resource.ShouldBe("Order");
+		_ = surfaced.ShouldBeAssignableTo<ConflictException>();
+	}
+
 	[Fact]
 	public async Task ResolveAsync_ReturnsCorrectModelType()
 	{

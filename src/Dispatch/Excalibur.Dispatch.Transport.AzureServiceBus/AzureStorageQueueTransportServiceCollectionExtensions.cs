@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 
 using Azure.Identity;
@@ -199,14 +198,14 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 		// Register QueueClient
 		services.TryAddSingleton(sp =>
 		{
-			if (!string.IsNullOrEmpty(transportOptions.ConnectionString) && !string.IsNullOrEmpty(transportOptions.QueueName))
+			if (!string.IsNullOrEmpty(transportOptions.Connection.ConnectionString) && !string.IsNullOrEmpty(transportOptions.QueueName))
 			{
-				return new QueueClient(transportOptions.ConnectionString, transportOptions.QueueName);
+				return new QueueClient(transportOptions.Connection.ConnectionString, transportOptions.QueueName);
 			}
 
-			if (transportOptions.StorageAccountUri != null && transportOptions.UseManagedIdentity)
+			if (transportOptions.Connection.StorageAccountUri != null && transportOptions.Connection.UseManagedIdentity)
 			{
-				var queueUri = new Uri(transportOptions.StorageAccountUri, transportOptions.QueueName);
+				var queueUri = new Uri(transportOptions.Connection.StorageAccountUri, transportOptions.QueueName);
 				return new QueueClient(queueUri, new DefaultAzureCredential());
 			}
 
@@ -227,25 +226,27 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 		_ = services.AddOptions<AzureProviderOptions>()
 			.Configure(options =>
 			{
-				options.Authentication.UseManagedIdentity = transportOptions.UseManagedIdentity;
-				options.Storage.StorageAccountUri = transportOptions.StorageAccountUri;
+				options.Authentication.UseManagedIdentity = transportOptions.Connection.UseManagedIdentity;
+				options.Storage.StorageAccountUri = transportOptions.Connection.StorageAccountUri;
 			})
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureProviderOptions>>(new AzureProviderOptionsValidator()));
 
 		// Map AzureStorageQueueTransportOptions to existing AzureStorageQueueOptions
 		_ = services.AddOptions<AzureStorageQueueOptions>()
 			.Configure(options =>
 			{
-				options.ConnectionString = transportOptions.ConnectionString;
-				options.StorageAccountUri = transportOptions.StorageAccountUri;
+				options.ConnectionString = transportOptions.Connection.ConnectionString;
+				options.StorageAccountUri = transportOptions.Connection.StorageAccountUri;
 				options.QueueName = transportOptions.QueueName ?? string.Empty;
 				options.MaxConcurrentMessages = transportOptions.MaxConcurrentMessages;
 				options.Polling.VisibilityTimeout = transportOptions.VisibilityTimeout;
 				options.Polling.PollingInterval = transportOptions.PollingInterval;
 				options.Polling.MaxMessages = transportOptions.MaxMessages;
 				options.EnableEncryption = transportOptions.EnableEncryption;
-				options.DeadLetterQueueName = transportOptions.DeadLetterQueueName;
-				options.MaxDequeueCount = transportOptions.MaxDequeueCount;
+				options.DeadLetterQueueName = transportOptions.DeadLetter.QueueName;
+				options.MaxDequeueCount = transportOptions.DeadLetter.MaxDequeueCount;
 			})
 			.ValidateOnStart();
 
@@ -315,7 +316,7 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 	public IAzureStorageQueueTransportBuilder ConnectionString(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		_options.ConnectionString = connectionString;
+		_options.Connection.ConnectionString = connectionString;
 		return this;
 	}
 
@@ -323,14 +324,14 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 	public IAzureStorageQueueTransportBuilder StorageAccountUri(Uri storageAccountUri)
 	{
 		ArgumentNullException.ThrowIfNull(storageAccountUri);
-		_options.StorageAccountUri = storageAccountUri;
+		_options.Connection.StorageAccountUri = storageAccountUri;
 		return this;
 	}
 
 	/// <inheritdoc/>
 	public IAzureStorageQueueTransportBuilder UseManagedIdentity()
 	{
-		_options.UseManagedIdentity = true;
+		_options.Connection.UseManagedIdentity = true;
 		return this;
 	}
 
@@ -367,8 +368,8 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 	public IAzureStorageQueueTransportBuilder EnableDeadLetterQueue(string deadLetterQueueName, int maxDequeueCount = 5)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(deadLetterQueueName);
-		_options.DeadLetterQueueName = deadLetterQueueName;
-		_options.MaxDequeueCount = maxDequeueCount;
+		_options.DeadLetter.QueueName = deadLetterQueueName;
+		_options.DeadLetter.MaxDequeueCount = maxDequeueCount;
 		return this;
 	}
 
@@ -379,73 +380,6 @@ internal sealed class AzureStorageQueueTransportBuilder : IAzureStorageQueueTran
 		configure(_options);
 		return this;
 	}
-}
-
-/// <summary>
-/// Configuration options for Azure Storage Queue transport.
-/// </summary>
-public sealed class AzureStorageQueueTransportOptions
-{
-	/// <summary>
-	/// Gets or sets the transport name for multi-transport routing.
-	/// </summary>
-	public string? Name { get; set; }
-
-	/// <summary>
-	/// Gets or sets the Azure Storage connection string.
-	/// </summary>
-	[Required]
-	public string? ConnectionString { get; set; }
-
-	/// <summary>
-	/// Gets or sets the storage account URI for managed identity authentication.
-	/// </summary>
-	public Uri? StorageAccountUri { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use managed identity.
-	/// </summary>
-	public bool UseManagedIdentity { get; set; }
-
-	/// <summary>
-	/// Gets or sets the queue name.
-	/// </summary>
-	public string? QueueName { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum number of concurrent messages to process. Default is 10.
-	/// </summary>
-	public int MaxConcurrentMessages { get; set; } = 10;
-
-	/// <summary>
-	/// Gets or sets the visibility timeout for messages. Default is 5 minutes.
-	/// </summary>
-	public TimeSpan VisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
-	/// Gets or sets the polling interval for checking new messages. Default is 1 second.
-	/// </summary>
-	public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(1);
-
-	/// <summary>
-	/// Gets or sets the maximum number of messages to retrieve per poll. Default is 10.
-	/// </summary>
-	public int MaxMessages { get; set; } = 10;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable encryption.
-	/// </summary>
-	public bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets the dead letter queue name.
-	/// </summary>
-	public string? DeadLetterQueueName { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum dequeue count before sending to DLQ. Default is 5.
-	/// </summary>
-	public int MaxDequeueCount { get; set; } = 5;
 }
 
 /// <summary>

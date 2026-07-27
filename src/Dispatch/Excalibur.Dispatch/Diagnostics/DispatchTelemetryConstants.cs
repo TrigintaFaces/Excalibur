@@ -84,6 +84,21 @@ internal static class DispatchTelemetryConstants
 		public const string UnifiedBatchingMiddleware = "Excalibur.Dispatch.UnifiedBatchingMiddleware";
 
 		/// <summary>
+		/// Authentication middleware operations.
+		/// </summary>
+		public const string AuthenticationMiddleware = "Excalibur.Dispatch.AuthenticationMiddleware";
+
+		/// <summary>
+		/// Authorization middleware operations.
+		/// </summary>
+		public const string AuthorizationMiddleware = "Excalibur.Dispatch.AuthorizationMiddleware";
+
+		/// <summary>
+		/// Validation middleware operations.
+		/// </summary>
+		public const string ValidationMiddleware = "Excalibur.Dispatch.ValidationMiddleware";
+
+		/// <summary>
 		/// Channel transport common operations.
 		/// </summary>
 		public const string ChannelTransport = "Excalibur.Dispatch.Transport.Common";
@@ -159,6 +174,11 @@ internal static class DispatchTelemetryConstants
 		/// Poison message / dead-letter routing metrics. Mirrors <see cref="ActivitySources.PoisonMessageMiddleware"/>.
 		/// </summary>
 		public const string PoisonMessage = "Excalibur.Dispatch.PoisonMessage.Middleware";
+
+		/// <summary>
+		/// Exactly-once delivery / deduplication metrics (e.g. duplicates suppressed).
+		/// </summary>
+		public const string ExactlyOnce = "Excalibur.Dispatch.ExactlyOnce";
 	}
 
 	/// <summary>

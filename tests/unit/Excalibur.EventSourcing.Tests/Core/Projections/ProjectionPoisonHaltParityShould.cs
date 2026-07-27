@@ -11,6 +11,7 @@ using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 using Excalibur.EventSourcing.Tests.Projections;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.EventSourcing.Tests.Core.Projections;
@@ -175,6 +176,83 @@ public sealed class ProjectionPoisonHaltParityShould
 		var status = await service.GetStatusAsync<RebuildPoisonProjection>(CancellationToken.None)
 			.ConfigureAwait(false);
 		status.State.ShouldNotBe(ProjectionRebuildState.Completed);
+	}
+
+	// elkap2: a valid (non-poison) event whose projection APPLY faults MUST NOT advance the checkpoint past
+	// it — parity with the poison halt and GlobalStreamProjectionHost. RED on the pre-fix swallow-and-advance
+	// in DispatchToProjectionsAsync (:322-323) + the unconditional checkpoint advance (:161-168).
+	[Fact]
+	public async Task NotAdvanceCheckpointPastAFaultedApply_AsyncProjectionProcessingHost()
+	{
+		// Arrange — a single VALID event (deserializes to a real domain event) whose async projection apply
+		// throws. CheckpointInterval=1 so a (buggy) advance persists a checkpoint immediately → non-vacuous.
+		var evt = new StoredEvent(
+			"evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow)
+		{
+			GlobalPosition = 5,
+		};
+		var applyObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		var registry = new InMemoryProjectionRegistry();
+		registry.Register(new ProjectionRegistration(
+			typeof(RebuildPoisonProjection),
+			ProjectionMode.Async,
+			projection: new object(),
+			inlineApply: (events, context, sp, ct) =>
+			{
+				applyObserved.TrySetResult();
+				return Task.FromException(new InvalidOperationException("projection apply failed"));
+			}));
+
+		var globalStreamQuery = A.Fake<IGlobalStreamQuery>();
+		var readCount = 0;
+		A.CallTo(() => globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				var c = Interlocked.Increment(ref readCount);
+				return c == 1
+					? new ValueTask<IReadOnlyList<StoredEvent>>(new[] { evt })
+					: new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
+
+		var eventSerializer = A.Fake<IEventSerializer>();
+		A.CallTo(() => eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
+		A.CallTo(() => eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(A.Fake<IDomainEvent>());
+
+		var checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<long?>(null));
+
+		// Real container so ApplyInScopeAsync's CreateAsyncScope() works; it also resolves the stream query.
+		var services = new ServiceCollection();
+		services.AddSingleton(globalStreamQuery);
+		await using var serviceProvider = services.BuildServiceProvider();
+
+		var host = new AsyncProjectionProcessingHost(
+			registry,
+			eventSerializer,
+			checkpointStore,
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
+			{
+				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
+				CheckpointInterval = 1,
+			}),
+			serviceProvider,
+			NullLogger<AsyncProjectionProcessingHost>.Instance);
+
+		using var cts = new CancellationTokenSource();
+
+		// Act — start, wait until the apply is attempted (and faults), give a halt/advance window, then stop.
+		await host.StartAsync(cts.Token);
+		await AwaitSignalAsync(applyObserved.Task);
+		await Task.Delay(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)))
+			.ConfigureAwait(false);
+		await cts.CancelAsync().ConfigureAwait(false);
+		await host.StopAsync(CancellationToken.None);
+
+		// Assert — the checkpoint must NEVER be persisted past the event whose apply faulted.
+		A.CallTo(() => checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	private static Task AwaitSignalAsync(Task signal)

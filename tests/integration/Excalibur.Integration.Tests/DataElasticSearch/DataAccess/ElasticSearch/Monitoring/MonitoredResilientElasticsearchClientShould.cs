@@ -112,14 +112,17 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
-		// Wait for indexing
-		await Task.Delay(1000).ConfigureAwait(false);
-
 		var searchRequest = new SearchRequest(Indices.Parse("test-index"))
 		{
 			Query = new MatchQuery { Field = "name", Query = "Search" },
 			Size = 10,
 		};
+
+		// Wait for indexing — poll until the document is searchable
+		var searchable = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => (await _client!.SearchAsync<TestDocument>(searchRequest, CancellationToken.None).ConfigureAwait(false)).Documents.Count > 0,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		searchable.ShouldBeTrue();
 
 		// Act
 		var response = await _client.SearchAsync<TestDocument>(searchRequest, CancellationToken.None).ConfigureAwait(false);

@@ -47,14 +47,14 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerHealthBasedLeaderElection"/> class.
 	/// </summary>
-	/// <param name="connectionString">The SQL Server connection string.</param>
-	/// <param name="lockResource">The lock resource name for sp_getapplock.</param>
 	/// <param name="electionOptions">The leader election options.</param>
-	/// <param name="healthOptions">The health-based leader election options.</param>
+	/// <param name="healthOptions">
+	/// The health-based leader election options, carrying the connection string and lock resource.
+	/// </param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="innerLogger">The logger for the inner leader election.</param>
 	/// <param name="failureClassifier">
-	/// An optional <see cref="IMessageFailureClassifier"/> (ot72w3) forwarded to the inner
+	/// An optional <see cref="IMessageFailureClassifier"/> forwarded to the inner
 	/// <see cref="SqlServerLeaderElection"/> for accelerated self-demotion on definitively-permanent
 	/// renewal faults. Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
@@ -64,8 +64,6 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	/// <see langword="null"/> (no fencing).
 	/// </param>
 	public SqlServerHealthBasedLeaderElection(
-		string connectionString,
-		string lockResource,
 		IOptions<LeaderElectionOptions> electionOptions,
 		IOptions<SqlServerHealthBasedLeaderElectionOptions> healthOptions,
 		ILogger<SqlServerHealthBasedLeaderElection> logger,
@@ -73,21 +71,23 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 		IMessageFailureClassifier? failureClassifier = null,
 		IFencingTokenProvider? fencingTokenProvider = null)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-		ArgumentException.ThrowIfNullOrWhiteSpace(lockResource);
 		ArgumentNullException.ThrowIfNull(electionOptions);
 		ArgumentNullException.ThrowIfNull(healthOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 		ArgumentNullException.ThrowIfNull(innerLogger);
 
-		_connectionString = connectionString;
 		_healthOptions = healthOptions.Value;
+		ArgumentException.ThrowIfNullOrWhiteSpace(_healthOptions.ConnectionString);
+		ArgumentException.ThrowIfNullOrWhiteSpace(_healthOptions.LockResource);
+
+		_connectionString = _healthOptions.ConnectionString;
 		_logger = logger;
 
 		ValidateIdentifier(_healthOptions.SchemaName, nameof(_healthOptions.SchemaName));
 		ValidateIdentifier(_healthOptions.TableName, nameof(_healthOptions.TableName));
 
-		_inner = new SqlServerLeaderElection(connectionString, lockResource, electionOptions, innerLogger, failureClassifier, fencingTokenProvider);
+		_inner = new SqlServerLeaderElection(
+			_healthOptions.ConnectionString, _healthOptions.LockResource, electionOptions, innerLogger, failureClassifier, fencingTokenProvider);
 	}
 
 	/// <inheritdoc/>
@@ -112,10 +112,20 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	}
 
 	/// <inheritdoc/>
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed
+	{
+		add => _inner.AcquisitionFailed += value;
+		remove => _inner.AcquisitionFailed -= value;
+	}
+
+	/// <inheritdoc/>
 	public string CandidateId => _inner.CandidateId;
 
 	/// <inheritdoc/>
 	public bool IsLeader => _inner.IsLeader;
+
+	/// <inheritdoc/>
+	public Leadership? CurrentLeadership => _inner.CurrentLeadership;
 
 	/// <inheritdoc/>
 	public string? CurrentLeaderId => _inner.CurrentLeaderId;
@@ -145,7 +155,7 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 		// Remove health record on stop
 		try
 		{
-			await RemoveHealthRecordAsync(CandidateId).ConfigureAwait(false);
+			await RemoveHealthRecordAsync(CandidateId, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -164,7 +174,7 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 			? JsonSerializer.Serialize(metadata, JsonContext.IDictionaryStringString)
 			: "{}";
 
-		await UpsertHealthRecordAsync(CandidateId, isHealthy, metadataJson).ConfigureAwait(false);
+		await UpsertHealthRecordAsync(CandidateId, isHealthy, metadataJson, cancellationToken).ConfigureAwait(false);
 
 		LogHealthUpdated(CandidateId, isHealthy);
 
@@ -281,12 +291,12 @@ END;";
 		_tableCreated = true;
 	}
 
-	private async Task UpsertHealthRecordAsync(string candidateId, bool isHealthy, string metadataJson)
+	private async Task UpsertHealthRecordAsync(string candidateId, bool isHealthy, string metadataJson, CancellationToken cancellationToken)
 	{
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
 
 		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync().ConfigureAwait(false);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
 MERGE {qualifiedTableName} AS target
@@ -313,15 +323,15 @@ WHEN NOT MATCHED THEN
 		_ = command.Parameters.AddWithValue("@IsLeader", _inner.IsLeader);
 		_ = command.Parameters.AddWithValue("@MetadataJson", metadataJson);
 
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 	}
 
-	private async Task RemoveHealthRecordAsync(string candidateId)
+	private async Task RemoveHealthRecordAsync(string candidateId, CancellationToken cancellationToken)
 	{
 		var qualifiedTableName = $"[{_healthOptions.SchemaName}].[{_healthOptions.TableName}]";
 
 		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync().ConfigureAwait(false);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		// Schema and table names are validated by SafeIdentifierRegex at construction time
 #pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
@@ -334,7 +344,7 @@ WHEN NOT MATCHED THEN
 #pragma warning restore CA2100
 
 		_ = command.Parameters.AddWithValue("@CandidateId", candidateId);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	private static void ValidateIdentifier(string value, string parameterName)

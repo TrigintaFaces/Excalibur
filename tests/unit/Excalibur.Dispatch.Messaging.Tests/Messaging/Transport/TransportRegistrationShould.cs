@@ -33,7 +33,7 @@ public sealed class TransportRegistrationShould
 		};
 
 		// Act
-		var registration = new TransportRegistration(adapter, transportType, options);
+		var registration = new TransportRegistration(adapter, transportType, TransportLocality.Remote, options);
 
 		// Assert
 		registration.Adapter.ShouldBe(adapter);
@@ -49,7 +49,7 @@ public sealed class TransportRegistrationShould
 		var options = new Dictionary<string, object>();
 
 		// Act
-		var registration = new TransportRegistration(adapter, string.Empty, options);
+		var registration = new TransportRegistration(adapter, string.Empty, TransportLocality.Local, options);
 
 		// Assert
 		registration.TransportType.ShouldBe(string.Empty);
@@ -63,7 +63,7 @@ public sealed class TransportRegistrationShould
 		var options = new Dictionary<string, object>();
 
 		// Act
-		var registration = new TransportRegistration(adapter, "Kafka", options);
+		var registration = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
 
 		// Assert
 		registration.Options.ShouldBeEmpty();
@@ -79,7 +79,7 @@ public sealed class TransportRegistrationShould
 		// Arrange
 		var adapter = A.Fake<ITransportAdapter>();
 		var options = new Dictionary<string, object>();
-		var registration = new TransportRegistration(adapter, "Kafka", options);
+		var registration = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
 
 		// Act & Assert
 		registration.Equals(registration).ShouldBeTrue();
@@ -92,8 +92,8 @@ public sealed class TransportRegistrationShould
 		var adapter = A.Fake<ITransportAdapter>();
 		var options = new Dictionary<string, object> { ["Key"] = "Value" };
 
-		var reg1 = new TransportRegistration(adapter, "Kafka", options);
-		var reg2 = new TransportRegistration(adapter, "Kafka", options);
+		var reg1 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
+		var reg2 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
 
 		// Act & Assert
 		reg1.Equals(reg2).ShouldBeTrue();
@@ -107,8 +107,8 @@ public sealed class TransportRegistrationShould
 		var adapter2 = A.Fake<ITransportAdapter>();
 		var options = new Dictionary<string, object>();
 
-		var reg1 = new TransportRegistration(adapter1, "Kafka", options);
-		var reg2 = new TransportRegistration(adapter2, "Kafka", options);
+		var reg1 = new TransportRegistration(adapter1, "Kafka", TransportLocality.Remote, options);
+		var reg2 = new TransportRegistration(adapter2, "Kafka", TransportLocality.Remote, options);
 
 		// Act & Assert
 		reg1.Equals(reg2).ShouldBeFalse();
@@ -121,8 +121,8 @@ public sealed class TransportRegistrationShould
 		var adapter = A.Fake<ITransportAdapter>();
 		var options = new Dictionary<string, object>();
 
-		var reg1 = new TransportRegistration(adapter, "Kafka", options);
-		var reg2 = new TransportRegistration(adapter, "RabbitMQ", options);
+		var reg1 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
+		var reg2 = new TransportRegistration(adapter, "RabbitMQ", TransportLocality.Remote, options);
 
 		// Act & Assert
 		reg1.Equals(reg2).ShouldBeFalse();
@@ -136,8 +136,8 @@ public sealed class TransportRegistrationShould
 		var options1 = new Dictionary<string, object> { ["Key"] = "Value1" };
 		var options2 = new Dictionary<string, object> { ["Key"] = "Value2" };
 
-		var reg1 = new TransportRegistration(adapter, "Kafka", options1);
-		var reg2 = new TransportRegistration(adapter, "Kafka", options2);
+		var reg1 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options1);
+		var reg2 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options2);
 
 		// Act & Assert
 		reg1.Equals(reg2).ShouldBeFalse();
@@ -154,8 +154,8 @@ public sealed class TransportRegistrationShould
 		var adapter = A.Fake<ITransportAdapter>();
 		var options = new Dictionary<string, object>();
 
-		var reg1 = new TransportRegistration(adapter, "Kafka", options);
-		var reg2 = new TransportRegistration(adapter, "Kafka", options);
+		var reg1 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
+		var reg2 = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
 
 		// Act & Assert
 		reg1.GetHashCode().ShouldBe(reg2.GetHashCode());
@@ -180,7 +180,7 @@ public sealed class TransportRegistrationShould
 		};
 
 		// Act
-		var registration = new TransportRegistration(adapter, "Test", options);
+		var registration = new TransportRegistration(adapter, "Test", TransportLocality.Local, options);
 
 		// Assert
 		registration.Options["StringValue"].ShouldBe("test");
@@ -200,7 +200,7 @@ public sealed class TransportRegistrationShould
 		// Arrange
 		var adapter = A.Fake<ITransportAdapter>();
 		var options = new Dictionary<string, object>();
-		var original = new TransportRegistration(adapter, "Kafka", options);
+		var original = new TransportRegistration(adapter, "Kafka", TransportLocality.Remote, options);
 
 		// Act
 		var modified = original with { TransportType = "RabbitMQ" };
@@ -219,14 +219,15 @@ public sealed class TransportRegistrationShould
 		var adapter = A.Fake<ITransportAdapter>();
 		var transportType = "Kafka";
 		var options = new Dictionary<string, object> { ["Key"] = "Value" };
-		var registration = new TransportRegistration(adapter, transportType, options);
+		var registration = new TransportRegistration(adapter, transportType, TransportLocality.Remote, options);
 
 		// Act
-		var (deconstructedAdapter, deconstructedType, deconstructedOptions) = registration;
+		var (deconstructedAdapter, deconstructedType, deconstructedLocality, deconstructedOptions) = registration;
 
 		// Assert
 		deconstructedAdapter.ShouldBe(adapter);
 		deconstructedType.ShouldBe(transportType);
+		deconstructedLocality.ShouldBe(TransportLocality.Remote);
 		deconstructedOptions.ShouldBe(options);
 	}
 

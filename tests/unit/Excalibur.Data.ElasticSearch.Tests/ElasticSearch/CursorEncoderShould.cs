@@ -6,6 +6,7 @@ using Excalibur.EventSourcing;
 namespace Excalibur.Data.ElasticSearch.Tests.ElasticSearch;
 
 [UnitTest]
+[Trait("Component", "Elasticsearch")]
 public sealed class CursorEncoderShould
 {
 	// ─── Encode/Decode round-trip tests ─────────────────────────────────

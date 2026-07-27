@@ -21,6 +21,15 @@ public sealed class ContextEnrichingExporterShould : IDisposable
 	public ContextEnrichingExporterShould()
 	{
 		_fakeServiceProvider = A.Fake<IServiceProvider>();
+
+		// ContextEnrichingExporter.EnrichActivities resolves ILogger<ContextEnrichingExporter> from the
+		// provider. A REAL provider returns null for an unregistered service, but A.Fake<IServiceProvider>()
+		// returns a dummy proxy object that fails to cast to ILogger<T> (InvalidCastException). Stub the
+		// logger with a real no-op instance so every test models a provider that actually resolves it.
+		A.CallTo(() => _fakeServiceProvider.GetService(
+				typeof(Microsoft.Extensions.Logging.ILogger<ContextEnrichingExporter>)))
+			.Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<ContextEnrichingExporter>.Instance);
+
 		_sut = new ContextEnrichingExporter(_fakeServiceProvider);
 	}
 

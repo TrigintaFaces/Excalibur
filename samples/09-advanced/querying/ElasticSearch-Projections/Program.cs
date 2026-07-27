@@ -37,14 +37,14 @@ builder.Services.AddElasticsearchProjections(builder.Configuration);
 // The IndexName option overrides the default index naming convention.
 builder.Services.AddElasticSearchProjectionStore<OrderSummary>(options =>
 {
-    options.IndexName = "order-summaries";
-    options.CreateIndexOnInitialize = true;
+    options.Index.IndexName = "order-summaries";
+    options.Index.CreateIndexOnInitialize = true;
 });
 
 builder.Services.AddElasticSearchProjectionStore<CustomerDashboard>(options =>
 {
-    options.IndexName = "customer-dashboards";
-    options.CreateIndexOnInitialize = true;
+    options.Index.IndexName = "customer-dashboards";
+    options.Index.CreateIndexOnInitialize = true;
 });
 
 var app = builder.Build();

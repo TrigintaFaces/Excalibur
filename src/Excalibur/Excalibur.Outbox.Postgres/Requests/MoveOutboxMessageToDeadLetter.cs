@@ -23,6 +23,11 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 	/// <param name="deadLetterTableName">The name of the dead letter table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// The copy-to-DLQ and delete target the globally-unique outbox <c>message_id</c>, which addresses exactly
+	/// one row, so no tenant predicate is applied: the drain is cross-tenant infrastructure and must always be
+	/// able to move the row it claimed, regardless of any ambient tenant context.
+	/// </remarks>
 	public MoveOutboxMessageToDeadLetter(
 		string messageId,
 		string outboxTableName,

@@ -424,7 +424,6 @@ public class NServiceBusComparisonBenchmarks
         HandlerInvokerRegistry.FreezeCache();
         HandlerActivator.FreezeCache();
         FinalDispatchHandler.FreezeResultFactoryCache();
-        MiddlewareApplicabilityEvaluator.FreezeCache();
     }
 
     private static async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(

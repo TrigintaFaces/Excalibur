@@ -15,6 +15,10 @@ public sealed class DispatchPatternsJsonOptions
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchPatternsJsonOptions" /> class.
 	/// </summary>
+	// Intentionally NOT the event canonical serializer (EventSerializationDefaults.Canonical): this is the
+	// consumer-injectable options DTO for the patterns-hosting JSON surface, not event-payload persistence.
+	// Web defaults (camelCase + case-insensitive) are the discoverable convention here; documented-exempt in
+	// the 4o8i86 event-serializer guard.
 	public DispatchPatternsJsonOptions() =>
 		SerializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = false, };
 

@@ -13,15 +13,16 @@ namespace Excalibur.Dispatch.Tests.Delivery;
 /// </summary>
 /// <remarks>
 /// <para>
-/// (Implementer = SoftwareArchitect — the dispatcher guard; this is the independent lock authored by
-/// TestsDeveloper, against the seam SA pinned in msg 18056.)
+/// The guard resolves applicability through the live <see cref="IMiddlewareApplicabilityStrategy"/> (the whole
+/// pipeline's single source of truth, reading each middleware's <see cref="IDispatchMiddleware.ApplicableMessageKinds"/>
+/// property). These tests exercise the real <see cref="DefaultMiddlewareApplicabilityStrategy"/>, not a stub.
 /// </para>
 /// <para>
 /// <b>Non-vacuity:</b> a Document/All-scoped middleware MUST appear in <see cref="StreamingPipelineBypassGuard.BypassedMiddleware"/>
 /// and the one-time warning (<see cref="DeliveryEventId.StreamingPipelineMiddlewareBypassed"/>, 40208) MUST fire —
-/// so removing the guard's detection (or stubbing applicability to empty) flips these RED. An Action-only
-/// middleware MUST NOT be flagged, proving the guard performs real applicability filtering rather than flagging
-/// everything. The guard must also never throw on a detection failure.
+/// so removing the guard's detection (or resolving no strategy) flips these RED. An Action-only middleware MUST NOT
+/// be flagged, proving the guard performs real applicability filtering rather than flagging everything. The guard
+/// must also never throw on a detection failure.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -31,10 +32,10 @@ public sealed class StreamingPipelineBypassGuardShould
 	[Fact]
 	public void FlagDocumentScopedMiddleware_ButNotActionOnlyMiddleware()
 	{
-		var evaluator = CreateEvaluator();
+		var strategy = CreateStrategy();
 		var loggerFactory = new RecordingLoggerFactory();
 		using var provider = BuildProvider(
-			evaluator, loggerFactory, new DocScopedMiddleware(), new ActionOnlyMiddleware());
+			strategy, loggerFactory, new DocScopedMiddleware(), new ActionOnlyMiddleware());
 
 		var guard = new StreamingPipelineBypassGuard(provider);
 
@@ -47,9 +48,9 @@ public sealed class StreamingPipelineBypassGuardShould
 	[Fact]
 	public void WarnExactlyOnce_WhenMiddlewareIsBypassed()
 	{
-		var evaluator = CreateEvaluator();
+		var strategy = CreateStrategy();
 		var loggerFactory = new RecordingLoggerFactory();
-		using var provider = BuildProvider(evaluator, loggerFactory, new DocScopedMiddleware());
+		using var provider = BuildProvider(strategy, loggerFactory, new DocScopedMiddleware());
 
 		var guard = new StreamingPipelineBypassGuard(provider);
 
@@ -63,10 +64,10 @@ public sealed class StreamingPipelineBypassGuardShould
 	[Fact]
 	public void NotWarn_WhenNothingIsBypassed()
 	{
-		var evaluator = CreateEvaluator();
+		var strategy = CreateStrategy();
 		var loggerFactory = new RecordingLoggerFactory();
 		// Only an Action-only middleware → nothing applies to Document → empty bypass set.
-		using var provider = BuildProvider(evaluator, loggerFactory, new ActionOnlyMiddleware());
+		using var provider = BuildProvider(strategy, loggerFactory, new ActionOnlyMiddleware());
 
 		var guard = new StreamingPipelineBypassGuard(provider);
 
@@ -76,10 +77,10 @@ public sealed class StreamingPipelineBypassGuardShould
 	}
 
 	[Fact]
-	public void ReturnEmpty_WhenNoApplicabilityEvaluatorIsRegistered()
+	public void ReturnEmpty_WhenNoApplicabilityStrategyIsRegistered()
 	{
 		var loggerFactory = new RecordingLoggerFactory();
-		using var provider = BuildProvider(evaluator: null, loggerFactory, new DocScopedMiddleware());
+		using var provider = BuildProvider(strategy: null, loggerFactory, new DocScopedMiddleware());
 
 		var guard = new StreamingPipelineBypassGuard(provider);
 
@@ -87,14 +88,14 @@ public sealed class StreamingPipelineBypassGuardShould
 	}
 
 	[Fact]
-	public void NotThrow_AndSkipOnlyTheOffender_WhenEvaluatorThrowsForOneMiddleware()
+	public void NotThrow_AndSkipOnlyTheOffender_WhenMiddlewareThrowsDuringEvaluation()
 	{
 		// Detection must never break dispatch: a middleware whose applicability evaluation throws is skipped,
 		// while the others are still evaluated and flagged.
-		var evaluator = CreateEvaluator();
+		var strategy = CreateStrategy();
 		var loggerFactory = new RecordingLoggerFactory();
 		using var provider = BuildProvider(
-			evaluator, loggerFactory, new DocScopedMiddleware(), new ThrowingMiddleware());
+			strategy, loggerFactory, new DocScopedMiddleware(), new ThrowingMiddleware());
 
 		var guard = Should.NotThrow(() => new StreamingPipelineBypassGuard(provider));
 
@@ -104,33 +105,20 @@ public sealed class StreamingPipelineBypassGuardShould
 
 	// ── Helpers ──
 
-	private static IDispatchMiddlewareApplicabilityEvaluator CreateEvaluator()
-	{
-		var evaluator = A.Fake<IDispatchMiddlewareApplicabilityEvaluator>();
-		A.CallTo(() => evaluator.IsApplicable(A<IDispatchMiddleware>._, MessageKinds.Document))
-			.ReturnsLazily((IDispatchMiddleware m, MessageKinds _) =>
-			{
-				if (m is ThrowingMiddleware)
-				{
-					throw new InvalidOperationException("evaluator boom");
-				}
-
-				// Document-scoped middleware is what a document dispatch would run through the pipeline.
-				return m is DocScopedMiddleware;
-			});
-		return evaluator;
-	}
+	// The real strategy — applicability resolves from each middleware's ApplicableMessageKinds property,
+	// the single source of truth the whole live pipeline consumes.
+	private static IMiddlewareApplicabilityStrategy CreateStrategy() => new DefaultMiddlewareApplicabilityStrategy();
 
 	private static ServiceProvider BuildProvider(
-		IDispatchMiddlewareApplicabilityEvaluator? evaluator,
+		IMiddlewareApplicabilityStrategy? strategy,
 		ILoggerFactory loggerFactory,
 		params IDispatchMiddleware[] middlewares)
 	{
 		var services = new ServiceCollection();
 		services.AddSingleton(loggerFactory);
-		if (evaluator is not null)
+		if (strategy is not null)
 		{
-			services.AddSingleton(evaluator);
+			services.AddSingleton(strategy);
 		}
 
 		foreach (var middleware in middlewares)
@@ -151,7 +139,13 @@ public sealed class StreamingPipelineBypassGuardShould
 		public override MessageKinds ApplicableMessageKinds => MessageKinds.Action;
 	}
 
-	private sealed class ThrowingMiddleware : TestMiddlewareBase;
+	private sealed class ThrowingMiddleware : TestMiddlewareBase
+	{
+		// The guard reads ApplicableMessageKinds during detection; throwing here proves the guard
+		// skips only the offender and never breaks dispatch.
+		public override MessageKinds ApplicableMessageKinds =>
+			throw new InvalidOperationException("applicability boom");
+	}
 
 	private abstract class TestMiddlewareBase : IDispatchMiddleware
 	{

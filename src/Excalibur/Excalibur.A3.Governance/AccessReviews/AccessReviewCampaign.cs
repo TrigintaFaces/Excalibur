@@ -136,7 +136,7 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 	/// <param name="id">The campaign identifier.</param>
 	/// <param name="events">The stream of events to apply.</param>
 	/// <returns>The campaign rebuilt from events.</returns>
-	public static AccessReviewCampaign FromEvents(string id, IEnumerable<IDomainEvent> events)
+	public static AccessReviewCampaign FromEvents(string id, IEnumerable<HistoricEvent> events)
 	{
 		var campaign = new AccessReviewCampaign { Id = id };
 		campaign.LoadFromHistory(events);
@@ -269,25 +269,27 @@ internal sealed class AccessReviewCampaign : AggregateRoot, IAggregateRoot<Acces
 		DecidedItems: _items.Count(i => i.CurrentDecision is not null));
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case AccessReviewCampaignCreated e:
 				Apply(e);
-				break;
+				return true;
 			case AccessReviewCampaignStarted:
 				ApplyStarted();
-				break;
+				return true;
 			case AccessReviewDecisionMade e:
 				Apply(e);
-				break;
+				return true;
 			case AccessReviewCampaignCompleted:
 				ApplyCompleted();
-				break;
+				return true;
 			case AccessReviewCampaignExpired:
 				ApplyExpired();
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

@@ -142,10 +142,47 @@ public sealed class CloudEventEnvelopeConverter(CloudEventOptions options) : ICl
 		{
 			foreach (var item in context.Items)
 			{
-				var headerKey = $"{_options.DispatchExtensionPrefix}header{item.Key.ToUpperInvariant()}";
+				// CloudEvents attribute names MUST consist only of lowercase letters and digits (CE spec
+				// v1.0 §3.1); the CNCF SDK's ValidateName throws otherwise. Sanitize the raw item key
+				// (which can contain '_', '.', or uppercase) before composing the extension attribute name.
+				var sanitizedKey = ToCloudEventAttributeName(item.Key);
+				if (sanitizedKey.Length == 0)
+				{
+					continue;
+				}
+
+				var headerKey = $"{_options.DispatchExtensionPrefix}header{sanitizedKey}";
 				cloudEvent.SetAttributeFromString(headerKey, item.Value?.ToString() ?? string.Empty);
 			}
 		}
+	}
+
+	/// <summary>
+	/// Reduces an arbitrary key to a valid CloudEvents attribute-name fragment: lowercase ASCII letters and
+	/// digits only (CloudEvents v1.0 §3.1). All other characters (underscores, dots, dashes, uppercase) are
+	/// stripped/lowered so the composed extension attribute passes the CNCF SDK's name validation.
+	/// </summary>
+	private static string ToCloudEventAttributeName(string key)
+	{
+		if (string.IsNullOrEmpty(key))
+		{
+			return string.Empty;
+		}
+
+		var builder = new StringBuilder(key.Length);
+		foreach (var ch in key)
+		{
+			if (ch is (>= 'a' and <= 'z') or (>= '0' and <= '9'))
+			{
+				_ = builder.Append(ch);
+			}
+			else if (ch is >= 'A' and <= 'Z')
+			{
+				_ = builder.Append(char.ToLowerInvariant(ch));
+			}
+		}
+
+		return builder.ToString();
 	}
 
 	/// <summary>

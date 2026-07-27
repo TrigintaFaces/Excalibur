@@ -106,13 +106,13 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 			}
 			catch (Exception ex)
 			{
-				// pxhqri: delegate the fatal-vs-transient decision to the single shared guard
-				// (CdcFatalGuard.Decide) — the same unit the regression lock binds — instead of an inline
-				// `catch when IsFatal` filter. The durable checkpoint is advanced ONLY on the success path
-				// (SavePositionAsync inside ProcessChangesAsync); this catch never advances, and the stream
-				// unwinds before that confirm on a fault, so a fault (fatal or transient) never advances the
-				// checkpoint past the failing change (decision.AdvanceCheckpoint is false on every fault).
-				// 14z4ao behavior is byte-preserved.
+				// Delegate the fatal-vs-transient decision to the single shared guard (CdcFatalGuard.Decide)
+				// — the same unit the regression lock binds — instead of an inline `catch when IsFatal`
+				// filter. The durable checkpoint is advanced only on the success path, per
+				// successfully-handled change (SavePositionAsync inside ProcessChangesAsync). This catch
+				// never advances it, and the stream unwinds before that confirm on a fault, so a fault
+				// (fatal or transient) never advances the checkpoint past the failing change — a transient
+				// reconnect resumes just past the last successfully-handled change (bounded redelivery).
 				var decision = CdcFatalGuard.Decide(ex, _failureClassifier);
 
 				if (decision.Stop)
@@ -518,10 +518,21 @@ public sealed partial class MongoDbCdcProcessor : IMongoDbCdcProcessor
 						count++;
 
 						LogProcessed(changeEvent.ChangeType, changeEvent.FullNamespace);
+
+						// Durably checkpoint AFTER each successfully-handled change so a transient reconnect
+						// resumes just past it — bounding the redelivery window to (at most) the in-flight
+						// change, instead of replaying everything since the last invalidate. Only reached on
+						// handler success; a fault unwinds before this, leaving the checkpoint un-advanced.
+						_currentPosition = new MongoDbCdcPosition(change.ResumeToken);
+						await _stateStore
+							.SavePositionAsync(_options.ProcessorId, _currentPosition, cancellationToken)
+							.ConfigureAwait(false);
+						_confirmedPosition = _currentPosition;
 					}
 				}
 
-				// Update position
+				// Advance the in-memory observed position for every change (including filtered/unhandled
+				// ones); the durable checkpoint is advanced on the success path above.
 				_currentPosition = new MongoDbCdcPosition(change.ResumeToken);
 			}
 		}

@@ -27,7 +27,6 @@ public sealed class BatchOptionsShould
 		config.EnableMetricsCompression.ShouldBeTrue();
 		config.Acknowledgment.ShouldNotBeNull();
 		config.Acknowledgment.AckDeadlineSeconds.ShouldBe(600);
-		config.Acknowledgment.AckStrategy.ShouldBe(BatchAckStrategy.OnSuccess);
 	}
 
 	[Fact]
@@ -48,7 +47,6 @@ public sealed class BatchOptionsShould
 			Acknowledgment = new BatchAcknowledgmentOptions
 			{
 				AckDeadlineSeconds = 300,
-				AckStrategy = BatchAckStrategy.BatchComplete,
 			},
 		};
 
@@ -63,7 +61,6 @@ public sealed class BatchOptionsShould
 		config.PreserveMessageOrder.ShouldBeTrue();
 		config.EnableMetricsCompression.ShouldBeFalse();
 		config.Acknowledgment.AckDeadlineSeconds.ShouldBe(300);
-		config.Acknowledgment.AckStrategy.ShouldBe(BatchAckStrategy.BatchComplete);
 	}
 
 	[Fact]
@@ -78,7 +75,6 @@ public sealed class BatchOptionsShould
 			PreserveMessageOrder = true,
 			Acknowledgment = new BatchAcknowledgmentOptions
 			{
-				AckStrategy = BatchAckStrategy.Manual,
 			},
 		};
 
@@ -90,7 +86,6 @@ public sealed class BatchOptionsShould
 		clone.MinMessagesPerBatch.ShouldBe(5);
 		clone.MaxBatchWaitTime.ShouldBe(TimeSpan.FromMilliseconds(500));
 		clone.PreserveMessageOrder.ShouldBeTrue();
-		clone.Acknowledgment.AckStrategy.ShouldBe(BatchAckStrategy.Manual);
 	}
 
 	[Fact]
@@ -107,22 +102,11 @@ public sealed class BatchOptionsShould
 		clone.Acknowledgment.ShouldNotBeSameAs(original.Acknowledgment);
 	}
 
-	[Theory]
-	[InlineData(BatchAckStrategy.OnSuccess, 0)]
-	[InlineData(BatchAckStrategy.BatchComplete, 1)]
-	[InlineData(BatchAckStrategy.Individual, 2)]
-	[InlineData(BatchAckStrategy.Manual, 3)]
-	public void BatchAckStrategyHaveCorrectValues(BatchAckStrategy strategy, int expectedValue)
-	{
-		((int)strategy).ShouldBe(expectedValue);
-	}
-
 	[Fact]
 	public void AcknowledgmentOptionsHaveCorrectDefaults()
 	{
 		var ack = new BatchAcknowledgmentOptions();
 
 		ack.AckDeadlineSeconds.ShouldBe(600);
-		ack.AckStrategy.ShouldBe(BatchAckStrategy.OnSuccess);
 	}
 }

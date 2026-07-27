@@ -90,35 +90,6 @@ public sealed class ServerlessHostBuilderExtensionsShould : UnitTestBase
 		// Assert
 		result.ShouldBe(hostBuilder);
 	}
-
-	[Fact]
-	public void UseAwsLambda_WithOptions_ConfiguresLambdaOptions()
-	{
-		// Arrange — use a real HostBuilder so ConfigureServices callbacks are captured
-		// and invoked at Build time. FakeItEasy fakes don't invoke the callbacks.
-		var hostBuilder = A.Fake<IHostBuilder>();
-		IServiceCollection? captured = null;
-		A.CallTo(() => hostBuilder.ConfigureServices(A<Action<HostBuilderContext, IServiceCollection>>._))
-			.Invokes((Action<HostBuilderContext, IServiceCollection> action) =>
-			{
-				captured ??= new ServiceCollection();
-				action(null!, captured);
-			})
-			.Returns(hostBuilder);
-
-		// Act
-		_ = hostBuilder.UseAwsLambda(options =>
-		{
-			options.EnableProvisionedConcurrency = true;
-		});
-
-		// Assert — platform options are registered as independent IOptions<T>
-		captured.ShouldNotBeNull();
-		using var provider = captured.BuildServiceProvider();
-		var awsOptions = provider.GetRequiredService<IOptions<AwsLambdaOptions>>().Value;
-		awsOptions.EnableProvisionedConcurrency.ShouldBeTrue();
-	}
-
 	#endregion
 
 	#region UseAzureFunctions Tests
@@ -147,34 +118,6 @@ public sealed class ServerlessHostBuilderExtensionsShould : UnitTestBase
 		// Assert
 		result.ShouldBe(hostBuilder);
 	}
-
-	[Fact]
-	public void UseAzureFunctions_WithOptions_ConfiguresAzureOptions()
-	{
-		// Arrange
-		var hostBuilder = A.Fake<IHostBuilder>();
-		IServiceCollection? captured = null;
-		A.CallTo(() => hostBuilder.ConfigureServices(A<Action<HostBuilderContext, IServiceCollection>>._))
-			.Invokes((Action<HostBuilderContext, IServiceCollection> action) =>
-			{
-				captured ??= new ServiceCollection();
-				action(null!, captured);
-			})
-			.Returns(hostBuilder);
-
-		// Act
-		_ = hostBuilder.UseAzureFunctions(options =>
-		{
-			options.EnableDurableFunctions = true;
-		});
-
-		// Assert — platform options are registered as independent IOptions<T>
-		captured.ShouldNotBeNull();
-		using var provider = captured.BuildServiceProvider();
-		var azureOptions = provider.GetRequiredService<IOptions<AzureFunctionsOptions>>().Value;
-		azureOptions.EnableDurableFunctions.ShouldBeTrue();
-	}
-
 	#endregion
 
 	#region UseGoogleCloudFunctions Tests
@@ -203,33 +146,5 @@ public sealed class ServerlessHostBuilderExtensionsShould : UnitTestBase
 		// Assert
 		result.ShouldBe(hostBuilder);
 	}
-
-	[Fact]
-	public void UseGoogleCloudFunctions_WithOptions_ConfiguresGoogleOptions()
-	{
-		// Arrange
-		var hostBuilder = A.Fake<IHostBuilder>();
-		IServiceCollection? captured = null;
-		A.CallTo(() => hostBuilder.ConfigureServices(A<Action<HostBuilderContext, IServiceCollection>>._))
-			.Invokes((Action<HostBuilderContext, IServiceCollection> action) =>
-			{
-				captured ??= new ServiceCollection();
-				action(null!, captured);
-			})
-			.Returns(hostBuilder);
-
-		// Act
-		_ = hostBuilder.UseGoogleCloudFunctions(options =>
-		{
-			options.MinInstances = 1;
-		});
-
-		// Assert — platform options are registered as independent IOptions<T>
-		captured.ShouldNotBeNull();
-		using var provider = captured.BuildServiceProvider();
-		var googleOptions = provider.GetRequiredService<IOptions<GoogleCloudFunctionsOptions>>().Value;
-		googleOptions.MinInstances.ShouldBe(1);
-	}
-
 	#endregion
 }

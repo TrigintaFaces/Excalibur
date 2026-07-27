@@ -225,7 +225,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 			.Returns(null);
 
 		// Claim fails (false) -> the message is a duplicate already claimed/processed -> skip.
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("duplicate-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:duplicate-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(false));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -256,7 +256,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 			.Returns(null);
 
 		// Claim succeeds (true = first writer) -> not a duplicate -> handler runs.
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("new-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:new-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -274,6 +274,52 @@ public sealed class IdempotentHandlerMiddlewareShould
 	}
 
 	[Fact]
+	public async Task PropagateHandlerException_WhenHandlerThrows_AndReleaseSucceeds()
+	{
+		// Handler fails, claim releases cleanly -> the caller sees the ORIGINAL handler exception unchanged.
+		var middleware = CreateMiddleware();
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext { MessageId = "new-123" };
+		context.Items[IdempotentHandlerMiddleware.HandlerTypeKey] = typeof(IdempotentInMemoryHandler);
+
+		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(IdempotentInMemoryHandler))).Returns(null);
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:new-123", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+
+		var handlerEx = new InvalidOperationException("handler failed");
+		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct) => throw handlerEx;
+
+		var thrown = await Should.ThrowAsync<InvalidOperationException>(() =>
+			middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask());
+		thrown.ShouldBeSameAs(handlerEx);
+	}
+
+	[Fact]
+	public async Task PreserveHandlerException_WhenHandlerThrows_AndReleaseAlsoThrows()
+	{
+		// zamxsc: a failing claim-release must NOT mask the handler failure — both are surfaced via AggregateException.
+		var middleware = CreateMiddleware();
+		var message = new FakeDispatchMessage();
+		var context = new FakeMessageContext { MessageId = "new-123" };
+		context.Items[IdempotentHandlerMiddleware.HandlerTypeKey] = typeof(IdempotentInMemoryHandler);
+
+		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(IdempotentInMemoryHandler))).Returns(null);
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:new-123", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
+
+		var handlerEx = new InvalidOperationException("handler failed");
+		var releaseEx = new IOException("release failed");
+		_ = A.CallTo(() => _claimableDedup.ReleaseAsync("idem:new-123", A<CancellationToken>._)).ThrowsAsync(releaseEx);
+
+		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct) => throw handlerEx;
+
+		var agg = await Should.ThrowAsync<AggregateException>(() =>
+			middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).AsTask());
+		agg.InnerExceptions.ShouldContain(handlerEx);
+		agg.InnerExceptions.ShouldContain(releaseEx);
+	}
+
+	[Fact]
 	public async Task KeepClaimAsMarker_WhenHandlerSucceeds()
 	{
 		// Arrange
@@ -285,7 +331,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(IdempotentInMemoryHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("new-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:new-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -298,7 +344,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		// taken and, on success, NOT released (a redelivery must now see it as a duplicate). This is the
 		// new contract; the old separate MarkProcessedAsync finalize no longer applies to the claim path.
 		result.IsSuccess.ShouldBeTrue();
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("new-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:new-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _claimableDedup.ReleaseAsync(A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -316,7 +362,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(IdempotentInMemoryHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("new-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:new-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		var failedResult = MessageResult.Failed(new MessageProblemDetails
@@ -336,7 +382,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		// Assert — on handler failure the claim MUST be released so a redelivery can re-admit the message
 		// (preserve at-least-once-until-success; never silently drop a failed message).
 		result.IsSuccess.ShouldBeFalse();
-		_ = A.CallTo(() => _claimableDedup.ReleaseAsync("new-123", A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.ReleaseAsync("idem:new-123", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -408,7 +454,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(IdempotentHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("fallback-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:fallback-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -418,7 +464,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - should use in-memory fallback (atomic claim path)
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("fallback-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:fallback-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -468,7 +514,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(CorrelationIdHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("correlation-id-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:correlation-id-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -478,7 +524,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("correlation-id-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:correlation-id-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -498,7 +544,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(CompositeKeyHandler)))
 			.Returns(null);
 
-		var expectedKey = $"{nameof(CompositeKeyHandler)}:correlation-id-123";
+		var expectedKey = $"idem:{nameof(CompositeKeyHandler)}:correlation-id-123";
 		_ = A.CallTo(() => _claimableDedup.TryClaimAsync(expectedKey, A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
@@ -528,7 +574,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _messageIdProvider.GetMessageId(message, context))
 			.Returns("custom-id-123");
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-id-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:custom-id-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -540,7 +586,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		// Assert
 		_ = A.CallTo(() => _messageIdProvider.GetMessageId(message, context))
 			.MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-id-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:custom-id-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -567,7 +613,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(IdempotentHandler)))
 			.Returns(providerSettings);
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("provider-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:provider-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -577,7 +623,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert - should use in-memory (from provider) not persistent (from attribute default)
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("provider-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:provider-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _inboxStore.IsProcessedAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -610,7 +656,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 
 		// Assert - ShortRetentionHandler has RetentionMinutes = 30; the claim retention must carry it through.
 		_ = A.CallTo(() => _claimableDedup.TryClaimAsync(
-			"retention-123",
+			"idem:retention-123",
 			TimeSpan.FromMinutes(30),
 			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -633,7 +679,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		_ = A.CallTo(() => _configurationProvider.GetConfiguration(typeof(CustomHeaderHandler)))
 			.Returns(null);
 
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-header-value-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:custom-header-value-123", A<TimeSpan>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -643,7 +689,7 @@ public sealed class IdempotentHandlerMiddlewareShould
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("custom-header-value-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claimableDedup.TryClaimAsync("idem:custom-header-value-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 

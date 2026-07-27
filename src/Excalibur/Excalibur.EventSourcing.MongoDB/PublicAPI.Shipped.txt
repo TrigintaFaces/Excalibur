@@ -1,5 +1,13 @@
 #nullable enable
 Excalibur.EventSourcing.MongoDB.EventSourcingBuilderMongoDbExtensions
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.CollectionName(string! collectionName) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.ConnectionString(string! connectionString) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.CounterCollectionName(string! counterCollectionName) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
+Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.DatabaseName(string! databaseName) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
 Excalibur.EventSourcing.MongoDB.MongoDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -32,11 +40,3 @@ Excalibur.EventSourcing.MongoDB.MongoDbEventStoreOptions.Validate() -> void
 Microsoft.Extensions.DependencyInjection.MongoDbTenantShardingExtensions
 static Excalibur.EventSourcing.MongoDB.EventSourcingBuilderMongoDbExtensions.UseMongoDB(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.MongoDbTenantShardingExtensions.UseMongoDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.CollectionName(string! collectionName) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.ConnectionString(string! connectionString) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.CounterCollectionName(string! counterCollectionName) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!
-Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder.DatabaseName(string! databaseName) -> Excalibur.EventSourcing.MongoDB.IMongoDBEventSourcingBuilder!

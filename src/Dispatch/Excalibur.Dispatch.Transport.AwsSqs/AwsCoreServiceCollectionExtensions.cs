@@ -95,7 +95,6 @@ public static class AwsCoreServiceCollectionExtensions
 		services.TryAddSingleton<IAmazonSQS>(static _ => new AmazonSQSClient());
 		services.TryAddSingleton<AwsSqsMessageBus>();
 		_ = services.AddRemoteMessageBus("sqs", static sp => sp.GetRequiredService<AwsSqsMessageBus>());
-		services.TryAddSingleton<AwsSqsChannelReceiver>();
 	}
 
 	/// <summary>

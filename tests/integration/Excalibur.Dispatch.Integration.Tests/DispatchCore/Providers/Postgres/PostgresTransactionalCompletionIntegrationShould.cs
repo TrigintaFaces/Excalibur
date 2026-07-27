@@ -120,13 +120,24 @@ public sealed class PostgresTransactionalCompletionIntegrationShould : Integrati
                 message_id VARCHAR(100) NOT NULL UNIQUE,
                 message_type VARCHAR(500) NOT NULL,
                 message_metadata TEXT,
-                message_body TEXT NOT NULL,
+                message_body BYTEA NOT NULL,
                 tenant_id VARCHAR(255),
+                destination VARCHAR(500),
+                correlation_id VARCHAR(255),
+                causation_id VARCHAR(255),
+                priority INT NOT NULL DEFAULT 0,
+                partition_key VARCHAR(255),
+                group_key VARCHAR(255),
+                sequence_number BIGINT NOT NULL DEFAULT 0,
+                target_transports VARCHAR(500),
+                is_multi_transport BOOLEAN NOT NULL DEFAULT FALSE,
                 occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 attempts INT NOT NULL DEFAULT 0,
+                error_message TEXT,
                 dispatcher_id VARCHAR(100),
                 dispatcher_timeout TIMESTAMPTZ,
-                next_attempt_at TIMESTAMPTZ
+                next_attempt_at TIMESTAMPTZ,
+                scheduled_at TIMESTAMPTZ
             );
 
             CREATE TABLE IF NOT EXISTS outbox_dead_letters (
@@ -134,7 +145,7 @@ public sealed class PostgresTransactionalCompletionIntegrationShould : Integrati
                 message_id VARCHAR(100) NOT NULL UNIQUE,
                 message_type VARCHAR(500) NOT NULL,
                 message_metadata TEXT,
-                message_body TEXT NOT NULL,
+                message_body BYTEA NOT NULL,
                 occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 attempts INT NOT NULL DEFAULT 0,
                 error_message TEXT,
@@ -159,9 +170,9 @@ public sealed class PostgresTransactionalCompletionIntegrationShould : Integrati
                 last_error TEXT NULL,
                 last_attempt_at TIMESTAMPTZ NULL,
                 correlation_id VARCHAR(255) NULL,
-                tenant_id VARCHAR(255) NULL,
+                tenant_id VARCHAR(255) NOT NULL,
                 source VARCHAR(255) NULL,
-                PRIMARY KEY (message_id, handler_type)
+                PRIMARY KEY (message_id, handler_type, tenant_id)
             );
 
             CREATE INDEX IF NOT EXISTS idx_inbox_status ON inbox_messages (status);

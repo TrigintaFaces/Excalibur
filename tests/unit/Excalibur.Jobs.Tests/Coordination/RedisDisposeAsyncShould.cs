@@ -8,11 +8,11 @@ namespace Excalibur.Jobs.Tests.Coordination;
 
 /// <summary>
 /// Tests for Sprint 542 P0 fix S542.15 (bd-38c8t):
-/// RedisDistributedJobLock + RedisLeadershipToken DisposeAsync uses CancellationTokenSource(5s)
+/// RedisDistributedJobLock DisposeAsync uses CancellationTokenSource(5s)
 /// instead of CancellationToken.None, preventing indefinite hangs during disposal.
 /// </summary>
 /// <remarks>
-/// Both types are internal sealed, so we access them via Assembly.GetType() reflection.
+/// The type is internal sealed, so we access it via Assembly.GetType() reflection.
 /// The source uses a filtered catch: <c>catch (OperationCanceledException) when (cts.IsCancellationRequested)</c>,
 /// which generates <see cref="ExceptionHandlingClauseOptions.Filter"/> in IL (not <c>Clause</c>).
 /// </remarks>
@@ -80,60 +80,6 @@ public sealed class RedisDisposeAsyncShould
 	public void RedisDistributedJobLock_DisposeAsyncCatchesOperationCanceledException()
 	{
 		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock");
-		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
-
-		method.ShouldNotBeNull();
-
-		var stateMachineAttr = method.GetCustomAttribute<AsyncStateMachineAttribute>();
-		stateMachineAttr.ShouldNotBeNull();
-
-		var moveNext = stateMachineAttr.StateMachineType
-			.GetMethod("MoveNext", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		moveNext.ShouldNotBeNull();
-		var body = moveNext.GetMethodBody();
-		body.ShouldNotBeNull();
-
-		HasOceExceptionHandler(body!).ShouldBeTrue(
-			"DisposeAsync should catch OperationCanceledException (plain or filtered) for disposal timeout (S542.15)");
-	}
-
-	// --- RedisLeadershipToken ---
-
-	[Fact]
-	public void RedisLeadershipToken_ImplementsIAsyncDisposable()
-	{
-		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
-		typeof(IAsyncDisposable).IsAssignableFrom(type).ShouldBeTrue(
-			"RedisLeadershipToken should implement IAsyncDisposable");
-	}
-
-	[Fact]
-	public void RedisLeadershipToken_HasDisposeAsyncMethod()
-	{
-		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
-		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
-
-		method.ShouldNotBeNull("RedisLeadershipToken should have DisposeAsync method");
-		method.ReturnType.ShouldBe(typeof(ValueTask));
-	}
-
-	[Fact]
-	public void RedisLeadershipToken_DisposeAsyncIsAsync()
-	{
-		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
-		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
-
-		method.ShouldNotBeNull();
-
-		var stateMachineAttr = method.GetCustomAttribute<AsyncStateMachineAttribute>();
-		stateMachineAttr.ShouldNotBeNull("DisposeAsync should be async (state machine) — needed for timeout CTS pattern");
-	}
-
-	[Fact]
-	public void RedisLeadershipToken_DisposeAsyncCatchesOperationCanceledException()
-	{
-		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull();

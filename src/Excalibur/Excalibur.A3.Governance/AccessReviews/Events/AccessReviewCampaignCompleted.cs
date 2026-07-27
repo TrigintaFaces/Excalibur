@@ -13,8 +13,6 @@ internal sealed class AccessReviewCampaignCompleted : IDomainEvent
 	public required string CampaignId { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => CampaignId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(AccessReviewCampaignCompleted);
 	public IDictionary<string, object>? Metadata { get; init; }

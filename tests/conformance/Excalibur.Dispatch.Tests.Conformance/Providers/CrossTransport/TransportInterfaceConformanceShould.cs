@@ -12,10 +12,17 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 namespace Excalibur.Dispatch.Tests.Conformance.Providers.CrossTransport;
 
 /// <summary>
-/// Verifies all 5 transports implement the core transport interfaces.
+/// Verifies the transports implement the core transport interfaces.
 /// Uses reflection to scan each transport assembly for implementations of:
 /// <see cref="ITransportSender"/>, <see cref="ITransportReceiver"/>,
 /// <see cref="IDeadLetterQueueManager"/>.
+/// <para>
+/// <see cref="ITransportSender"/> / <see cref="ITransportReceiver"/> conformance applies to all
+/// 5 transports. <see cref="IDeadLetterQueueManager"/> is a MANAGED-DLQ concern implemented by the
+/// 4 managed transports (Azure SB, Google PubSub, Kafka, RabbitMQ). AWS SQS deliberately has NO
+/// <see cref="IDeadLetterQueueManager"/> implementation — it uses the native SQS redrive-policy
+/// (maxReceiveCount → SQS DLQ) instead of a managed DLQ manager.
+/// </para>
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
@@ -122,7 +129,7 @@ public sealed class TransportInterfaceConformanceShould
 	#region Common Interface Conformance
 
 	[Theory]
-	[MemberData(nameof(TransportNames))]
+	[MemberData(nameof(ManagedDlqTransportNames))]
 	public void Have_IDeadLetterQueueManager_Implementation(string transportName)
 	{
 		var assembly = GetAssembly(transportName);
@@ -131,12 +138,39 @@ public sealed class TransportInterfaceConformanceShould
 			0, $"{transportName} transport MUST have at least one IDeadLetterQueueManager implementation");
 	}
 
+	[Fact]
+	public void AwsSqs_HasNoIDeadLetterQueueManager_ByDesign()
+	{
+		var assembly = GetAssembly("AwsSqs");
+		var implementations = FindImplementations(assembly, typeof(IDeadLetterQueueManager));
+		implementations.Length.ShouldBe(
+			0,
+			"AWS SQS MUST have NO IDeadLetterQueueManager implementation by design — it uses the native " +
+			"SQS redrive-policy (maxReceiveCount → SQS DLQ), not a managed DLQ manager. Found: " +
+			string.Join(", ", implementations.Select(t => t.FullName)));
+	}
+
 	#endregion Common Interface Conformance
 
 	public static TheoryData<string> TransportNames()
 	{
 		var data = new TheoryData<string>();
 		foreach (var (name, _) in s_transports)
+		{
+			data.Add(name);
+		}
+
+		return data;
+	}
+
+	/// <summary>
+	/// The 4 MANAGED transports that implement <see cref="IDeadLetterQueueManager"/>.
+	/// Excludes AWS SQS, which uses the native SQS redrive-policy instead of a managed DLQ manager.
+	/// </summary>
+	public static TheoryData<string> ManagedDlqTransportNames()
+	{
+		var data = new TheoryData<string>();
+		foreach (var (name, _) in s_transports.Where(t => t.Name != "AwsSqs"))
 		{
 			data.Add(name);
 		}

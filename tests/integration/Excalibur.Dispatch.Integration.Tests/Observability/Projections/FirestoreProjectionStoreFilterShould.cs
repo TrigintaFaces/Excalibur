@@ -6,6 +6,8 @@
 using Excalibur.Data.Firestore.Projections;
 using Excalibur.EventSourcing;
 
+using Google.Api.Gax;
+
 using Google.Cloud.Firestore;
 
 using Grpc.Core;
@@ -257,11 +259,17 @@ public sealed class FirestoreProjectionFilterFixture : IAsyncLifetime
 		{
 			await _container.StartAsync().ConfigureAwait(false);
 
+			// EmulatorOnly makes the SDK speak EMULATOR semantics; an explicit Endpoint alone leaves it
+			// behaving as though this were a real deployment, so the emulator rejects admin-ish calls with
+			// PermissionDenied "Metadata operations require admin authentication." EmulatorOnly and an
+			// explicit Endpoint/ChannelCredentials are mutually exclusive: the SDK builds its own channel
+			// from FIRESTORE_EMULATOR_HOST and throws from GaxPreconditions.CheckState if given both.
+			Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
+
 			var builder = new FirestoreDbBuilder
 			{
 				ProjectId = ProjectId,
-				Endpoint = _container.GetEmulatorEndpoint(),
-				ChannelCredentials = ChannelCredentials.Insecure,
+				EmulatorDetection = EmulatorDetection.EmulatorOnly,
 			};
 			Db = await builder.BuildAsync().ConfigureAwait(false);
 

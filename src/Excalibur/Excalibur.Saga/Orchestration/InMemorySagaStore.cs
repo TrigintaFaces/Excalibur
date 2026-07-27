@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Saga.Orchestration;
@@ -20,7 +21,7 @@ namespace Excalibur.Saga.Orchestration;
 /// This implementation does not persist state across application restarts. For production scenarios requiring durability, use a persistent
 /// saga store implementation.
 /// </remarks>
-internal sealed class InMemorySagaStore : ISagaStore
+internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 {
 	// Populate mode repopulates get-only collection properties on deserialize (e.g. SagaState.ProcessedEventIds),
 	// so the deep-copy clone preserves idempotency keys rather than silently dropping them.
@@ -29,7 +30,19 @@ internal sealed class InMemorySagaStore : ISagaStore
 		PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
 	};
 
-	private readonly ConcurrentDictionary<Guid, SagaState> _store = new();
+	private readonly ConcurrentDictionary<Guid, StoredSaga> _store = new();
+
+	private readonly ITenantContext? _tenantContext;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemorySagaStore"/> class.
+	/// </summary>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. Supplied, it restricts the
+	/// tenant-scoped purge to the ambient tenant's sagas; absent, that purge addresses the untenanted partition
+	/// — the sagas carrying no tenant. The estate-wide purge ignores it by design.
+	/// </param>
+	public InMemorySagaStore(ITenantContext? tenantContext = null) => _tenantContext = tenantContext;
 
 	/// <summary>
 	/// Loads a saga state by its identifier from the in-memory store. Returns null if no saga with the specified ID exists in the store.
@@ -45,7 +58,7 @@ internal sealed class InMemorySagaStore : ISagaStore
 		// type's perspective -> return null (graceful), never throw InvalidCastException. A hard
 		// (TSagaState?)state cast would throw on a concrete-type mismatch, violating the ISagaStore
 		// type-isolation contract (SagaStoreConformanceTestBase). [bd-c9ioqa]
-		if (_store.TryGetValue(sagaId, out var state) && state is TSagaState typed)
+		if (_store.TryGetValue(sagaId, out var stored) && stored.State is TSagaState typed)
 		{
 			// Return an INDEPENDENT copy: two concurrent loaders must receive isolated instances so each
 			// carries its own version token (the optimistic-concurrency contract — e1tsq2). Persistent
@@ -80,6 +93,12 @@ internal sealed class InMemorySagaStore : ISagaStore
 		var snapshot = Clone(sagaState);
 		snapshot.Version = expectedVersion + 1;
 
+		// Record the DECLARED type the saga was saved under (typeof(TSagaState).Name), matching the
+		// persistent providers which persist SagaType from the declared type — the type-isolation key.
+		// This keeps the surfaced SagaType consistent across every store under saga-state inheritance,
+		// rather than reporting the runtime concrete type (state.GetType().Name).
+		var stored = new StoredSaga(snapshot, typeof(TSagaState).Name);
+
 		// Optimistic concurrency via an ATOMIC compare-and-swap (mirrors SqlServerSagaStore's version-gated
 		// MERGE). AddOrUpdate's update factory re-runs against the latest stored value on contention and the
 		// final swap is atomic, so a stale version is detected without a racy check-then-set (a plain
@@ -102,20 +121,20 @@ internal sealed class InMemorySagaStore : ISagaStore
 						actualVersion: -1L);
 				}
 
-				return snapshot;
+				return stored;
 			},
 			updateValueFactory: (_, existing) =>
 			{
-				if (existing.Version != expectedVersion)
+				if (existing.State.Version != expectedVersion)
 				{
 					throw new ConcurrencyException(
 						nameof(SagaState),
 						sagaState.SagaId.ToString(),
 						expectedVersion,
-						existing.Version);
+						existing.State.Version);
 				}
 
-				return snapshot;
+				return stored;
 			});
 
 		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
@@ -124,6 +143,128 @@ internal sealed class InMemorySagaStore : ISagaStore
 
 		return Task.CompletedTask;
 	}
+
+	/// <inheritdoc />
+	public Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+
+		// Mirrors the SQL providers' three-way split. A scoped purge matches its own tenant; an unscoped one
+		// matches the untenanted partition -- the sagas that carry no tenant at all -- rather than everything.
+		// "No tenant established" is a real scope here, not a wildcard, so this can never remove another
+		// tenant's saga, and the rows carrying no tenant remain reachable for retention.
+		return PurgeAsync(
+			threshold,
+			saga => scope.IsScoped
+				? string.Equals(saga.TenantId, scope.TenantId, StringComparison.Ordinal)
+				: string.IsNullOrEmpty(saga.TenantId),
+			cancellationToken);
+	}
+
+	/// <inheritdoc />
+	public Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken) =>
+		PurgeAsync(threshold, static _ => true, cancellationToken);
+
+	private Task<int> PurgeAsync(
+		DateTimeOffset threshold,
+		Func<SagaState, bool> tenantMatches,
+		CancellationToken cancellationToken)
+	{
+		var removed = 0;
+
+		// ConcurrentDictionary's enumerator is a moving snapshot, and the key/value TryRemove overload removes
+		// an entry only when it still maps to the observed state — so a concurrent save that re-activates a saga
+		// (clearing CompletedAt) is not purged out from under the caller.
+		foreach (var entry in _store)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			if (entry.Value.State.CompletedAt is { } completedAt
+				&& completedAt < threshold
+				&& tenantMatches(entry.Value.State)
+				&& _store.TryRemove(entry))
+			{
+				removed++;
+			}
+		}
+
+		return Task.FromResult(removed);
+	}
+
+	/// <inheritdoc />
+	public ValueTask<IReadOnlyList<SagaInstanceSummary>> QuerySagasAsync(
+		SagaQueryFilter filter,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		// Snapshot enumeration over the concurrent dictionary; the store owns no created/updated instant,
+		// so summaries carry lifecycle state + version only (age-based "stuck" is a separate seam).
+		var matches = _store.Values
+			.Where(s => (filter.IsCompleted is not { } wantCompleted || s.State.Completed == wantCompleted)
+				&& (filter.TenantId is null || string.Equals(s.State.TenantId, filter.TenantId, StringComparison.Ordinal)))
+			.OrderBy(static s => s.State.SagaId)
+			.Skip(Math.Max(0, filter.Skip))
+			.Take(Math.Max(0, filter.MaxResults))
+			.Select(ToSummary)
+			.ToArray();
+
+		return new ValueTask<IReadOnlyList<SagaInstanceSummary>>(matches);
+	}
+
+	/// <inheritdoc />
+	public ValueTask<SagaInstanceSummary?> GetSummaryAsync(Guid sagaId, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		return _store.TryGetValue(sagaId, out var stored)
+			? new ValueTask<SagaInstanceSummary?>(ToSummary(stored))
+			: new ValueTask<SagaInstanceSummary?>((SagaInstanceSummary?)null);
+	}
+
+	/// <inheritdoc />
+	public ValueTask<SagaStoreStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var completed = 0;
+		var total = 0;
+		foreach (var stored in _store.Values)
+		{
+			total++;
+			if (stored.State.Completed)
+			{
+				completed++;
+			}
+		}
+
+		return new ValueTask<SagaStoreStatistics>(new SagaStoreStatistics
+		{
+			RunningCount = total - completed,
+			CompletedCount = completed,
+			TotalCount = total,
+			CapturedAt = DateTimeOffset.UtcNow,
+		});
+	}
+
+	private static SagaInstanceSummary ToSummary(StoredSaga stored) => new()
+	{
+		SagaId = stored.State.SagaId,
+		// Report the DECLARED type the saga was stored under (the persisted stores' type-isolation key),
+		// not the runtime concrete type — so SagaType means the same thing in every store.
+		SagaType = stored.SagaType,
+		IsCompleted = stored.State.Completed,
+		CompletedAt = stored.State.CompletedAt,
+		TenantId = stored.State.TenantId,
+		Version = stored.State.Version,
+	};
+
+	/// <summary>
+	/// A stored saga plus the declared type name it was saved under. The declared type (not the runtime
+	/// concrete type) is the authoritative <c>SagaType</c>, matching the persistent providers' isolation key.
+	/// </summary>
+	private sealed record StoredSaga(SagaState State, string SagaType);
 
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
 		Justification = "In-memory dev/test store mirrors the persistent providers' reflection-based JSON snapshot to isolate copies.")]

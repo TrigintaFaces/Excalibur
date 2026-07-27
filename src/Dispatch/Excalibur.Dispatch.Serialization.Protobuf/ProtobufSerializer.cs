@@ -182,15 +182,26 @@ public sealed class ProtobufSerializer : ISerializer
 				string.Format(CultureInfo.InvariantCulture, TypeNotIMessageFormat, type.Name));
 		}
 
-		if (_wireFormat == ProtobufWireFormat.Json)
+		try
 		{
-			var json = Encoding.UTF8.GetString(data);
-			var descriptor = GetDescriptor(type);
-			return JsonParser.Default.Parse(json, descriptor);
-		}
+			if (_wireFormat == ProtobufWireFormat.Json)
+			{
+				var json = Encoding.UTF8.GetString(data);
+				var descriptor = GetDescriptor(type);
+				return JsonParser.Default.Parse(json, descriptor);
+			}
 
-		var parser = GetParser(type);
-		return parser.ParseFrom(data.ToArray());
+			var parser = GetParser(type);
+			return parser.ParseFrom(data.ToArray());
+		}
+		catch (SerializationException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw SerializationException.WrapObject(type, "deserialize", ex);
+		}
 	}
 
 	private static T DeserializeBinary<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(byte[] data)

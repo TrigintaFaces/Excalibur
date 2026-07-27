@@ -39,7 +39,11 @@ TDocument>
 	private readonly string _tableName;
 	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
-	private readonly CancellationTokenSource _cts = new();
+	// Guards _cts so a stop/start cycle can atomically retire the canceled source and install a fresh one
+	// (o9y64z): StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
+	// ReadChangesAsync would link a permanently-canceled token and yield-break immediately.
+	private readonly System.Threading.Lock _ctsLock = new();
+	private CancellationTokenSource _cts = new();
 
 	private string? _streamArn;
 	private bool _isActive;
@@ -97,6 +101,16 @@ TDocument>
 			throw new InvalidOperationException($"Table '{_tableName}' does not have streams enabled.");
 		}
 
+		// Recreate the CTS if a prior StopAsync canceled it, so stop→start actually resumes (o9y64z).
+		lock (_ctsLock)
+		{
+			if (_cts.IsCancellationRequested)
+			{
+				_cts.Dispose();
+				_cts = new CancellationTokenSource();
+			}
+		}
+
 		_isActive = true;
 	}
 
@@ -110,7 +124,14 @@ TDocument>
 
 		LogStopping(SubscriptionId);
 		_isActive = false;
-		await _cts.CancelAsync().ConfigureAwait(false);
+
+		CancellationTokenSource cts;
+		lock (_ctsLock)
+		{
+			cts = _cts;
+		}
+
+		await cts.CancelAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -127,7 +148,13 @@ TDocument>
 			throw new InvalidOperationException("Subscription not started. Call StartAsync first.");
 		}
 
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+		CancellationTokenSource currentCts;
+		lock (_ctsLock)
+		{
+			currentCts = _cts;
+		}
+
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, currentCts.Token);
 		var linkedToken = linkedCts.Token;
 
 		// Get shards using the Streams client
@@ -265,8 +292,15 @@ TDocument>
 
 		_disposed = true;
 		_isActive = false;
-		await _cts.CancelAsync().ConfigureAwait(false);
-		_cts.Dispose();
+
+		CancellationTokenSource cts;
+		lock (_ctsLock)
+		{
+			cts = _cts;
+		}
+
+		await cts.CancelAsync().ConfigureAwait(false);
+		cts.Dispose();
 	}
 
 	private static ChangeFeedEventType MapEventType(OperationType operationType)

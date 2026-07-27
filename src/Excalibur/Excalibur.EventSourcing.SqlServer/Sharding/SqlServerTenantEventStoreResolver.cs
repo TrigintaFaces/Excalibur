@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Data.Sharding;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Data.SqlClient;
@@ -27,21 +28,25 @@ internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<I
 	private readonly ILoggerFactory _loggerFactory;
 	private readonly ISerializer? _serializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
+	private readonly ITenantContext _tenantContext;
 	private readonly ConcurrentDictionary<string, IEventStore> _storeCache = new(StringComparer.Ordinal);
 
 	internal SqlServerTenantEventStoreResolver(
 		ITenantShardMap shardMap,
 		ILoggerFactory loggerFactory,
 		ISerializer? serializer,
-		IPayloadSerializer? payloadSerializer)
+		IPayloadSerializer? payloadSerializer,
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(shardMap);
 		ArgumentNullException.ThrowIfNull(loggerFactory);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_shardMap = shardMap;
 		_loggerFactory = loggerFactory;
 		_serializer = serializer;
 		_payloadSerializer = payloadSerializer;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc />
@@ -61,6 +66,7 @@ internal sealed class SqlServerTenantEventStoreResolver : ITenantStoreResolver<I
 			_loggerFactory.CreateLogger<SqlServerEventStore>(),
 			_serializer,
 			_payloadSerializer,
-			schema);
+			schema,
+			tenantContext: _tenantContext);
 	}
 }

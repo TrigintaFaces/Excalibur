@@ -90,8 +90,8 @@ public sealed class ValidationDispatchBuilderExtensionsShould
 
 		// Assert
 		services.Any(sd =>
-			sd.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IValidationService))
-			.ShouldBeTrue("UseValidation should register IValidationService");
+			sd.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IMessageValidationService))
+			.ShouldBeTrue("UseValidation should register IMessageValidationService");
 	}
 
 	[Fact]

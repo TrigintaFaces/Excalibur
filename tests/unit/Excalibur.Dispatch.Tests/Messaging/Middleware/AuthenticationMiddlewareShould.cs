@@ -158,10 +158,10 @@ public sealed class AuthenticationMiddlewareShould
     }
 
     [Fact]
-    public void ApplyToActionsOnly()
+    public void ApplyToActionsAndEvents()
     {
         var sut = CreateSut();
-        sut.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+        sut.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
     }
 
     [Fact]

@@ -53,7 +53,7 @@ All message types are in namespace `Excalibur.Dispatch`. Handler types are in `E
 | `IDispatchAction<TResponse>` | Query (returns T) | Extends `IDispatchAction` |
 | `IDispatchEvent` | Event (pub/sub) | Extends `IDispatchMessage`. Multiple handlers allowed. |
 | `IDispatchDocument` | Document/batch | Extends `IDispatchMessage`. For ETL, bulk processing. |
-| `IDomainEvent` | Domain event | Extends `IDispatchEvent`. Has `EventId`, `AggregateId`, `Version`, `OccurredAt`, `EventType`, `Metadata`. |
+| `IDomainEvent` | Domain event | Extends `IDispatchEvent`. Has `EventId`, `OccurredAt`, `EventType`, `Metadata`, `CorrelationId`, `CausationId`. Carries NO aggregate id or stream version — those are supplied to / assigned by the event store. |
 | `DomainEvent` | Base record | Abstract record implementing `IDomainEvent` with auto-generated `EventId` (UUID v7). Namespace: `Excalibur.Dispatch`. |
 | `IActionHandler<TAction>` | Command handler | 1 method: `Task HandleAsync(TAction action, CancellationToken cancellationToken)` |
 | `IActionHandler<TAction, TResult>` | Query handler | 1 method: `Task<TResult> HandleAsync(TAction action, CancellationToken cancellationToken)` |
@@ -68,17 +68,18 @@ Domain building blocks are in namespace `Excalibur.Domain.Model`.
 
 | Type | Kind | Key Members |
 |---|---|---|
-| `AggregateRoot<TKey>` | Aggregate base | `Id`, `Version`, `ETag`, `RaiseEvent(IDomainEvent)`, abstract `ApplyEventInternal(IDomainEvent)`, `LoadFromHistory(IEnumerable<IDomainEvent>)`, `LoadFromSnapshot(ISnapshot)`, `GetUncommittedEvents()`, `MarkEventsAsCommitted()` |
+| `AggregateRoot<TKey>` | Aggregate base | `Id`, `Version`, `ETag`, `RaiseEvent(IDomainEvent)`, abstract `ApplyEventInternal(IDomainEvent)`, `LoadFromHistory(IEnumerable<HistoricEvent>)`, `LoadFromSnapshot(ISnapshot)`, `GetUncommittedEvents()`, `MarkEventsAsCommitted()` |
 | `AggregateRoot` | String-key shorthand | Extends `AggregateRoot<string>` |
+| `HistoricEvent` | Replay envelope | `readonly record struct HistoricEvent(IDomainEvent Event, long Version)`. Pairs a persisted event with the store-assigned stream version used during replay. `FromEvents`/`LoadFromHistory` consume `IEnumerable<HistoricEvent>` — the version comes from this envelope, never from the event payload. |
 | `EntityBase<TKey>` | Entity base | Abstract `Key` property, equality by type + key |
 | `EntityBase` | String-key shorthand | Extends `EntityBase<string>` |
 | `ValueObjectBase` | Value object base | Abstract `GetEqualityComponents()`, component-based equality, `==`/`!=` operators |
-| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7), `OccurredAt` (UTC via `TimeProvider`), `EventType` (class name). Override `AggregateId`. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch`. |
+| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7), `OccurredAt` (UTC via `TimeProvider`), `EventType` (class name). Put event data in the record's own properties. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch`. |
 | `ISnapshot` | Snapshot interface | `SnapshotId`, `AggregateId`, `AggregateType`, `Version`, `CreatedAt`, `Data` |
 
 :::note Two DomainEvent base types
 
-- `DomainEvent` in `Excalibur.Dispatch.Abstractions` — parameterless construction, override `AggregateId` property, uses UUID v7 EventId, fluent metadata API
+- `DomainEvent` in `Excalibur.Dispatch.Abstractions` — parameterless construction, event data in the record's own properties, uses UUID v7 EventId, fluent metadata API
 
 Both implement `IDomainEvent`. Use whichever fits your project.
 :::
@@ -91,7 +92,7 @@ CQRS types are in `Excalibur.Application`. They extend Dispatch's `IDispatchActi
 |---|---|---|
 | `ICommand` | Command interface | Extends `IDispatchAction`. Has `Id`, `MessageId`, `CorrelationId`, `TenantId`, `TransactionBehavior`. |
 | `ICommand<TResult>` | Command with result | Extends `ICommand` + `IDispatchAction<TResult>` |
-| `CommandBase` | Command base class | Constructor: `CommandBase(Guid correlationId, string? tenantId = null)`. Provides `Id`, `MessageId`, `Kind`, `Headers`, transaction control. |
+| `CommandBase` | Command base class | Constructor: `CommandBase(Guid correlationId, string? tenantId = null)`. Provides `Id`, `MessageId`, `Headers`, transaction control. |
 | `CommandBase<TResponse>` | Command with result | Extends `CommandBase`, implements `ICommand<TResponse>` |
 | `IQuery<TResult>` | Query interface | Extends `IDispatchAction<TResult>`. Has same metadata as `ICommand`. |
 | `QueryBase<TResult>` | Query base class | Constructor: `QueryBase(Guid correlationId, string? tenantId = null)` |
@@ -105,7 +106,7 @@ Event sourcing types are in `Excalibur.EventSourcing.Abstractions`.
 
 | Type | Kind | Key Members |
 |---|---|---|
-| `IEventStore` | Event persistence | 5 methods: `LoadAsync` (2 overloads), `AppendAsync` (optimistic concurrency via `expectedVersion`), `GetUndispatchedEventsAsync`, `MarkEventAsDispatchedAsync` |
+| `IEventStore` | Event persistence | 3 methods: `LoadAsync` (2 overloads — full stream + from-version), `AppendAsync` (optimistic concurrency via `expectedVersion`). Takes `aggregateId` + `aggregateType` as explicit parameters. |
 | `IEventSourcedRepository<TAggregate, TKey>` | Repository | 5 methods: `GetByIdAsync`, `SaveAsync` (2 overloads: with/without ETag), `ExistsAsync`, `DeleteAsync` |
 | `IEventSourcedRepository<TAggregate>` | String-key shorthand | Extends `IEventSourcedRepository<TAggregate, string>` |
 | `ISnapshotStore` | Snapshot persistence | `GetLatestAsync`, `SaveAsync` |
@@ -284,15 +285,9 @@ using Excalibur.Domain.Model;
 using Excalibur.Dispatch;
 
 // 1. Define domain events
-public record OrderCreated(string OrderId, string CustomerId) : DomainEvent
-{
-    public override string AggregateId => OrderId;
-}
+public record OrderCreated(string OrderId, string CustomerId) : DomainEvent;
 
-public record ItemAdded(string OrderId, string ItemId) : DomainEvent
-{
-    public override string AggregateId => OrderId;
-}
+public record ItemAdded(string OrderId, string ItemId) : DomainEvent;
 
 // 2. Define the aggregate
 public class OrderAggregate : AggregateRoot
@@ -314,16 +309,18 @@ public class OrderAggregate : AggregateRoot
     }
 
     // Pattern-matching event application (no reflection, O(1))
-    protected override void ApplyEventInternal(IDomainEvent domainEvent)
+    protected override bool ApplyEventInternal(IDomainEvent domainEvent)
     {
         switch (domainEvent)
         {
             case OrderCreated e:
                 CustomerId = e.CustomerId;
-                break;
+                return true;
             case ItemAdded e:
                 Items.Add(e.ItemId);
-                break;
+                return true;
+            default:
+                return false;
         }
     }
 }
@@ -360,7 +357,7 @@ Key points:
 3. **Missing ConfigureAwait**: Library code must use `await task.ConfigureAwait(false)`.
 4. **Confusing Action vs Event**: `IDispatchAction` routes to exactly 1 handler. `IDispatchEvent` supports multiple handlers (pub/sub).
 5. **Explicit context creation**: Most code should use the 2-parameter `DispatchAsync(message, ct)` extensions. Only create `IMessageContext` explicitly when you need to set correlation IDs or tenant context.
-6. **DomainEvent is parameterless**: `DomainEvent` uses `virtual init` properties with sensible defaults. Override `AggregateId` in derived records. Put event data in your record's own properties.
+6. **DomainEvent is parameterless**: `DomainEvent` uses `virtual init` properties with sensible defaults. Put event data in your record's own properties. Events carry no aggregate id or stream version — the aggregate id is passed to the event store and the version is store-assigned.
 7. **Only ONE DomainEvent base**: `DomainEvent` in `Excalibur.Dispatch`. The old `DomainEventBase` from `Excalibur.Domain.Model` was removed.
 8. **No EntityFramework**: This framework uses **Dapper** for SQL, not EF Core. Never suggest EF migrations or DbContext.
 9. **Blocking async in Dispose**: Use `IAsyncDisposable` with `DisposeAsync()`, never `task.GetAwaiter().GetResult()`.

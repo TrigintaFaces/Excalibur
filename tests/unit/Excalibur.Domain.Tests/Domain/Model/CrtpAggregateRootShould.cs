@@ -91,11 +91,11 @@ public sealed class CrtpAggregateRootShould
     {
         // Arrange
         var id = Guid.NewGuid();
-        var events = new List<IDomainEvent>
+        var events = new List<HistoricEvent>
         {
-            new TestCrtpEvent(id.ToString(), "First"),
-            new TestCrtpEvent(id.ToString(), "Second"),
-            new TestCrtpEvent(id.ToString(), "Third"),
+            new(new TestCrtpEvent(id.ToString(), "First"), 0),
+            new(new TestCrtpEvent(id.ToString(), "Second"), 1),
+            new(new TestCrtpEvent(id.ToString(), "Third"), 2),
         };
 
         // Act
@@ -113,9 +113,9 @@ public sealed class CrtpAggregateRootShould
     {
         // Arrange
         var id = Guid.NewGuid();
-        var events = new List<IDomainEvent>
+        var events = new List<HistoricEvent>
         {
-            new TestCrtpEvent(id.ToString(), "Value"),
+            new(new TestCrtpEvent(id.ToString(), "Value"), 0),
         };
 
         // Act
@@ -259,10 +259,11 @@ public sealed class CrtpAggregateRootShould
         };
         aggregate.LoadFromSnapshot(snapshot);
 
-        var trailingEvents = new List<IDomainEvent>
+        // Envelope versions continue the stream from the snapshot's version (5), they do not restart at 0.
+        var trailingEvents = new List<HistoricEvent>
         {
-            new TestCrtpEvent(id.ToString(), "After-Snapshot-1"),
-            new TestCrtpEvent(id.ToString(), "After-Snapshot-2"),
+            new(new TestCrtpEvent(id.ToString(), "After-Snapshot-1"), 5),
+            new(new TestCrtpEvent(id.ToString(), "After-Snapshot-2"), 6),
         };
 
         // Act
@@ -363,7 +364,7 @@ public sealed class CrtpAggregateRootShould
             RaiseEvent(new TestCrtpEvent(Id.ToString(), value));
         }
 
-        protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+        protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
         {
             TestCrtpEvent e => Apply(e),
             _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}"),
@@ -381,9 +382,10 @@ public sealed class CrtpAggregateRootShould
     /// </summary>
     private sealed class TestCrtpStringAggregate : AggregateRoot<TestCrtpStringAggregate, string>
     {
-        protected override void ApplyEventInternal(IDomainEvent @event)
+        protected override bool ApplyEventInternal(IDomainEvent @event)
         {
             // No-op for test
+                	return true;
         }
     }
 
@@ -392,9 +394,10 @@ public sealed class CrtpAggregateRootShould
     /// </summary>
     private sealed class TestCrtpIntAggregate : AggregateRoot<TestCrtpIntAggregate, int>
     {
-        protected override void ApplyEventInternal(IDomainEvent @event)
+        protected override bool ApplyEventInternal(IDomainEvent @event)
         {
             // No-op for test
+                	return true;
         }
     }
 
@@ -406,7 +409,7 @@ public sealed class CrtpAggregateRootShould
         public string? SnapshotData { get; private set; }
         public string? LastValue { get; private set; }
 
-        protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+        protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
         {
             TestCrtpEvent e => ApplyEvent(e),
             _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}"),
@@ -437,9 +440,10 @@ public sealed class CrtpAggregateRootShould
             return aggregate;
         }
 
-        protected override void ApplyEventInternal(IDomainEvent @event)
+        protected override bool ApplyEventInternal(IDomainEvent @event)
         {
             // No-op for test
+                	return true;
         }
     }
 
@@ -459,7 +463,7 @@ public sealed class CrtpAggregateRootShould
             RaiseEvent(new TestCrtpEvent(Id.ToString(), value));
         }
 
-        protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+        protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
         {
             TestCrtpEvent e => Apply(e),
             _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}"),
@@ -479,8 +483,7 @@ public sealed class CrtpAggregateRootShould
     private sealed record TestCrtpEvent(string AggregateId, string Value) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
-        string IDomainEvent.AggregateId => AggregateId;
-        public long Version { get; init; } = 1;
+        public long Version { get; init; }
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
         public string EventType => nameof(TestCrtpEvent);
         public IDictionary<string, object>? Metadata { get; init; } = new Dictionary<string, object>();
@@ -493,6 +496,10 @@ public sealed class CrtpAggregateRootShould
     private sealed class TestCrtpSnapshot : ISnapshot
     {
         public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+        // Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+        // that this double is unscoped instead of assuming it.
+        public string? TenantId { get; init; }
         public string AggregateId { get; init; } = string.Empty;
         public string AggregateType { get; init; } = string.Empty;
         public long Version { get; init; }

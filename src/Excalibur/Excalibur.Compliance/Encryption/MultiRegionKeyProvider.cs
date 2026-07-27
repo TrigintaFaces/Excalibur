@@ -525,7 +525,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	}
 
 	/// <inheritdoc />
-	public Task<bool> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
+	public Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		// Deletion propagates through provider-specific replication
@@ -537,6 +537,13 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IK
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		return ActiveAdmin.SuspendKeyAsync(keyId, reason, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	public Task<bool> ReactivateKeyAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		return ActiveAdmin.ReactivateKeyAsync(keyId, cancellationToken);
 	}
 
 	/// <inheritdoc />

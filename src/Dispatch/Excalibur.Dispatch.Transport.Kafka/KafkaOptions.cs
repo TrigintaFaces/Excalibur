@@ -11,6 +11,13 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <summary>
 /// Configuration options for Kafka integration.
 /// </summary>
+/// <remarks>
+/// This type intentionally exposes more than ten properties: it mirrors the native configuration
+/// surface of the underlying Kafka client (broker, consumer-group, offset, security, and payload
+/// settings) so consumers can tune the transport without reaching for a second options object.
+/// The property count reflects the provider's own configuration breadth rather than a design that
+/// should be split into narrower types.
+/// </remarks>
 public sealed class KafkaOptions
 {
 	/// <summary>
@@ -176,4 +183,17 @@ public sealed class KafkaConsumerTuningOptions
 	/// </value>
 	public PartitionAssignmentStrategy? PartitionAssignmentStrategy { get; set; } =
 		Confluent.Kafka.PartitionAssignmentStrategy.CooperativeSticky;
+
+	/// <summary>
+	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at consume ingress before the
+	/// message body is materialized (defense-in-depth DoS hardening). An over-limit message is rejected
+	/// before deserialization and skipped (its offset is committed past) rather than stalling the partition.
+	/// </summary>
+	/// <value>
+	/// The maximum payload length in bytes. Default is 4 MiB (bounded by default so the guard is never
+	/// inert; Kafka's own limits remain configurable above it). Set to <see langword="null"/> to opt out
+	/// (unbounded) for larger legitimate payloads.
+	/// </value>
+	[Range(1, int.MaxValue)]
+	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
 }

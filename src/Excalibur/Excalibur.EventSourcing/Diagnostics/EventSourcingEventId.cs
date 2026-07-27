@@ -202,6 +202,9 @@ public static class EventSourcingEventId
 	/// <summary>Projection rebuild completed but no IProjectionStore registered for persistence.</summary>
 	public const int ProjectionRebuildNoStore = 113107;
 
+	/// <summary>A rebuild for the projection was rejected because one is already in progress.</summary>
+	public const int ProjectionRebuildAlreadyInProgress = 113108;
+
 	// ========================================
 	// 113200-113299: Async Projection Processing Host
 	// ========================================
@@ -343,6 +346,9 @@ public static class EventSourcingEventId
 
 	/// <summary>Cloud event store loaded events.</summary>
 	public const int CloudStoreLoadedEvents = 114305;
+
+	/// <summary>Large append split into multiple sequential transactional batches.</summary>
+	public const int CloudStoreLargeAppendChunked = 114306;
 
 	// ========================================
 	// 114400-114499: Schema Migration

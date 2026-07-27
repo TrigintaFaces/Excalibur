@@ -11,7 +11,7 @@ namespace Excalibur.Data.MongoDB;
 /// <remarks>
 /// Both <see cref="MongoDbRepositoryBase{TDocument}"/> and
 /// <see cref="Projections.MongoDbProjectionStore{TProjection}"/> require an
-/// <see cref="IgnoreExtraElementsConvention"/> so that framework metadata fields
+/// <c>IgnoreExtraElementsConvention</c> so that framework metadata fields
 /// (e.g., <c>_projection</c>) are silently skipped during deserialization of consumer types.
 /// This class ensures the convention is registered exactly once per process.
 /// </remarks>

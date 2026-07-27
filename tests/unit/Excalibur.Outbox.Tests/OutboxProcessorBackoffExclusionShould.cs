@@ -42,6 +42,14 @@ public sealed class OutboxProcessorBackoffExclusionShould : UnitTestBase
 		var store = A.Fake<IOutboxStore>(f => f
 			.Implements<IDeadLetterableOutboxStore>()
 			.Implements<IBackoffSchedulableOutboxStore>());
+
+		// FIXTURE HONESTY (l0qpxo seam migration). OutboxProcessor now resolves backoff via
+		// _outboxStore.GetService(typeof(IBackoffSchedulableOutboxStore)), not an `is`-cast. A bare fake answers
+		// GetService with a dummy that is NOT the interface, so the branch never routes and this arm false-REDs
+		// against correct code. A real store returns itself for a capability it implements; the fake must too.
+		A.CallTo(() => store.GetService(A<Type>._))
+			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(store) ? store : null);
+
 		await using var processor = CreateProcessor(store);
 
 		// Two failures in one batch: one GENUINE (ApplyBackoff:true), one CB-open transient (ApplyBackoff:false).

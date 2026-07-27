@@ -81,7 +81,7 @@ services.AddElasticsearchIndexManagement(configuration);
 services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
     projections.Add<OrderSummary>();
-    projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+    projections.Add<CustomerProfile>(o => o.Index.IndexName = "customers");
 });
 ```
 
@@ -97,7 +97,7 @@ services.AddExcalibur(excalibur => excalibur
         .AddElasticSearchProjections("https://es.example.com:9200", projections =>
         {
             projections.Add<OrderSummary>();
-            projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+            projections.Add<CustomerProfile>(o => o.Index.IndexName = "customers");
         })));
 ```
 
@@ -109,7 +109,7 @@ services.AddExcalibur(excalibur => excalibur
         .AddElasticSearchProjectionStore<OrderSummary>(opts =>
         {
             opts.NodeUri = "https://es.example.com:9200";
-            opts.IndexPrefix = "orders";
+            opts.Index.IndexPrefix = "orders";
         })));
 ```
 
@@ -142,7 +142,7 @@ public class TextSearchConvention : IIndexMappingConvention
 services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
     projections.Add<ProductSearch>(o =>
-        o.IndexMappingConvention = new TextSearchConvention());
+        o.Index.IndexMappingConvention = new TextSearchConvention());
 });
 ```
 

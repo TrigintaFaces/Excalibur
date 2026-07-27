@@ -1,3 +1,7 @@
+---
+description: NIST 800-53 Rev 5 technical controls the Excalibur framework provides to support FedRAMP authorization.
+---
+
 # FedRAMP Compliance Documentation
 
 > **Disclaimer:** Excalibur is a software framework that provides **technical controls** to assist with FedRAMP compliance. Using this framework does **not** make your application FedRAMP authorized. FedRAMP authorization requires a complete System Security Plan (SSP), third-party assessment (3PAO), and PMO review specific to your deployment. The control statuses below indicate that the framework provides the **technical capability** — your organization must still implement organizational policies, processes, and infrastructure controls to achieve authorization.

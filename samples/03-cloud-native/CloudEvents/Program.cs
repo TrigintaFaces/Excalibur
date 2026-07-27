@@ -19,7 +19,6 @@ using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Options.CloudEvents;
 
 using Excalibur.Dispatch.Samples.CloudEvents;
 
@@ -37,17 +36,18 @@ Console.WriteLine();
 var services = new ServiceCollection();
 services.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
 
-// Configure CloudEvent options
-services.Configure<CloudEventOptions>(options =>
-{
-	options.Mode = CloudEventMode.Structured;
-	options.DefaultSource = new Uri("urn:sample:cloud-events-demo");
-});
-
 // Register Dispatch with CloudEvents in the pipeline
 services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+	// AddCloudEvents() wires the core CloudEvents spine (the envelope⇄CloudEvent bridge, the converter,
+	// and validated CloudEventOptions). This works without any transport package — the core-only case.
+	_ = dispatch.AddCloudEvents(options =>
+	{
+		options.Mode = CloudEventMode.Structured;
+		options.DefaultSource = new Uri("urn:sample:cloud-events-demo");
+	});
 
 	// UseCloudEvents() adds the CloudEventMiddleware to the pipeline.
 	// It enriches outgoing messages with CloudEvents metadata (source, type, subject).

@@ -77,7 +77,7 @@ public sealed class CdcChangeDetectorStaleLsnShould : UnitTestBase
 		A.CallTo(() => stateStore.GetLastProcessedPositionAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IEnumerable<CdcProcessingState>>([]));
 		A.CallTo(() => stateStore.UpdateLastProcessedPositionAsync(
-				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<long?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(1));
 
 		// Create checkpoint manager and set up stale tracking position
@@ -152,7 +152,7 @@ public sealed class CdcChangeDetectorStaleLsnShould : UnitTestBase
 		A.CallTo(() => stateStore.GetLastProcessedPositionAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IEnumerable<CdcProcessingState>>([]));
 		A.CallTo(() => stateStore.UpdateLastProcessedPositionAsync(
-				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<long?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(1));
 
 		var checkpointManager = new CdcCheckpointManager(
@@ -243,7 +243,7 @@ public sealed class CdcChangeDetectorStaleLsnShould : UnitTestBase
 		A.CallTo(() => stateStore.GetLastProcessedPositionAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IEnumerable<CdcProcessingState>>([]));
 		A.CallTo(() => stateStore.UpdateLastProcessedPositionAsync(
-				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]?>._, A<DateTime?>._, A<long?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(1));
 
 		var checkpointManager = new CdcCheckpointManager(

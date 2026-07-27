@@ -230,7 +230,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <typeparam name="TCommand">The type of command to send.</typeparam>
 	/// <param name="command">The command message to send.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that completes once the message has been buffered for save-then-dispatch (lc178k); the message is dispatched by the coordinator after the saga state is persisted.</returns>
+	/// <returns>A task that completes once the message has been buffered for save-then-dispatch; the message is dispatched by the coordinator after the saga state is persisted.</returns>
 	/// <remarks>
 	/// <para>
 	/// This convenience method automatically attaches saga correlation metadata to the message context:
@@ -264,7 +264,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// <typeparam name="TEvent">The type of event to publish.</typeparam>
 	/// <param name="event">The event message to publish.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that completes once the message has been buffered for save-then-dispatch (lc178k); the message is dispatched by the coordinator after the saga state is persisted.</returns>
+	/// <returns>A task that completes once the message has been buffered for save-then-dispatch; the message is dispatched by the coordinator after the saga state is persisted.</returns>
 	/// <remarks>
 	/// <para>
 	/// This convenience method automatically attaches saga correlation metadata to the message context:

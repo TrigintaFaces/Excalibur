@@ -97,7 +97,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	public ISqlServerCdcBuilder DatabaseName(string name)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		_options.DatabaseName = name;
+		_options.Connection.DatabaseName = name;
 		return this;
 	}
 
@@ -105,7 +105,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	public ISqlServerCdcBuilder DatabaseConnectionIdentifier(string identifier)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
-		_options.DatabaseConnectionIdentifier = identifier;
+		_options.Connection.DatabaseConnectionIdentifier = identifier;
 		return this;
 	}
 
@@ -113,7 +113,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	public ISqlServerCdcBuilder StateConnectionIdentifier(string identifier)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
-		_options.StateConnectionIdentifier = identifier;
+		_options.Connection.StateConnectionIdentifier = identifier;
 		return this;
 	}
 
@@ -174,7 +174,7 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-		_options.ConnectionString = connectionString;
+		_options.Connection.ConnectionString = connectionString;
 		return this;
 	}
 

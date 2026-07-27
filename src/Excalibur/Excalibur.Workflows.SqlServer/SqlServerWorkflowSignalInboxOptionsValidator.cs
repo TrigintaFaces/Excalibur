@@ -1,0 +1,56 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+using Excalibur.Data.Validation;
+
+using Microsoft.Extensions.Options;
+
+namespace Excalibur.Workflows.SqlServer;
+
+/// <summary>
+/// Startup validator for <see cref="SqlServerWorkflowSignalInboxOptions"/>. AOT-safe (no data-annotation
+/// reflection): the connection string must be present and the schema/table identifiers must be safe to
+/// interpolate into DDL/DML.
+/// </summary>
+internal sealed class SqlServerWorkflowSignalInboxOptionsValidator : IValidateOptions<SqlServerWorkflowSignalInboxOptions>
+{
+    public ValidateOptionsResult Validate(string? name, SqlServerWorkflowSignalInboxOptions options)
+    {
+        if (options is null)
+        {
+            return ValidateOptionsResult.Fail("SQL Server workflow signal-inbox options cannot be null.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return ValidateOptionsResult.Fail("ConnectionString is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.SchemaName))
+        {
+            return ValidateOptionsResult.Fail("SchemaName is required.");
+        }
+
+        if (!SqlIdentifierValidator.IsValid(options.SchemaName))
+        {
+            return ValidateOptionsResult.Fail("SchemaName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.TableName))
+        {
+            return ValidateOptionsResult.Fail("TableName is required.");
+        }
+
+        if (!SqlIdentifierValidator.IsValid(options.TableName))
+        {
+            return ValidateOptionsResult.Fail("TableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
+        }
+
+        if (options.CommandTimeoutSeconds < 1)
+        {
+            return ValidateOptionsResult.Fail("CommandTimeoutSeconds must be at least 1.");
+        }
+
+        return ValidateOptionsResult.Success;
+    }
+}

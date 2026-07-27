@@ -8,6 +8,7 @@ using System.Text.Json;
 using Excalibur.Data.Firestore.Diagnostics;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
@@ -35,6 +36,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 
 	private readonly FirestoreSnapshotStoreOptions _options;
 	private readonly ILogger<FirestoreSnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
 	private bool _initialized;
@@ -45,12 +47,18 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 	/// </summary>
 	/// <param name="options">The Firestore snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot document id.
+	/// </param>
 	public FirestoreSnapshotStore(
 		IOptions<FirestoreSnapshotStoreOptions> options,
-		ILogger<FirestoreSnapshotStore> logger)
+		ILogger<FirestoreSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
@@ -63,14 +71,20 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 	/// <param name="db">An existing Firestore database instance.</param>
 	/// <param name="options">The Firestore snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot document id.
+	/// </param>
 	public FirestoreSnapshotStore(
 		FirestoreDb db,
 		IOptions<FirestoreSnapshotStoreOptions> options,
-		ILogger<FirestoreSnapshotStore> logger)
+		ILogger<FirestoreSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(db);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		_tenantContext = tenantContext;
 
 		_db = db;
 		_options = options.Value;
@@ -306,13 +320,36 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 	}
 
 	/// <summary>
-	/// Creates a document ID from aggregate type and ID.
+	/// Builds the document id from aggregate type and id, including the tenant when the host is multi-tenant.
 	/// </summary>
 	/// <param name="aggregateType">The aggregate type.</param>
 	/// <param name="aggregateId">The aggregate ID.</param>
 	/// <returns>A composite document ID.</returns>
-	private static string CreateDocumentId(string aggregateType, string aggregateId)
-		=> $"{aggregateType}_{aggregateId}";
+	/// <remarks>
+	/// Uses "_" as the separator to match the convention this provider's grant store already follows,
+	/// rather than importing the ":" shape used by the other document providers. A Firestore document id
+	/// may not contain "/", so the separator choice is constrained. Single-tenant ids keep their existing
+	/// shape, so documents already stored are not orphaned.
+	/// </remarks>
+	private string CreateDocumentId(string aggregateType, string aggregateId)
+	{
+		var tenantId = TenantScope.FromContext(_tenantContext).TenantId;
+		return string.IsNullOrEmpty(tenantId)
+			? $"{Escape(aggregateType)}_{Escape(aggregateId)}"
+			: $"t_{Escape(tenantId)}_{Escape(aggregateType)}_{Escape(aggregateId)}";
+	}
+
+	// A Firestore document id may not contain '/' -- it is the path separator, so an aggregate id such as
+	// "order-123/customer-456" is read as a nested collection path rather than as an id, and the snapshot is
+	// written somewhere the matching read never looks. An aggregate id is caller data and may legally contain
+	// any character, so it is escaped rather than rejected: every other provider accepts it.
+	//
+	// '%' is escaped FIRST and is what makes this reversible. Escaping only '/' would map the distinct ids
+	// "a/b" and "a%2Fb" onto the same document -- a collision introduced by the escaping itself, and across
+	// tenants if it landed in the tenant segment.
+	private static string Escape(string value) =>
+		value.Replace("%", "%25", StringComparison.Ordinal)
+			.Replace("/", "%2F", StringComparison.Ordinal);
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	private static Dictionary<string, object> ToFirestoreDocument(ISnapshot snapshot)

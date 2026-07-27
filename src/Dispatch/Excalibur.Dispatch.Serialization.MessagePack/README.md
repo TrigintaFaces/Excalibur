@@ -48,7 +48,7 @@ services.AddMessagePackSerializer(
 
 This package follows the Dispatch serialization policy (R0.14):
 
-- **Core** (`Excalibur.Dispatch`) - System.Text.Json (default, ADR-295)
+- **Core** (`Excalibur.Dispatch`) - System.Text.Json (default)
 - **Public Edges** (`Excalibur.Dispatch.Hosting.Web`, etc.) - System.Text.Json with source-gen
 - **Opt-In Alternatives** (`Excalibur.Dispatch.Serialization.*`) - Pay-for-play binary serializers
 

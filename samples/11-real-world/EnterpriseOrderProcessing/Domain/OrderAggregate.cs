@@ -102,29 +102,31 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 		RaiseEvent(new OrderCancelled(Id, reason));
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case OrderCreated e:
 				Apply(e);
-				break;
+				return true;
 
 			case OrderLineAdded e:
 				Apply(e);
-				break;
+				return true;
 
 			case OrderSubmitted:
 				ApplySubmitted();
-				break;
+				return true;
 
 			case OrderShipped e:
 				Apply(e);
-				break;
+				return true;
 
 			case OrderCancelled e:
 				Apply(e);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

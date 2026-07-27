@@ -282,7 +282,7 @@ public sealed class MaterializedViewProcessorShould
     }
 
     [Fact]
-    public async Task ProcessEventsAsync_SavePositionOnceAfterBatch()
+    public async Task ProcessEventsAsync_AtomicallySavesViewAndPositionPerEvent()
     {
         // Arrange
         var builder = new OrderSummaryViewBuilder();
@@ -297,12 +297,14 @@ public sealed class MaterializedViewProcessorShould
         // Act
         await processor.ProcessEventsAsync(events, CancellationToken.None);
 
-        // Assert — position saved should be the LAST event position (batch behavior)
+        // Assert — final position is the last event's position...
         var position = await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None);
         position.ShouldBe(30);
 
-        // Verify it was saved once (deferred), not per-event
-        _viewStore.SavePositionCallCount.ShouldBe(1);
+        // ...and every event's view+position was persisted through the ATOMIC seam (one call per event),
+        // with no separate SavePositionAsync write — the crash-safe exactly-once contract (iqx3x3).
+        _viewStore.SaveViewAndPositionCallCount.ShouldBe(3);
+        _viewStore.SavePositionCallCount.ShouldBe(0);
     }
 
     [Fact]
@@ -639,6 +641,56 @@ public sealed class MaterializedViewProcessorShould
 
     #endregion Routing Map Construction
 
+    #region View Delivery Semantics Contract (iqx3x3)
+
+    // iqx3x3 semantics lock (SA ruling): the delivery guarantee is an intrinsic property of the fold, declared
+    // by the projection author. These two arms pin the contract that the ViewDeliverySemantics doc states —
+    // WHY an accumulating projection must declare ExactlyOnce and an idempotent one may declare
+    // AtLeastOnceIdempotent. Redelivery of the same event is modelled by re-processing it at the same position.
+
+    [Fact]
+    public async Task AdditiveFold_DoubleCountsOnRedelivery_WhyAccumulatingViewsRequireExactlyOnce()
+    {
+        // An accumulating (additive) fold is NON-IDEMPOTENT: re-applying the same event changes the view, so a
+        // redelivered event double-counts. That is exactly why an additive projection MUST run under ExactlyOnce
+        // (whose atomic view+checkpoint write is gated so each event reaches the fold once) and MUST NOT declare
+        // AtLeastOnceIdempotent — under which the at-least-once replay a non-atomic store permits after a crash
+        // WOULD surface this double-count. It is the documented contract, not a framework defect.
+        var builder = new OrderStatsViewBuilder(); // additive: TotalOrders++, TotalRevenue += amount
+        var processor = CreateProcessor(CreateRegistrations(builder));
+
+        var redelivered = new OrderCreatedEvent("order-1", "Widget", 100m);
+        await processor.ProcessEventAsync(redelivered, 1, CancellationToken.None);
+        await processor.ProcessEventAsync(redelivered, 1, CancellationToken.None); // same event, same position
+
+        var view = _viewStore.GetView<OrderStatsView>("OrderStats", "global");
+        view.ShouldNotBeNull();
+        view.TotalOrders.ShouldBe(2, "an additive fold is non-idempotent — redelivery double-counts (why it needs ExactlyOnce)");
+        view.TotalRevenue.ShouldBe(200m);
+    }
+
+    [Fact]
+    public async Task IdempotentFold_IsStableOnRedelivery_WhySetProjectionsTolerateAtLeastOnce()
+    {
+        // An idempotent (set / last-writer-wins) fold yields the SAME view when the same event is re-applied, so
+        // it tolerates the at-least-once replay a non-atomic store permits after a crash and may safely declare
+        // AtLeastOnceIdempotent — enabling stores (Elasticsearch/OpenSearch) that cannot write view+checkpoint
+        // atomically. This is the liveness counterpart: the permitted mode still produces the correct view.
+        var builder = new OrderSummaryViewBuilder(); // idempotent: OrderId/ProductName/TotalAmount = set
+        var processor = CreateProcessor(CreateRegistrations(builder));
+
+        var redelivered = new OrderCreatedEvent("order-1", "Widget", 100m);
+        await processor.ProcessEventAsync(redelivered, 1, CancellationToken.None);
+        await processor.ProcessEventAsync(redelivered, 1, CancellationToken.None); // same event, same position
+
+        var view = _viewStore.GetView<OrderSummaryView>("OrderSummary", "order-1");
+        view.ShouldNotBeNull();
+        view.ProductName.ShouldBe("Widget", "an idempotent fold does not drift on redelivery (why it tolerates at-least-once)");
+        view.TotalAmount.ShouldBe(100m);
+    }
+
+    #endregion View Delivery Semantics Contract (iqx3x3)
+
     #region Helpers
 
     private MaterializedViewProcessor CreateProcessor(
@@ -667,7 +719,9 @@ public sealed class MaterializedViewProcessorShould
             new MaterializedViewBuilderRegistration(
                 typeof(TView),
                 builder.GetType(),
-                builder)
+                builder,
+                new ViewStoreAccessor<TView>(),
+                builder.DeliverySemantics)
         ];
     }
 
@@ -772,7 +826,6 @@ public sealed class MaterializedViewProcessorShould
         decimal Amount) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
-        string IDomainEvent.AggregateId => AggregateId;
         public long Version { get; init; } = 1;
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
         public string EventType => nameof(OrderCreatedEvent);
@@ -785,7 +838,6 @@ public sealed class MaterializedViewProcessorShould
     private sealed record OrderNullViewIdEvent(string AggregateId) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
-        string IDomainEvent.AggregateId => AggregateId;
         public long Version { get; init; } = 1;
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
         public string EventType => nameof(OrderNullViewIdEvent);
@@ -798,7 +850,6 @@ public sealed class MaterializedViewProcessorShould
     private sealed record UnknownEvent(string AggregateId) : IDomainEvent
     {
         public string EventId { get; init; } = Guid.NewGuid().ToString();
-        string IDomainEvent.AggregateId => AggregateId;
         public long Version { get; init; } = 1;
         public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
         public string EventType => nameof(UnknownEvent);
@@ -813,12 +864,16 @@ public sealed class MaterializedViewProcessorShould
     /// In-memory view store that supports the reflection-based generic calls
     /// used by <see cref="MaterializedViewProcessor"/>.
     /// </summary>
-    private sealed class InMemoryMaterializedViewStore : IMaterializedViewStore
+    private sealed class InMemoryMaterializedViewStore : IAtomicMaterializedViewStore
     {
+        public bool SupportsAtomicWrites => true;
+
         private readonly Dictionary<string, object> _views = new(StringComparer.Ordinal);
         private readonly Dictionary<string, long> _positions = new(StringComparer.Ordinal);
 
         public int SavePositionCallCount { get; private set; }
+
+        public int SaveViewAndPositionCallCount { get; private set; }
 
         public ValueTask<TView?> GetAsync<TView>(
             string viewName, string viewId, CancellationToken cancellationToken)
@@ -857,6 +912,24 @@ public sealed class MaterializedViewProcessorShould
         {
             _positions[viewName] = position;
             SavePositionCallCount++;
+            return ValueTask.CompletedTask;
+        }
+
+        // Faithful atomic override: the view write and the checkpoint advance are one operation, and the
+        // position advance is monotonic. Does NOT route through SavePositionAsync, so tests can assert
+        // atomicity by observing SaveViewAndPositionCallCount with SavePositionCallCount staying at zero.
+        public ValueTask SaveViewAndPositionAsync<TView>(
+            string viewName, string viewId, TView view, long position, CancellationToken cancellationToken)
+            where TView : class
+        {
+            var key = $"{viewName}:{viewId}";
+            _views[key] = view;
+            if (!_positions.TryGetValue(viewName, out var current) || position > current)
+            {
+                _positions[viewName] = position;
+            }
+
+            SaveViewAndPositionCallCount++;
             return ValueTask.CompletedTask;
         }
 
@@ -915,6 +988,12 @@ public sealed class MaterializedViewProcessorShould
                 .Take(maxCount)
                 .ToList();
             return new ValueTask<IReadOnlyList<StoredEvent>>(result);
+        }
+
+        public ValueTask<long> GetHeadPositionAsync(CancellationToken cancellationToken)
+        {
+            var head = _events.Count == 0 ? 0 : _events.Max(e => e.Version);
+            return new ValueTask<long>(head);
         }
     }
 

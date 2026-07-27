@@ -112,13 +112,6 @@ public sealed class GrantAddedShould
 		typed.Metadata!["source"].ShouldBe("test");
 	}
 
-	[Fact]
-	public void Default_AggregateId_To_Empty()
-	{
-		// Act
-		var grantAdded = new GrantAdded("user-abc", "name", "app", "tenant", "type", "qual", null, "admin", DateTimeOffset.UtcNow);
-
-		// Assert — GrantAdded does not override AggregateId, uses DomainEvent default
-		grantAdded.AggregateId.ShouldBe(string.Empty);
-	}
+	// Removed Default_AggregateId_To_Empty: stream identity moved to the persistence envelope
+	// (StoredEvent.AggregateId → HistoricEvent); IDomainEvent/DomainEvent no longer carry AggregateId.
 }

@@ -16,6 +16,7 @@ Port 1433                          Port 1434
 ┌───────────────────┐             ┌───────────────────────────┐
 │  LegacyCustomers  │             │  dbo.EventStoreEvents     │
 │  (CDC enabled)    │             │  dbo.EventStoreSnapshots  │
+│                   │             │  dbo.IdentityMap          │
 └─────────┬─────────┘             └─────────────┬─────────────┘
           │                                     │
           │ CdcJob (Quartz.NET)                 │ Domain Events
@@ -142,14 +143,80 @@ chmod +x setup-databases.sh
 ./setup-databases.sh
 ```
 
-### 4. Run the Sample
+This prepares **SQL Server #1** (port 1433): it creates `LegacyDb`, enables CDC, and creates the
+source tables.
+
+### 4. Create the Event Store Schema
+
+**`setup-databases.sh` does not create the event-store tables.** The framework does not
+auto-create them either, so this step is required — without it the application starts and then
+fails on its first write.
+
+Run **Section 2** of `scripts/setup-databases.sql` against **SQL Server #2 (port 1434)**:
+
+```bash
+docker exec -i excalibur-sqlserver-eventstore-job /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P "$SA_PASSWORD" -C -i /dev/stdin < setup-databases.sql
+```
+
+`setup-databases.sql` spans **two servers** — Section 1 targets the CDC source (port 1433) and
+Section 2 targets the event store (port 1434). Apply each section to its own server; the file is
+not runnable end-to-end against a single instance.
+
+Section 2 creates:
+
+| Table | Purpose |
+| --- | --- |
+| `dbo.EventStoreEvents` | Domain events per aggregate stream |
+| `dbo.EventStoreSnapshots` | Aggregate snapshots |
+| `dbo.IdentityMap` | External-to-internal ID resolution |
+| `Cdc.CdcProcessingState` | CDC processor position, so it can resume after a restart |
+
+To verify:
+
+```sql
+USE EventStore;
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA IN ('dbo', 'Cdc');
+```
+
+### 5. Run the Sample
 
 ```bash
 cd ..
 dotnet run
 ```
 
-### 5. Insert Test Data (Optional)
+## Wiring the Anti-Corruption Layer
+
+Three registrations are required for the ACL to run. **Omitting any of them does not
+produce a compile error**, so they are worth stating explicitly:
+
+```csharp
+// 1. The handler. DataChangeEventProcessor builds its handler map from
+//    GetServices<IDataChangeHandler>(), which returns an EMPTY enumerable -- not an
+//    error -- when nothing is registered. An unregistered handler is a silent no-op.
+//    Singleton is required: the processor freezes the resolved handlers for the
+//    process lifetime.
+builder.Services.AddSingleton<IDataChangeHandler, CdcChangeHandler>();
+
+// 2. The aggregate repository. There is no open-generic IEventSourcedRepository<,>
+//    registration, so every injected aggregate must be registered explicitly.
+es.AddRepository<CustomerAggregate, Guid>(id => new CustomerAggregate(id));
+
+// 3. The identity map, backed by SQL Server so external-to-internal ID resolution
+//    survives a restart. AddInMemoryIdentityMap() exists but is for testing and
+//    development -- it loses the mapping on restart, which defeats the CDC replay
+//    idempotency this layer provides.
+builder.Services.AddIdentityMap(identity =>
+    identity.UseSqlServer(sql => sql.ConnectionString(eventStoreConnectionString)));
+```
+
+`appsettings.json` sets `"StopOnMissingTableHandler": true` (also the framework default).
+Keep it on: it makes a tracked CDC table with no handler fail at startup instead of
+silently processing nothing. Setting it to `false` hides exactly the class of wiring
+mistake listed above.
+
+### 6. Insert Test Data (Optional)
 
 In a separate terminal:
 
@@ -183,7 +250,7 @@ cd scripts
           "DatabaseName": "LegacyDb",
           "DatabaseConnectionIdentifier": "LegacyDbCdc",
           "StateConnectionIdentifier": "LegacyDbState",
-          "StopOnMissingTableHandler": false,
+          "StopOnMissingTableHandler": true,
           "Tables": [
             { "TableName": "LegacyCustomers", "CaptureInstance": "dbo_LegacyCustomers" }
           ]

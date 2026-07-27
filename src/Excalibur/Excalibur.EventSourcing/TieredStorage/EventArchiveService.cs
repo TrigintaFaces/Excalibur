@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -37,9 +38,17 @@ internal sealed class EventArchiveService : BackgroundService
 	private readonly IOptionsMonitor<EventArchiveServiceOptions> _optionsMonitor;
 	private readonly ILogger<EventArchiveService> _logger;
 
+	/// <summary>
+	/// DI key under which tiered storage registers the RAW hot event store, separate from the keyed
+	/// "default" that is re-bound to the read-through <c>TieredEventStoreDecorator</c>. The archive
+	/// service MUST enumerate and trim only the hot tier — resolving the decorated "default" would read
+	/// through to cold during trim (re-reading already-archived events), so it binds the raw hot here.
+	/// </summary>
+	internal const string RawHotEventStoreKey = "tiered-hot";
+
 	internal EventArchiveService(
 		IEventStoreArchive archiveSource,
-		IEventStore hotStore,
+		[FromKeyedServices(RawHotEventStoreKey)] IEventStore hotStore,
 		IColdEventStore coldStore,
 		IOptionsMonitor<ArchivePolicy> policyMonitor,
 		IOptionsMonitor<EventArchiveServiceOptions> optionsMonitor,
@@ -166,17 +175,34 @@ internal sealed class EventArchiveService : BackgroundService
 			return;
 		}
 
-		// 2. Write to cold storage
-		await _coldStore.WriteAsync(candidate.AggregateId, events, cancellationToken)
+		// 2. Write to cold storage. The returned watermark is the highest version durably committed in cold
+		//    (a contiguous prefix), which bounds how far we may delete from hot — never trust the submitted
+		//    max, only the durable ack the cold store confirms.
+		// The tenant term is read ONCE from the candidate and flows into both the cold write and the hot
+		// delete below. There is no second source for it, so the two operations cannot address different
+		// tenants: whatever was archived under this tenant is the only thing this run can delete.
+		var tenant = candidate.Tenant;
+
+		var durableWatermark = await _coldStore.WriteAsync(tenant, candidate.AggregateId, events, cancellationToken)
 			.ConfigureAwait(false);
 
-		// 3. Delete from hot store (only after cold write succeeds)
+		// 3. Delete from hot store only up to the CONFIRMED durable watermark (and never past the archivable
+		//    ceiling). If cold durably took only a prefix (partial/deferred write), hot deletion is bounded to
+		//    that prefix, so deleted-from-hot is always a subset of durable-in-cold (no data loss).
+		var deleteUpToVersion = Math.Min(candidate.ArchivableUpToVersion, durableWatermark);
+		if (deleteUpToVersion < events[0].Version)
+		{
+			// Nothing was durably archived at or above the first candidate version — do not delete anything.
+			return;
+		}
+
 		var deleted = await _archiveSource.DeleteEventsUpToVersionAsync(
+			tenant,
 			candidate.AggregateId,
 			candidate.AggregateType,
-			candidate.ArchivableUpToVersion,
+			deleteUpToVersion,
 			cancellationToken).ConfigureAwait(false);
 
-		_logger.ArchivingAggregate(candidate.AggregateId, events.Count, events[0].Version, candidate.ArchivableUpToVersion);
+		_logger.ArchivingAggregate(candidate.AggregateId, events.Count, events[0].Version, deleteUpToVersion);
 	}
 }

@@ -24,18 +24,6 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 	private bool _initialized;
 
 	/// <summary>
-	/// Static constructor to enable Npgsql legacy timestamp behavior.
-	/// This ensures TIMESTAMPTZ columns are mapped to DateTimeOffset instead of DateTime.
-	/// Must be set before any Npgsql connection is opened.
-	/// </summary>
-	static PostgresEventStoreContainerFixture()
-	{
-		// Enable legacy timestamp behavior so TIMESTAMPTZ maps to DateTimeOffset
-		// This is required for Dapper to materialize StoredEvent records correctly
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-	}
-
-	/// <summary>
 	/// Gets the connection string for the Postgres container.
 	/// </summary>
 	public string ConnectionString => _container?.GetConnectionString()
@@ -85,11 +73,16 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 				aggregate_id VARCHAR(255) NOT NULL,
 				aggregate_type VARCHAR(255) NOT NULL,
 				event_type VARCHAR(255) NOT NULL,
-				event_data BYTEA NOT NULL,
+				-- Nullable: GDPR erasure tombstones an event by setting event_data to NULL while keeping
+				-- its position in the stream. Declaring it NOT NULL makes every erasure fail with
+				-- `23502: null value in column "event_data" violates not-null constraint`, which is what
+				-- this fixture did until the erasure path was first exercised against a real engine.
+				event_data BYTEA NULL,
 				metadata BYTEA,
 				version BIGINT NOT NULL,
 				timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				is_dispatched BOOLEAN NOT NULL DEFAULT FALSE,
+				tenant_id VARCHAR(255),
 				UNIQUE (aggregate_id, aggregate_type, version)
 			);
 

@@ -52,6 +52,10 @@ public sealed class DispatchJsonSerializer : IDisposable
 	{
 		_jsonContext = jsonContext ?? DispatchJsonContext.Default;
 
+		// Intentionally a distinct serializer family from the event-store canonical
+		// (EventSerializationDefaults): this is the message / outbox / saga wire contract. Both write
+		// and read route through this same DI singleton, so there is no write/read drift to converge.
+		// Do NOT repoint this at the event-store canonical options.
 		_options = new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -448,14 +452,14 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// </summary>
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code")]
 	[RequiresDynamicCode("JSON serialization with runtime type requires dynamic code generation")]
-	public Task<string> SerializeAsync(object value, Type type) => Task.FromResult(Serialize(value, type));
+	public ValueTask<string> SerializeAsync(object value, Type type) => ValueTask.FromResult(Serialize(value, type));
 
 	/// <summary>
 	/// Deserializes a JSON string to an object asynchronously.
 	/// </summary>
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	[RequiresDynamicCode("JSON deserialization with runtime type requires dynamic code generation")]
-	public Task<object?> DeserializeAsync(string json, Type type) => Task.FromResult(Deserialize(json, type));
+	public ValueTask<object?> DeserializeAsync(string json, Type type) => ValueTask.FromResult(Deserialize(json, type));
 
 	#endregion
 

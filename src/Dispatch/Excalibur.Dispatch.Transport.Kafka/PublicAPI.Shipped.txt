@@ -94,8 +94,6 @@ Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder.ClientId(string! client
 Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder.CompressionType(Excalibur.Dispatch.Transport.Kafka.KafkaCompressionType compressionType) -> Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder!
 Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder.EnableIdempotence(bool enable = true) -> Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder!
 Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder.WithConfig(string! key, string! value) -> Excalibur.Dispatch.Transport.Kafka.IKafkaProducerBuilder!
-Excalibur.Dispatch.Transport.Kafka.IKafkaStreamProcessor<TKey, TValue>
-Excalibur.Dispatch.Transport.Kafka.IKafkaStreamProcessor<TKey, TValue>.ProcessAsync(Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder
 Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder.BootstrapServers(string! servers) -> Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder!
 Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder.ConfigureCloudEvents(System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions!>! configure) -> Excalibur.Dispatch.Transport.Kafka.IKafkaTransportBuilder!
@@ -242,6 +240,8 @@ Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxBatchWaitMs.get
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxBatchWaitMs.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxConcurrentCommits.get -> int
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxConcurrentCommits.set -> void
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxPayloadBytes.get -> int?
+Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxPayloadBytes.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxPollIntervalMs.get -> int
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.MaxPollIntervalMs.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaConsumerTuningOptions.PartitionAssignmentStrategy.get -> Confluent.Kafka.PartitionAssignmentStrategy?
@@ -274,30 +274,6 @@ Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions.TopicReplicationFactor
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions.TopicSuffix.get -> string!
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions.TopicSuffix.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaEventId
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.AckLevel.get -> Excalibur.Dispatch.Transport.Kafka.KafkaAckLevel
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.AckLevel.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.AutoCreateTopics.get -> bool
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.AutoCreateTopics.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.BootstrapServers.get -> string?
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.BootstrapServers.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.CompressionType.get -> Excalibur.Dispatch.Transport.Kafka.KafkaCompressionType
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.CompressionType.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.ConsumerGroupId.get -> string?
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.ConsumerGroupId.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.DefaultTopic.get -> string?
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.DefaultTopic.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.EnableCloudEvents.get -> bool
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.EnableCloudEvents.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.EnableTransactions.get -> bool
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.EnableTransactions.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.KafkaMessageBusOptions() -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.PartitioningStrategy.get -> Excalibur.Dispatch.Transport.Kafka.KafkaPartitioningStrategy
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.PartitioningStrategy.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.ProducerClientId.get -> string?
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.ProducerClientId.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.TransactionalId.get -> string?
-Excalibur.Dispatch.Transport.Kafka.KafkaMessageBusOptions.TransactionalId.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaOffsetReset
 Excalibur.Dispatch.Transport.Kafka.KafkaOffsetReset.Earliest = 0 -> Excalibur.Dispatch.Transport.Kafka.KafkaOffsetReset
 Excalibur.Dispatch.Transport.Kafka.KafkaOffsetReset.Latest = 1 -> Excalibur.Dispatch.Transport.Kafka.KafkaOffsetReset
@@ -362,32 +338,12 @@ Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.UseExponentialBackoff.get -
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.UseExponentialBackoff.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.UseJitter.get -> bool
 Excalibur.Dispatch.Transport.Kafka.KafkaRetryOptions.UseJitter.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>.Build() -> Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>.From(string! topic) -> Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>.GetTransform() -> System.Func<Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>!, Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>!>?
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>.KafkaStreamBuilder() -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>.To(string! topic) -> Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>.Transform(System.Func<Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>!, Excalibur.Dispatch.Transport.Kafka.ConsumeResult<TKey, TValue>!>! transform) -> Excalibur.Dispatch.Transport.Kafka.KafkaStreamBuilder<TKey, TValue>!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.ApplicationId.get -> string!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.ApplicationId.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.InputTopic.get -> string!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.InputTopic.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.KafkaStreamOptions() -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.OutputTopic.get -> string!
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.OutputTopic.set -> void
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.ProcessingGuarantee.get -> Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
-Excalibur.Dispatch.Transport.Kafka.KafkaStreamOptions.ProcessingGuarantee.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions
 Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions.BootstrapServers.get -> string!
 Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions.BootstrapServers.set -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions.KafkaTransportOptions() -> void
 Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions.Name.get -> string?
 Excalibur.Dispatch.Transport.Kafka.KafkaTransportOptions.Name.set -> void
-Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
-Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee.AtLeastOnce = 0 -> Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
-Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee.ExactlyOnce = 1 -> Excalibur.Dispatch.Transport.Kafka.ProcessingGuarantee
 Excalibur.Dispatch.Transport.Kafka.SchemaDeprecatedAttribute
 Excalibur.Dispatch.Transport.Kafka.SchemaDeprecatedAttribute.Message.get -> string?
 Excalibur.Dispatch.Transport.Kafka.SchemaDeprecatedAttribute.SchemaDeprecatedAttribute() -> void
@@ -620,6 +576,7 @@ const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverMessageRe
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverMessageRejected = 22914 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverMessageRejectedRequeue = 22915 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverOffsetCacheOverflow = 22917 -> int
+const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverPayloadTooLarge = 22918 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportReceiverReceiveError = 22911 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSenderBatchSent = 22902 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSenderDisposed = 22904 -> int
@@ -632,6 +589,7 @@ const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberMessage
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberMessageReceived = 22921 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberMessageRejected = 22923 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberMessageRequeued = 22924 -> int
+const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberPayloadTooLarge = 22928 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberStarted = 22920 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.TransportSubscriberStopped = 22926 -> int
 const Excalibur.Dispatch.Transport.Kafka.KafkaEventId.ZeroCopyHeaderWritten = 22231 -> int
@@ -685,11 +643,11 @@ static Microsoft.Extensions.DependencyInjection.KafkaAdminServiceCollectionExten
 static Microsoft.Extensions.DependencyInjection.KafkaAdminServiceCollectionExtensions.AddKafkaAdmin(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaAdminServiceCollectionExtensions.AddKafkaAdmin<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaAdminServiceCollectionExtensions.AddKafkaAdmin<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.KafkaCloudEventsServiceCollectionExtensions.AddCloudEventsForKafka(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions!>? configureKafka = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaCloudEventsServiceCollectionExtensions.AddKafkaCloudEventValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool enableDoDCompliance = true) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.KafkaCloudEventsServiceCollectionExtensions.UseCloudEventsForKafka(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaCloudEventOptions!>? configureKafka = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.UseConfluentFormat(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryOptions!>! configureRegistry) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.UseConfluentFormat(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryOptions!>! configureRegistry, System.Action<Excalibur.Dispatch.Transport.Kafka.CachingSchemaRegistryOptions!>! configureCaching) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.AddConfluentFormat(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryOptions!>! configureRegistry) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.AddConfluentFormat(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.ConfluentSchemaRegistryOptions!>! configureRegistry, System.Action<Excalibur.Dispatch.Transport.Kafka.CachingSchemaRegistryOptions!>! configureCaching) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaConfluentFormatExtensions.UseSubjectNaming<TStrategy>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KafkaDeadLetterServiceCollectionExtensions.AddKafkaDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

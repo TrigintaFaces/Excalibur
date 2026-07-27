@@ -57,22 +57,17 @@ internal sealed class TransactionalStagingCapabilityValidator : IValidateOptions
 			return ValidateOptionsResult.Success;
 		}
 
-		var hasTransactionalWriter = _serviceProvider.GetService<ITransactionalOutboxWriter>() is not null;
-
-		// The non-keyed IEventStore alias forwards to the keyed "default" store; resolving it can throw if no
-		// event-store provider is registered yet (the EventSourcingPrerequisiteValidator surfaces that case).
-		// Treat an unresolvable store as "not transactional" — the missing-store error is reported separately.
-		IEventStore? eventStore = null;
-		try
-		{
-			eventStore = _serviceProvider.GetService<IEventStore>();
-		}
-		catch (InvalidOperationException)
-		{
-			// No event store registered; not this guard's concern.
-		}
-
-		var hasTransactionalEventStore = eventStore is ITransactionalEventStore;
+		// Probe REGISTRATION, never RESOLUTION. This validator is a singleton and holds the ROOT provider:
+		// resolving a scoped IEventStore (e.g. MongoDB) from it throws InvalidOperationException under scope
+		// validation, and a telemetry/decorator wrapper hides the capability from an instance check. So a
+		// resolve both false-fails the correctly-wired scoped case AND cannot distinguish "no store" from
+		// "scoped store under scope validation". IServiceProviderIsService answers "is this registered?"
+		// without constructing anything; a wire-time capability marker (registered only by providers whose
+		// store implements ITransactionalEventStore) attests the transactional-append capability. Same verdict
+		// with or without scope validation; AOT-safe, no reflection.
+		var isService = _serviceProvider.GetService<IServiceProviderIsService>();
+		var hasTransactionalWriter = isService?.IsService(typeof(ITransactionalOutboxWriter)) ?? false;
+		var hasTransactionalEventStore = isService?.IsService(typeof(TransactionalEventStoreMarker)) ?? false;
 
 		if (hasTransactionalWriter && hasTransactionalEventStore)
 		{

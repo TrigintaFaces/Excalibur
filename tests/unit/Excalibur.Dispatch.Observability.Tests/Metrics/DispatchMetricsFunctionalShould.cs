@@ -230,7 +230,9 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 
 	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName, int minimumCount = 1)
 	{
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await)
 		var observed = global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+		#pragma warning restore RS0030
 			() =>
 			{
 				_listener.RecordObservableInstruments();
@@ -240,7 +242,9 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 				}
 			},
 			TimeSpan.FromSeconds(10),
+			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			TimeSpan.FromMilliseconds(10)).GetAwaiter().GetResult();
+			#pragma warning restore RS0030
 
 		observed.ShouldBeTrue($"Expected at least {minimumCount} metric samples for '{instrumentName}'.");
 		lock (_recordingGate)

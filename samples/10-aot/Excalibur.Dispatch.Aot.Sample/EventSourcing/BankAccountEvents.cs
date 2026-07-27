@@ -5,7 +5,9 @@
 // S2: Event Sourcing Domain Events
 // ============================================================================
 // These domain events implement IDomainEvent for event store compatibility.
-// The aggregate sets EventId, AggregateId, Version, and OccurredAt via RaiseEvent().
+// Each event carries EventId, AggregateId, Version, and OccurredAt as its own properties; the
+// aggregate sets AggregateId when it raises the event. The authoritative stream position lives in
+// the persistence envelope, not on the event payload.
 // ============================================================================
 
 using Excalibur.Dispatch;
@@ -20,10 +22,16 @@ public sealed record AccountOpenedEvent : IDomainEvent
 	/// <inheritdoc />
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the aggregate identifier this event belongs to. A sample-local convenience on the
+	/// event; the authoritative stream identity lives in the persistence envelope.
+	/// </summary>
 	public string AggregateId { get; set; } = string.Empty;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the stream position for this event. A sample-local convenience; the authoritative
+	/// version lives in the persistence envelope.
+	/// </summary>
 	public long Version { get; set; }
 
 	/// <inheritdoc />
@@ -54,10 +62,16 @@ public sealed record FundsDepositedEvent : IDomainEvent
 	/// <inheritdoc />
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the aggregate identifier this event belongs to. A sample-local convenience on the
+	/// event; the authoritative stream identity lives in the persistence envelope.
+	/// </summary>
 	public string AggregateId { get; set; } = string.Empty;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the stream position for this event. A sample-local convenience; the authoritative
+	/// version lives in the persistence envelope.
+	/// </summary>
 	public long Version { get; set; }
 
 	/// <inheritdoc />
@@ -83,10 +97,16 @@ public sealed record FundsWithdrawnEvent : IDomainEvent
 	/// <inheritdoc />
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the aggregate identifier this event belongs to. A sample-local convenience on the
+	/// event; the authoritative stream identity lives in the persistence envelope.
+	/// </summary>
 	public string AggregateId { get; set; } = string.Empty;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the stream position for this event. A sample-local convenience; the authoritative
+	/// version lives in the persistence envelope.
+	/// </summary>
 	public long Version { get; set; }
 
 	/// <inheritdoc />

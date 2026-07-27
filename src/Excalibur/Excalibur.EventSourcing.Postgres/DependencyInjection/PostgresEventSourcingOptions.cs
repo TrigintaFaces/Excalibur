@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.Postgres.DependencyInjection;
 /// <list type="bullet">
 /// <item><see cref="PostgresEventStore"/></item>
 /// <item><see cref="PostgresSnapshotStore"/></item>
-/// <item><see cref="PostgresEventSourcedOutboxStore"/></item>
+/// <item><c>PostgresEventSourcedOutboxStore</c></item>
 /// </list>
 /// </para>
 /// <para>

@@ -5,6 +5,8 @@ using Excalibur.Dispatch;
 
 using Excalibur.Outbox.Redis;
 
+using FakeItEasy;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Shouldly;
@@ -176,6 +178,54 @@ public sealed class RedisOutboxStoreIntegrationShould : IntegrationTestBase
 		stats.FailedMessageCount.ShouldBe(1);
 		stats.CapturedAt.ShouldNotBe(default); // CapturedAt is a struct, use default comparison
 	}
+
+	/// <summary>
+	/// xnyhjd (REVIEW_CODE P1, cross-provider closure of bbazps/cys98n) — Redis <see cref="RedisOutboxStore"/>
+	/// <c>EnqueueAsync(IDispatchMessage, IMessageContext, …)</c> must derive the routing <c>Destination</c>
+	/// from the message context (not silently pass the type name), falling back to the message TYPE name when
+	/// the context carries none. The SQL/Postgres providers were fixed this sprint (bbazps, Postgres-only);
+	/// REVIEW_CODE caught Redis + Mongo still dropped it. Real-infra round-trip against a live Redis container.
+	/// </summary>
+	[Fact]
+	public async Task EnqueueAsync_DerivesDestinationFromContext_ElseFallsBackToTypeName()
+	{
+		await CleanupRedisAsync();
+		await using var store = CreateOutboxStore();
+		const string ConfiguredDestination = "orders.commands.v1";
+
+		// Case A: context carries a destination. Case B: none → fall back to the message type name.
+		await store.EnqueueAsync(new DestinationDerivationTestMessage(), CreateContext("ctx-derived", ConfiguredDestination), TestCancellationToken);
+		await store.EnqueueAsync(new DestinationDerivationTestMessage(), CreateContext("ctx-fallback", destination: null), TestCancellationToken);
+
+		var messages = (await store.GetUnsentMessagesAsync(10, TestCancellationToken)).ToList();
+		messages.ShouldContain(
+			m => m.Destination == ConfiguredDestination,
+			"xnyhjd: Redis EnqueueAsync must persist the destination derived from the context metadata.");
+		// pfgcj6: Redis/Mongo now fall back to the SIMPLE type name (message.GetType().Name), matching Postgres.
+		messages.ShouldContain(
+			m => m.Destination == nameof(DestinationDerivationTestMessage),
+			"xnyhjd/pfgcj6: with no context destination, Redis EnqueueAsync must fall back to the message TYPE name (simple, Postgres-parity), not drop it.");
+	}
+
+	private static IMessageContext CreateContext(string messageId, string? destination)
+	{
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		if (destination is not null)
+		{
+			items[MetadataPropertyKeys.Destination] = destination;
+		}
+
+		// A bare fake returns "" for unconfigured strings, tripping ExtractMetadata's non-empty guards;
+		// configure the direct-read properties: CorrelationId non-empty, CausationId null.
+		var context = A.Fake<IMessageContext>();
+		_ = A.CallTo(() => context.MessageId).Returns(messageId);
+		_ = A.CallTo(() => context.CorrelationId).Returns(messageId);
+		_ = A.CallTo(() => context.CausationId).Returns((string?)null);
+		_ = A.CallTo(() => context.Items).Returns(items);
+		return context;
+	}
+
+	private sealed record DestinationDerivationTestMessage : IDispatchMessage;
 
 	private static OutboundMessage CreateTestOutboundMessage()
 	{

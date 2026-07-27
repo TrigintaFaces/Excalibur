@@ -31,6 +31,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService,
 			contributors);
@@ -175,7 +176,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 		SetupNoLegalHolds();
 
 		var sut = CreateSut();
@@ -185,7 +186,9 @@ public sealed class ErasureServiceExecutionWorkflowShould
 
 		// Assert
 		result.Success.ShouldBeTrue();
-		result.KeysDeleted.ShouldBe(3);
+		// Crypto-shred: erasure now also destroys the per-subject key (status.DataSubjectIdHash) in
+		// addition to the 3 inventory keys -> 4 keys deleted.
+		result.KeysDeleted.ShouldBe(4);
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-a", A<int>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-b", A<int>._, A<CancellationToken>._))
@@ -217,7 +220,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-ok", A<int>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-fail", A<int>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("KMS timeout"));
 		SetupNoLegalHolds();
@@ -230,6 +233,58 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		// Assert - execution partially succeeds (Sprint 672 T.2: partial key deletion = not fully successful)
 		result.Success.ShouldBeFalse();
 		result.KeysDeleted.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task Not_attest_erasure_complete_when_key_deletion_is_only_scheduled_irreversible()
+	{
+		// nu7nrf STAY-FIXED lock (SAFETY). A key merely SCHEDULED for irreversible destruction is still
+		// recoverable until its disclosed IrreversibleAt instant, so it is NOT erased yet -- KeyDestructionState's
+		// own contract: "No erasure may be attested as complete before then." ErasureService (ErasureService.cs:590)
+		// registers an error for a ScheduledIrreversible outcome, so the request is NOT marked Completed and NO
+		// Verified=true / CryptographicErasure-complete certificate is stamped. The LIVENESS pair is the existing
+		// Handle_key_deletion_across_scopes test (a Completed outcome DOES count and DOES attest).
+		//
+		// RED against the pre-fix bool-returning DeleteKeyAsync (nu7nrf, FIXED-BY 6cd758d576) that could not
+		// distinguish "scheduled" from "irrecoverable now" and would have falsely attested the erasure complete.
+		var requestId = Guid.NewGuid();
+		var status = CreateStatus(requestId, ErasureRequestStatus.Scheduled);
+
+		var inventory = new DataInventory
+		{
+			DataSubjectId = "hash",
+			Locations = [],
+			AssociatedKeys =
+			[
+				new KeyReference { KeyId = "key-scheduled", KeyScope = EncryptionKeyScope.User },
+			],
+		};
+
+		SetupScheduledExecution(requestId, status);
+		A.CallTo(() => _dataInventoryService.DiscoverAsync(
+				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(inventory));
+
+		// Every key (the inventory key AND the crypto-shred per-subject key) resolves to ScheduledIrreversible:
+		// nothing is irrecoverable-now, so nothing may be attested erased.
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(
+				new KeyDestructionOutcome(KeyDestructionState.ScheduledIrreversible, DateTimeOffset.UtcNow.AddDays(30))));
+		SetupNoLegalHolds();
+
+		var sut = CreateSut();
+
+		// Act
+		var result = await sut.ExecuteAsync(requestId, CancellationToken.None);
+
+		// SAFETY: not attested complete, and a scheduled-but-recoverable key is NOT counted as deleted.
+		result.Success.ShouldBeFalse(
+			"a key only SCHEDULED for irreversible destruction is still recoverable, so the erasure MUST NOT be " +
+			"attested complete -- a scheduled deletion that reports success is the false-attestation nu7nrf fixes.");
+		result.KeysDeleted.ShouldBe(
+			0,
+			"a scheduled-but-not-yet-irreversible key must not count toward KeysDeleted -- only a Completed " +
+			"(irrecoverable-now) outcome may.");
 	}
 
 	[Fact]

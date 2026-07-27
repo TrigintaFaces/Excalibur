@@ -367,7 +367,7 @@ public static class AwsSqsEventId
 	/// <summary>Channel processing failed.</summary>
 	public const int ChannelProcessingFailed = 25440;
 
-	// Channel receiver logging (AwsSqsChannelReceiverLogging)
+	// Channel receiver logging
 	/// <summary>Batch produced from SQS.</summary>
 	public const int ChannelBatchProduced = 25410;
 
@@ -774,6 +774,12 @@ public static class AwsSqsEventId
 
 	/// <summary>Transport subscriber: visibility timeout extension failed.</summary>
 	public const int TransportSubscriberVisibilityExtendFailed = 26133;
+
+	/// <summary>Transport receiver: rejected an oversized inbound payload before materialization.</summary>
+	public const int TransportReceiverPayloadTooLarge = 26134;
+
+	/// <summary>Transport subscriber: rejected an oversized inbound payload before materialization.</summary>
+	public const int TransportSubscriberPayloadTooLarge = 26135;
 
 	// ========================================
 	// 26140-26159: Provisioning

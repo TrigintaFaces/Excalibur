@@ -40,6 +40,13 @@ internal sealed partial class CedarAuthorizationEvaluator : IAuthorizationEvalua
 		_httpClient = httpClient;
 		_options = options.Value;
 		_logger = logger;
+
+		if (!_options.FailClosed)
+		{
+			// Fail-open is the single most dangerous authorization posture: an outage PERMITS everything.
+			// Make choosing it loud so it can never be adopted silently.
+			LogCedarFailOpenConfigured();
+		}
 	}
 
 	/// <inheritdoc />
@@ -69,7 +76,7 @@ internal sealed partial class CedarAuthorizationEvaluator : IAuthorizationEvalua
 			if (!response.IsSuccessStatusCode)
 			{
 				LogCedarHttpError((int)response.StatusCode);
-				return FailureDecision($"Cedar returned HTTP {(int)response.StatusCode}.");
+				return FailureDecision($"Cedar returned HTTP {(int)response.StatusCode}.", subject, action, resource);
 			}
 
 			var responseBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken)
@@ -85,19 +92,30 @@ internal sealed partial class CedarAuthorizationEvaluator : IAuthorizationEvalua
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{
 			LogCedarTimeout(_options.TimeoutMs);
-			return FailureDecision($"Cedar request timed out after {_options.TimeoutMs}ms.");
+			return FailureDecision($"Cedar request timed out after {_options.TimeoutMs}ms.", subject, action, resource);
 		}
 		catch (HttpRequestException ex)
 		{
 			LogCedarConnectionFailure(ex.Message);
-			return FailureDecision($"Cedar connection failed: {ex.Message}");
+			return FailureDecision($"Cedar connection failed: {ex.Message}", subject, action, resource);
 		}
 	}
 
-	private AuthorizationDecision FailureDecision(string reason)
+	private AuthorizationDecision FailureDecision(
+		string reason,
+		AuthorizationSubject subject,
+		AuthorizationAction action,
+		AuthorizationResource resource)
 	{
-		var effect = _options.FailClosed ? AuthorizationEffect.Deny : AuthorizationEffect.Permit;
-		return new AuthorizationDecision(effect, reason);
+		if (_options.FailClosed)
+		{
+			return new AuthorizationDecision(AuthorizationEffect.Deny, reason);
+		}
+
+		// Fail-open PERMIT on an engine outage — audit-grade: name the actual effect and the principal, not
+		// an ambiguous either/or, so a security review can see exactly what was allowed and why.
+		LogCedarFailOpenPermit(subject.ActorId, action.Name, resource.Type, reason);
+		return new AuthorizationDecision(AuthorizationEffect.Permit, reason);
 	}
 
 	[LoggerMessage(3200, LogLevel.Warning,
@@ -115,4 +133,12 @@ internal sealed partial class CedarAuthorizationEvaluator : IAuthorizationEvalua
 	[LoggerMessage(3203, LogLevel.Warning,
 		"Cedar connection failed: {ErrorMessage}. Applying fail-closed/fail-open policy.")]
 	private partial void LogCedarConnectionFailure(string errorMessage);
+
+	[LoggerMessage(3204, LogLevel.Warning,
+		"Cedar authorization is configured FAIL-OPEN (FailClosed=false): a policy-engine outage or error will PERMIT requests instead of denying them. This is insecure; set FailClosed=true unless this risk has been explicitly accepted.")]
+	private partial void LogCedarFailOpenConfigured();
+
+	[LoggerMessage(3205, LogLevel.Warning,
+		"Cedar FAIL-OPEN: PERMITTING actor={ActorId} action={ActionName} resourceType={ResourceType} because the policy engine was unreachable (FailClosed=false). Reason: {Reason}")]
+	private partial void LogCedarFailOpenPermit(string actorId, string actionName, string resourceType, string reason);
 }

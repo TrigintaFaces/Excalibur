@@ -25,19 +25,19 @@ namespace Excalibur.A3.Authorization;
 /// <param name="userGrants"> A collection of grants for authorization purposes. </param>
 /// <param name="currentUser"> The current authenticated user token. </param>
 /// <param name="cache"> Distributed cache used for caching authorization data. </param>
-/// <param name="tenantId"> The tenant identifier for the current context. </param>
+/// <param name="tenantContext"> The ambient tenant context for the current execution flow. </param>
 internal sealed class AuthorizationPolicyProvider(
 	ActivityGroups activityGroups,
 	UserGrants userGrants,
 	IAuthenticationToken currentUser,
 	IDistributedCache cache,
-	ITenantId tenantId
+	ITenantContext tenantContext
 ) : IAuthorizationPolicyProvider
 {
 	/// <inheritdoc />
 	/// <exception cref="InvalidOperationException">
 	/// Thrown when <see cref="IAuthenticationToken.UserId"/> is null or
-	/// <see cref="ITenantId.Value"/> is null or empty.
+	/// <see cref="ITenantContext.TenantId"/> is null or empty.
 	/// </exception>
 	public async Task<IAuthorizationPolicy> GetPolicyAsync()
 	{
@@ -46,11 +46,11 @@ internal sealed class AuthorizationPolicyProvider(
 			throw new InvalidOperationException("User ID is required for authorization policy.");
 		}
 
-		if (string.IsNullOrEmpty(tenantId.Value))
+		if (string.IsNullOrEmpty(tenantContext.TenantId))
 		{
 			throw new InvalidOperationException(
 				"Tenant ID is required for authorization policy. " +
-				"Register ITenantId via TryAddTenantId() or ensure TenantIdentityMiddleware is configured.");
+				"Establish the ambient tenant (TenantContextHolder.BeginScope / tenant middleware) before evaluating authorization.");
 		}
 
 		// NOTE: IPolicyProvider<T>.GetPolicyAsync() does not accept CancellationToken.
@@ -62,7 +62,7 @@ internal sealed class AuthorizationPolicyProvider(
 		return new AuthorizationPolicy(
 			authData.Grants,
 			authData.ActivityGroups,
-			tenantId,
+			tenantContext,
 			currentUser.UserId);
 	}
 

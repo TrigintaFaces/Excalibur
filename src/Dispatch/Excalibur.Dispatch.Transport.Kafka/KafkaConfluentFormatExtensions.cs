@@ -45,13 +45,13 @@ public static class KafkaConfluentFormatExtensions
 	/// });
 	///
 	/// // Or with explicit Confluent format registration:
-	/// services.UseConfluentFormat(registry =>
+	/// services.AddConfluentFormat(registry =>
 	/// {
 	///     registry.Url = "http://localhost:8081";
 	/// });
 	/// </code>
 	/// </example>
-	public static IServiceCollection UseConfluentFormat(
+	public static IServiceCollection AddConfluentFormat(
 		this IServiceCollection services,
 		Action<ConfluentSchemaRegistryOptions> configureRegistry)
 	{
@@ -98,12 +98,12 @@ public static class KafkaConfluentFormatExtensions
 	///     kafka.BootstrapServers("localhost:9092");
 	/// });
 	///
-	/// services.UseConfluentFormat(
+	/// services.AddConfluentFormat(
 	///     registry => { registry.Url = "http://localhost:8081"; },
 	///     caching => { caching.CacheDuration = TimeSpan.FromMinutes(10); });
 	/// </code>
 	/// </example>
-	public static IServiceCollection UseConfluentFormat(
+	public static IServiceCollection AddConfluentFormat(
 		this IServiceCollection services,
 		Action<ConfluentSchemaRegistryOptions> configureRegistry,
 		Action<CachingSchemaRegistryOptions> configureCaching)
@@ -154,7 +154,7 @@ public static class KafkaConfluentFormatExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.UseConfluentFormat(registry => { ... })
+	/// services.AddConfluentFormat(registry => { ... })
 	///         .UseSubjectNaming&lt;RecordNameStrategy&gt;();
 	/// </code>
 	/// </example>

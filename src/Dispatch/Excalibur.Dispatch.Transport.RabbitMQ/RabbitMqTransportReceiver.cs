@@ -32,6 +32,7 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 
 	private readonly string _queueName;
 	private readonly ILogger _logger;
+	private readonly int? _maxPayloadBytes;
 	private readonly ConcurrentDictionary<string, ulong> _deliveryTagCache = new(StringComparer.Ordinal);
 
 	/// <summary>
@@ -50,16 +51,22 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	/// <param name="source">The source identifier (queue name).</param>
 	/// <param name="queueName">The queue name to consume from.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length in bytes enforced before body materialization, or
+	/// <see langword="null"/> to opt out (unbounded). Defaults to 4 MiB.
+	/// </param>
 	public RabbitMqTransportReceiver(
 		IChannel channel,
 		string source,
 		string queueName,
-		ILogger<RabbitMqTransportReceiver> logger)
+		ILogger<RabbitMqTransportReceiver> logger,
+		int? maxPayloadBytes = PayloadSizeGuard.DefaultMaxPayloadBytes)
 	{
 		_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_queueName = queueName ?? throw new ArgumentNullException(nameof(queueName));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = maxPayloadBytes;
 		_maxBatchSize = DefaultMaxBatchSize;
 	}
 
@@ -96,7 +103,24 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 					continue;
 				}
 
-				var received = ConvertToReceivedMessage(result);
+				TransportReceivedMessage received;
+				try
+				{
+					received = ConvertToReceivedMessage(result);
+				}
+				catch (PayloadTooLargeException ex)
+				{
+					// Poison-message guard: an oversized payload can never be processed and, left unsettled,
+					// the broker would redeliver it forever — a poison loop that stalls the queue. Nack the
+					// single offending message WITHOUT requeue (→ dead-letter exchange if configured) and
+					// continue the batch, rather than letting the throw abort the batch and orphan the message.
+					LogPayloadTooLargeRejected(Source, result.Body.Length, ex);
+					using var nackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+					await _channel.BasicNackAsync(result.DeliveryTag, multiple: false, requeue: false, nackCts.Token)
+						.ConfigureAwait(false);
+					continue;
+				}
+
 				messages.Add(received);
 				LogMessageReceived(received.Id, Source);
 			}
@@ -215,6 +239,11 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 
 	private TransportReceivedMessage ConvertToReceivedMessage(BasicGetResult result)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (result.Body.ToArray() below). Fail-closed — throws PayloadTooLargeException, which the receive
+		// loop catches to nack the poison message (no requeue); it never truncates or silently drops.
+		PayloadSizeGuard.EnsureWithinLimit(result.Body.Length, _maxPayloadBytes);
+
 		var receiptHandle = $"rabbitmq:{result.DeliveryTag}";
 		_deliveryTagCache[receiptHandle] = result.DeliveryTag;
 
@@ -308,4 +337,8 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	[LoggerMessage(RabbitMqEventId.TransportReceiverDeliveryTagCacheOverflow, LogLevel.Warning,
 		"RabbitMQ transport receiver: delivery tag cache for {Source} has {Count} unsettled entries exceeding expected bounds. Messages may not be getting acknowledged.")]
 	private partial void LogDeliveryTagCacheOverflow(string source, int count);
+
+	[LoggerMessage(RabbitMqEventId.TransportReceiverPayloadTooLarge, LogLevel.Warning,
+		"RabbitMQ transport receiver: rejected oversized payload ({PayloadBytes} bytes) from {Source} without requeue (dead-lettered if configured).")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

@@ -138,39 +138,38 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddGoogleCloudFunctionsServerless(options =>
 {
     options.EnableColdStartOptimization = true;
-    options.GracefulShutdownTimeout = TimeSpan.FromSeconds(5);
-});
-
-// Configure Cloud Functions-specific options
-builder.Services.Configure<GoogleCloudFunctionsOptions>(options =>
-{
-    options.Runtime = "dotnet6";
-    options.MinInstances = 1;
-    options.MaxInstances = 100;
-    options.IngressSettings = "ALLOW_ALL";
-    options.VpcConnector = "projects/my-project/locations/us-central1/connectors/my-connector";
+    options.ExecutionTimeout = TimeSpan.FromSeconds(30);
+    options.MemoryLimitMB = 512;
 });
 ```
 
-### GoogleCloudFunctionsOptions
+Deploy-plane concerns such as the runtime version, min/max instance counts, ingress settings,
+and VPC connector are configured through your infrastructure-as-code (gcloud/Terraform) or the
+Cloud Functions console — the messaging runtime does not read them, so they are not surfaced as
+framework options.
+
+### ServerlessHostOptions
 
 ```csharp
-public class GoogleCloudFunctionsOptions
+public sealed class ServerlessHostOptions
 {
-    // .NET runtime version (default: "dotnet6")
-    public string Runtime { get; set; } = "dotnet6";
+    // Preferred platform; null = auto-detect.
+    public ServerlessPlatform? PreferredPlatform { get; set; }
 
-    // Minimum instance count for warm starts (null = no minimum)
-    public int? MinInstances { get; set; }
+    // Enable cold start optimization (default: true).
+    public bool EnableColdStartOptimization { get; set; } = true;
 
-    // Maximum instance count (null = no limit)
-    public int? MaxInstances { get; set; }
+    // Tracing/metrics/logging toggles (platform-provisioned).
+    public ServerlessTelemetryOptions Telemetry { get; set; } = new();
 
-    // Ingress settings: "ALLOW_ALL", "ALLOW_INTERNAL_ONLY", "ALLOW_INTERNAL_AND_GCLB"
-    public string IngressSettings { get; set; } = "ALLOW_ALL";
+    // Handler execution timeout; null = platform default.
+    public TimeSpan? ExecutionTimeout { get; set; }
 
-    // VPC connector for private network access
-    public string? VpcConnector { get; set; }
+    // Memory limit in MB; null = platform default.
+    public int? MemoryLimitMB { get; set; }
+
+    // Custom environment variables.
+    public IDictionary<string, string> EnvironmentVariables { get; }
 }
 ```
 
@@ -277,10 +276,10 @@ builder.Services.AddGooglePubSubTransport("orders", pubsub =>
           .ConfigureOptions(options =>
           {
               // Telemetry settings
-              options.EnableOpenTelemetry = true;
-              options.ExportToCloudMonitoring = true;
-              options.TracingSamplingRatio = 0.1; // 10% sampling
-              options.TelemetryExportIntervalSeconds = 60;
+              options.Telemetry.EnableOpenTelemetry = true;
+              options.Telemetry.ExportToCloudMonitoring = true;
+              options.Telemetry.TracingSamplingRatio = 0.1; // 10% sampling
+              options.Telemetry.TelemetryExportIntervalSeconds = 60;
           });
 });
 ```
@@ -290,33 +289,49 @@ builder.Services.AddGooglePubSubTransport("orders", pubsub =>
 ```csharp
 public sealed class GooglePubSubOptions
 {
-    // Google Cloud project ID
+    // Optional transport name
+    public string? Name { get; set; }
+
+    // Connection identity (project / topic / subscription)
+    public PubSubConnectionOptions Connection { get; set; } = new();
+
+    public bool EnableEncryption { get; set; }
+
+    // 0 = ProcessorCount * 2
+    public int MaxConcurrentMessages { get; set; }
+
+    // Subscriber-side settings (pull, ack, flow control, dead letter)
+    public PubSubSubscriberOptions Subscriber { get; set; } = new();
+
+    // Telemetry / tracing settings
+    public PubSubTelemetryOptions Telemetry { get; set; } = new();
+
+    public PubSubCompressionOptions Compression { get; }
+    public Dictionary<Type, string> TopicMappings { get; }
+    public GooglePubSubCloudEventOptions? CloudEvents { get; set; }
+}
+
+public sealed class PubSubConnectionOptions
+{
     public string ProjectId { get; set; } = string.Empty;
-
-    // Pub/Sub topic ID for publishing
     public string TopicId { get; set; } = string.Empty;
-
-    // Pub/Sub subscription ID for receiving
     public string SubscriptionId { get; set; } = string.Empty;
+}
 
-    // Full subscription name: projects/{project}/subscriptions/{subscription}
-    public string SubscriptionName { get; }
-
-    // Full topic name: projects/{project}/topics/{topic}
-    public string TopicName { get; }
-
-    // Message processing settings
+public sealed class PubSubSubscriberOptions
+{
     public int MaxPullMessages { get; set; } = 100;
     public int AckDeadlineSeconds { get; set; } = 60;
     public bool EnableAutoAckExtension { get; set; } = true;
     public int MaxConcurrentAcks { get; set; } = 10;
-    public int MaxConcurrentMessages { get; set; } // 0 = ProcessorCount * 2
+    public int? MaxPayloadBytes { get; set; } = 10 * 1024 * 1024; // null opts out
+    public bool EnableMessageOrdering { get; set; }
+    public bool EnableExactlyOnceDelivery { get; set; }
+    public PubSubDeadLetterOptions DeadLetter { get; set; } = new();
+}
 
-    // Dead letter settings
-    public bool EnableDeadLetterTopic { get; set; }
-    public string? DeadLetterTopicId { get; set; }
-
-    // Telemetry settings
+public sealed class PubSubTelemetryOptions
+{
     public bool EnableOpenTelemetry { get; set; } = true;
     public bool ExportToCloudMonitoring { get; set; }
     public string? OtlpEndpoint { get; set; }
@@ -338,8 +353,8 @@ builder.Services.AddGooglePubSubTransport(pubsub =>
     pubsub.SubscriptionId("my-subscription");
     pubsub.ConfigureOptions(options =>
     {
-        options.EnableOpenTelemetry = true;
-        options.ExportToCloudMonitoring = true;
+        options.Telemetry.EnableOpenTelemetry = true;
+        options.Telemetry.ExportToCloudMonitoring = true;
     });
 });
 ```
@@ -670,8 +685,8 @@ _metricsCollector.RecordCounter("orders.processed", 1,
 ```csharp
 builder.Services.Configure<GooglePubSubOptions>(options =>
 {
-    options.EnableTracePropagation = true;
-    options.TracingSamplingRatio = 0.1; // Sample 10% of requests
+    options.Telemetry.EnableTracePropagation = true;
+    options.Telemetry.TracingSamplingRatio = 0.1; // Sample 10% of requests
 });
 ```
 

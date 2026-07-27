@@ -36,9 +36,6 @@ public sealed class PostgresInboxStoreContainerFixture : ContainerFixtureBase
 	/// </summary>
 	static PostgresInboxStoreContainerFixture()
 	{
-		// TIMESTAMPTZ columns map to DateTimeOffset (the inbox entry uses DateTimeOffset timestamps).
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-
 		// snake_case columns (e.g. message_id) bind to PascalCase properties (e.g. MessageId).
 		DefaultTypeMap.MatchNamesWithUnderscores = true;
 	}
@@ -105,9 +102,9 @@ public sealed class PostgresInboxStoreContainerFixture : ContainerFixtureBase
 				retry_count     INT           NOT NULL DEFAULT 0,
 				last_attempt_at TIMESTAMPTZ   NULL,
 				correlation_id  VARCHAR(255)  NULL,
-				tenant_id       VARCHAR(255)  NULL,
+				tenant_id       VARCHAR(255)  NOT NULL,
 				source          VARCHAR(255)  NULL,
-				CONSTRAINT pk_inbox_messages PRIMARY KEY (message_id, handler_type)
+				CONSTRAINT pk_inbox_messages PRIMARY KEY (message_id, handler_type, tenant_id)
 			);
 			""";
 

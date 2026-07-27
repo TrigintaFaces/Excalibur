@@ -4,10 +4,13 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
+using Excalibur.Dispatch;
 using Excalibur.Domain;
 using Excalibur.Hosting.Builders;
 
 using FluentValidation;
+
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -34,19 +37,20 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ExcaliburBuilderContextExtensions
 {
 	/// <summary>
-	/// Sets the default <see cref="ITenantId"/> registration before the context family
-	/// defaults land. Consumers that need a per-request tenant resolver should register
-	/// <c>ITenantId</c> explicitly via <c>services.TryAddTenantId(sp =&gt; ...)</c> instead.
+	/// Sets the default tenant identifier applied when no ambient tenant resolves. The ambient
+	/// tenant is established per operation (via <c>TenantContextHolder.BeginScope</c> / tenant
+	/// middleware) and read through <see cref="ITenantContext"/>; this configures the fallback
+	/// on <see cref="TenantContextOptions"/>.
 	/// </summary>
 	/// <param name="builder">The Excalibur builder.</param>
-	/// <param name="tenantId">The tenant identifier.</param>
+	/// <param name="tenantId">The default tenant identifier.</param>
 	/// <returns>The same builder for fluent chaining.</returns>
 	public static IExcaliburBuilder UseTenant(this IExcaliburBuilder builder, string tenantId)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 
-		_ = builder.Services.TryAddTenantId(tenantId);
+		_ = builder.Services.Configure<TenantContextOptions>(o => o.DefaultTenantId = tenantId);
 		return builder;
 	}
 

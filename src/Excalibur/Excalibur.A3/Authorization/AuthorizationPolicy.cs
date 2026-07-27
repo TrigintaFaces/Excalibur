@@ -33,16 +33,17 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 	/// </summary>
 	/// <param name="grants">The user's grants, keyed by scope string.</param>
 	/// <param name="activityGroups">Activity group mappings.</param>
-	/// <param name="tenantId">The tenant identifier for the current context.</param>
+	/// <param name="tenantContext">The ambient tenant context for the current execution flow.</param>
 	/// <param name="userId">The user identifier for the current context.</param>
 	public AuthorizationPolicy(
 		IDictionary<string, object> grants,
 		IDictionary<string, object> activityGroups,
-		ITenantId tenantId,
+		ITenantContext tenantContext,
 		string userId)
 	{
 		_activityGroups = activityGroups;
-		TenantId = tenantId.Value;
+		TenantId = tenantContext.TenantId ?? throw new InvalidOperationException(
+			"No ambient tenant is resolved; authorization requires an established tenant (TenantContextHolder.BeginScope / tenant middleware).");
 		UserId = userId;
 
 		// Partition grants into exact-match dictionary and wildcard list

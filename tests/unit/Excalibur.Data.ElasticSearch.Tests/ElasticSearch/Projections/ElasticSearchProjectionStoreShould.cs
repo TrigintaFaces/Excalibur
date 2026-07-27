@@ -485,7 +485,7 @@ public sealed class ElasticSearchProjectionStoreShould
 		// The index name uses ElasticSearchProjectionIndexConvention
 		var options = new ElasticSearchProjectionStoreOptions
 		{
-			IndexPrefix = "projections"
+			Index = { IndexPrefix = "projections" }
 		};
 
 		var indexName = ElasticSearchProjectionIndexConvention.GetIndexName<TestProjection>(options);
@@ -498,8 +498,11 @@ public sealed class ElasticSearchProjectionStoreShould
 	{
 		var options = new ElasticSearchProjectionStoreOptions
 		{
-			IndexPrefix = "my-app",
-			IndexName = "orders"
+			Index =
+			{
+				IndexPrefix = "my-app",
+				IndexName = "orders"
+			}
 		};
 
 		var indexName = ElasticSearchProjectionIndexConvention.GetIndexName<TestProjection>(options);
@@ -512,7 +515,7 @@ public sealed class ElasticSearchProjectionStoreShould
 	{
 		var options = new ElasticSearchProjectionStoreOptions
 		{
-			IndexPrefix = ""
+			Index = { IndexPrefix = "" }
 		};
 
 		var indexName = ElasticSearchProjectionIndexConvention.GetIndexName<TestProjection>(options);
@@ -539,8 +542,11 @@ public sealed class ElasticSearchProjectionStoreShould
 		options ??= new ElasticSearchProjectionStoreOptions
 		{
 			NodeUri = "http://localhost:9200",
-			IndexPrefix = "test-projections",
-			CreateIndexOnInitialize = false
+			Index =
+			{
+				IndexPrefix = "test-projections",
+				CreateIndexOnInitialize = false
+			}
 		};
 
 		var monitor = A.Fake<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();

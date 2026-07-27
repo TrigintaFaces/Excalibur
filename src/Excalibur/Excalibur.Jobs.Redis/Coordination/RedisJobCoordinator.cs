@@ -19,12 +19,14 @@ namespace Excalibur.Jobs.Redis.Coordination;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="RedisJobCoordinator" /> class. </remarks>
 /// <param name="database"> The Redis database to use for coordination. </param>
+/// <param name="timeProvider"> The time provider used for lock-expiry and liveness decisions. </param>
 /// <param name="logger"> The logger for this coordinator. </param>
 /// <param name="keyPrefix"> Optional prefix for Redis keys to avoid Tests.CloudProviders. </param>
-public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoordinator> logger, string keyPrefix = "excalibur:jobs:")
+public sealed class RedisJobCoordinator(IDatabase database, TimeProvider timeProvider, ILogger<RedisJobCoordinator> logger, string keyPrefix = "excalibur:jobs:")
 	: IJobLockProvider, IJobRegistry, IJobDistributor
 {
 	private readonly IDatabase _database = database ?? throw new ArgumentNullException(nameof(database));
+	private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 	private readonly ILogger<RedisJobCoordinator> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly string _keyPrefix = keyPrefix ?? throw new ArgumentNullException(nameof(keyPrefix));
 
@@ -44,14 +46,15 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 		// per-acquisition token lets release/extend be guarded by an atomic GET==token
 		// compare-and-act (canonical Redlock ownership check). [bd-jqlqc8]
 		var ownerToken = Guid.NewGuid().ToString("N");
-		var expiresAt = DateTimeOffset.UtcNow.Add(lockDuration);
+		var now = _timeProvider.GetUtcNow();
+		var expiresAt = now.Add(lockDuration);
 
 		var acquired = await _database.StringSetAsync(lockKey, ownerToken, lockDuration, When.NotExists).ConfigureAwait(false);
 
 		if (acquired)
 		{
 			_logger.LogDebug("Acquired distributed lock for job {JobKey} by instance {InstanceId}", jobKey, instanceId);
-			return new RedisDistributedJobLock(_database, lockKey, jobKey, instanceId, ownerToken, DateTimeOffset.UtcNow, expiresAt, _logger);
+			return new RedisDistributedJobLock(_database, lockKey, jobKey, instanceId, ownerToken, now, expiresAt, _timeProvider, _logger);
 		}
 
 		_logger.LogDebug("Failed to acquire distributed lock for job {JobKey} by instance {InstanceId}", jobKey, instanceId);
@@ -90,13 +93,23 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 	public async Task<IEnumerable<JobInstanceInfo>> GetActiveInstancesAsync(CancellationToken cancellationToken)
 	{
 		var activeInstanceIds = await _database.SetMembersAsync($"{_keyPrefix}instances:active").ConfigureAwait(false);
-		var instances = new List<JobInstanceInfo>();
-
-		foreach (var instanceId in activeInstanceIds)
+		if (activeInstanceIds.Length == 0)
 		{
-			var instanceKey = $"{_keyPrefix}instances:{instanceId}";
-			var instanceData = await _database.StringGetAsync(instanceKey).ConfigureAwait(false);
+			return [];
+		}
 
+		// Batch the per-instance reads into a single MGET round-trip instead of N sequential
+		// StringGetAsync calls (ecuazs Redis-batch remainder). StringGetAsync(RedisKey[]) returns values
+		// aligned positionally with activeInstanceIds.
+		var instanceKeys = Array.ConvertAll(activeInstanceIds, id => (RedisKey)$"{_keyPrefix}instances:{id}");
+		var instanceValues = await _database.StringGetAsync(instanceKeys).ConfigureAwait(false);
+
+		var instances = new List<JobInstanceInfo>();
+		var staleIds = new List<RedisValue>();
+
+		for (var i = 0; i < activeInstanceIds.Length; i++)
+		{
+			var instanceData = instanceValues[i];
 			if (instanceData.HasValue)
 			{
 				try
@@ -109,14 +122,19 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 				}
 				catch (JsonException ex)
 				{
-					_logger.LogWarning(ex, "Failed to deserialize instance info for {InstanceId}", instanceId);
+					_logger.LogWarning(ex, "Failed to deserialize instance info for {InstanceId}", activeInstanceIds[i]);
 				}
 			}
 			else
 			{
-				// Remove stale instance reference
-				_ = await _database.SetRemoveAsync($"{_keyPrefix}instances:active", instanceId).ConfigureAwait(false);
+				staleIds.Add(activeInstanceIds[i]);
 			}
+		}
+
+		// Prune stale instance references in a single SREM round-trip (was one SetRemove per stale entry).
+		if (staleIds.Count > 0)
+		{
+			_ = await _database.SetRemoveAsync($"{_keyPrefix}instances:active", [.. staleIds]).ConfigureAwait(false);
 		}
 
 		return instances;
@@ -131,7 +149,7 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 
 		var activeInstances = await GetActiveInstancesAsync(cancellationToken).ConfigureAwait(false);
 		var availableInstance = activeInstances
-			.Where(static i => i.IsHealthy(TimeSpan.FromMinutes(2)) &&
+			.Where(i => i.IsHealthy(TimeSpan.FromMinutes(2), _timeProvider) &&
 							   i.ActiveJobCount < i.Capabilities.MaxConcurrentJobs)
 			.OrderBy(static i => i.ActiveJobCount)
 			.ThenByDescending(static i => i.Capabilities.Priority)
@@ -167,7 +185,7 @@ public sealed class RedisJobCoordinator(IDatabase database, ILogger<RedisJobCoor
 		var completionKey = $"{_keyPrefix}completions:{jobKey}";
 		JsonElement? resultElement = result is not null ? JsonSerializer.SerializeToElement(result, result.GetType()) : null;
 		var completionData = JsonSerializer.Serialize(
-			new RedisCompletionData(jobKey, instanceId, success, resultElement, DateTimeOffset.UtcNow),
+			new RedisCompletionData(jobKey, instanceId, success, resultElement, _timeProvider.GetUtcNow()),
 			RedisJobCoordinatorSerializerContext.Default.RedisCompletionData);
 
 		_ = await _database.StringSetAsync(completionKey, completionData, TimeSpan.FromHours(1)).ConfigureAwait(false);

@@ -67,17 +67,6 @@ public sealed class SagaOptionsValidator : IValidateOptions<SagaOptions>
 				$"{nameof(SagaOptions.EnableAutomaticCleanup)} is true (was {options.CleanupInterval}).");
 		}
 
-		// Fail-loud guard for the carved-but-not-yet-enforced automatic-cleanup toggle (ADR-336 — never
-		// advertised-but-inert). Enforcement lives in a cross-provider saga-store purge-by-age contract.
-		// Defaults to false; an explicit opt-in must fail loudly rather than no-op.
-		// (Optimistic concurrency is always enforced unconditionally, so it carries no opt-in toggle.)
-		if (options.EnableAutomaticCleanup)
-		{
-			failures.Add(
-				$"{nameof(SagaOptions.EnableAutomaticCleanup)} is set but automatic saga cleanup is not yet enforced " +
-				"(cross-provider saga-store purge-by-age is not yet implemented). Leave it false until that lands.");
-		}
-
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

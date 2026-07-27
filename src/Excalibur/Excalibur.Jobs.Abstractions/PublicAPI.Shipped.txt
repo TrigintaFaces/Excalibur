@@ -16,13 +16,6 @@ Excalibur.Jobs.Coordination.IJobRegistry
 Excalibur.Jobs.Coordination.IJobRegistry.GetActiveInstancesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Jobs.Coordination.JobInstanceInfo!>!>!
 Excalibur.Jobs.Coordination.IJobRegistry.RegisterInstanceAsync(string! instanceId, Excalibur.Jobs.Coordination.JobInstanceInfo! instanceInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Coordination.IJobRegistry.UnregisterInstanceAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Jobs.Coordination.ILeadershipToken
-Excalibur.Jobs.Coordination.ILeadershipToken.AcquiredAt.get -> System.DateTimeOffset
-Excalibur.Jobs.Coordination.ILeadershipToken.ExpiresAt.get -> System.DateTimeOffset
-Excalibur.Jobs.Coordination.ILeadershipToken.ExtendAsync(System.TimeSpan additionalDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Jobs.Coordination.ILeadershipToken.IsValid.get -> bool
-Excalibur.Jobs.Coordination.ILeadershipToken.LeaderInstanceId.get -> string!
-Excalibur.Jobs.Coordination.ILeadershipToken.ReleaseAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Coordination.JobInstanceCapabilities
 Excalibur.Jobs.Coordination.JobInstanceCapabilities.CanProcess(string! jobType) -> bool
 Excalibur.Jobs.Coordination.JobInstanceCapabilities.JobInstanceCapabilities(int maxConcurrentJobs, System.Collections.Generic.IEnumerable<string!>! supportedJobTypes) -> void
@@ -37,7 +30,7 @@ Excalibur.Jobs.Coordination.JobInstanceInfo.ActiveJobCount.set -> void
 Excalibur.Jobs.Coordination.JobInstanceInfo.Capabilities.get -> Excalibur.Jobs.Coordination.JobInstanceCapabilities!
 Excalibur.Jobs.Coordination.JobInstanceInfo.HostName.get -> string!
 Excalibur.Jobs.Coordination.JobInstanceInfo.InstanceId.get -> string!
-Excalibur.Jobs.Coordination.JobInstanceInfo.IsHealthy(System.TimeSpan heartbeatTimeout) -> bool
+Excalibur.Jobs.Coordination.JobInstanceInfo.IsHealthy(System.TimeSpan heartbeatTimeout, System.TimeProvider! timeProvider) -> bool
 Excalibur.Jobs.Coordination.JobInstanceInfo.JobInstanceInfo(string! instanceId, string! hostName, Excalibur.Jobs.Coordination.JobInstanceCapabilities! capabilities) -> void
 Excalibur.Jobs.Coordination.JobInstanceInfo.LastHeartbeat.get -> System.DateTimeOffset
 Excalibur.Jobs.Coordination.JobInstanceInfo.LastHeartbeat.set -> void
@@ -46,7 +39,7 @@ Excalibur.Jobs.Coordination.JobInstanceInfo.Metadata.set -> void
 Excalibur.Jobs.Coordination.JobInstanceInfo.RegisteredAt.get -> System.DateTimeOffset
 Excalibur.Jobs.Coordination.JobInstanceInfo.Status.get -> Excalibur.Jobs.Coordination.JobInstanceStatus
 Excalibur.Jobs.Coordination.JobInstanceInfo.Status.set -> void
-Excalibur.Jobs.Coordination.JobInstanceInfo.UpdateHeartbeat() -> void
+Excalibur.Jobs.Coordination.JobInstanceInfo.UpdateHeartbeat(System.TimeProvider! timeProvider) -> void
 Excalibur.Jobs.Coordination.JobInstanceStatus
 Excalibur.Jobs.Coordination.JobInstanceStatus.Active = 0 -> Excalibur.Jobs.Coordination.JobInstanceStatus
 Excalibur.Jobs.Coordination.JobInstanceStatus.Draining = 1 -> Excalibur.Jobs.Coordination.JobInstanceStatus
@@ -70,3 +63,6 @@ Excalibur.Jobs.IJobOptions.JobName.get -> string!
 Excalibur.Jobs.IJobOptions.JobName.init -> void
 Excalibur.Jobs.IJobOptions.UnhealthyThreshold.get -> System.TimeSpan
 Excalibur.Jobs.IJobOptions.UnhealthyThreshold.init -> void
+Excalibur.Jobs.IJobSchedulerProvider
+Excalibur.Jobs.IJobSchedulerProvider.DeleteJobAsync(string! jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.IJobSchedulerProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

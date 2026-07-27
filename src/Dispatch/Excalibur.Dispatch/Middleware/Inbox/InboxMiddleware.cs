@@ -34,12 +34,21 @@ namespace Excalibur.Dispatch.Middleware.Inbox;
 /// </list>
 /// The inbox middleware implements the Idempotent Consumer pattern by:
 /// <list type="number">
-/// <item> Checking if message has already been processed (duplicate detection) </item>
+/// <item> Admitting a message atomically (duplicate detection) </item>
 /// <item> Persisting message receipt before handler execution (inbox persistence) </item>
 /// <item> Marking message as processed after successful handler completion </item>
 /// <item> Handling failures with appropriate retry mechanisms </item>
 /// </list>
-/// This ensures messages are processed at most once, even in the presence of failures and redeliveries.
+/// <para>
+/// <b>Concurrency guarantee.</b> Both modes admit through a single atomic compare-and-set, so concurrent
+/// redeliveries of the same message can never both execute the handler: light mode claims through an
+/// <c>IClaimableDeduplicator</c>; full mode claims through the store's lease-based
+/// <see cref="IClaimableInboxStore.TryClaimAsync(string, string, System.TimeSpan, System.Threading.CancellationToken)"/>
+/// (a self-expiring lease that also reclaims a dead processor's stuck claim). A full-mode store that does
+/// not implement lease claiming falls back to a durable-status check whose at-most-once guarantee holds
+/// across process restarts but is not race-free across concurrent processors — the registration guard
+/// surfaces that weaker configuration.
+/// </para>
 /// </remarks>
 [AppliesTo(MessageKinds.All)]
 [RequiresFeatures(DispatchFeatures.Inbox)]
@@ -71,6 +80,12 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	private const string DispositionTimeoutReset = "timeout-reset";
 	private const string ModeFull = "full";
 	private const string ModeLight = "light";
+
+	// Per-layer claim-key namespace: the inbox at-most-once layer claims under "inbox:" so it cannot
+	// spuriously collide with the business-effect idempotency layer ("idem:") on the shared in-memory
+	// dedup engine. Distinct layers structurally cannot steal each other's claim.
+	private const string ClaimKeyPrefix = "inbox:";
+
 
 	private static readonly ConcurrentDictionary<Type, PropertyInfo?> MessageIdPropertyCache = new();
 	private static readonly Func<ILogger, string, string, bool, string, IDisposable?> InboxLogScope =
@@ -449,6 +464,45 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		var messageType = message.GetType();
 		var handlerType = messageType.FullName ?? messageType.Name;
 
+		// Highest-precedence atomic path: IScopedTransactionalInboxStore — a document-store native transaction
+		// (a MongoDB session / a Cosmos DB TransactionalBatch) that commits the handler's enlisted writes and
+		// the processed-mark together (exactly-once). Everything else — including relational stores — falls
+		// through UNCHANGED to the idempotent claim protocol below. SupportsTransactional is probed via the
+		// EFFECTIVE capability (composing through decorators) with a fallback to the direct interface for plain
+		// stores — matching the ValidateOnStart capability guards.
+		var supportsTransactional = _inboxStore is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsTransactional
+			: _inboxStore is IScopedTransactionalInboxStore;
+
+		if (supportsTransactional && _inboxStore is IScopedTransactionalInboxStore scopedTransactionalStore)
+		{
+			return await ProcessWithScopedTransactionAsync(
+				scopedTransactionalStore, messageId, handlerType, message, context, nextDelegate, cancellationToken)
+				.ConfigureAwait(false);
+		}
+
+		// Preferred path: a single atomic lease-claim admits exactly one processor and reclaims a dead
+		// processor's expired lease in one compare-and-set — removing the check-then-act TOCTOU below under
+		// which two concurrent redeliveries of the same (messageId, handlerType) could both be admitted. The
+		// lease duration is the stuck-processing timeout. Stores that do not support lease claiming fall back
+		// to the durable-status check-then-act path (the registration guard surfaces that weaker guarantee).
+		if (_inboxStore is IClaimableInboxStore claimableStore)
+		{
+			var leaseClaimed = await claimableStore
+				.TryClaimAsync(messageId, handlerType, _options.ProcessingTimeout, cancellationToken)
+				.ConfigureAwait(false);
+
+			if (!leaseClaimed)
+			{
+				LogMessageBeingProcessed(messageId);
+				RecordDeduplicated(DispositionDuplicate, ModeFull);
+				return MR.Success();
+			}
+
+			return await ExecuteHandlerAndFinalizeAsync(messageId, handlerType, message, context, nextDelegate, cancellationToken)
+				.ConfigureAwait(false);
+		}
+
 		// Single-read status lookup avoids an extra storage round-trip on the hot path.
 		var existingEntry = await _inboxStore!.GetEntryAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
 
@@ -491,7 +545,17 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		}
 		else
 		{
-			// Create new inbox entry
+			// Create new inbox entry.
+			//
+			// Concurrency contract (ctgl6x): the check-then-act window between the GetEntryAsync read above
+			// and this create is made safe by CreateEntryAsync being an ATOMIC insert on the (messageId,
+			// handlerType) primary key. If two concurrent redeliveries both observe "no entry" and both
+			// create, exactly one insert wins; every other store throws InvalidOperationException on the
+			// duplicate key (SqlServer 2627/2601, Postgres unique_violation, MongoDB dup-key 11000, Redis
+			// exists-guard, InMemory ConcurrentDictionary.TryAdd), so the loser's delivery fails and retries
+			// — observing the winner's entry on the next attempt rather than double-admitting. (The preferred
+			// path is the single-round-trip IClaimableInboxStore lease claim above, which removes this window
+			// entirely; this fallback holds only because the create is PK-atomic.)
 			var messageTypeName = messageType.Name;
 			var payload = SerializeMessage(message);
 			var metadata = ExtractMetadata(message, context);
@@ -515,6 +579,24 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		existingEntry.MarkProcessing();
 
+		return await ExecuteHandlerAndFinalizeAsync(messageId, handlerType, message, context, nextDelegate, cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Runs the handler for an already-admitted full-inbox message and finalizes the durable entry:
+	/// <see cref="InboxStatus.Processed"/> on success, <see cref="InboxStatus.Failed"/> on failure or exception.
+	/// </summary>
+	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware.SerializeMessage(IDispatchMessage)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware.SerializeMessage(IDispatchMessage)")]
+	private async Task<IMessageResult> ExecuteHandlerAndFinalizeAsync(
+		string messageId,
+		string handlerType,
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		CancellationToken cancellationToken)
+	{
 		try
 		{
 			// Execute the message handler
@@ -524,14 +606,14 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			if (result.Succeeded)
 			{
 				// Mark as processed on success
-				await _inboxStore.MarkProcessedAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
+				await _inboxStore!.MarkProcessedAsync(messageId, handlerType, cancellationToken).ConfigureAwait(false);
 				LogMarkedMessageAsProcessed(messageId);
 			}
 			else
 			{
 				// Mark as failed with error details
 				var errorMessage = result.ErrorMessage ?? "Message processing failed";
-				await _inboxStore.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken).ConfigureAwait(false);
+				await _inboxStore!.MarkFailedAsync(messageId, handlerType, errorMessage, cancellationToken).ConfigureAwait(false);
 				LogMarkedMessageAsFailed(messageId, errorMessage);
 			}
 
@@ -540,10 +622,85 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		catch (Exception ex)
 		{
 			// Mark as failed on exception
-			await _inboxStore.MarkFailedAsync(messageId, handlerType, ex.Message, cancellationToken).ConfigureAwait(false);
+			await _inboxStore!.MarkFailedAsync(messageId, handlerType, ex.Message, cancellationToken).ConfigureAwait(false);
 			LogMarkedMessageAsFailedDueToException(messageId, ex);
 			throw;
 		}
+	}
+
+	/// <summary>
+	/// Processes an admitted full-inbox message through a document-store native transaction
+	/// (<see cref="IScopedTransactionalInboxStore"/>): the handler runs and the processed-mark commits inside a
+	/// single provider-native transaction that rolls back together on failure (exactly-once).
+	/// </summary>
+	[RequiresUnreferencedCode("Calls the message handler pipeline")]
+	[RequiresDynamicCode("Calls the message handler pipeline")]
+	private async Task<IMessageResult> ProcessWithScopedTransactionAsync(
+		IScopedTransactionalInboxStore store,
+		string messageId,
+		string handlerType,
+		IDispatchMessage message,
+		IMessageContext context,
+		DispatchRequestDelegate nextDelegate,
+		CancellationToken cancellationToken)
+	{
+		IMessageResult? capturedResult = null;
+
+		try
+		{
+			var processed = await store.TryProcessTransactionallyAsync(
+				messageId,
+				handlerType,
+				async (scope, ct) =>
+				{
+					// Expose the opaque provider-native scope (under the shared key that
+					// MessageContextExtensions.GetInboxTransactionScope reads) so a consumer handler can enlist
+					// its own writes (scope.AsMongoSession() / scope.AsCosmosBatch()) atomically with the mark.
+					context.SetItem(MessageContextExtensions.InboxTransactionScopeKey, scope);
+
+					var result = await nextDelegate(message, context, ct).ConfigureAwait(false);
+					capturedResult = result;
+
+					if (!result.Succeeded)
+					{
+						// Roll the native transaction back so nothing is marked processed and the message is
+						// redelivered — never commit a mark for a handler that reported failure.
+						throw new InboxTransactionAbortException();
+					}
+				},
+				cancellationToken).ConfigureAwait(false);
+
+			if (!processed)
+			{
+				LogMessageAlreadyProcessed(messageId);
+				RecordDeduplicated(DispositionDuplicate, ModeFull);
+				return MR.Success();
+			}
+
+			LogMarkedMessageAsProcessed(messageId);
+			return capturedResult ?? MR.Success();
+		}
+		catch (InboxTransactionAbortException)
+		{
+			// Handler reported a failure result; the transaction was rolled back. Surface the failure result.
+			var errorMessage = capturedResult?.ErrorMessage ?? "Message processing failed";
+			LogMarkedMessageAsFailed(messageId, errorMessage);
+			return capturedResult!;
+		}
+	}
+
+	/// <summary>
+	/// Internal sentinel used to roll a transactional-inbox handler back when the handler returns a
+	/// <em>failure</em> result (as opposed to throwing): it aborts the provider transaction so nothing is
+	/// marked processed, and is caught by the transactional path which then returns the captured failure result.
+	/// </summary>
+	[SuppressMessage(
+		"Design",
+		"CA1064:Exceptions should be public",
+		Justification = "Private control-flow sentinel used only to roll back the transactional-inbox handler; " +
+			"it never escapes the middleware and is never observed by consumers.")]
+	private sealed class InboxTransactionAbortException : Exception
+	{
 	}
 
 	/// <summary>
@@ -558,11 +715,27 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 	{
 		var expiry = TimeSpan.FromHours(_options.DeduplicationExpiryHours);
 
-		// Check for duplicates
-		var isDuplicate = await _deduplicator!.IsDuplicateAsync(messageId, expiry, cancellationToken)
-			.ConfigureAwait(false);
+		// Single atomic-claim primitive (converged dedup seam): claim-before-execute through
+		// IClaimableDeduplicator, replacing the racy IsDuplicateAsync -> MarkProcessedAsync check-then-mark
+		// (a TOCTOU race under which two concurrent duplicates could both observe "not duplicate" and both
+		// run the handler). IsDuplicateAsync/MarkProcessedAsync remain on the interface for read-only stats,
+		// but are no longer the dedup decision path.
+		if (_deduplicator is not IClaimableDeduplicator claim)
+		{
+			// Fail LOUD rather than silently degrade to the non-atomic path: the whole point of the seam is
+			// that concurrent-duplicate admission is atomic. The default InMemoryDeduplicator is claim-capable.
+			throw new InvalidOperationException(
+				$"The registered IInMemoryDeduplicator ('{_deduplicator!.GetType().FullName}') does not implement " +
+				"IClaimableDeduplicator. Without atomic claiming the inbox light mode would fall back to a non-atomic " +
+				"check-then-act under which concurrent duplicates can both execute the handler. Register a claim-capable " +
+				"deduplicator (the default InMemoryDeduplicator supports atomic claiming).");
+		}
 
-		if (isDuplicate)
+		var claimKey = ClaimKeyPrefix + messageId;
+
+		// Atomically claim the message id: first writer wins and proceeds; the rest are duplicates.
+		var claimed = await claim.TryClaimAsync(claimKey, expiry, cancellationToken).ConfigureAwait(false);
+		if (!claimed)
 		{
 			LogMessageIsDuplicate(_logger, messageId);
 			RecordDeduplicated(DispositionDuplicate, ModeLight);
@@ -571,18 +744,19 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 
 		try
 		{
-			// Execute the message handler
+			// Execute the message handler while holding the claim.
 			var result = await nextDelegate(message, context, cancellationToken)
 				.ConfigureAwait(false);
 
-			// Mark as processed only on success to prevent duplicate processing on retry
 			if (result.Succeeded)
 			{
-				await _deduplicator.MarkProcessedAsync(messageId, expiry, cancellationToken).ConfigureAwait(false);
+				// The successful claim IS the dedup marker -- nothing further to persist.
 				LogMarkedMessageAsProcessedInLightMode(_logger, messageId);
 			}
 			else
 			{
+				// Release the claim so a redelivery of the failed message can be re-admitted.
+				await claim.ReleaseAsync(claimKey, cancellationToken).ConfigureAwait(false);
 				LogMessageProcessingFailedInLightMode(_logger, messageId, result.ErrorMessage ?? string.Empty);
 			}
 
@@ -590,6 +764,8 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		}
 		catch (Exception ex)
 		{
+			// Release the claim on exception so the message stays retryable on redelivery.
+			await claim.ReleaseAsync(claimKey, cancellationToken).ConfigureAwait(false);
 			LogExceptionDuringLightModeProcessing(_logger, messageId, ex);
 			throw;
 		}

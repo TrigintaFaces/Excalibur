@@ -24,6 +24,13 @@ internal sealed partial class CdcCheckpointManager
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly ILogger _logger;
 
+	// The leadership tenure's fencing token PINNED for the current batch (set once at the batch-start gate via
+	// SetBatchFencingToken), or null when leader-election fencing is not configured / the provider issues no
+	// token (single-active is then unenforced and every write is unfenced). Pinned — NOT re-read per write — so a
+	// demotion mid-batch does NOT flip it to null: the now-stale pinned token loses the CdcStateStore CAS (0 rows
+	// → CdcLeadershipSupersededException) instead of a null token silently bypassing the guard and landing.
+	private long? _pinnedFencingToken;
+
 	private readonly ConcurrentDictionary<string, CdcPosition> _tracking = new(StringComparer.Ordinal);
 
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
@@ -41,6 +48,18 @@ internal sealed partial class CdcCheckpointManager
 		_stateStore = stateStore;
 		_logger = logger;
 	}
+
+	/// <summary>
+	/// Pins the leadership tenure's fencing token for the batch about to be processed. Called once at the
+	/// batch-start leadership gate (where <c>CurrentLeadership</c> is proven non-null when fencing is
+	/// configured), so every checkpoint write in the batch presents the SAME value. A mid-batch demotion does
+	/// not mutate the pinned token, so a superseded leader's write correctly loses the state-store CAS.
+	/// </summary>
+	/// <param name="fencingToken">
+	/// The pinned token, or <see langword="null"/> when fencing is not configured / the provider issues no token
+	/// (the only legitimate unfenced path).
+	/// </param>
+	internal void SetBatchFencingToken(long? fencingToken) => _pinnedFencingToken = fencingToken;
 
 	/// <summary>
 	/// Gets the number of tracked tables.
@@ -126,14 +145,25 @@ internal sealed partial class CdcCheckpointManager
 		DateTime? commitTime,
 		CancellationToken cancellationToken)
 	{
-		_ = await _stateStore.UpdateLastProcessedPositionAsync(
+		var fencingToken = _pinnedFencingToken;
+
+		var rowsWritten = await _stateStore.UpdateLastProcessedPositionAsync(
 			_dbConfig.DatabaseConnectionIdentifier,
 			_dbConfig.DatabaseName,
 			tableName,
 			lsn,
 			sequenceValue,
 			commitTime,
+			fencingToken,
 			cancellationToken).ConfigureAwait(false);
+
+		// With fencing active, 0 rows written means the non-decreasing CAS rejected this write: a newer leader
+		// holds a higher token. The stored LSN was left unchanged (no regression/skip); this instance is a
+		// demoted split-brain leader and must stop advancing the change feed.
+		if (fencingToken.HasValue && rowsWritten == 0)
+		{
+			throw new CdcLeadershipSupersededException();
+		}
 
 		LogUpdatedState(tableName);
 	}

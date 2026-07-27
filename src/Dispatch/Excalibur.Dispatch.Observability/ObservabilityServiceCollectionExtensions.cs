@@ -52,15 +52,30 @@ public static class ObservabilityServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureOptions"> Action to configure observability options. </param>
 	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// Calling this method enables context observability by default
+	/// (<see cref="ContextObservabilityOptions.Enabled"/> defaults to <see langword="true"/>);
+	/// set <see cref="ContextObservabilityOptions.Enabled"/> to <see langword="false"/> in
+	/// <paramref name="configureOptions"/> to register the services without wiring OpenTelemetry.
+	/// The <paramref name="configureOptions"/> delegate is invoked exactly once.
+	/// </remarks>
 	public static IServiceCollection AddDispatchObservability(
 		this IServiceCollection services,
 		Action<ContextObservabilityOptions>? configureOptions = null)
 	{
-		// Configure options. The delegate is registered once for DI resolution.
+		// Build the configured options exactly once. The consumer delegate is invoked a single
+		// time here, so any side effects it has run once. The resulting instance both drives the
+		// registration-time OpenTelemetry gate (Enabled) below and is mirrored onto the options
+		// pipeline instance -- the delegate is never re-invoked at DI resolution.
+		var configured = new ContextObservabilityOptions();
+		configureOptions?.Invoke(configured);
+
 		var optionsBuilder = services.AddOptions<ContextObservabilityOptions>();
 		if (configureOptions is not null)
 		{
-			_ = optionsBuilder.Configure(configureOptions);
+			// Apply the already-built values (not the consumer delegate) so IOptions<T> and
+			// ValidateOnStart see the configured options without a second delegate invocation.
+			_ = optionsBuilder.Configure(target => ApplyConfiguredOptions(configured, target));
 		}
 
 		_ = optionsBuilder
@@ -69,14 +84,6 @@ public static class ObservabilityServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ContextObservabilityOptions>,
 				ContextObservabilityOptionsValidator>());
-
-		// Read the Enabled flag eagerly to decide whether to wire OTel,
-		// without calling BuildServiceProvider(). This creates a temporary
-		// instance -- the delegate runs once here and once when DI resolves
-		// IOptions<ContextObservabilityOptions>. The delegate MUST be
-		// side-effect-free (pure configuration mapping only).
-		var snapshot = new ContextObservabilityOptions();
-		configureOptions?.Invoke(snapshot);
 
 		// Register core observability services
 		services.TryAddSingleton<IContextFlowTracker, ContextFlowTracker>();
@@ -97,12 +104,67 @@ public static class ObservabilityServiceCollectionExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions>, SensitiveDataPostConfigureOptions>());
 
 		// Configure OpenTelemetry
-		if (snapshot.Enabled)
+		if (configured.Enabled)
 		{
-			ConfigureOpenTelemetry(services, snapshot);
+			ConfigureOpenTelemetry(services, configured);
 		}
 
 		return services;
+	}
+
+	/// <summary>
+	/// Mirrors the eagerly-built, consumer-configured options onto the instance produced by the
+	/// options pipeline, so <see cref="IOptions{T}"/> resolution and <c>ValidateOnStart</c> observe
+	/// the configured values without re-invoking the consumer's configuration delegate.
+	/// </summary>
+	/// <remarks>
+	/// This is a manual, per-property copy (not a reflection-based or record-<c>with</c> deep clone),
+	/// so it does not automatically pick up new properties added to <see cref="ContextObservabilityOptions"/>
+	/// or its nested option groups. Whenever a property is added to that options tree, add the matching
+	/// assignment here too, or the new setting will silently fail to reach <see cref="IOptions{T}"/> consumers.
+	/// </remarks>
+	private static void ApplyConfiguredOptions(ContextObservabilityOptions source, ContextObservabilityOptions target)
+	{
+		target.Enabled = source.Enabled;
+		target.ValidateContextIntegrity = source.ValidateContextIntegrity;
+		target.FailOnIntegrityViolation = source.FailOnIntegrityViolation;
+		target.EmitDiagnosticEvents = source.EmitDiagnosticEvents;
+		target.CaptureErrorStates = source.CaptureErrorStates;
+		target.CaptureCustomItems = source.CaptureCustomItems;
+
+		target.Tracing.IncludeCustomItemsInTraces = source.Tracing.IncludeCustomItemsInTraces;
+		target.Tracing.MaxCustomItemsInTraces = source.Tracing.MaxCustomItemsInTraces;
+		target.Tracing.IncludeStackTraceInErrors = source.Tracing.IncludeStackTraceInErrors;
+		target.Tracing.StoreMutationsInContext = source.Tracing.StoreMutationsInContext;
+		target.Tracing.IncludeNullFields = source.Tracing.IncludeNullFields;
+		target.Tracing.PreserveUnknownBaggageItems = source.Tracing.PreserveUnknownBaggageItems;
+		target.Tracing.SensitiveFieldPatterns = source.Tracing.SensitiveFieldPatterns;
+
+		target.Limits.MaxCustomItemsToCapture = source.Limits.MaxCustomItemsToCapture;
+		target.Limits.MaxContextSizeBytes = source.Limits.MaxContextSizeBytes;
+		target.Limits.FailOnSizeThresholdExceeded = source.Limits.FailOnSizeThresholdExceeded;
+		target.Limits.SnapshotRetentionPeriod = source.Limits.SnapshotRetentionPeriod;
+		target.Limits.MaxSnapshotsPerLineage = source.Limits.MaxSnapshotsPerLineage;
+		target.Limits.MaxHistoryEventsPerContext = source.Limits.MaxHistoryEventsPerContext;
+		target.Limits.MaxAnomalyQueueSize = source.Limits.MaxAnomalyQueueSize;
+
+		target.Fields.RequiredContextFields = source.Fields.RequiredContextFields;
+		target.Fields.CriticalFields = source.Fields.CriticalFields;
+		target.Fields.TrackedFields = source.Fields.TrackedFields;
+
+		target.Export.OtlpEndpoint = source.Export.OtlpEndpoint;
+		target.Export.ServiceName = source.Export.ServiceName;
+		target.Export.ServiceVersion = source.Export.ServiceVersion;
+		target.Export.ExportToPrometheus = source.Export.ExportToPrometheus;
+		target.Export.PrometheusScrapePath = source.Export.PrometheusScrapePath;
+		target.Export.EnableConsoleExporterInDevelopment = source.Export.EnableConsoleExporterInDevelopment;
+		target.Export.ExportToApplicationInsights = source.Export.ExportToApplicationInsights;
+		target.Export.ApplicationInsightsConnectionString = source.Export.ApplicationInsightsConnectionString;
+
+		foreach (var attribute in source.Export.ResourceAttributes)
+		{
+			target.Export.ResourceAttributes[attribute.Key] = attribute.Value;
+		}
 	}
 
 	/// <summary>

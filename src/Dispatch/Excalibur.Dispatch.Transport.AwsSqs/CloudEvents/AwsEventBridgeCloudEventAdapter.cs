@@ -36,21 +36,26 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 	private const string TraceParentProperty = "traceparent";
 	private const string DataProperty = "data";
 
+	private readonly AwsEventBridgeCloudEventOptions _eventBridgeOptions;
 	private readonly ILogger<AwsEventBridgeCloudEventAdapter> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AwsEventBridgeCloudEventAdapter" /> class.
 	/// </summary>
-	/// <param name="options"> </param>
-	/// <param name="logger"> </param>
+	/// <param name="options"> The general CloudEvent options (default source/mode, excluded extensions). </param>
+	/// <param name="eventBridgeOptions"> The EventBridge-specific options (event bus, detail-type strategy, extension inclusion). </param>
+	/// <param name="logger"> The logger instance. </param>
 	public AwsEventBridgeCloudEventAdapter(
 		IOptions<CloudEventOptions> options,
+		IOptions<AwsEventBridgeCloudEventOptions> eventBridgeOptions,
 		ILogger<AwsEventBridgeCloudEventAdapter> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(eventBridgeOptions);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		Options = options.Value ?? throw new ArgumentNullException(nameof(options));
+		_eventBridgeOptions = eventBridgeOptions.Value ?? throw new ArgumentNullException(nameof(eventBridgeOptions));
 		_logger = logger;
 	}
 
@@ -103,9 +108,18 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 
 		var entry = new PutEventsRequestEntry
 		{
-			EventBusName = string.Empty,
-			DetailType = cloudEvent.Type ?? "CloudEvent",
-			Source = cloudEvent.Source?.ToString() ?? Options.DefaultSource.ToString(),
+			// Honor the configured target event bus (previously hardcoded empty, so every send defaulted
+			// to the account's "default" bus regardless of configuration).
+			EventBusName = _eventBridgeOptions.EventBusName,
+			DetailType = _eventBridgeOptions.UseCloudEventTypeAsDetailType
+				? cloudEvent.Type ?? "CloudEvent"
+				: "CloudEvent",
+			// EventBridge requires a source identifier with a stricter format than a CloudEvent source URI;
+			// use the configured prefix as the envelope source while the full CloudEvent source round-trips
+			// in the detail payload below.
+			Source = string.IsNullOrWhiteSpace(_eventBridgeOptions.SourcePrefix)
+				? cloudEvent.Source?.ToString() ?? Options.DefaultSource.ToString()
+				: _eventBridgeOptions.SourcePrefix,
 			Resources = string.IsNullOrWhiteSpace(cloudEvent.Subject)
 				? new List<string>()
 				: new List<string> { cloudEvent.Subject },
@@ -197,7 +211,7 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private static Dictionary<string, object?> BuildDetailPayload(CloudEvent cloudEvent, CloudEventMode mode)
+	private Dictionary<string, object?> BuildDetailPayload(CloudEvent cloudEvent, CloudEventMode mode)
 	{
 		var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
 		{
@@ -212,6 +226,22 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 			[TimeoutProperty] = cloudEvent[TimeoutProperty]?.ToString() ?? cloudEvent[$"dispatch-{TimeoutProperty}"]?.ToString(),
 			[TraceParentProperty] = cloudEvent[TraceParentProperty]?.ToString(),
 		};
+
+		// Preserve custom CloudEvent extension attributes (the dispatch envelope's context) instead of
+		// dropping everything outside the fixed attribute set. Excluded extensions and attributes already
+		// mapped above are skipped so the detail stays canonical.
+		if (_eventBridgeOptions.IncludeExtensionsInDetail)
+		{
+			foreach (var attribute in cloudEvent.ExtensionAttributes)
+			{
+				if (payload.ContainsKey(attribute.Name) || Options.ExcludedExtensions.Contains(attribute.Name))
+				{
+					continue;
+				}
+
+				payload[attribute.Name] = cloudEvent[attribute.Name];
+			}
+		}
 
 		if (mode == CloudEventMode.Structured)
 		{
@@ -305,8 +335,44 @@ internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEve
 			cloudEvent[TraceParentProperty] = traceParentElement.GetString();
 		}
 
+		// Restore custom extension attributes written on send (IncludeExtensionsInDetail), so the
+		// dispatch envelope's context survives the EventBridge round-trip rather than being dropped.
+		foreach (var property in root.EnumerateObject())
+		{
+			if (KnownDetailProperties.Contains(property.Name) ||
+				Options.ExcludedExtensions.Contains(property.Name) ||
+				property.Value.ValueKind == JsonValueKind.Null)
+			{
+				continue;
+			}
+
+			// Preserve the attribute's on-the-wire type so a non-string extension (int/bool) survives the
+			// round-trip rather than being silently dropped — honouring the lossless-round-trip contract.
+			cloudEvent[property.Name] = ConvertExtensionAttributeValue(property.Value);
+		}
+
 		return cloudEvent;
 	}
+
+	// Maps a JSON detail value back to the CLR type the CloudEvents attribute model accepts (String,
+	// Boolean, Integer). CloudEvent attributes have no Double/Int64/object types, so a fractional/large
+	// number or a structured value is preserved in its canonical JSON text form (lossless, still typed
+	// on the next send as a string attribute).
+	private static object ConvertExtensionAttributeValue(JsonElement value) => value.ValueKind switch
+	{
+		JsonValueKind.String => value.GetString()!,
+		JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
+		JsonValueKind.Number when value.TryGetInt32(out var intValue) => intValue,
+		_ => value.GetRawText(),
+	};
+
+	// CloudEvent core/context attributes handled explicitly above; every other detail property is treated
+	// as a restorable custom extension attribute on read.
+	private static readonly HashSet<string> KnownDetailProperties = new(StringComparer.Ordinal)
+	{
+		SpecVersionProperty, TypeProperty, SourceProperty, IdProperty, TimeProperty, SubjectProperty,
+		DataContentTypeProperty, DataSchemaProperty, DataProperty, TimeoutProperty, TraceParentProperty,
+	};
 
 	private CloudEvent ParseBinaryDetail(PutEventsRequestEntry entry)
 	{

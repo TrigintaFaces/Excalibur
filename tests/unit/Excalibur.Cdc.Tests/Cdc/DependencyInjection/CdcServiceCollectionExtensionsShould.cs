@@ -3,6 +3,7 @@
 
 using Excalibur.Cdc;
 using Excalibur.Cdc.Processing;
+using Excalibur.Cdc.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -100,15 +101,17 @@ public sealed class CdcServiceCollectionExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void RegisterHostedService_WhenBackgroundProcessingEnabled()
+	public void RegisterHostedService_WhenBackgroundProcessingEnabled_WithProvider()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
-		// Act
+		// Act — new contract (bsiqh1): CdcProcessingHostedService registers ONLY when a provider supplies
+		// an ICdcBackgroundProcessor, so a provider (UseSqlServer) is required.
 		services.AddCdcProcessor(cdc =>
 		{
-			cdc.EnableBackgroundProcessing();
+			cdc.UseSqlServer(sql => sql.ConnectionString("Server=localhost;Database=test;Trusted_Connection=true;"))
+			   .EnableBackgroundProcessing();
 		});
 
 		// Assert

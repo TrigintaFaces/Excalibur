@@ -1,6 +1,7 @@
 // Functional tests for SecurityEventLogger — queuing, background processing, batch storage, lifecycle
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security;
 
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ public sealed class SecurityEventLoggerFunctionalShould : IDisposable
         // Enable IsEnabled so source-gen logging actually calls through
         A.CallTo(() => _logger.IsEnabled(A<LogLevel>._)).Returns(true);
 
-        _sut = new SecurityEventLogger(_logger, _eventStore);
+        _sut = new SecurityEventLogger(_logger, _eventStore, A.Fake<ITelemetrySanitizer>());
     }
 
     public void Dispose() => _sut.Dispose();
@@ -167,20 +168,20 @@ public sealed class SecurityEventLoggerFunctionalShould : IDisposable
     public void ThrowOnNullLogger()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new SecurityEventLogger(null!, _eventStore));
+            new SecurityEventLogger(null!, _eventStore, A.Fake<ITelemetrySanitizer>()));
     }
 
     [Fact]
     public void ThrowOnNullEventStore()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new SecurityEventLogger(_logger, null!));
+            new SecurityEventLogger(_logger, null!, A.Fake<ITelemetrySanitizer>()));
     }
 
     [Fact]
     public void DisposeSafely()
     {
-        var sut = new SecurityEventLogger(_logger, _eventStore);
+        var sut = new SecurityEventLogger(_logger, _eventStore, A.Fake<ITelemetrySanitizer>());
         sut.Dispose();
         // Double dispose should be safe
         sut.Dispose();

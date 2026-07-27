@@ -99,13 +99,24 @@ public static class InboxBuilderMongoDbExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<MongoDbInboxOptions>, MongoDbInboxOptionsValidator>());
 		services.AddOptions<MongoDbInboxOptions>().ValidateOnStart();
 
+		// Fail-closed single-tenant default guarantees a non-null ITenantContext for tenant scoping; the
+		// multi-tenancy composition replaces it with the ambient context.
+		services.AddDefaultTenantContext();
+
 		if (hasBuilderConnection)
 		{
 			RegisterClientAndStore(services, mongoBuilder);
 		}
 		else
 		{
-			services.TryAddSingleton<MongoDbInboxStore>();
+			// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup _id + every keyed
+			// read/claim scope per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker
+			// inseparably from that wiring (S886 rw2ull — an unwired provider can't carry a truthful marker).
+			services.AddTenantScopedStore<IInboxStore, MongoDbInboxStore>((sp, tenantContext) =>
+				new MongoDbInboxStore(
+					sp.GetRequiredService<IOptions<MongoDbInboxOptions>>(),
+					sp.GetRequiredService<ILogger<MongoDbInboxStore>>(),
+					tenantContext));
 			services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
 			services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 				sp.GetRequiredKeyedService<IInboxStore>("mongodb"));
@@ -127,13 +138,14 @@ public static class InboxBuilderMongoDbExtensions
 			services.TryAddSingleton<IMongoClient>(factory);
 		}
 
-		services.TryAddSingleton(sp =>
-		{
-			var client = sp.GetRequiredService<IMongoClient>();
-			var opts = sp.GetRequiredService<IOptions<MongoDbInboxOptions>>();
-			var logger = sp.GetRequiredService<ILogger<MongoDbInboxStore>>();
-			return new MongoDbInboxStore(client, opts, logger);
-		});
+		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup _id + keyed reads scope
+		// per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably (S886 rw2ull).
+		services.AddTenantScopedStore<IInboxStore, MongoDbInboxStore>((sp, tenantContext) =>
+			new MongoDbInboxStore(
+				sp.GetRequiredService<IMongoClient>(),
+				sp.GetRequiredService<IOptions<MongoDbInboxOptions>>(),
+				sp.GetRequiredService<ILogger<MongoDbInboxStore>>(),
+				tenantContext));
 		services.AddKeyedSingleton<IInboxStore>("mongodb", (sp, _) => sp.GetRequiredService<MongoDbInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("mongodb"));

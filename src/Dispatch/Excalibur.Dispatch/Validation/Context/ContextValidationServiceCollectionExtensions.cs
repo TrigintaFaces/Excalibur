@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Validation.Context;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -39,6 +40,8 @@ public static class ContextValidationServiceCollectionExtensions
 		// Register options
 		_ = services.AddOptions<ContextValidationOptions>()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ContextValidationOptions>, ContextValidationOptionsValidator>());
 
 		if (configuration != null)
 		{
@@ -71,7 +74,10 @@ public static class ContextValidationServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
+		_ = services.AddOptions<ContextValidationOptions>()
+			.ValidateOnStart();
 		_ = services.Configure(configureOptions);
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ContextValidationOptions>, ContextValidationOptionsValidator>());
 		services.TryAddSingleton<IContextValidator, DefaultContextValidator>();
 		_ = services.AddDispatchMiddleware<ContextValidationMiddleware>();
 
@@ -119,20 +125,20 @@ public static class ContextValidationServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseStrictContextValidation(this IServiceCollection services)
+	public static IServiceCollection AddStrictContextValidation(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.Configure<ContextValidationOptions>(static options =>
 		{
 			options.Mode = ValidationMode.Strict;
-			options.ValidateRequiredFields = true;
-			options.ValidateMultiTenancy = true;
-			options.ValidateAuthentication = true;
-			options.ValidateTracing = true;
-			options.ValidateVersioning = true;
-			options.ValidateCollections = true;
-			options.ValidateCorrelationChain = true;
+			options.Checks.ValidateRequiredFields = true;
+			options.Checks.ValidateMultiTenancy = true;
+			options.Checks.ValidateAuthentication = true;
+			options.Checks.ValidateTracing = true;
+			options.Checks.ValidateVersioning = true;
+			options.Checks.ValidateCollections = true;
+			options.Checks.ValidateCorrelationChain = true;
 			options.EnableDetailedDiagnostics = true;
 		});
 
@@ -144,7 +150,7 @@ public static class ContextValidationServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseLenientContextValidation(this IServiceCollection services)
+	public static IServiceCollection AddLenientContextValidation(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

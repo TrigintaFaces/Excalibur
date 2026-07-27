@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Text.Json;
 
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Redis.Diagnostics;
 
@@ -19,9 +20,10 @@ namespace Excalibur.EventSourcing.Redis;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Stores snapshots in Redis Hash keys: <c>snap:{aggregateType}:{aggregateId}</c>.
+/// Stores snapshots in Redis Hash keys: <c>snap:{aggregateType}:{aggregateId}</c>, or
+/// <c>snap:t:{tenantId}:{aggregateType}:{aggregateId}</c> when the host is multi-tenant.
 /// Each hash contains the snapshot data, version, and metadata.
-/// Only the latest snapshot is stored per aggregate (overwritten on save).
+/// Only the latest snapshot is stored per aggregate and tenant (overwritten on save).
 /// </para>
 /// </remarks>
 public sealed partial class RedisSnapshotStore : ISnapshotStore
@@ -29,6 +31,7 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 	private readonly ConnectionMultiplexer _connection;
 	private readonly RedisSnapshotStoreOptions _options;
 	private readonly ILogger<RedisSnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="RedisSnapshotStore"/> class.
@@ -36,14 +39,21 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 	/// <param name="connection">The Redis connection multiplexer.</param>
 	/// <param name="options">The snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot key, so two tenants holding the same aggregate identifier
+	/// address separate entries instead of overwriting one another.
+	/// </param>
 	public RedisSnapshotStore(
 		ConnectionMultiplexer connection,
 		IOptions<RedisSnapshotStoreOptions> options,
-		ILogger<RedisSnapshotStore> logger)
+		ILogger<RedisSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		_connection = connection ?? throw new ArgumentNullException(nameof(connection));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -81,7 +91,7 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 		var db = GetDatabase();
 		var key = GetSnapshotKey(snapshot.AggregateType, snapshot.AggregateId);
 
-		var entries = ToHashEntries(snapshot);
+		var entries = ToHashEntries(snapshot, TenantScope.FromContext(_tenantContext).TenantId);
 
 		await db.HashSetAsync(key, entries).ConfigureAwait(false);
 
@@ -134,7 +144,7 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 		}
 	}
 
-	private static HashEntry[] ToHashEntries(ISnapshot snapshot)
+	private static HashEntry[] ToHashEntries(ISnapshot snapshot, string? tenantId)
 	{
 		var entries = new List<HashEntry>
 		{
@@ -145,6 +155,11 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 			new(HashFields.CreatedAt, snapshot.CreatedAt.ToString("O", CultureInfo.InvariantCulture)),
 			new(HashFields.Data, snapshot.Data),
 		};
+
+		if (!string.IsNullOrEmpty(tenantId))
+		{
+			entries.Add(new HashEntry(HashFields.TenantId, tenantId));
+		}
 
 		if (snapshot.Metadata != null)
 		{
@@ -182,6 +197,7 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 				: DateTimeOffset.UtcNow,
 			Data = dict.TryGetValue("data", out var data) ? (byte[])data! : [],
 			Metadata = metadata,
+			TenantId = dict.TryGetValue("tenantId", out var tenant) && tenant.HasValue ? tenant.ToString() : null,
 		};
 	}
 
@@ -190,8 +206,24 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 			? _connection.GetDatabase(_options.DatabaseIndex)
 			: _connection.GetDatabase();
 
-	private string GetSnapshotKey(string aggregateType, string aggregateId) =>
-		$"{_options.KeyPrefix}:{aggregateType}:{aggregateId}";
+	/// <summary>
+	/// Builds the key identifying a single aggregate's snapshot, including the tenant when the host is
+	/// multi-tenant. Every read, write, and delete path routes through this one method, so the tenant
+	/// cannot be applied to some operations and forgotten on others.
+	/// </summary>
+	/// <remarks>
+	/// The tenant segment is added ONLY when tenancy is active. Emitting an empty segment unconditionally
+	/// would change every existing single-tenant key, orphaning the snapshots already stored under the old
+	/// shape — recoverable, since a missing snapshot rebuilds from the event stream, but a silent
+	/// full-rebuild for every aggregate is not an acceptable cost for a fix that need not impose it.
+	/// </remarks>
+	private string GetSnapshotKey(string aggregateType, string aggregateId)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		return scope.IsScoped
+			? $"{_options.KeyPrefix}:t:{scope.TenantId}:{aggregateType}:{aggregateId}"
+			: $"{_options.KeyPrefix}:{aggregateType}:{aggregateId}";
+	}
 
 	[LoggerMessage(RedisEventSourcingEventId.SnapshotLoaded, LogLevel.Debug,
 		"Loaded snapshot for aggregate {AggregateId} of type {AggregateType} at version {Version}")]
@@ -218,6 +250,7 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 		public static readonly RedisValue CreatedAt = "createdAt";
 		public static readonly RedisValue Data = "data";
 		public static readonly RedisValue Metadata = "metadata";
+		public static readonly RedisValue TenantId = "tenantId";
 	}
 }
 
@@ -226,6 +259,14 @@ public sealed partial class RedisSnapshotStore : ISnapshotStore
 /// </summary>
 internal sealed class RedisSnapshot : ISnapshot
 {
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Hydrated from the hash rather than the key. The key carries the tenant so that entries are
+	/// isolated; this property carries it so a snapshot read back from Redis reports the tenant it
+	/// belongs to rather than silently claiming to be single-tenant.
+	/// </remarks>
+	public string? TenantId { get; init; }
+
 	/// <inheritdoc/>
 	public required string SnapshotId { get; init; }
 

@@ -39,6 +39,13 @@ internal sealed partial class OpaAuthorizationEvaluator : IAuthorizationEvaluato
 		_httpClient = httpClient;
 		_options = options.Value;
 		_logger = logger;
+
+		if (!_options.FailClosed)
+		{
+			// Fail-open is the single most dangerous authorization posture: an outage PERMITS everything.
+			// Make choosing it loud so it can never be adopted silently.
+			LogOpaFailOpenConfigured();
+		}
 	}
 
 	/// <inheritdoc />
@@ -66,7 +73,7 @@ internal sealed partial class OpaAuthorizationEvaluator : IAuthorizationEvaluato
 			if (!response.IsSuccessStatusCode)
 			{
 				LogOpaHttpError((int)response.StatusCode, _options.PolicyPath);
-				return FailureDecision($"OPA returned HTTP {(int)response.StatusCode}.");
+				return FailureDecision($"OPA returned HTTP {(int)response.StatusCode}.", subject, action, resource);
 			}
 
 			var responseBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken)
@@ -80,19 +87,30 @@ internal sealed partial class OpaAuthorizationEvaluator : IAuthorizationEvaluato
 		catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{
 			LogOpaTimeout(_options.TimeoutMs);
-			return FailureDecision($"OPA request timed out after {_options.TimeoutMs}ms.");
+			return FailureDecision($"OPA request timed out after {_options.TimeoutMs}ms.", subject, action, resource);
 		}
 		catch (HttpRequestException ex)
 		{
 			LogOpaConnectionFailure(ex.Message);
-			return FailureDecision($"OPA connection failed: {ex.Message}");
+			return FailureDecision($"OPA connection failed: {ex.Message}", subject, action, resource);
 		}
 	}
 
-	private AuthorizationDecision FailureDecision(string reason)
+	private AuthorizationDecision FailureDecision(
+		string reason,
+		AuthorizationSubject subject,
+		AuthorizationAction action,
+		AuthorizationResource resource)
 	{
-		var effect = _options.FailClosed ? AuthorizationEffect.Deny : AuthorizationEffect.Permit;
-		return new AuthorizationDecision(effect, reason);
+		if (_options.FailClosed)
+		{
+			return new AuthorizationDecision(AuthorizationEffect.Deny, reason);
+		}
+
+		// Fail-open PERMIT on an engine outage — audit-grade: name the actual effect and the principal, not
+		// an ambiguous either/or, so a security review can see exactly what was allowed and why.
+		LogOpaFailOpenPermit(subject.ActorId, action.Name, resource.Type, reason);
+		return new AuthorizationDecision(AuthorizationEffect.Permit, reason);
 	}
 
 	[LoggerMessage(3100, LogLevel.Warning,
@@ -110,4 +128,12 @@ internal sealed partial class OpaAuthorizationEvaluator : IAuthorizationEvaluato
 	[LoggerMessage(3103, LogLevel.Warning,
 		"OPA connection failed: {ErrorMessage}. Applying fail-closed/fail-open policy.")]
 	private partial void LogOpaConnectionFailure(string errorMessage);
+
+	[LoggerMessage(3104, LogLevel.Warning,
+		"OPA authorization is configured FAIL-OPEN (FailClosed=false): a policy-engine outage or error will PERMIT requests instead of denying them. This is insecure; set FailClosed=true unless this risk has been explicitly accepted.")]
+	private partial void LogOpaFailOpenConfigured();
+
+	[LoggerMessage(3105, LogLevel.Warning,
+		"OPA FAIL-OPEN: PERMITTING actor={ActorId} action={ActionName} resourceType={ResourceType} because the policy engine was unreachable (FailClosed=false). Reason: {Reason}")]
+	private partial void LogOpaFailOpenPermit(string actorId, string actionName, string resourceType, string reason);
 }

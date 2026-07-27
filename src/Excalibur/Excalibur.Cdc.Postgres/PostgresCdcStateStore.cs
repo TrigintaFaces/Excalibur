@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 
 using Dapper;
 
@@ -23,6 +22,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 	private readonly string _schemaName;
 	private readonly string _tableName;
 	private readonly string _fullTableName;
+	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private volatile bool _initialized;
 	private volatile bool _disposed;
 
@@ -227,8 +227,20 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 	/// <inheritdoc/>
 	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
 	{
-		await ClearStateAsync(consumerId, cancellationToken).ConfigureAwait(false);
-		return true;
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		await using var connection = new NpgsqlConnection(_connectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		// Scope to the generic checkpoint row (table_name = '') and report whether a row actually existed,
+		// per the ICdcStateStore contract: deleting a non-existent checkpoint returns false.
+		var sql = $"DELETE FROM {_fullTableName} WHERE processor_id = @ProcessorId AND table_name = ''";
+		var affected = await connection
+			.ExecuteAsync(new CommandDefinition(sql, new { ProcessorId = consumerId }, cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
+		return affected > 0;
 	}
 
 	/// <inheritdoc/>
@@ -267,6 +279,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		}
 
 		_disposed = true;
+		_initLock.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -278,6 +291,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		}
 
 		_disposed = true;
+		_initLock.Dispose();
 		return ValueTask.CompletedTask;
 	}
 
@@ -288,10 +302,21 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 			return;
 		}
 
-		await using var connection = new NpgsqlConnection(_connectionString);
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		// Serialize first-time provisioning: PostgreSQL DDL (CREATE SCHEMA/TABLE ... IF NOT EXISTS) is NOT
+		// concurrency-safe — racing statements collide on internal catalog inserts (23505 on
+		// pg_type_typname_nsp_index). Concurrent first callers would each run the DDL without this gate.
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			if (_initialized)
+			{
+				return;
+			}
 
-		var createSchemaSql = $"CREATE SCHEMA IF NOT EXISTS \"{_schemaName}\"";
+			await using var connection = new NpgsqlConnection(_connectionString);
+			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+			var createSchemaSql = $"CREATE SCHEMA IF NOT EXISTS \"{_schemaName}\"";
 		_ = await connection.ExecuteAsync(new CommandDefinition(createSchemaSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		var createTableSql = $@"
@@ -309,9 +334,11 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 			ON {_fullTableName} (processor_id, updated_at DESC)";
 		_ = await connection.ExecuteAsync(new CommandDefinition(createIndexSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-		_initialized = true;
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
 	}
-
-	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
-	private static partial Regex SqlIdentifierRegex();
 }

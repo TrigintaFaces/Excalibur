@@ -378,7 +378,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
 		Should.Throw<ArgumentNullException>(
-			() => new RbacAuditStore(null!, roleProvider, logger));
+			() => new RbacAuditStore(null!, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger));
 	}
 
 	[Fact]
@@ -387,7 +387,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var store = A.Fake<IAuditStore>();
 		var logger = new NullLogger<RbacAuditStore>();
 		Should.Throw<ArgumentNullException>(
-			() => new RbacAuditStore(store, null!, logger));
+			() => new RbacAuditStore(store, null!, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger));
 	}
 
 	[Fact]
@@ -396,7 +396,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var store = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		Should.Throw<ArgumentNullException>(
-			() => new RbacAuditStore(store, roleProvider, null!));
+			() => new RbacAuditStore(store, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), null!));
 	}
 
 	#endregion
@@ -410,7 +410,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var innerStore = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -452,7 +452,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var innerStore = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => sut.QueryAsync(null!, CancellationToken.None)).ConfigureAwait(false);
@@ -464,7 +464,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 		var innerStore = A.Fake<IAuditStore>();
 		var roleProvider = A.Fake<IAuditRoleProvider>();
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => sut.CountAsync(null!, CancellationToken.None)).ConfigureAwait(false);
@@ -620,7 +620,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		A.CallTo(() => innerStore.GetByIdAsync("missing", A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
@@ -647,7 +647,7 @@ public sealed class AuditLoggingFinalCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null, metaLogger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
 
 		var auditEvent = new AuditEvent
 		{

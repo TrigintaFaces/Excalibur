@@ -360,25 +360,17 @@ public sealed class AggregateTestFixtureShould
 
 	#region Test doubles
 
-	private sealed class ItemAdded : IDomainEvent
+	// Derives from DomainEvent (the framework base, which implements the internal IEventMetadataWriter
+	// stamping seam) so AggregateTestFixture.Given can assign contiguous 0-based versions AOT-safely,
+	// exercising the blessed consumer event path.
+	private sealed record ItemAdded : DomainEvent
 	{
 		public ItemAdded(string itemId)
 		{
 			ItemId = itemId;
-			EventId = Guid.NewGuid().ToString();
-			AggregateId = "test-agg";
-			Version = 0;
-			OccurredAt = DateTimeOffset.UtcNow;
-			EventType = nameof(ItemAdded);
 		}
 
-		public string ItemId { get; }
-		public string EventId { get; set; }
-		public string AggregateId { get; set; }
-		public long Version { get; set; }
-		public DateTimeOffset OccurredAt { get; set; }
-		public string EventType { get; set; }
-		public IDictionary<string, object>? Metadata { get; set; }
+		public string ItemId { get; init; }
 	}
 
 	private sealed class TestAggregate : AggregateRoot
@@ -390,12 +382,15 @@ public sealed class AggregateTestFixtureShould
 			RaiseEvent(new ItemAdded(itemId));
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is ItemAdded added)
 			{
 				Items.Add(added.ItemId);
+				return true;
 			}
+
+			return false;
 		}
 	}
 

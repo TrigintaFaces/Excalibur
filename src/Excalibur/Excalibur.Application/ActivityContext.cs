@@ -31,14 +31,14 @@ public sealed class ActivityContext : IActivityContext
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ActivityContext" /> class with essential dependencies.
 	/// </summary>
-	/// <param name="tenantId"> The tenant identifier. </param>
+	/// <param name="tenantId"> The resolved tenant identifier value. </param>
 	/// <param name="correlationId"> The correlation identifier. </param>
 	/// <param name="eTag"> The ETag for concurrency control. </param>
 	/// <param name="configuration"> The application configuration. </param>
 	/// <param name="clientAddress"> The client address. </param>
 	/// <param name="serviceProvider"> The service provider for dependency Excalibur.Tests.Integration. </param>
 	public ActivityContext(
-		ITenantId tenantId,
+		string tenantId,
 		ICorrelationId correlationId,
 		IETag eTag,
 		IConfiguration configuration,

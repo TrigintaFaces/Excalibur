@@ -5,8 +5,9 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Defines the contract for inbox pattern implementations that provide exactly-once delivery guarantees and reliable message processing in
-/// distributed systems. The inbox pattern ensures message idempotency by tracking processed messages and preventing duplicate processing.
+/// Defines the contract for inbox pattern implementations that deduplicate redelivered messages so each is processed effectively once.
+/// Delivery itself remains at-least-once — the transport may deliver the same message more than once — and the inbox removes the duplicate
+/// <em>effect</em> by tracking processed messages, not the duplicate delivery. Handlers must be idempotent.
 /// </summary>
 /// <remarks>
 /// The inbox pattern is essential for building resilient distributed systems that can handle message delivery guarantees across service
@@ -17,8 +18,8 @@ namespace Excalibur.Dispatch;
 public interface IInbox : IAsyncDisposable
 {
 	/// <summary>
-	/// Asynchronously processes all pending messages in the inbox for the specified dispatcher, ensuring exactly-once delivery semantics
-	/// and proper message ordering where required.
+	/// Asynchronously processes all pending messages in the inbox for the specified dispatcher, ensuring each is processed effectively once
+	/// (a redelivered message is skipped, not reprocessed) and proper message ordering where required.
 	/// </summary>
 	/// <param name="dispatcherId">
 	/// The unique identifier of the dispatcher instance processing messages, used for coordination and preventing concurrent processing

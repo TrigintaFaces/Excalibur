@@ -162,6 +162,6 @@ public sealed class TestBulkAggregate : AggregateRoot<string>, IAggregateSnapsho
 	public long SnapshotVersion { get; set; }
 	public void RestoreFromSnapshot(ISnapshot snapshot) { }
 	public new ISnapshot CreateSnapshot() => A.Fake<ISnapshot>();
-	protected override void ApplyEventInternal(IDomainEvent @event) { }
+	protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 }
 #pragma warning restore CA1034

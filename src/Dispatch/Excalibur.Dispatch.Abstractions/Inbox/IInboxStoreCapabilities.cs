@@ -49,4 +49,15 @@ public interface IInboxStoreCapabilities
     /// <see langword="false"/>.
     /// </value>
     bool SupportsProcessingTracking { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the store can process a message and mark it processed inside a single
+    /// enlisting transaction (the effective <see cref="ITransactionalInboxStore"/> capability, forwarded
+    /// through any decoration), enabling exactly-once processing.
+    /// </summary>
+    /// <value>
+    /// <see langword="true"/> if transactional handler+mark can be forwarded to a capable store; otherwise
+    /// <see langword="false"/> (the store falls back to the documented at-least-once claim protocol).
+    /// </value>
+    bool SupportsTransactional { get; }
 }

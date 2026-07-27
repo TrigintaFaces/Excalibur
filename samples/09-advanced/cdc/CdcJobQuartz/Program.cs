@@ -74,6 +74,7 @@ using CdcJobQuartz.Domain;
 using CdcJobQuartz.Infrastructure;
 using CdcJobQuartz.Projections;
 
+using Excalibur.Cdc.SqlServer;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.Jobs.Cdc;
 
@@ -138,26 +139,48 @@ builder.Services.AddSqlServerCdcJob(builder.Configuration);
 builder.Services.AddSingleton<LegacyCustomerAdapter>();
 builder.Services.AddSingleton<ICustomerLookupService, InMemoryCustomerLookupService>();
 
+// Identity map: makes external-to-internal ID resolution idempotent ACROSS RESTARTS.
+// CDC replays the same legacy row after a restart or a capture-instance reset; without a
+// durable map the same LegacyCustomer would resolve to a NEW CustomerAggregate each time.
+// AddInMemoryIdentityMap() exists but is documented for testing/development only -- it
+// loses the mapping on every restart, which defeats the guarantee this sample exists to
+// demonstrate. The table lives alongside the aggregates it maps to (SQL Server #2).
+// DDL: scripts/setup-databases.sql, Section 3.
+builder.Services.AddIdentityMap(identity =>
+	identity.UseSqlServer(sql => sql.ConnectionString(eventStoreConnectionString)));
+
+// The CDC anti-corruption handler. MUST be registered: DataChangeEventProcessor builds its
+// handler map from GetServices<IDataChangeHandler>(), which returns an EMPTY enumerable --
+// not an error -- when nothing is registered. An unregistered handler is therefore a silent
+// no-op, not a startup failure.
+//
+// SINGLETON is required, not a preference: the processor freezes the resolved handlers into
+// a FrozenDictionary for the process lifetime. A scoped registration would either fail to
+// resolve from the root provider or become a captive dependency. All four of this handler's
+// dependencies are singletons (AddRepository uses TryAddSingleton, IIdentityMapStore and
+// LegacyCustomerAdapter are singletons), so direct injection is safe here.
+builder.Services.AddSingleton<IDataChangeHandler, CdcChangeHandler>();
+
 // Register Elasticsearch projection stores using per-projection named options.
 // Each projection type gets its own isolated options (fix).
 builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 {
 	projections.Add<CustomerSearchProjection>(options =>
 	{
-		options.IndexPrefix = "customers";
-		options.CreateIndexOnInitialize = true;
-		options.NumberOfShards = 1;
-		options.NumberOfReplicas = 0; // Dev mode - use 1+ in production
-		options.RefreshInterval = "1s";
+		options.Index.IndexPrefix = "customers";
+		options.Index.CreateIndexOnInitialize = true;
+		options.Index.NumberOfShards = 1;
+		options.Index.NumberOfReplicas = 0; // Dev mode - use 1+ in production
+		options.Index.RefreshInterval = "1s";
 	});
 
 	projections.Add<CustomerTierSummaryProjection>(options =>
 	{
-		options.IndexPrefix = "customers";
-		options.CreateIndexOnInitialize = true;
-		options.NumberOfShards = 1;
-		options.NumberOfReplicas = 0;
-		options.RefreshInterval = "1s";
+		options.Index.IndexPrefix = "customers";
+		options.Index.CreateIndexOnInitialize = true;
+		options.Index.NumberOfShards = 1;
+		options.Index.NumberOfReplicas = 0;
+		options.Index.RefreshInterval = "1s";
 	});
 });
 
@@ -202,6 +225,12 @@ builder.Services.AddExcalibur(excalibur => excalibur
 		{
 			sql.ConnectionString(eventStoreConnectionString);
 		});
+
+		// CustomerAggregate repository. Required: there is NO open-generic
+		// IEventSourcedRepository<,> registration in the framework, so every aggregate the
+		// application injects must be registered explicitly. CdcChangeHandler takes
+		// IEventSourcedRepository<CustomerAggregate, Guid> in its constructor.
+		es.AddRepository<CustomerAggregate, Guid>(id => new CustomerAggregate(id));
 
 		// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
 		es.AddProjection<CustomerSearchProjection>(p => p

@@ -9,7 +9,7 @@ using Excalibur.Dispatch;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Registration extensions for the secure-by-default event-type allow-list (c6wd6f).
+/// Registration extensions for the secure-by-default event-type allow-list.
 /// </summary>
 /// <remarks>
 /// <para>

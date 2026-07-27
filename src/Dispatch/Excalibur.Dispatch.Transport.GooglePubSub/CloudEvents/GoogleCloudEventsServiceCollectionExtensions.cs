@@ -45,6 +45,7 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
+		_ = services.AddCloudEventOptionsValidation();
 		_ = services.AddOptions<GooglePubSubCloudEventOptions>()
 			.ValidateOnStart();
 
@@ -63,7 +64,7 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(static provider =>
 			provider.GetRequiredService<IOptions<GooglePubSubCloudEventOptions>>().Value);
 
-		services.TryAddSingleton<ICloudEventMapper<PubsubMessage>, GooglePubSubCloudEventAdapter>();
+		services.AddCloudEventMapper<PubsubMessage, GooglePubSubCloudEventAdapter>();
 
 		return services;
 	}
@@ -75,7 +76,7 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 	/// <param name="configurePubSub"> Action to configure Pub/Sub-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForPubSub(
+	public static IServiceCollection AddCloudEventsForPubSub(
 		this IServiceCollection services,
 		Action<GooglePubSubCloudEventOptions>? configurePubSub = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -114,8 +115,8 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 				var hasTraceParent = cloudEvent.GetAttribute("traceparent") != null;
 				var hasTimestamp = cloudEvent.Time.HasValue;
 
-				// At minimum require tracing for audit compliance
-				return Task.FromResult(hasTraceParent || hasCorrelationId);
+				// DoD compliance requires correlationId, userId, and traceParent — all mandatory.
+				return Task.FromResult(hasCorrelationId && hasUserId && hasTraceParent);
 			});
 		}
 

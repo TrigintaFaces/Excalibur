@@ -9,6 +9,7 @@ using System.Text;
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.SqlServer.Requests;
 
@@ -42,11 +43,19 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 	/// <param name="rows">The events to insert (must be non-empty and within <see cref="MaxEventsPerStatement"/>).</param>
 	/// <param name="transaction">The transaction to participate in.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="scope">
+	/// The tenant scope. The event store is a <strong>keyed</strong> tenant table, so every inserted
+	/// row is stamped with a non-null tenant term in the same atomic statement: the resolved tenant when
+	/// scoped, or the reserved <c>__untenanted__</c> sentinel when unscoped — routed through
+	/// <see cref="KeyedTenantPartition"/>, which has no empty inhabitant. A write carrying no tenant term
+	/// (one that would land un-partitioned across every tenant) is therefore unrepresentable.
+	/// </param>
 	/// <param name="schema">The schema name for the event store table. Default: "dbo".</param>
 	/// <param name="table">The event store table name. Default: "EventStoreEvents".</param>
 	public InsertEventsBatchRequest(
 		IReadOnlyList<EventInsertRow> rows,
 		IDbTransaction? transaction,
+		TenantScope scope,
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
@@ -64,6 +73,16 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 
 		var valuesBuilder = new StringBuilder();
 		var parameters = new DynamicParameters();
+
+		// The event store is a KEYED tenant table (FR-8): every row carries a non-null tenant term, so the
+		// tenant column and parameter are ALWAYS emitted — routing through KeyedTenantPartition makes an
+		// unscoped write bind the reserved __untenanted__ sentinel rather than omit the column, so an
+		// un-partitioned (all-tenants) write is unconstructable. One value for the whole batch, bound once
+		// and appended to every VALUES tuple.
+		var partition = KeyedTenantPartition.FromScope(scope);
+		const string tenantColumn = ", TenantId";
+		const string tenantValue = ",@TenantId";
+		parameters.Add("@TenantId", partition.TenantId);
 
 		for (var i = 0; i < rows.Count; i++)
 		{
@@ -89,6 +108,7 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 				.Append(",@Metadata").Append(p)
 				.Append(",@Version").Append(p)
 				.Append(",@Timestamp").Append(p)
+				.Append(tenantValue)
 				.Append(')');
 
 			parameters.Add("@EventId" + p, row.EventId);
@@ -103,7 +123,7 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
-			INSERT INTO {qualifiedTable} (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp)
+			INSERT INTO {qualifiedTable} (EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp{tenantColumn})
 			OUTPUT INSERTED.Position, INSERTED.Version
 			VALUES {valuesBuilder}
 			""";

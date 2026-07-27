@@ -68,7 +68,7 @@ public sealed class CosmosDbEventStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new CosmosDbBuilder()
-			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest")
+			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview")
 			.WithName($"cosmosdb-eventstore-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();

@@ -61,26 +61,4 @@ public enum OutboxDeliveryGuarantee
 	/// </para>
 	/// </remarks>
 	MinimizedWindow = 1,
-
-	/// <summary>
-	/// Exactly-once delivery when the message transport uses the same database.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// When the outbox and message destination share the same database, the publish
-	/// and completion can be wrapped in a single transaction, achieving exactly-once
-	/// semantics. If the transport uses a different database or external service,
-	/// this mode falls back to <see cref="MinimizedWindow"/> behavior.
-	/// </para>
-	/// <para>
-	/// <b>Use when:</b> Exactly-once delivery is required and transport supports transactional publish.
-	/// </para>
-	/// <para>
-	/// <b>Throughput:</b> Depends on transport (transactional overhead if supported).
-	/// </para>
-	/// <para>
-	/// <b>Failure window:</b> Zero when transactional; single message otherwise.
-	/// </para>
-	/// </remarks>
-	TransactionalWhenApplicable = 2,
 }

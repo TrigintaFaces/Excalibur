@@ -92,7 +92,7 @@ internal static class AnalyzerDiagnosticDescriptors
 		category: NamingCategory,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "Namespaces in the Excalibur framework must not contain a '.Core.' segment. This follows ADR-075 (.NET Best Practices) which prohibits '.Core.' in namespace paths.",
+		description: "Namespaces in the Excalibur framework must not contain a '.Core.' segment. The framework's .NET naming convention prohibits '.Core.' in namespace paths.",
 		helpLinkUri: "https://docs.excalibur-dispatch.dev/docs/diagnostics/DISP104");
 
 	/// <summary>

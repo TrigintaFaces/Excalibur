@@ -113,6 +113,10 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		Exception? lastException = null;
 		IMessageResult? lastFailedResult = null;
 
+		// Threads the previous actual delay forward for BackoffStrategy.DecorrelatedJitter (stateful within
+		// this in-process retry sequence); ignored by the attempt-derived strategies.
+		var previousDelayMs = 0.0;
+
 		while (attempt < effectiveOptions.MaxAttempts)
 		{
 			attempt++;
@@ -201,8 +205,9 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			// Don't delay after the last attempt
 			if (attempt < effectiveOptions.MaxAttempts)
 			{
-				RetryAttemptsCounter.Add(1);
-				var delay = CalculateDelay(effectiveOptions, attempt);
+				RetryAttemptsCounter.Add(1, new KeyValuePair<string, object?>("message.type", message.GetType().Name));
+				var delay = CalculateDelay(effectiveOptions, attempt, previousDelayMs);
+				previousDelayMs = delay.TotalMilliseconds;
 				LogWaitingBeforeRetry(delay.TotalMilliseconds, attempt + 1, context.MessageId ?? string.Empty);
 
 				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
@@ -214,7 +219,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		// (lastFailedResult set) OR the retryable-exception path (lastException set). Both paths converge
 		// here, so dispatch.retry.exhausted is emitted exactly once on EVERY exhaustion code path — no
 		// undercount (qu3182) — and the distinct RetryExhausted terminal is now reachable (jj9gon).
-		RetryExhaustionsCounter.Add(1);
+		RetryExhaustionsCounter.Add(1, new KeyValuePair<string, object?>("message.type", message.GetType().Name));
 
 		var errorMessage = lastException is not null
 			? lastException.GetSanitizedErrorDescription(_sanitizer)
@@ -313,16 +318,28 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 	// on the exhaustion terminal (qu3182/jj9gon) rather than falling through to the non-retryable catch.
 	private bool IsExceptionRetryable(RetryOptions options, Exception exception)
 	{
-		// Check against configured exception filters
-		if (options.RetryableExceptions.Count > 0)
+		var exceptionType = exception.GetType();
+
+		// The non-retryable floor takes PRECEDENCE over the retryable allowlist and walks the type hierarchy
+		// (IsAssignableFrom) rather than an exact-type match: a derived exception whose base is registered
+		// non-retryable — e.g. TenantIsolationViolationException, which derives from InvalidOperationException
+		// in the default set — is NEVER retried, even when a RetryableExceptions allowlist is configured.
+		// Checking the floor FIRST mirrors the AND-composed floor in the Polly adapters
+		// (PollyRetryPolicyAdapter/RetryPolicy: !IsNeverRetryable(ex) && …) and Polly's Handle<T>() semantics;
+		// retrying a permanent cross-tenant violation only multiplies the isolation exposure.
+		foreach (var nonRetryable in options.NonRetryableExceptions)
 		{
-			return options.RetryableExceptions.Contains(exception.GetType());
+			if (nonRetryable.IsAssignableFrom(exceptionType))
+			{
+				return false;
+			}
 		}
 
-		// Check against non-retryable exceptions
-		if (options.NonRetryableExceptions.Contains(exception.GetType()))
+		// Explicit retryable allowlist (if configured): only these types are retried. Reached only after the
+		// non-retryable floor above, so the floor can never be bypassed by configuring an allowlist.
+		if (options.RetryableExceptions.Count > 0)
 		{
-			return false;
+			return options.RetryableExceptions.Contains(exceptionType);
 		}
 
 		// No explicit filter matched: defer to the shared failure classifier (shu41d / S-A) so the
@@ -332,7 +349,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		return _classifier.Classify(exception) == MessageFailureKind.Transient;
 	}
 
-	private static TimeSpan CalculateDelay(RetryOptions options, int attempt)
+	private static TimeSpan CalculateDelay(RetryOptions options, int attempt, double previousDelayMs)
 	{
 		var baseMs = options.BaseDelay.TotalMilliseconds;
 
@@ -344,6 +361,8 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 			// exponential growth matches the documented option and stays consistent with Outbox/Inbox backoff.
 			BackoffStrategy.Exponential => baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1),
 			BackoffStrategy.ExponentialWithJitter => CalculateExponentialWithJitterMs(options, baseMs, attempt),
+			BackoffStrategy.FullJitter => CalculateFullJitterMs(options, baseMs, attempt),
+			BackoffStrategy.DecorrelatedJitter => CalculateDecorrelatedJitterMs(baseMs, previousDelayMs),
 			_ => baseMs,
 		};
 
@@ -379,5 +398,26 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		var exponentialDelay = baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1);
 		var jitter = GetSecureRandomDouble() * options.JitterFactor;
 		return exponentialDelay * (1 + jitter);
+	}
+
+	// AWS "Decorrelated Jitter": sample uniformly from [base, previous * 3], threading the previous actual
+	// delay forward. The first attempt has no prior delay, so it seeds from base. ClampMs applies the cap.
+	private static double CalculateDecorrelatedJitterMs(double baseMs, double previousDelayMs)
+	{
+		var previous = previousDelayMs <= 0 ? baseMs : previousDelayMs;
+		var upper = previous * 3.0;
+		return baseMs + (GetSecureRandomDouble() * (upper - baseMs));
+	}
+
+	// AWS "Full Jitter": sample uniformly from [0, min(maxDelay, exponential ceiling)] so concurrent clients
+	// are maximally decorrelated. The ceiling is capped here (not just by ClampMs) so the distribution stays
+	// uniform across the whole window rather than spiking at the cap.
+	private static double CalculateFullJitterMs(RetryOptions options, double baseMs, int attempt)
+	{
+		var exponentialDelay = baseMs * Math.Pow(options.BackoffMultiplier, attempt - 1);
+		var ceiling = double.IsFinite(exponentialDelay)
+			? Math.Min(exponentialDelay, options.MaxDelay.TotalMilliseconds)
+			: options.MaxDelay.TotalMilliseconds;
+		return GetSecureRandomDouble() * ceiling;
 	}
 }

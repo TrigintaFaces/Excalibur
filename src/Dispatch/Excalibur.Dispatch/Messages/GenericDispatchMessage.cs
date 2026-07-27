@@ -9,7 +9,12 @@ namespace Excalibur.Dispatch.Messages;
 /// <summary>
 /// Generic implementation of a dispatch message with a string payload.
 /// </summary>
-public sealed class GenericDispatchMessage : IDispatchMessage
+/// <remarks>
+/// This message is an action, so the middleware that applies to actions — including authentication, authorization, and
+/// validation — applies to it. A message type declares its kind by the interface it implements, and the pipeline decides
+/// which middleware protects it from that declaration.
+/// </remarks>
+public sealed class GenericDispatchMessage : IDispatchAction
 {
 	private readonly Dictionary<string, object> _headers = [];
 	private readonly DefaultMessageFeatures _features = new();
@@ -96,9 +101,6 @@ public sealed class GenericDispatchMessage : IDispatchMessage
 
 	/// <inheritdoc />
 	public Guid Id => Guid.TryParse(MessageId, out var guid) ? guid : Guid.Empty;
-
-	/// <inheritdoc />
-	public MessageKinds Kind => MessageKinds.Action;
 
 	/// <summary>
 	/// Adds a header to the message.

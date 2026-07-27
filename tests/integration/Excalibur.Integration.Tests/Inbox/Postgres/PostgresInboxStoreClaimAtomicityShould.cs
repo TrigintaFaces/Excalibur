@@ -99,7 +99,6 @@ public sealed class PostgresInboxStoreClaimAtomicityShould : IClassFixture<Postg
 				status INT NOT NULL,
 				retry_count INT NOT NULL,
 				correlation_id VARCHAR(255),
-				tenant_id VARCHAR(255),
 				source VARCHAR(255),
 				last_error TEXT,
 				last_attempt_at TIMESTAMPTZ,

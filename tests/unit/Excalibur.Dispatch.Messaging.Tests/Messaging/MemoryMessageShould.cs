@@ -271,19 +271,6 @@ public sealed class MemoryMessageShould
 		message.Id.ToString().ShouldBe(message.MessageId);
 	}
 
-	[Fact]
-	public void Kind_IsAction()
-	{
-		// Arrange
-		var memoryOwner = MemoryPool<byte>.Shared.Rent(100);
-
-		// Act
-		using var message = new MemoryMessage(memoryOwner);
-
-		// Assert
-		message.Kind.ShouldBe(MessageKinds.Action);
-	}
-
 	#endregion
 
 	#region Dispose Tests

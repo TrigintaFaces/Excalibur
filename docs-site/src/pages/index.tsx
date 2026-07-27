@@ -147,6 +147,18 @@ function HeroSword() {
 // Feature data for the landing page
 const features: { title: string; icon: ReactNode; description: string }[] = [
   {
+    title: 'First-Class HTTP Result Contracts',
+    icon: <IconServer />,
+    description:
+      'Map an action straight to an endpoint with app.DispatchPostAction<TRequest, TAction, TResponse>(route). The framework turns the result into the correct HTTP status — 200 on success, 400/403/500 on failure — so there is no manual result-unwrapping. The differentiator over a hand-rolled MapPost + dispatch + branch.',
+  },
+  {
+    title: 'Secure by Default',
+    icon: <IconShield />,
+    description:
+      'Authorize with native ASP.NET Core [Authorize] via a standard AuthorizationHandler<GrantsAuthorizationRequirement>. Grants flow to a pluggable policy engine (Cedar or OPA) and fail closed — any evaluation fault denies the request.',
+  },
+  {
     title: 'Blazing Fast Messaging',
     icon: <IconLightning />,
     description:
@@ -185,27 +197,26 @@ const features: { title: string; icon: ReactNode; description: string }[] = [
 ];
 
 // Quick start code example
-const quickStartCode = `// 1. Define your command
-public record CreateOrder(string CustomerId, decimal Amount) : IDispatchAction;
+const quickStartCode = `// 1. Define an action and its handler
+public record GreetAction(string Name) : IDispatchAction<string>;
 
-// 2. Create a handler
-public class CreateOrderHandler : IActionHandler<CreateOrder>
+public class GreetHandler : IActionHandler<GreetAction, string>
 {
-    public async Task HandleAsync(
-        CreateOrder command,
-        CancellationToken ct)
-    {
-        // Your business logic here
-        await _repository.CreateAsync(new Order(command.CustomerId, command.Amount));
-    }
+    public Task<string> HandleAsync(GreetAction action, CancellationToken ct)
+        => Task.FromResult($"Hello, {action.Name}!");
 }
 
-// 3. Register and dispatch
-builder.Services.AddDispatch()
-    .AddHandlers(h => h.DiscoverFromEntryAssembly());
+// 2. Register Dispatch — handlers are auto-discovered
+builder.Services.AddDispatch();
+var app = builder.Build();
 
-// 4. Dispatch your command
-await dispatcher.DispatchAsync(new CreateOrder("cust-123", 99.99m));`;
+// 3. Map the action to an HTTP endpoint. The result becomes the correct
+//    HTTP status automatically — 200 on success, 400/403/500 on failure.
+app.DispatchPostAction<GreetRequest, GreetAction, string>(
+    "/greet",
+    (request, _) => new GreetAction(request.Name));
+
+public record GreetRequest(string Name);`;
 
 function FeatureCard({ title, icon, description }: { title: string; icon: ReactNode; description: string }) {
   return (
@@ -232,7 +243,7 @@ function HomepageHeader() {
             {siteConfig.title}
           </Heading>
           <p className="hero__subtitle">
-            High-performance .NET messaging, event sourcing, and CQRS — one framework, pick your packages
+            High-performance .NET messaging with first-class HTTP result contracts and secure-by-default authorization — one framework, pick your packages
           </p>
           <div className={styles.heroButtons}>
             <Link className="cta-button cta-button--primary" to="/docs/intro">
@@ -328,7 +339,8 @@ function QuickStartSection() {
             <h3>Install the messaging core</h3>
             <CodeBlock language="bash">
 {`dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions`}
+# For the app.DispatchPostAction HTTP-endpoint helper:
+dotnet add package Excalibur.Dispatch.Hosting.AspNetCore`}
             </CodeBlock>
             <h4 style={{ marginTop: '1rem' }}>Add packages as your architecture grows</h4>
             <CodeBlock language="bash">

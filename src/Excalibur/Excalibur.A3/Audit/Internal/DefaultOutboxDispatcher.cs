@@ -16,7 +16,7 @@ namespace Excalibur.A3.Audit.Internal;
 /// The real <see cref="IOutboxDispatcher"/> is <c>MessageOutbox</c>, provided
 /// by <c>AddExcaliburOutbox</c> together with an <c>IOutboxStore</c> backend
 /// (SQL Server / PostgreSQL / ElasticSearch). Because <c>AddExcaliburAudit</c>
-/// targets <see cref="MinimalWiringBucket.TryAddDefault"/>-style Bucket-A
+/// targets <c>MinimalWiringBucket.TryAddDefault</c>-style Bucket-A
 /// siblings, the framework-internal dispatcher must be default-registered
 /// rather than required as a consumer prerequisite.
 /// </para>

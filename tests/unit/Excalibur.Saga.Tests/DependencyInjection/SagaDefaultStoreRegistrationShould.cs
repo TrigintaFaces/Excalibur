@@ -15,7 +15,7 @@ namespace Excalibur.Saga.Tests.DependencyInjection;
 /// Saga state is as stateful as the outbox / event store (lost on restart/scale-out), so the framework
 /// must NOT silently bind an in-memory store as the production default. <c>AddExcaliburSaga()</c> and
 /// <c>AddExcaliburOrchestration()</c> register NO store; the in-memory store is available only via the
-/// explicit <c>AddInMemorySagaStore()</c> / <c>UseInMemoryStore()</c> opt-in, and
+/// explicit <c>AddInMemorySagaStore()</c> / <c>WithInMemoryStore()</c> opt-in, and
 /// <c>SagaPrerequisiteValidator</c> fails loud at host startup when neither a persistent provider nor the
 /// opt-in registered a "default" store. (Pre-fix, <c>AddExcaliburSaga()</c> implicitly registered the
 /// in-memory store as "default".)
@@ -101,8 +101,11 @@ public sealed class SagaDefaultStoreRegistrationShould
     [Fact]
     public async Task FailFastAtStartupWhenNoSagaStoreRegistered()
     {
-        // Arrange — sagas configured, but no store opted in.
+        // Arrange — sagas configured, but no store opted in. AddLogging() is required because
+        // GetServices<IHostedService>() now also activates the SagaCleanupBackgroundService (registered by
+        // AddExcaliburSaga), which takes an ILogger<> dependency — unrelated to the fail-fast contract under test.
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddExcaliburSaga();
         var sp = services.BuildServiceProvider();
         var validator = GetSagaPrerequisiteValidator(sp);
@@ -118,6 +121,7 @@ public sealed class SagaDefaultStoreRegistrationShould
     public async Task PassStartupValidationWhenInMemoryStoreOptedIn()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddExcaliburSaga();
         services.AddInMemorySagaStore();
         var sp = services.BuildServiceProvider();

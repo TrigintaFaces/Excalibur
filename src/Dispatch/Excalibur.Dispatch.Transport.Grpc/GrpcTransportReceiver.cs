@@ -18,6 +18,7 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 	private readonly GrpcChannel _channel;
 	private readonly CallInvoker _invoker;
 	private readonly GrpcTransportOptions _options;
+	private readonly int? _maxPayloadBytes;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -34,6 +35,7 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 	{
 		_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_maxPayloadBytes = _options.MaxPayloadBytes;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_invoker = _channel.CreateCallInvoker();
 	}
@@ -58,9 +60,22 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 			var response = await _invoker.AsyncUnaryCall(method, null, callOptions, request)
 				.ConfigureAwait(false);
 
-			var result = response.Messages
-				.Select(MapToReceivedMessage)
-				.ToList();
+			var result = new List<TransportReceivedMessage>(response.Messages.Count);
+			foreach (var grpcMessage in response.Messages)
+			{
+				try
+				{
+					result.Add(MapToReceivedMessage(grpcMessage));
+				}
+				catch (PayloadTooLargeException ex)
+				{
+					// Poison-message guard: an oversized payload can never be processed. This pull-based
+					// unary receive has no per-message nack (ack/reject are surfaced to the caller by id),
+					// so the offending message is dropped BEFORE its body is materialized — never
+					// truncated, never surfaced — mirroring the transport's no-requeue rejection semantics.
+					LogPayloadTooLargeRejected(Source, ex.ActualBytes, ex);
+				}
+			}
 
 			LogMessagesReceived(Source, result.Count);
 			return result;
@@ -164,8 +179,16 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 		return ValueTask.CompletedTask;
 	}
 
-	private static TransportReceivedMessage MapToReceivedMessage(GrpcReceivedMessage grpcMessage)
+	private TransportReceivedMessage MapToReceivedMessage(GrpcReceivedMessage grpcMessage)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (Convert.FromBase64String below). The limit is measured against the DECODED byte length —
+		// computed arithmetically from the Base64 string, with no decoded allocation — because Base64
+		// inflates the wire string by ~33%, so measuring the raw character length would enforce the
+		// wrong limit. Fail-closed: throws PayloadTooLargeException, caught by the receive loop to drop
+		// the poison message; it never truncates or silently passes an oversized body through.
+		PayloadSizeGuard.EnsureBase64WithinLimit(grpcMessage.Body, _maxPayloadBytes);
+
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		foreach (var (key, value) in grpcMessage.Properties)
 		{
@@ -226,4 +249,8 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 	[LoggerMessage(GrpcTransportEventId.ReceiverDisposed, LogLevel.Debug,
 		"gRPC transport receiver disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(GrpcTransportEventId.ReceiverPayloadTooLarge, LogLevel.Warning,
+		"gRPC transport receiver: dropped an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

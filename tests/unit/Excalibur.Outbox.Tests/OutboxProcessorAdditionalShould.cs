@@ -363,37 +363,6 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 		_ = processor.ShouldNotBeNull();
 	}
 
-	[Fact]
-	public async Task Constructor_InitializesWithTransactionalWhenApplicableDeliveryGuarantee()
-	{
-		// Arrange
-		var options = Options.Create(new DeliveryOutboxOptions
-		{
-			QueueCapacity = 500,
-			ProducerBatchSize = 100,
-			ConsumerBatchSize = 50,
-			PerRunTotal = 1000,
-			MaxAttempts = 5,
-			BatchProcessing = { ParallelProcessingDegree = 4 },
-			DeliveryGuarantee = OutboxDeliveryGuarantee.TransactionalWhenApplicable
-		});
-
-		var outboxStore = A.Fake<IOutboxStore>();
-		var serializer = new DispatchJsonSerializer();
-		var serviceProvider = A.Fake<IServiceProvider>();
-		var logger = NullLogger<OutboxProcessor>.Instance;
-
-		// Act
-		await using var processor = new OutboxProcessor(
-			options,
-			outboxStore,
-			serializer,
-			serviceProvider,
-			logger);
-
-		// Assert
-		_ = processor.ShouldNotBeNull();
-	}
 
 	#endregion
 

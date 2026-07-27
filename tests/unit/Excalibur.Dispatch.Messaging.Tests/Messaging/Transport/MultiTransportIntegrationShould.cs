@@ -363,7 +363,7 @@ public sealed class MultiTransportIntegrationShould
 		var adapter = CreateMockTransportAdapter("rabbitmq");
 
 		// Act
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		// Assert
 		registry.GetTransportAdapter("rabbitmq").ShouldBe(adapter);
@@ -376,8 +376,8 @@ public sealed class MultiTransportIntegrationShould
 		var registry = new TransportRegistry();
 		var adapter1 = CreateMockTransportAdapter("rabbitmq");
 		var adapter2 = CreateMockTransportAdapter("kafka");
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 
 		// Act
 		registry.SetDefaultTransport("kafka");
@@ -394,8 +394,8 @@ public sealed class MultiTransportIntegrationShould
 		var registry = new TransportRegistry();
 		var adapter1 = CreateMockTransportAdapter("rabbitmq");
 		var adapter2 = CreateMockTransportAdapter("kafka");
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 
 		// Act
 		var transports = registry.GetTransportNames().ToList();
@@ -425,11 +425,11 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateMockTransportAdapter("rabbitmq");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		// Act & Assert
 		_ = Should.Throw<InvalidOperationException>(() =>
-			registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ"));
+			registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote));
 	}
 
 	[Fact]
@@ -439,8 +439,8 @@ public sealed class MultiTransportIntegrationShould
 		var registry = new TransportRegistry();
 		var adapter1 = CreateMockTransportAdapter("rabbitmq");
 		var adapter2 = CreateMockTransportAdapter("kafka");
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("kafka");
 
 		// Act

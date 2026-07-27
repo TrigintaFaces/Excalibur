@@ -22,7 +22,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </para>
 /// <para>
 /// This is the convention used when no custom convention is specified in
-/// <see cref="ElasticSearchProjectionStoreOptions.IndexMappingConvention"/>.
+/// <see cref="ElasticSearchProjectionIndexOptions.IndexMappingConvention"/>.
 /// </para>
 /// </remarks>
 public sealed class DefaultIndexMappingConvention : IIndexMappingConvention

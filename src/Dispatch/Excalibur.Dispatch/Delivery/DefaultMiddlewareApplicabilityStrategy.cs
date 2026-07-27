@@ -44,10 +44,9 @@ internal sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplic
 			kinds |= MessageKinds.Document;
 		}
 
-		// Default to Document if no specific kind
 		if (kinds == MessageKinds.None)
 		{
-			kinds = MessageKinds.Document;
+			kinds = UnclassifiedMessage.FailClosed(messageType);
 		}
 
 		return kinds;

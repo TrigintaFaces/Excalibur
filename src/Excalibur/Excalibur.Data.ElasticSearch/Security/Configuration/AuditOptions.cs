@@ -59,6 +59,14 @@ public sealed class AuditOptions
 	public int MaxQueryResultSize { get; init; } = 10_000;
 
 	/// <summary>
+	/// Gets the maximum number of audit events that may be buffered in memory awaiting flush. When the
+	/// buffer is full, event producers apply backpressure (they await, never drop) so a slow or failed
+	/// audit sink throttles callers rather than losing audit records.
+	/// </summary>
+	/// <value> The bounded in-memory audit buffer capacity. Defaults to 10,000. </value>
+	public int MaxPendingAuditEvents { get; init; } = 10_000;
+
+	/// <summary>
 	/// Gets a value indicating whether personally identifiable information (PII) on recorded security-audit
 	/// events is masked before the event is enqueued for indexing.
 	/// </summary>

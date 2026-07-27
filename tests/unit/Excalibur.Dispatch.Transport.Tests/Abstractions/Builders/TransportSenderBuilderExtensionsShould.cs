@@ -4,8 +4,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using CloudNative.CloudEvents;
-
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Decorators;
@@ -63,45 +61,6 @@ public sealed class TransportSenderBuilderExtensionsShould : IDisposable
 			.Build();
 
 		result.ShouldBeOfType<SchedulingTransportSender>();
-	}
-
-	[Fact]
-	public void UseCloudEvents_Wraps_With_CloudEventsTransportSender()
-	{
-		var mapper = A.Fake<ICloudEventMapper<TransportMessage>>();
-		Func<TransportMessage, CloudEvent> factory = _ => new CloudEvent(CloudEventsSpecVersion.V1_0)
-		{
-			Id = "ce-1",
-			Type = "test.event",
-			Source = new Uri("urn:test"),
-		};
-
-		var result = new TransportSenderBuilder(_innerSender)
-			.UseCloudEvents(mapper, factory)
-			.Build();
-
-		result.ShouldBeOfType<CloudEventsTransportSender>();
-	}
-
-	[Fact]
-	public void Stacking_Order_Preserved()
-	{
-		var mapper = A.Fake<ICloudEventMapper<TransportMessage>>();
-		Func<TransportMessage, CloudEvent> factory = _ => new CloudEvent(CloudEventsSpecVersion.V1_0)
-		{
-			Id = "ce-1",
-			Type = "test.event",
-			Source = new Uri("urn:test"),
-		};
-
-		var result = new TransportSenderBuilder(_innerSender)
-			.UseTelemetry("Kafka", _meter, _activitySource)
-			.UseOrdering(_ => "key")
-			.UseCloudEvents(mapper, factory)
-			.Build();
-
-		// Outermost should be CloudEvents (last registered)
-		result.ShouldBeOfType<CloudEventsTransportSender>();
 	}
 
 	[Fact]

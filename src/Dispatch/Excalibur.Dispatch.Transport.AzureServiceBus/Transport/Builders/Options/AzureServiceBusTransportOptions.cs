@@ -165,7 +165,7 @@ public sealed class AzureServiceBusProcessorOptions
 
 	/// <summary>
 	/// Gets or sets a value indicating whether the receiver consumes from <b>session-enabled</b>
-	/// entities with per-session ordered (FIFO) delivery (ne79ro, FR-A2). When <see langword="true"/>,
+	/// entities with per-session ordered (FIFO) delivery. When <see langword="true"/>,
 	/// <c>AddAzureServiceBusTransport</c> wires a session-aware receiver that accepts one session at a
 	/// time (<c>ServiceBusClient.AcceptNextSessionAsync</c>) so messages sharing a <c>SessionId</c> are
 	/// delivered in order. When <see langword="false"/> (default), the non-session receiver is used
@@ -174,6 +174,16 @@ public sealed class AzureServiceBusProcessorOptions
 	/// </summary>
 	/// <value><see langword="true"/> to consume ordered sessions; otherwise, <see langword="false"/>. Default is false.</value>
 	public bool RequiresSession { get; set; }
+
+	/// <summary>
+	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at ingress before the message
+	/// body is materialized or deserialized. An over-limit message is rejected (dead-lettered) rather than
+	/// deserialized, guarding against allocation-based denial-of-service. Defaults to 256 KiB, the Azure
+	/// Service Bus standard-tier message ceiling. Set to <see langword="null"/> to opt out (no limit).
+	/// </summary>
+	/// <value>The maximum inbound-payload length in bytes, or <see langword="null"/> to disable the limit. Default is 262144 (256 KiB).</value>
+	[Range(1, int.MaxValue)]
+	public int? MaxPayloadBytes { get; set; } = 256 * 1024;
 
 	/// <summary>
 	/// Gets the additional configuration dictionary.

@@ -43,14 +43,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -69,11 +69,17 @@ jobs:
 
       - name: Run ${{ matrix.transport }} conformance tests
         run: |
-          dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
+          # --blame-hang-timeout: conformance tests drive real transport containers, which is
+          # exactly where a test host wedges alive-but-not-working. Without a bound the job
+          # burns its whole runner allowance and reports a timeout with no failing test named.
+          # ci.yml and release.yml already pass this; this workflow did not.
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" -- \
+            tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --configuration Release \
             --no-build \
             --no-restore \
-            --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" \
+            --blame-hang-timeout 10m \
             --verbosity minimal \
             --logger "trx;LogFileName=${{ matrix.transport }}-conformance-results.trx" \
             --logger "console;verbosity=minimal" \

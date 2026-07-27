@@ -316,7 +316,9 @@ public sealed class ProtobufMessageSerializerShould
 		_ = await Task.WhenAll(tasks);
 
 		// Assert
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await)
 		tasks.All(t => t.Result).ShouldBeTrue();
+		#pragma warning restore RS0030
 	}
 
 	[Fact]

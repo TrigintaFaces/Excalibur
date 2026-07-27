@@ -101,7 +101,7 @@ public sealed class StackCompositionTests
 	/// Stack 4: Full CQRS -- Dispatch + EventSourcing + Transport + Resilience.
 	/// Packages: Dispatch + Domain + EventSourcing + Transport.RabbitMQ + Resilience.Polly.
 	/// This is the most complex composition.
-	/// Note: AddDispatchValidation() is excluded due to missing IValidationService registration
+	/// Note: AddDispatchValidation() is excluded due to missing IMessageValidationService registration
 	/// (tracked as Excalibur.Dispatch-fkidg). Will be re-enabled once the bug is fixed.
 	/// </summary>
 	[Fact]

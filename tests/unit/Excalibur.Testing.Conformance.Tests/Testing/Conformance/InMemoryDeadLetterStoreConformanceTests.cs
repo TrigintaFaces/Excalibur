@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Excalibur.Testing.Conformance;
@@ -36,8 +37,20 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override IDeadLetterStore CreateStore() =>
-		new InMemoryDeadLetterStore(NullLogger<InMemoryDeadLetterStore>.Instance);
+	/// <remarks>
+	/// The in-memory store scopes by ambient tenant context, so binding it to a partition means supplying
+	/// a context that reports that tenant. Each call builds a fresh store, which is what makes the
+	/// isolation arms meaningful: two partitions produce two independent stores, and an implementation
+	/// that ignored the partition would still pass the safety arm while failing the liveness arms.
+	/// </remarks>
+	/// <remarks>
+	/// The context is passed straight through. The store resolves it on every operation, so the kit can
+	/// switch the ambient tenant on one store instance — which is what makes the isolation arm capable of
+	/// failing. <see langword="null"/> is a single-tenant host, which the store folds onto the reserved
+	/// untenanted partition itself.
+	/// </remarks>
+	protected override IDeadLetterStore CreateStore(ITenantContext? ambientTenant) =>
+		new InMemoryDeadLetterStore(ambientTenant, NullLogger<InMemoryDeadLetterStore>.Instance);
 
 	#region Store Tests
 
@@ -134,4 +147,20 @@ public sealed class InMemoryDeadLetterStoreConformanceTests : DeadLetterStoreCon
 		CleanupOldMessagesAsync_ShouldRespectRetention();
 
 	#endregion Cleanup Tests
+
+	#region Tenant Isolation Tests
+
+	[Fact]
+	public Task TenantScopedRead_MustNotSeeAnotherTenantsEntry_Test() =>
+		TenantScopedRead_MustNotSeeAnotherTenantsEntry();
+
+	[Fact]
+	public Task TenantScopedRead_MustSeeItsOwnEntry_Test() =>
+		TenantScopedRead_MustSeeItsOwnEntry();
+
+	[Fact]
+	public Task UntenantedPartition_MustRoundTripItsOwnEntry_Test() =>
+		UntenantedPartition_MustRoundTripItsOwnEntry();
+
+	#endregion Tenant Isolation Tests
 }

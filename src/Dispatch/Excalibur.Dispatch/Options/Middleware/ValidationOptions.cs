@@ -22,7 +22,7 @@ public sealed class ValidationOptions
 	public bool UseDataAnnotations { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use custom validation via IValidationService.
+	/// Gets or sets a value indicating whether to use custom validation via IMessageValidationService.
 	/// </summary>
 	/// <value> Default is true. </value>
 	public bool UseCustomValidation { get; set; } = true;

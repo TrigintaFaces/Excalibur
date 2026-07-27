@@ -26,21 +26,23 @@ namespace Excalibur.Dispatch.Middleware.Validation;
 /// <list type="bullet">
 /// <item> Data Annotations validation attributes </item>
 /// <item> FluentValidation integration </item>
-/// <item> Custom validation logic via IValidationService </item>
+/// <item> Custom validation logic via IMessageValidationService </item>
 /// <item> Contextual validation based on tenant, user, etc. </item>
 /// <item> Detailed validation error reporting </item>
 /// </list>
 /// </remarks>
-[AppliesTo(MessageKinds.Action)]
+[AppliesTo(MessageKinds.Action | MessageKinds.Event)]
 public sealed partial class ValidationMiddleware : IDispatchMiddleware
 {
 	private static readonly Func<ILogger, string, bool, IDisposable?> ValidationLogScope =
 		LoggerMessage.DefineScope<string, bool>(
 			"MessageType:{MessageType} ValidationEnabled:{ValidationEnabled}");
 
+	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.ValidationMiddleware, "1.0.0");
+
 	private readonly ValidationOptions _options;
 
-	private readonly IValidationService _validationService;
+	private readonly IMessageValidationService _validationService;
 
 	private readonly ILogger<ValidationMiddleware> _logger;
 
@@ -53,7 +55,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public ValidationMiddleware(
 		IOptions<ValidationOptions> options,
-		IValidationService validationService,
+		IMessageValidationService validationService,
 		ILogger<ValidationMiddleware> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -70,10 +72,15 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// Validation typically applies to Actions (commands/queries) that represent user input requiring validation, rather than Events which
-	/// are internal system notifications.
+	/// Validation applies to both Actions (commands/queries) and Events. An event arriving from a transport adapter is inbound and carries
+	/// externally-supplied data, so it is validated on the same terms as an Action. Documents are excluded.
+	/// <para>
+	/// This value must stay in agreement with the <c>AppliesTo</c> attribute on this type. The attribute and this property are read by
+	/// different consumers of the applicability decision, so changing one alone makes those consumers disagree about whether validation
+	/// applies to the same message.
+	/// </para>
 	/// </remarks>
-	public MessageKinds ApplicableMessageKinds => MessageKinds.Action;
+	public MessageKinds ApplicableMessageKinds => MessageKinds.Action | MessageKinds.Event;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -85,6 +92,8 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
+
+		using var activity = ActivitySource.StartActivity("ValidationMiddleware.Invoke");
 
 		// Skip validation if disabled
 		if (!_options.Enabled)
@@ -194,7 +203,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		"AOT",
 		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 		Justification =
-			"Data Annotations validation is optional and only used when UseDataAnnotations is true. Message types used with validation are registered at startup and preserved through DI. In AOT builds, validation should be implemented via custom IValidationService.")]
+			"Data Annotations validation is optional and only used when UseDataAnnotations is true. Message types used with validation are registered at startup and preserved through DI. In AOT builds, validation should be implemented via custom IMessageValidationService.")]
 	private static List<ValidationError> ValidateWithDataAnnotations(IDispatchMessage message)
 	{
 		var errors = new List<ValidationError>();

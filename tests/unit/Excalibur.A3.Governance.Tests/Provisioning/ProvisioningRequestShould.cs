@@ -3,6 +3,8 @@
 
 using Excalibur.A3.Governance.Provisioning;
 
+using Excalibur.Domain.Model;
+
 namespace Excalibur.A3.Governance.Tests.Provisioning;
 
 /// <summary>
@@ -379,7 +381,18 @@ public sealed class ProvisioningRequestShould : UnitTestBase
 		original.ApproveCurrentStep("manager", "Approved");
 		original.MarkProvisioned();
 
-		var events = original.GetUncommittedEvents();
+		// Created, StepAdvanced (submit), StepApproved, Provisioned: four events at positions 0 through 3.
+		// The single approval step is the last one, so ApproveCurrentStep raises no second StepAdvanced.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(4);
+
+		var events = new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+			new(uncommitted[3], 3),
+		};
 
 		// Act -- replay from events
 		var replayed = ProvisioningRequest.FromEvents("req-1", events);
@@ -400,7 +413,20 @@ public sealed class ProvisioningRequestShould : UnitTestBase
 		original.ApproveCurrentStep("manager");
 		original.DenyCurrentStep("security", "Blocked");
 
-		var replayed = ProvisioningRequest.FromEvents("req-1", original.GetUncommittedEvents());
+		// Created, StepAdvanced (submit), StepApproved, StepAdvanced (a second step remains), StepDenied:
+		// five events at positions 0 through 4. The extra StepAdvanced is exactly the branch a positional
+		// index-map would hide, so the count is pinned.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(5);
+
+		var replayed = ProvisioningRequest.FromEvents("req-1", new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+			new(uncommitted[3], 3),
+			new(uncommitted[4], 4),
+		});
 
 		replayed.Status.ShouldBe(ProvisioningRequestStatus.Denied);
 		replayed.ApprovalSteps[0].Outcome.ShouldBe(ApprovalOutcome.Approved);
@@ -491,7 +517,16 @@ public sealed class ProvisioningRequestShould : UnitTestBase
 		original.SubmitForReview();
 		original.ApproveCurrentStep("manager");
 
-		var replayed = ProvisioningRequest.FromEvents("req-jit", original.GetUncommittedEvents());
+		// Created, StepAdvanced (submit), StepApproved: three events at positions 0 through 2.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(3);
+
+		var replayed = ProvisioningRequest.FromEvents("req-jit", new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+		});
 
 		replayed.TenantId.ShouldBe("tenant-C");
 		replayed.RequestedExpiry.ShouldBe(expiry);

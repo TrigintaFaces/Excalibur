@@ -21,6 +21,8 @@
     <!-- Testcontainers -->
     <PackageReference Include="TestContainers" />
     <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.Oracle" />
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.MongoDb" />
     <PackageReference Include="Testcontainers.Redis" />
@@ -76,6 +78,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Postgres\Excalibur.Saga.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Oracle\Excalibur.Saga.Oracle.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.MongoDB\Excalibur.Saga.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.CosmosDb\Excalibur.Saga.CosmosDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.DynamoDb\Excalibur.Saga.DynamoDb.csproj" />
@@ -107,7 +110,10 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.MultiTenancy\Excalibur.MultiTenancy.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Oracle\Excalibur.EventSourcing.Oracle.csproj" />
     <!-- bd-834a9c: real-Redis concurrent-create guard regression lock (RedisEventStoreConcurrentCreateGuardShould) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Redis\Excalibur.EventSourcing.Redis.csproj" />
     <!-- S860 fc1c8a conformance fan-out: Sqlite snapshot + DynamoDb event-store derivers -->
@@ -120,6 +126,7 @@
     <!-- S860 fc1c8a conformance fan-out: Outbox derivers (Postgres/Mongo; SqlServer/ElasticSearch already referenced) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.MongoDB\Excalibur.Outbox.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Marten\Excalibur.Outbox.Marten.csproj" />
     <!-- S860 fc1c8a conformance fan-out: Inbox derivers (SqlServer/Mongo/Cosmos/Dynamo/Firestore; Postgres/ElasticSearch already referenced) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.SqlServer\Excalibur.Inbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.MongoDB\Excalibur.Inbox.MongoDB.csproj" />
@@ -144,10 +151,13 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.SqlServer\Excalibur.LeaderElection.SqlServer.csproj" />
     <!-- y6tatp: real-Postgres fencing-token regression lock (PostgresLeaderElectionFencingShould) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
+    <!-- 5fswhd: real-Mongo fencing-token split-brain regression lock (MongoDbLeaderElectionFencingShould) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.MongoDB\Excalibur.LeaderElection.MongoDB.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
     <ProjectReference Include="..\..\conformance\Excalibur.Dispatch.Tests.Conformance\Excalibur.Dispatch.Tests.Conformance.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing.Conformance\Excalibur.Testing.Conformance.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="xunit.runner.json">

@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.SqlServer.DependencyInjection;
 /// <list type="bullet">
 /// <item><see cref="SqlServerEventStore"/></item>
 /// <item><see cref="SqlServerSnapshotStore"/></item>
-/// <item><see cref="SqlServerEventSourcedOutboxStore"/></item>
+/// <item><c>SqlServerEventSourcedOutboxStore</c></item>
 /// </list>
 /// </para>
 /// <para>

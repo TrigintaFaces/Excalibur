@@ -39,7 +39,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.TokenContextKey.ShouldBe("AuthToken");
+		options.TokenExtraction.TokenContextKey.ShouldBe("AuthToken");
 	}
 
 	[Fact]
@@ -49,7 +49,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.TokenHeaderName.ShouldBe("Authorization");
+		options.TokenExtraction.TokenHeaderName.ShouldBe("Authorization");
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.TokenPropertyName.ShouldBe("AuthToken");
+		options.TokenExtraction.TokenPropertyName.ShouldBe("AuthToken");
 	}
 
 	[Fact]
@@ -69,7 +69,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.EnablePropertyExtraction.ShouldBeFalse();
+		options.TokenExtraction.EnablePropertyExtraction.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -256,10 +256,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.TokenContextKey = "BearerToken";
+		options.TokenExtraction.TokenContextKey = "BearerToken";
 
 		// Assert
-		options.TokenContextKey.ShouldBe("BearerToken");
+		options.TokenExtraction.TokenContextKey.ShouldBe("BearerToken");
 	}
 
 	[Fact]
@@ -269,10 +269,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.TokenHeaderName = "X-Auth-Token";
+		options.TokenExtraction.TokenHeaderName = "X-Auth-Token";
 
 		// Assert
-		options.TokenHeaderName.ShouldBe("X-Auth-Token");
+		options.TokenExtraction.TokenHeaderName.ShouldBe("X-Auth-Token");
 	}
 
 	[Fact]
@@ -282,10 +282,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.TokenPropertyName = "Token";
+		options.TokenExtraction.TokenPropertyName = "Token";
 
 		// Assert
-		options.TokenPropertyName.ShouldBe("Token");
+		options.TokenExtraction.TokenPropertyName.ShouldBe("Token");
 	}
 
 	[Fact]
@@ -295,10 +295,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.EnablePropertyExtraction = true;
+		options.TokenExtraction.EnablePropertyExtraction = true;
 
 		// Assert
-		options.EnablePropertyExtraction.ShouldBeTrue();
+		options.TokenExtraction.EnablePropertyExtraction.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -510,10 +510,13 @@ public sealed class JwtAuthenticationOptionsShould
 		{
 			Enabled = true,
 			RequireAuthentication = true,
-			TokenContextKey = "CustomToken",
-			TokenHeaderName = "X-Custom-Auth",
-			TokenPropertyName = "CustomProp",
-			EnablePropertyExtraction = true,
+			TokenExtraction = new JwtTokenExtractionOptions
+			{
+				TokenContextKey = "CustomToken",
+				TokenHeaderName = "X-Custom-Auth",
+				TokenPropertyName = "CustomProp",
+				EnablePropertyExtraction = true,
+			},
 			Validation = new JwtTokenValidationOptions
 			{
 				ValidateIssuer = true,
@@ -539,10 +542,10 @@ public sealed class JwtAuthenticationOptionsShould
 		// Assert
 		options.Enabled.ShouldBeTrue();
 		options.RequireAuthentication.ShouldBeTrue();
-		options.TokenContextKey.ShouldBe("CustomToken");
-		options.TokenHeaderName.ShouldBe("X-Custom-Auth");
-		options.TokenPropertyName.ShouldBe("CustomProp");
-		options.EnablePropertyExtraction.ShouldBeTrue();
+		options.TokenExtraction.TokenContextKey.ShouldBe("CustomToken");
+		options.TokenExtraction.TokenHeaderName.ShouldBe("X-Custom-Auth");
+		options.TokenExtraction.TokenPropertyName.ShouldBe("CustomProp");
+		options.TokenExtraction.EnablePropertyExtraction.ShouldBeTrue();
 		options.Validation.ValidateIssuer.ShouldBeTrue();
 		options.Validation.ValidateAudience.ShouldBeTrue();
 		options.Validation.ValidateLifetime.ShouldBeTrue();

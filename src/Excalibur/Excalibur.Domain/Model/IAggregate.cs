@@ -107,5 +107,5 @@ public interface IAggregateRoot<TAggregate, TKey> : IAggregateRoot<TKey>
 	/// <param name="id">The unique identifier for the aggregate.</param>
 	/// <param name="events">The stream of events to apply.</param>
 	/// <returns>The aggregate rebuilt from the events.</returns>
-	static abstract TAggregate FromEvents(TKey id, IEnumerable<IDomainEvent> events);
+	static abstract TAggregate FromEvents(TKey id, IEnumerable<HistoricEvent> events);
 }

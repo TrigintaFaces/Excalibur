@@ -6,7 +6,7 @@
     and project structure correctness.
 
 .DESCRIPTION
-    Covers acceptance criteria for bd-36xbw (S504.7):
+    Covers the template acceptance criteria:
     AC-1: CI step installs templates from local source (dotnet new install)
     AC-2: CI step runs dotnet new for each template with default options and verifies structure
     AC-3: CI step runs dotnet new dispatch-api with each --transport option
@@ -673,7 +673,7 @@ function Invoke-Cleanup {
 
 Write-Host "============================================" -ForegroundColor White
 Write-Host " Excalibur Template CI Validation" -ForegroundColor White
-Write-Host " bd-36xbw (S504.7)" -ForegroundColor Gray
+Write-Host " template acceptance criteria" -ForegroundColor Gray
 Write-Host "============================================" -ForegroundColor White
 Write-Host ""
 Write-Host "Templates dir: $TemplatesDir" -ForegroundColor Gray

@@ -99,7 +99,7 @@ public sealed class SqlServerAuditStoreDepthShould
 		});
 
 		// Act
-		var store = new SqlServerAuditStore(options, AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+		var store = new SqlServerAuditStore(options, AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -155,4 +155,17 @@ public sealed class SqlServerAuditStoreDepthShould
 
 		regex.IsMatch(value).ShouldBe(expected);
 	}
+
+	/// <summary>
+	/// The annotation-store options the audit store now requires so retention can cascade into annotations.
+	/// A valid instance is supplied at every site so the argument-null arms keep testing the parameter they
+	/// name — inserting a null here would silently change which parameter each of those arms is about.
+	/// </summary>
+	private static Microsoft.Extensions.Options.IOptions<SqlServerAuditAnnotationStoreOptions> AnnotationOptions() =>
+		Microsoft.Extensions.Options.Options.Create(new SqlServerAuditAnnotationStoreOptions
+		{
+			ConnectionString = "Server=(local);Database=Test;Integrated Security=true;",
+			SchemaName = "audit",
+			TableName = "AuditAnnotations",
+		});
 }

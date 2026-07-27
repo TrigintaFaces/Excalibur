@@ -188,6 +188,7 @@ Excalibur.Caching.Projections.ProjectionCacheInvalidator
 Excalibur.Caching.Projections.ProjectionCacheInvalidator.InvalidateCacheAsync(object! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Caching.Projections.ProjectionCacheInvalidator.ProjectionCacheInvalidator(Excalibur.Dispatch.Caching.ICacheInvalidationService! cache, System.IServiceProvider! services, Microsoft.Extensions.Logging.ILogger<Excalibur.Caching.Projections.ProjectionCacheInvalidator!>! logger) -> void
 Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions
+Microsoft.Extensions.DependencyInjection.AdaptiveTtlCacheServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions
 const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveCacheError = 151801 -> int
 const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveCacheOperation = 151800 -> int
@@ -245,4 +246,5 @@ const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedTtlCalculated = 1519
 const Excalibur.Caching.Diagnostics.CachingEventId.SetCacheKey = 151802 -> int
 static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolvers(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, params System.Type![]! resolverTypes) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolversFromAssembly(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Reflection.Assembly! assembly) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.AdaptiveTtlCacheServiceCollectionExtensions.AddAdaptiveTtlCache(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderProjectionCachingExtensions.AddProjectionCaching(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

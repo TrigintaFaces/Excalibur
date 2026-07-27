@@ -6,6 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Configuration;
 
+// MiddlewareCriticality moved to Excalibur.Dispatch.Abstractions (public) alongside MiddlewareEntry.
+// A profile declares criticality, IPipelineProfile is public, and a consumer implementing it needs the
+// enum — so one public definition replaces the internal one rather than two definitions coexisting.
+
 /// <summary>
 /// Represents a middleware registration in the dispatch pipeline.
 /// </summary>

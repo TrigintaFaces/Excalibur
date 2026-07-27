@@ -71,23 +71,27 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 		// Tier 3: DI-resolved handler (has ILogger injection, see ProductCreatedHandler)
 		.WhenHandledBy<ProductCreated, ProductCreatedHandler>()
 		// Tier 1: Simple lambdas for straightforward property updates
-		.When<ProductPriceChanged>((proj, e) =>
+		.When<ProductPriceChanged>((proj, e, ctx) =>
 		{
 			proj.CurrentPrice = e.NewPrice;
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version = e.Version;
+			// The aggregate stream version travels in the persistence envelope, not the
+			// event payload. Inline lambda handlers receive replay/position context only;
+			// use the DI-resolved handler tier (ProjectionHandlerContext.CommittedVersion)
+			// when a projection must record the committed stream version.
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
-		.When<ProductStockAdded>((proj, e) =>
+		.When<ProductStockAdded>((proj, e, ctx) =>
 		{
 			proj.StockLevel = e.NewStockLevel;
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version = e.Version;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
-		.When<ProductStockRemoved>((proj, e) =>
+		.When<ProductStockRemoved>((proj, e, ctx) =>
 		{
 			proj.StockLevel = e.NewStockLevel;
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version = e.Version;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
 		// Tier 3: DI-resolved handler (logs discontinuation reason)
 		.WhenHandledBy<ProductDiscontinued, ProductDiscontinuedHandler>());

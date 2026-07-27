@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 
@@ -85,6 +86,12 @@ public sealed partial class EventStoreErasureContributor : IErasureContributor
 		}
 
 		LogAggregatesResolved(context.RequestId, aggregateReferences.Count);
+
+		// Erasure runs from a background scheduler with no ambient tenant. Establish the data subject's
+		// tenant scope explicitly so every event-store call below (IsErased/EraseEvents) applies the tenant
+		// discriminator for the correct tenant, rather than a null tenant that would widen the erase across
+		// every tenant on the shard. The event store reads this ambient tenant per query.
+		using var tenantScope = TenantContextHolder.BeginScope(context.TenantId);
 
 		var totalErased = 0;
 		var errors = new List<string>();

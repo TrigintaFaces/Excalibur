@@ -44,16 +44,6 @@ public sealed class CacheOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveSlidingExpirationEnabled_ByDefault()
-	{
-		// Arrange & Act
-		var options = new CacheOptions();
-
-		// Assert
-		options.Behavior.UseSlidingExpiration.ShouldBeTrue();
-	}
-
-	[Fact]
 	public void HaveEmptyDefaultTags_ByDefault()
 	{
 		// Arrange & Act
@@ -132,16 +122,6 @@ public sealed class CacheOptionsShould : UnitTestBase
 
 		// Assert
 		options.Behavior.EnableStatistics.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void HaveCompressionDisabled_ByDefault()
-	{
-		// Arrange & Act
-		var options = new CacheOptions();
-
-		// Assert
-		options.Behavior.EnableCompression.ShouldBeFalse();
 	}
 
 	[Fact]

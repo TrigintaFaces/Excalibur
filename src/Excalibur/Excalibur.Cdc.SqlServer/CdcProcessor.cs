@@ -8,6 +8,8 @@ using System.Globalization;
 using System.Threading.Channels;
 
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Domain;
 
 using Microsoft.Data.SqlClient;
@@ -37,6 +39,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 {
 	private protected readonly IDatabaseOptions _dbConfig;
 	private readonly IDataAccessPolicyFactory _policyFactory;
+	private readonly TimeProvider _timeProvider;
 	private readonly ILogger<CdcProcessor> _logger;
 
 	// Composed subsystems
@@ -44,8 +47,13 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	private readonly CdcChangeDetector _changeDetector;
 	private readonly CdcChangeApplier _changeApplier;
 
-	// Disposal targets — kept for lifecycle management
-	private readonly CdcRepository _cdcRepository;
+	// Disposal targets — kept for lifecycle management.
+	// Typed as the ICdcRepository seam (not the concrete CdcRepository) so this field's five uses —
+	// GetMin/GetMaxPositionAsync in stale-position recovery plus lifecycle dispose — resolve against the
+	// interface. The public/internal ctors still accept the concrete CdcRepository (upcast on assignment),
+	// so the public surface is unchanged; the seam lets a unit test drive RecoverFromStalePositionAsync
+	// with an injected fake repository deterministically, without live SQL.
+	private readonly ICdcRepository _cdcRepository;
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly OrderedEventProcessor _orderedEventProcessor = new();
 
@@ -53,6 +61,14 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	private readonly int _queueSize;
 
 	private readonly CdcFatalErrorHandler<DataChangeEvent>? _onFatalError;
+
+	// Optional single-active-consumer coordination. Null in single-instance deployments (runs unconditionally).
+	private readonly ILeaderElection? _leaderElection;
+
+	// Optional shared failure classifier. Routes the checkpoint-write fatal decision through the same
+	// CdcFatalGuard the other providers use; when null, CdcFatalGuard's conservative fallback still classifies
+	// CdcLeadershipSupersededException as fatal, so a superseded leader stops rather than retries.
+	private readonly IMessageFailureClassifier? _failureClassifier;
 
 	private readonly SemaphoreSlim _executionLock = new(1, 1);
 
@@ -79,6 +95,10 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
 	/// <param name="stateStoreOptions"> The CDC state store options. </param>
 	/// <param name="policyFactory"> The factory for creating data access policies. </param>
+	/// <param name="timeProvider">
+	/// The time provider used for the stale-position recovery backoff delay, so recovery retries are
+	/// deterministically testable without wall-clock sleeps.
+	/// </param>
 	/// <param name="logger"> The logger used to log diagnostics and operational information. </param>
 	/// <param name="fatalErrorOptions">
 	/// Options containing an optional delegate that is invoked when a non-recoverable exception occurs during CDC processing.
@@ -92,10 +112,11 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			SqlConnection stateStoreConnection,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IDataAccessPolicyFactory policyFactory,
+			TimeProvider timeProvider,
 			ILogger<CdcProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = null)
 		: this(appLifetime, dbConfig, cdcRepository, stateStoreConnection,
-			   stateStoreOptions, policyFactory, logger, fatalErrorOptions,
+			   stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions,
 			   idempotencyFilter: null)
 	{
 	}
@@ -110,9 +131,28 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	/// <param name="stateStoreConnection">The SQL connection for the CDC state store.</param>
 	/// <param name="stateStoreOptions">The CDC state store options.</param>
 	/// <param name="policyFactory">The factory for creating data access policies.</param>
+	/// <param name="timeProvider">
+	/// The time provider used for the stale-position recovery backoff delay, so recovery retries are
+	/// deterministically testable without wall-clock sleeps.
+	/// </param>
 	/// <param name="logger">The logger.</param>
 	/// <param name="fatalErrorOptions">Optional fatal error handler options.</param>
 	/// <param name="idempotencyFilter">Optional idempotency filter for deduplicating replayed CDC events.</param>
+	/// <param name="leaderElection">
+	/// Optional leader election. When supplied, the processor is a single-active consumer: only the current
+	/// leader runs a batch, and its leadership tenure's fencing token guards the checkpoint write (a demoted
+	/// leader's stale-token write is rejected by the state store's non-decreasing CAS). When <see langword="null"/>
+	/// (single-instance deployments) the processor runs unconditionally, as before.
+	/// </param>
+	/// <param name="failureClassifier">
+	/// Optional shared failure classifier. Routes the checkpoint-write fatal decision through the same
+	/// <see cref="CdcFatalGuard"/> the other providers use. When <see langword="null"/>, the guard's conservative
+	/// fallback still classifies a superseded-leadership fault as fatal, so a demoted leader stops rather than spins.
+	/// </param>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Maintainability",
+		"CA1506:AvoidExcessiveClassCoupling",
+		Justification = "CdcProcessor is the CDC composition root: it wires the detector, applier, checkpoint manager, state store, policy factory, and (optionally) leader election. The coupling is inherent to a composition root and is the cleaner alternative to a parameter object that would merely relocate it.")]
 	internal CdcProcessor(
 			IHostApplicationLifetime appLifetime,
 			IDatabaseOptions dbConfig,
@@ -120,24 +160,31 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			SqlConnection stateStoreConnection,
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IDataAccessPolicyFactory policyFactory,
+			TimeProvider timeProvider,
 			ILogger<CdcProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions,
-			ICdcIdempotencyFilter? idempotencyFilter)
+			ICdcIdempotencyFilter? idempotencyFilter,
+			ILeaderElection? leaderElection = null,
+			IMessageFailureClassifier? failureClassifier = null)
 	{
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(cdcRepository);
 		ArgumentNullException.ThrowIfNull(stateStoreConnection);
 		ArgumentNullException.ThrowIfNull(policyFactory);
+		ArgumentNullException.ThrowIfNull(timeProvider);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_dbConfig = dbConfig;
 		_cdcRepository = cdcRepository;
+		_timeProvider = timeProvider;
 		_stateStore = stateStoreOptions is null
 				? new CdcStateStore(stateStoreConnection)
 				: new CdcStateStore(stateStoreConnection, stateStoreOptions);
 		_policyFactory = policyFactory;
 		_logger = logger;
+		_leaderElection = leaderElection;
+		_failureClassifier = failureClassifier;
 		_queueSize = _dbConfig.QueueSize;
 		_cdcQueue = Channel.CreateBounded<DataChangeEvent>(new BoundedChannelOptions(_dbConfig.QueueSize)
 		{
@@ -148,10 +195,16 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		});
 		_onFatalError = fatalErrorOptions?.Value.OnFatalError;
 
-		// Compose subsystems
-		_checkpointManager = new CdcCheckpointManager(dbConfig, cdcRepository, _stateStore, logger);
+		// Compose subsystems. The checkpoint manager writes each checkpoint under the fencing token PINNED for
+		// the batch (set at the batch-start leadership gate in ProcessBatchAsync), so the state-store CAS rejects
+		// a demoted (split-brain) leader's stale-token write instead of a mid-batch-null token silently bypassing it.
+		_checkpointManager = new CdcCheckpointManager(
+			dbConfig,
+			cdcRepository,
+			_stateStore,
+			logger);
 		_changeDetector = new CdcChangeDetector(cdcRepository, cdcRepository, dbConfig, policyFactory, _checkpointManager, logger);
-		_changeApplier = new CdcChangeApplier(dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError, idempotencyFilter);
+		_changeApplier = new CdcChangeApplier(dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError, idempotencyFilter, _failureClassifier);
 
 		_ = appLifetime.ApplicationStopping.Register(() =>
 		{
@@ -215,6 +268,28 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			}
 
 			_isRunning = true;
+
+			// Single-active-consumer gate + fencing-token pin. Read CurrentLeadership ONCE: if fencing is
+			// configured and this instance is not (or no longer) the leader, stand by. Otherwise PIN the
+			// leadership tenure's fencing token for the WHOLE batch — a mid-batch demotion does NOT mutate the
+			// pinned value, so the now-stale token loses the state-store CAS (0 rows → CdcLeadershipSupersededException)
+			// instead of a mid-batch-null token silently bypassing the guard. Null leader election → pinned null
+			// (single-instance, the only legitimate unfenced path); a non-fencing provider yields a null token
+			// (unfenced, as before). The gate decision and the pinned token derive from the SAME snapshot, so
+			// there is no read-again window between them.
+			long? pinnedFencingToken = null;
+			if (_leaderElection is not null)
+			{
+				if (_leaderElection.CurrentLeadership is not { } leadership)
+				{
+					activity?.SetTag("cdc.standby", "not-leader");
+					return 0;
+				}
+
+				pinnedFencingToken = leadership.FencingToken;
+			}
+
+			_checkpointManager.SetBatchFencingToken(pinnedFencingToken);
 
 			await _checkpointManager.InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
 
@@ -456,7 +531,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 
 					if (recoveryOptions.RecoveryAttemptDelay > TimeSpan.Zero)
 					{
-						await Task.Delay(recoveryOptions.RecoveryAttemptDelay, cancellationToken).ConfigureAwait(false);
+						await Task.Delay(recoveryOptions.RecoveryAttemptDelay, _timeProvider, cancellationToken).ConfigureAwait(false);
 					}
 
 					// Loop will retry with recovered LSN

@@ -119,5 +119,12 @@ public static class AwsComplianceServiceCollectionExtensions
 		services.TryAddSingleton<AwsKmsProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AwsKmsProvider>());
 		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AwsKmsProvider>());
+
+		// Register the historical-key provider (key-version metadata lookups for rotation / GDPR erasure).
+		_ = services.AddOptions<AwsKmsHistoricalKeyOptions>().ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsKmsHistoricalKeyOptions>, AwsKmsHistoricalKeyOptionsValidator>());
+		services.TryAddSingleton<AwsKmsHistoricalKeyProvider>();
+		services.TryAddSingleton<IHistoricalKeyProvider>(sp => sp.GetRequiredService<AwsKmsHistoricalKeyProvider>());
 	}
 }

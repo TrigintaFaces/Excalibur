@@ -39,14 +39,12 @@ internal sealed class TransactionalOutboxWriter(
 				"TransactionalOutboxWriter requires an ambient transaction. " +
 				"Ensure TransactionMiddleware is in the pipeline and configured.");
 
-		// Propagate destination and scheduled delivery time through context items
-		// so EnqueueAsync (and its store implementations) can include them in
-		// the persisted OutboundMessage.
-		// Propagate destination through context items so EnqueueAsync (and its store
-		// implementations) can include it in the persisted OutboundMessage.
+		// Propagate the destination through the canonical context destination slot so
+		// ExtractMetadata carries it into the persisted OutboundMessage's destination
+		// (rather than a private Items key the stores never read).
 		if (destination is not null)
 		{
-			context.SetItem("OutboxDestination", destination);
+			context.SetDestination(destination);
 		}
 
 		// Delegate to EnqueueAsync which handles serialization, header construction,

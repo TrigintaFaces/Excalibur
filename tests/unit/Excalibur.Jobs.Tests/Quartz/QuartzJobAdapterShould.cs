@@ -32,6 +32,11 @@ public sealed class QuartzJobAdapterShould
 		A.CallTo(() => _fakeScopeFactory.CreateScope()).Returns(_fakeScope);
 		A.CallTo(() => _fakeScope.ServiceProvider).Returns(_fakeServiceProvider);
 
+		// The adapter resolves an OPTIONAL JobHeartbeatTracker via GetService (falls back to none when absent).
+		// A bare fake IServiceProvider returns a non-null proxy that fails to cast to JobHeartbeatTracker;
+		// return null so the adapter takes its no-heartbeat fallback.
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(Excalibur.Jobs.Core.JobHeartbeatTracker))).Returns(null);
+
 		_sut = new QuartzJobAdapter(
 			_fakeScopeFactory,
 			NullLogger<QuartzJobAdapter>.Instance);

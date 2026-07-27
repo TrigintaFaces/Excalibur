@@ -203,13 +203,14 @@ public sealed class ResilienceOptionsShould
 	}
 
 	[Fact]
-	public void BackoffStrategy_HaveFiveValues()
+	public void BackoffStrategy_HaveSevenValues()
 	{
 		// Act
 		var values = Enum.GetValues<BackoffStrategy>();
 
-		// Assert
-		values.Length.ShouldBe(5);
+		// Assert — seven values since DecorrelatedJitter (=6) was added alongside FullJitter (=5).
+		values.Length.ShouldBe(7);
+		Enum.IsDefined(BackoffStrategy.FullJitter).ShouldBeTrue();
 	}
 
 	// --- RetryStrategy ---

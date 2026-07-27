@@ -107,20 +107,23 @@ The builder also registers Dispatch pipeline integration (`AddExcaliburAuthoriza
 
 :::tip Single-Tenant Applications
 
-You do **not** need to configure a tenant to use A3. When you call `AddExcaliburA3()`, it automatically registers `ITenantId` with the default value `"Default"` (via `TenantDefaults.DefaultTenantId`). All tenant-scoped features — grants, authorization policies, audit logging — work transparently.
+Calling `AddExcaliburA3()` automatically registers the ambient `ITenantContext` (via `AddTenantContext()`), with `TenantContextOptions.DefaultTenantId` (`"Default"`) as the configured default. All tenant-scoped features — grants, authorization policies, audit search — read the ambient tenant. Web apps built on `Excalibur.Hosting.Web` get a per-request middleware that establishes the ambient tenant automatically, so a single-tenant app needs no extra setup.
 
-For **multi-tenant** applications that serve multiple tenants from a single instance, use the factory overload:
+For **multi-tenant** applications that serve multiple tenants from a single instance, establish the ambient tenant per request before A3 evaluates — the hosting middleware derives it from the request, or scope it explicitly:
+
 ```csharp
-// Resolve tenant per-request — A3 won't override it (TryAdd semantics)
-services.TryAddTenantId(sp =>
-{
-    var httpContext = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
-    return httpContext?.Request.Headers["X-Tenant-ID"].FirstOrDefault()
-        ?? TenantDefaults.DefaultTenantId;
-});
 services.AddExcaliburA3()
     .UsePostgres();
+
+// Per request: establish the ambient tenant before dispatching.
+var tenantId = httpContext.Request.Headers["X-Tenant-ID"].FirstOrDefault();
+using (TenantContextHolder.BeginScope(tenantId))
+{
+    // A3 authorization, grants, and audit read the ambient ITenantContext here.
+}
 ```
+
+A3 **fails closed**: if authorization runs with no ambient tenant resolved, it throws rather than silently defaulting.
 :::
 
 ## Authentication
@@ -275,7 +278,7 @@ public class CustomEvaluator : IAuthorizationEvaluator
         CancellationToken cancellationToken)
     {
         // Evaluate subject + action + resource triple
-        return new AuthorizationDecision(AuthorizationEffect.Allow);
+        return new AuthorizationDecision(AuthorizationEffect.Permit);
     }
 }
 ```
@@ -384,6 +387,28 @@ When multiple wildcard grants match a request, the most specific grant wins. The
 The authorization policy uses a dual-index strategy: exact grants are checked first via O(1) hash lookup, then wildcard grants are evaluated in descending specificity order.
 
 ## Audit
+
+Authorization answers *whether* an action was permitted; auditing records *that it happened*. They are
+separate opt-ins — enabling authorization does not start recording an audit trail.
+
+Register auditing on the Excalibur builder:
+
+```csharp
+services.AddExcalibur(excalibur => excalibur.AddAudit());
+```
+
+`AuditMiddleware` runs at the **end** of the dispatch pipeline (`DispatchMiddlewareStage.End`) and records
+an entry for every action that implements `IAmAuditable`. Marking an action auditable is what opts it in —
+there is no blanket "audit everything" switch, so an action that does not implement the interface produces
+no entry no matter how it was authorized.
+
+Because the middleware sits at the end of the pipeline, it observes the action after authorization has
+already admitted it. **A denied action is rejected earlier and therefore does not reach this middleware** —
+if you need a record of refused attempts, capture it at the authorization boundary rather than expecting it
+in the audit trail.
+
+For the durable audit store, retention, and the annotation surface, see
+[Audit Logging](../compliance/audit-logging.md).
 
 ## Conditional Authorization (When Expressions)
 
@@ -616,7 +641,19 @@ services.AddExcaliburA3Core()
 - `ISoDEvaluator` -> `DefaultSoDEvaluator` (`TryAddSingleton`)
 - `SoDPreventiveMiddleware` as `IDispatchMiddleware` (blocks conflicting grant requests)
 - `SoDDetectiveScanService` as `IHostedService` (periodic scanning)
+- `SoDPolicyPresenceStartupCheck` as `IHostedService` (see below)
 - `SoDOptions` with `ValidateDataAnnotations` + `ValidateOnStart`
+
+:::warning Startup fails if the policy store is empty
+`SoDPolicyPresenceStartupCheck` throws at startup when the configured `ISoDPolicyStore` loads **zero
+policies**. With no policies, every separation-of-duties check reports "no conflicts" regardless of the
+grants held — enforcement is registered and advertised while being completely inert, and that result is
+indistinguishable at evaluation time from a genuinely conflict-free request.
+
+The default `InMemorySoDPolicyStore` starts empty, so a host that calls `AddSeparationOfDuties()` without
+loading a policy set will not start. Load the policies the deployment expects, or do not register
+separation-of-duties enforcement on hosts that genuinely have none.
+:::
 
 `AddOrphanedAccessDetection()` registers:
 - `IOrphanedAccessDetector` -> `DefaultOrphanedAccessDetector` (`TryAddSingleton`)

@@ -20,16 +20,16 @@ internal sealed class GooglePubSubOptionsValidator : IValidateOptions<GooglePubS
 			return ValidateOptionsResult.Fail("Google Pub/Sub options cannot be null.");
 		}
 
-		if (string.IsNullOrWhiteSpace(options.ProjectId))
+		if (string.IsNullOrWhiteSpace(options.Connection.ProjectId))
 		{
 			return ValidateOptionsResult.Fail(
-				"Google Pub/Sub ProjectId is required. Set GooglePubSubOptions.ProjectId to your Google Cloud project ID.");
+				"Google Pub/Sub ProjectId is required. Set GooglePubSubOptions.Connection.ProjectId to your Google Cloud project ID.");
 		}
 
-		if (string.IsNullOrWhiteSpace(options.SubscriptionId))
+		if (string.IsNullOrWhiteSpace(options.Connection.SubscriptionId))
 		{
 			return ValidateOptionsResult.Fail(
-				"Google Pub/Sub SubscriptionId is required. Set GooglePubSubOptions.SubscriptionId to the target subscription.");
+				"Google Pub/Sub SubscriptionId is required. Set GooglePubSubOptions.Connection.SubscriptionId to the target subscription.");
 		}
 
 		return ValidateOptionsResult.Success;

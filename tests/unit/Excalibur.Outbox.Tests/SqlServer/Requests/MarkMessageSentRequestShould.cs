@@ -13,6 +13,7 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 public sealed class MarkMessageSentRequestShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessages]";
+	private const string TestFenceTableName = "[dbo].[OutboxFence]";
 	private const string TestMessageId = "msg-12345";
 
 	#region Constructor Validation Tests
@@ -22,7 +23,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new MarkMessageSentRequest(null!, TestMessageId, 30, CancellationToken.None));
+			new MarkMessageSentRequest(null!, TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None));
 	}
 
 	[Fact]
@@ -30,7 +31,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new MarkMessageSentRequest("", TestMessageId, 30, CancellationToken.None));
+			new MarkMessageSentRequest("", TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None));
 	}
 
 	[Fact]
@@ -38,7 +39,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new MarkMessageSentRequest("   ", TestMessageId, 30, CancellationToken.None));
+			new MarkMessageSentRequest("   ", TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None));
 	}
 
 	[Fact]
@@ -46,7 +47,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new MarkMessageSentRequest(TestTableName, null!, 30, CancellationToken.None));
+			new MarkMessageSentRequest(TestTableName, null!, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None));
 	}
 
 	[Fact]
@@ -54,7 +55,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new MarkMessageSentRequest(TestTableName, "", 30, CancellationToken.None));
+			new MarkMessageSentRequest(TestTableName, "", 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None));
 	}
 
 	[Fact]
@@ -62,7 +63,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new MarkMessageSentRequest(TestTableName, "   ", 30, CancellationToken.None));
+			new MarkMessageSentRequest(TestTableName, "   ", 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None));
 	}
 
 	#endregion
@@ -73,7 +74,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	public void CreateCommandWithValidParameters()
 	{
 		// Act
-		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
+		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -89,7 +90,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 		const int timeout = 60;
 
 		// Act
-		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, timeout, CancellationToken.None);
+		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, timeout, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(timeout);
@@ -99,7 +100,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	public void CreateCommandWithDefaultTimeout()
 	{
 		// Act
-		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
+		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(30);
@@ -109,7 +110,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	public void SetResolveAsyncDelegate()
 	{
 		// Act
-		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
+		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert
 		_ = request.ResolveAsync.ShouldNotBeNull();
@@ -119,7 +120,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	public void CreateCommandThatClearsLastError()
 	{
 		// Act
-		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
+		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldContain("LastError = NULL");
@@ -129,7 +130,7 @@ public sealed class MarkMessageSentRequestShould : UnitTestBase
 	public void CreateCommandThatSetsSentAt()
 	{
 		// Act
-		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, CancellationToken.None);
+		var request = new MarkMessageSentRequest(TestTableName, TestMessageId, 30, fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldContain("SentAt = @SentAt");

@@ -52,6 +52,23 @@ public sealed class EncryptingAuditEventStore : IAuditStore
 		_options = options.Value;
 	}
 
+	/// <summary>
+	/// Forwards capability resolution to the wrapped store so that optional capabilities — including
+	/// durability (<see cref="IDurableAuditStore"/>) — remain discoverable through this decorator.
+	/// </summary>
+	/// <param name="serviceType"> The capability interface to resolve. </param>
+	/// <returns> The capability from the wrapped store, or <see langword="null"/> when unavailable. </returns>
+	/// <remarks>
+	/// A decorator that did not forward would silently disable every capability of the store it wraps —
+	/// a durable store behind encryption would report as non-durable. This forward keeps the chain transparent.
+	/// </remarks>
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return _inner.GetService(serviceType);
+	}
+
 	/// <inheritdoc />
 	public async Task<AuditEventId> StoreAsync(AuditEvent auditEvent, CancellationToken cancellationToken)
 	{

@@ -57,23 +57,14 @@ flowchart LR
 
 ### 1. Define Domain Events
 
-Events extend the `DomainEvent` abstract record which provides `EventId`, `AggregateId`, `Version`, `OccurredAt`, and `Metadata`:
+Events extend the `DomainEvent` abstract record which provides `EventId`, `OccurredAt`, `EventType`, and `Metadata`. An event carries only its own business data; the aggregate id is passed to the event store when appending, and the stream version is store-assigned:
 
 ```csharp
-public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent;
 
-public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent;
 
-public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 ```
 
 ### 2. Create an Aggregate
@@ -115,12 +106,12 @@ public class Order : AggregateRoot<Guid>
     }
 
     // Event application - uses pattern matching, no reflection
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => Apply(e),
         OrderShipped e => Apply(e),
         OrderCancelled e => Apply(e),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool Apply(OrderCreated e)
@@ -253,23 +244,27 @@ Events represent facts that have happened. They are immutable and named in past 
 public interface IDomainEvent : IDispatchEvent
 {
     string EventId { get; }
-    string AggregateId { get; }
-    long Version { get; }
     DateTimeOffset OccurredAt { get; }
     string EventType { get; }
     IDictionary<string, object>? Metadata { get; }
+    string? CorrelationId { get; }
+    string? CausationId { get; }
 }
 
 // Convenient base record with auto-generated defaults
 public abstract record DomainEvent : IDomainEvent
 {
     public virtual string EventId { get; init; } = Guid.NewGuid().ToString();
-    public virtual string AggregateId { get; init; } = string.Empty;
-    public virtual long Version { get; init; }
     public virtual DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
     public virtual string EventType => GetType().Name;
     public virtual IDictionary<string, object>? Metadata { get; init; }
+    public virtual string? CorrelationId { get; init; }
+    public virtual string? CausationId { get; init; }
 }
+
+// The aggregate id is supplied to the event store on append/load; the stream
+// version is store-assigned and surfaced on the envelope during replay
+// (HistoricEvent.Version / StoredEvent.Version) — never read from the event itself.
 ```
 
 ### Aggregates
@@ -285,10 +280,10 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>
 
     public IReadOnlyList<IDomainEvent> GetUncommittedEvents();
     public void MarkEventsAsCommitted();
-    public void LoadFromHistory(IEnumerable<IDomainEvent> history);
+    public void LoadFromHistory(IEnumerable<HistoricEvent> history);
 
     protected void RaiseEvent(IDomainEvent @event);
-    protected abstract void ApplyEventInternal(IDomainEvent @event);
+    protected abstract bool ApplyEventInternal(IDomainEvent @event);
 }
 ```
 

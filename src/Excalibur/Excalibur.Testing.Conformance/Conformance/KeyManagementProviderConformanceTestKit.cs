@@ -628,10 +628,10 @@ public abstract class KeyManagementProviderConformanceTestKit
 			var result = await admin.DeleteKeyAsync("non-existent-key", 30, CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
-			if (result)
+			if (result.State != KeyDestructionState.NotFound)
 			{
 				throw new TestFixtureAssertionException(
-					"Expected DeleteKeyAsync to return false for non-existent key.");
+					"Expected DeleteKeyAsync to report NotFound for a non-existent key.");
 			}
 		}
 		finally
@@ -660,10 +660,10 @@ public abstract class KeyManagementProviderConformanceTestKit
 			// Act
 			var result = await admin.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
-			// Assert
-			if (!result)
+			// Assert — an existing key must be destroyed or scheduled, never reported NotFound.
+			if (result.State == KeyDestructionState.NotFound)
 			{
-				throw new TestFixtureAssertionException("Expected DeleteKeyAsync to return true.");
+				throw new TestFixtureAssertionException("Expected DeleteKeyAsync to destroy or schedule an existing key.");
 			}
 
 			// Verify key is now PendingDestruction
@@ -801,6 +801,95 @@ public abstract class KeyManagementProviderConformanceTestKit
 			{
 				throw new TestFixtureAssertionException(
 					"Expected SuspendKeyAsync to throw ArgumentException for null reason.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+			(provider as IDisposable)?.Dispose();
+		}
+	}
+
+	#endregion
+
+	#region ReactivateKey Tests
+
+	/// <summary>
+	/// Verifies that ReactivateKeyAsync returns false for a non-existent key.
+	/// </summary>
+	protected virtual async Task ReactivateKeyAsync_NonExistent_ShouldReturnFalse()
+	{
+		// Arrange
+		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
+		try
+		{
+			// Act
+			var result = await admin.ReactivateKeyAsync("non-existent-key", CancellationToken.None)
+				.ConfigureAwait(false);
+
+			// Assert
+			if (result)
+			{
+				throw new TestFixtureAssertionException(
+					"Expected ReactivateKeyAsync to return false for non-existent key.");
+			}
+		}
+		finally
+		{
+			await CleanupAsync().ConfigureAwait(false);
+			(provider as IDisposable)?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Verifies that ReactivateKeyAsync restores a suspended key to usable/active state — the
+	/// inverse of SuspendKeyAsync. Suspend renders the key unusable (excluded from GetActiveKey);
+	/// reactivate must make it active and usable again.
+	/// </summary>
+	protected virtual async Task ReactivateKeyAsync_SuspendedKey_ShouldRestoreToActive()
+	{
+		// Arrange
+		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
+		try
+		{
+			var keyId = GenerateKeyId();
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, "encryption", null, CancellationToken.None)
+				.ConfigureAwait(false);
+
+			// Suspend → the key must become unusable (absent from the active key set).
+			_ = await admin.SuspendKeyAsync(keyId, "security-incident", CancellationToken.None).ConfigureAwait(false);
+
+			var suspendedMetadata = await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+			if (suspendedMetadata is null || suspendedMetadata.Status != KeyStatus.Suspended)
+			{
+				throw new TestFixtureAssertionException(
+					$"Expected key to be Suspended after SuspendKeyAsync, but got {suspendedMetadata?.Status.ToString() ?? "null"}.");
+			}
+
+			// Act — reactivate.
+			var result = await admin.ReactivateKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+
+			// Assert
+			if (!result)
+			{
+				throw new TestFixtureAssertionException("Expected ReactivateKeyAsync to return true for an existing key.");
+			}
+
+			var reactivatedMetadata = await provider.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+			if (reactivatedMetadata is null || reactivatedMetadata.Status != KeyStatus.Active)
+			{
+				throw new TestFixtureAssertionException(
+					$"Expected key to be Active after ReactivateKeyAsync, but got {reactivatedMetadata?.Status.ToString() ?? "null"}.");
+			}
+
+			// The reactivated key must be usable again — surfaced by GetActiveKeyAsync.
+			var activeKey = await provider.GetActiveKeyAsync("encryption", CancellationToken.None).ConfigureAwait(false);
+			if (activeKey is null || activeKey.KeyId != keyId)
+			{
+				throw new TestFixtureAssertionException(
+					"Expected GetActiveKeyAsync to return the reactivated key.");
 			}
 		}
 		finally

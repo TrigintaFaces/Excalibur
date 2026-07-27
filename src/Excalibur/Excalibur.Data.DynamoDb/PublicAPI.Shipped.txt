@@ -205,8 +205,8 @@ Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DeleteSnapshotsAsync(str
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.Dispose() -> void
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DynamoDbSnapshotStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore!>! logger) -> void
-Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DynamoDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DynamoDbSnapshotStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DynamoDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -308,6 +308,7 @@ const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.RegionConfigured =
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagaLoaded = 103471 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagaSaved = 103472 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagaStoreInitialized = 103470 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagasPurged = 103473 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ScanExecuted = 103303 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ScanExecuting = 103302 -> int
 const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ShardIteratorObtained = 103402 -> int

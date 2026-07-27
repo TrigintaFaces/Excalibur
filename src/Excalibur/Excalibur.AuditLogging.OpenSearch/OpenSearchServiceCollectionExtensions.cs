@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.AuditLogging.OpenSearch;
 using Excalibur.Compliance;
 
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
 // Note: IAuditStore is NOT registered from this package.
@@ -161,11 +162,35 @@ public static class OpenSearchServiceCollectionExtensions
 		_ = services.AddSingleton<IValidateOptions<OpenSearchExporterOptions>,
 			OpenSearchExporterOptionsValidator>();
 
-		_ = services.AddHttpClient<OpenSearchAuditExporter>((sp, client) =>
+		// Transient-fault retry (formerly hand-rolled in the exporter) is delegated to the standard
+		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience). Per-attempt node
+		// failover is preserved by an inner NodeFailoverHandler that re-selects the next cluster node on
+		// every SendAsync, so each resilience retry re-enters it and targets a new node. The pipeline owns
+		// timeouts, so the HttpClient timeout is left infinite.
+		var httpClientBuilder = services.AddHttpClient<OpenSearchAuditExporter>(static (_, client) =>
+		{
+			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+		});
+
+		// Resilience handler is OUTER, node-failover handler is INNER (added second), so each retry
+		// re-enters the failover handler and round-robins to the next node.
+		_ = httpClientBuilder.AddStandardResilienceHandler();
+
+		_ = httpClientBuilder.AddHttpMessageHandler(static sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OpenSearchExporterOptions>>().Value;
-			client.Timeout = options.Timeout;
+			var nodeUrls = options.NodeUrls is { Count: > 0 }
+				? (IReadOnlyList<string>)options.NodeUrls
+				: [options.OpenSearchUrl];
+			return new NodeFailoverHandler(ToNodeUris(nodeUrls));
 		});
+
+		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
+		// retry options, so config-bound overrides flow through the DI options system.
+		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+			.Configure<IOptions<OpenSearchExporterOptions>>(static (resilience, exporterOptions) =>
+				ConfigureResilience(resilience, exporterOptions.Value.MaxRetryAttempts,
+					exporterOptions.Value.RetryBaseDelay, exporterOptions.Value.Timeout));
 
 		_ = services.AddSingleton<IAuditLogExporter, OpenSearchAuditExporter>();
 	}
@@ -175,12 +200,46 @@ public static class OpenSearchServiceCollectionExtensions
 		_ = services.AddSingleton<IValidateOptions<OpenSearchAuditSinkOptions>,
 			OpenSearchAuditSinkOptionsValidator>();
 
-		_ = services.AddHttpClient<OpenSearchAuditSink>((sp, client) =>
+		var httpClientBuilder = services.AddHttpClient<OpenSearchAuditSink>(static (_, client) =>
+		{
+			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+		});
+
+		_ = httpClientBuilder.AddStandardResilienceHandler();
+
+		_ = httpClientBuilder.AddHttpMessageHandler(static sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<OpenSearchAuditSinkOptions>>().Value;
-			client.Timeout = options.Timeout;
+			return new NodeFailoverHandler(ToNodeUris(options.GetResolvedNodeUrls()));
 		});
+
+		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+			.Configure<IOptions<OpenSearchAuditSinkOptions>>(static (resilience, sinkOptions) =>
+				ConfigureResilience(resilience, sinkOptions.Value.MaxRetryAttempts,
+					sinkOptions.Value.RetryBaseDelay, sinkOptions.Value.Timeout));
 
 		_ = services.AddSingleton<OpenSearchAuditSink>();
 	}
+
+	// Maps the exporter/sink retry options onto the standard resilience pipeline: exponential backoff
+	// matching the former baseDelay * 2^(attempt-1), with the per-request timeout preserved as the
+	// per-attempt timeout (the total-request timeout accommodates every attempt, and the breaker
+	// sampling window must be at least twice the attempt timeout — standard-handler invariants).
+	private static void ConfigureResilience(
+		HttpStandardResilienceOptions resilience,
+		int maxRetryAttempts,
+		TimeSpan retryBaseDelay,
+		TimeSpan requestTimeout)
+	{
+		resilience.Retry.MaxRetryAttempts = maxRetryAttempts;
+		resilience.Retry.Delay = retryBaseDelay;
+		resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+
+		resilience.AttemptTimeout.Timeout = requestTimeout;
+		resilience.TotalRequestTimeout.Timeout = requestTimeout * (maxRetryAttempts + 1);
+		resilience.CircuitBreaker.SamplingDuration = requestTimeout * 2;
+	}
+
+	private static Uri[] ToNodeUris(IReadOnlyList<string> nodeUrls) =>
+		[.. nodeUrls.Select(static url => new Uri(url.TrimEnd('/'), UriKind.Absolute))];
 }

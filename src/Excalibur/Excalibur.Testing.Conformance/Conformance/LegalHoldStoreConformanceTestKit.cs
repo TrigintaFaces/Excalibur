@@ -425,29 +425,64 @@ public abstract class LegalHoldStoreConformanceTestKit
 	#region Tenant Holds Tests
 
 	/// <summary>
-	/// Verifies that GetActiveHoldsForTenantAsync returns active tenant holds.
+	/// Verifies that GetActiveHoldsForTenantAsync is genuinely scoped to the requested tenant.
 	/// </summary>
+	/// <remarks>
+	/// Seeds two tenants and asserts both halves of the contract: SAFETY -- a scoped read never
+	/// returns another tenant's holds; and LIVENESS -- the scoped read still returns its own
+	/// tenant's active hold, and still filters released holds by state. A single-tenant fixture
+	/// cannot distinguish a correctly scoped store from one that ignores the tenant argument.
+	/// </remarks>
 	public virtual async Task GetActiveHoldsForTenantAsync_ActiveTenantHolds_ShouldReturnMatching()
 	{
 		var store = CreateStore();
-		var tenantId = $"tenant-{Guid.NewGuid():N}";
+		var tenantA = $"tenant-A-{Guid.NewGuid():N}";
+		var tenantB = $"tenant-B-{Guid.NewGuid():N}";
 
-		// Active hold for tenant
-		var activeHold = CreateLegalHold(tenantId: tenantId, isActive: true);
+		// Active hold for tenant A -- the row a scoped read MUST return.
+		var activeHold = CreateLegalHold(tenantId: tenantA, isActive: true);
 		await store.SaveHoldAsync(activeHold, CancellationToken.None).ConfigureAwait(false);
 
-		// Released hold for same tenant
-		var releasedHold = CreateLegalHold(tenantId: tenantId, isActive: false);
+		// Released hold for tenant A -- filtered out by state, not by tenant.
+		var releasedHold = CreateLegalHold(tenantId: tenantA, isActive: false);
 		await store.SaveHoldAsync(releasedHold, CancellationToken.None).ConfigureAwait(false);
 
-		var holds = await GetQueryStore(store).GetActiveHoldsForTenantAsync(tenantId, CancellationToken.None).ConfigureAwait(false);
+		// ACTIVE hold belonging to a DIFFERENT tenant. Without this row the whole test is
+		// satisfied by a store that ignores tenantId entirely: with only one tenant present,
+		// "returns the tenant's holds" and "returns every hold" are indistinguishable.
+		var otherTenantHold = CreateLegalHold(tenantId: tenantB, isActive: true);
+		await store.SaveHoldAsync(otherTenantHold, CancellationToken.None).ConfigureAwait(false);
 
+		var holds = await GetQueryStore(store).GetActiveHoldsForTenantAsync(tenantA, CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY -- a read scoped to tenant A must never surface tenant B's hold. This is the arm
+		// the kit was missing, and its absence is why a store that drops the tenantId predicate
+		// could be certified as conforming. Identity is asserted on the hold's OWN HoldId, never
+		// on the TenantId field of the returned row: a store that leaks the row but rewrites the
+		// tenant label would evade a predicate written against TenantId.
+		var leaked = holds.Where(h => h.HoldId == otherTenantHold.HoldId).ToList();
+
+		if (leaked.Count > 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"CROSS-TENANT DISCLOSURE: GetActiveHoldsForTenantAsync scoped to '{tenantA}' returned "
+				+ $"{leaked.Count} legal hold(s) belonging to '{tenantB}'. A scoped read must never return "
+				+ "another tenant's legal holds. Hold IDs returned: "
+				+ string.Join(", ", leaked.Select(h => h.HoldId)));
+		}
+
+		// LIVENESS -- paired with the safety arm above and NOT optional. Safety alone is fully
+		// satisfied by a store that returns an empty set for every scoped read forever, which
+		// discloses nothing because it answers nothing.
 		if (!holds.Any(h => h.HoldId == activeHold.HoldId))
 		{
 			throw new TestFixtureAssertionException(
-				"Active hold should be returned for tenant");
+				$"Active hold for tenant '{tenantA}' was NOT returned by its own scoped read. The tenant "
+				+ "predicate is over-filtering: a store that returns nothing satisfies isolation trivially "
+				+ "while being useless.");
 		}
 
+		// LIVENESS -- state filtering still works, and is a separate property from tenant scoping.
 		if (holds.Any(h => h.HoldId == releasedHold.HoldId))
 		{
 			throw new TestFixtureAssertionException(

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 using Dapper;
 
@@ -23,6 +24,10 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 	/// <param name="outboxTableName"> The qualified outbox table name. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
+	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+		Justification = "JSON deserialization of stored message metadata into a header dictionary mirrors the reserved-message reload path; consumers requiring AOT should use source-generated serialization.")]
+	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+		Justification = "JSON deserialization of stored message metadata requires runtime code generation; mirrors the reserved-message reload path.")]
 	public GetScheduledOutboxMessages(
 		DateTimeOffset cutoff,
 		int batchSize,
@@ -32,7 +37,7 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 	{
 		var sql = $"""
 			SELECT message_id AS MessageId, message_type AS MessageType, message_metadata AS MessageMetadata,
-			       message_body AS MessageBody, tenant_id AS TenantId, occurred_on AS OccurredOn, scheduled_at AS ScheduledAt
+			       message_body AS MessageBody, tenant_id AS TenantId, destination AS Destination, occurred_on AS OccurredOn, scheduled_at AS ScheduledAt
 			FROM {outboxTableName}
 			WHERE scheduled_at IS NOT NULL
 			  AND scheduled_at <= @Cutoff
@@ -55,11 +60,19 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 			{
 				Id = row.MessageId,
 				MessageType = row.MessageType,
-				Payload = System.Text.Encoding.UTF8.GetBytes(row.MessageBody ?? string.Empty),
+				Payload = row.MessageBody ?? [],
 				TenantId = row.TenantId,
+				Destination = row.Destination ?? string.Empty,
 				CreatedAt = row.OccurredOn,
 				ScheduledAt = row.ScheduledAt,
 				Status = OutboxStatus.Staged,
+
+				// Rehydrate the persisted metadata into Headers so scheduled-reload preserves headers
+				// (correlation/trace/etc.) rather than dropping them — mirrors the reserved-message path.
+				Headers = string.IsNullOrEmpty(row.MessageMetadata)
+					? new Dictionary<string, object>(StringComparer.Ordinal)
+					: System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(row.MessageMetadata, Excalibur.Dispatch.EventSerializationDefaults.Canonical)
+					  ?? new Dictionary<string, object>(StringComparer.Ordinal),
 			});
 		};
 	}
@@ -73,8 +86,9 @@ internal sealed class GetScheduledOutboxMessages : DataRequest<IEnumerable<Outbo
 		public string MessageId { get; set; } = string.Empty;
 		public string MessageType { get; set; } = string.Empty;
 		public string? MessageMetadata { get; set; }
-		public string? MessageBody { get; set; }
+		public byte[]? MessageBody { get; set; }
 		public string? TenantId { get; set; }
+		public string? Destination { get; set; }
 		public DateTimeOffset OccurredOn { get; set; }
 		public DateTimeOffset? ScheduledAt { get; set; }
 		// ReSharper restore UnusedAutoPropertyAccessor.Local

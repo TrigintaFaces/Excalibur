@@ -38,23 +38,47 @@ public sealed class CosmosDbInboxDocumentShould
 		// Arrange
 		var messageId = "msg-123";
 		var handlerType = "OrderHandler";
+		// CreateId's third parameter (tenantId) is OPTIONAL. Reflection does not apply default values, so
+		// every Invoke below must pass all three arguments — a two-element array throws
+		// TargetParameterCountException regardless of the default.
 		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
 
 		// Act
-		var result = (string)createIdMethod!.Invoke(null, new object[] { messageId, handlerType })!;
+		var result = (string)createIdMethod!.Invoke(null, new object?[] { messageId, handlerType, null })!;
 
 		// Assert
 		result.ShouldBe("msg-123:OrderHandler");
 	}
 
 	[Fact]
+	public void CreateId_ComposesTheTenantIntoTheDedupIdentity_WhenScoped()
+	{
+		// SAFETY: the tenant is a LEADING term of the dedup id, so two tenants carrying the same message id
+		// and handler produce DIFFERENT documents and can never dedup against each other — one tenant's
+		// delivery must not suppress another's. This is the isolation property; the arms above only cover
+		// the tenant-less form, which cannot detect its loss.
+		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
+
+		var tenantA = (string)createIdMethod!.Invoke(null, new object?[] { "msg-123", "OrderHandler", "tenant-a" })!;
+		var tenantB = (string)createIdMethod!.Invoke(null, new object?[] { "msg-123", "OrderHandler", "tenant-b" })!;
+		var untenanted = (string)createIdMethod!.Invoke(null, new object?[] { "msg-123", "OrderHandler", null })!;
+
+		tenantA.ShouldBe("tenant-a:msg-123:OrderHandler");
+		tenantB.ShouldNotBe(tenantA, "two tenants sharing a message id must not collide on one dedup document");
+		untenanted.ShouldNotBe(tenantA, "the tenant-less form must not collide with a scoped tenant's id");
+	}
+
+	[Fact]
 	public void CreateId_HandlesEmptyStrings()
 	{
 		// Arrange
+		// CreateId's third parameter (tenantId) is OPTIONAL. Reflection does not apply default values, so
+		// every Invoke below must pass all three arguments — a two-element array throws
+		// TargetParameterCountException regardless of the default.
 		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
 
 		// Act
-		var result = (string)createIdMethod!.Invoke(null, new object[] { "", "" })!;
+		var result = (string)createIdMethod!.Invoke(null, new object?[] { "", "", null })!;
 
 		// Assert
 		result.ShouldBe(":");
@@ -66,10 +90,13 @@ public sealed class CosmosDbInboxDocumentShould
 		// Arrange
 		var messageId = "msg:123";
 		var handlerType = "Order:Handler";
+		// CreateId's third parameter (tenantId) is OPTIONAL. Reflection does not apply default values, so
+		// every Invoke below must pass all three arguments — a two-element array throws
+		// TargetParameterCountException regardless of the default.
 		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
 
 		// Act
-		var result = (string)createIdMethod!.Invoke(null, new object[] { messageId, handlerType })!;
+		var result = (string)createIdMethod!.Invoke(null, new object?[] { messageId, handlerType, null })!;
 
 		// Assert
 		result.ShouldBe("msg:123:Order:Handler");

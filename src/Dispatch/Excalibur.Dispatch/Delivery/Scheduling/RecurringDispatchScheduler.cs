@@ -24,10 +24,15 @@ public sealed partial class RecurringDispatchScheduler(
 	IOptions<SchedulerOptions> options,
 	ICronScheduler cronScheduler,
 	IOptions<CronScheduleOptions> cronOptions,
-	ILogger<RecurringDispatchScheduler> logger) : IDispatchScheduler
+	ILogger<RecurringDispatchScheduler> logger,
+	TimeProvider? timeProvider = null) : IDispatchScheduler
 {
 	private readonly SchedulerOptions _options = options.Value;
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
+
+	// ywodwj — due/past-schedule and next-occurrence decisions read the clock through TimeProvider so the
+	// boundary is testable (default TimeProvider.System keeps existing DI/callers unchanged).
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
@@ -40,14 +45,14 @@ public sealed partial class RecurringDispatchScheduler(
 			CancellationToken cancellationToken)
 			where TMessage : class
 	{
-		if (executeAtUtc < DateTimeOffset.UtcNow)
+		if (executeAtUtc < _timeProvider.GetUtcNow())
 		{
 			if (_options.PastScheduleBehavior == PastScheduleBehavior.Reject)
 			{
 				throw new ArgumentOutOfRangeException(nameof(executeAtUtc));
 			}
 
-			executeAtUtc = DateTimeOffset.UtcNow;
+			executeAtUtc = _timeProvider.GetUtcNow();
 		}
 
 		var type = typeof(TMessage);
@@ -115,7 +120,7 @@ public sealed partial class RecurringDispatchScheduler(
 		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		// Calculate next execution time
-		var nextRun = cronExpr.GetNextOccurrenceUtc(DateTimeOffset.UtcNow);
+		var nextRun = cronExpr.GetNextOccurrenceUtc(_timeProvider.GetUtcNow());
 
 		var entry = new ScheduledMessage
 		{
@@ -165,7 +170,7 @@ public sealed partial class RecurringDispatchScheduler(
 			UserId = ExtractUserId(),
 			Enabled = true,
 			Id = Guid.NewGuid(),
-			NextExecutionUtc = DateTimeOffset.UtcNow.Add(interval),
+			NextExecutionUtc = _timeProvider.GetUtcNow().Add(interval),
 			TimeZoneId = TimeZoneInfo.Utc.Id,
 		};
 

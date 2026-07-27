@@ -5,9 +5,6 @@
 namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>
-/// Represents a message envelope for Azure Storage Queue messages.
-/// </summary>
-/// <summary>
 /// Represents a serialized message envelope for Azure Storage Queue messages.
 /// </summary>
 internal sealed class StorageQueueMessageEnvelope

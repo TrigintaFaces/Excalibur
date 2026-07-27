@@ -1,0 +1,207 @@
+#nullable enable
+Excalibur.Operations.Dashboard.DashboardCapabilities
+Excalibur.Operations.Dashboard.DashboardCapabilities.DashboardCapabilities() -> void
+Excalibur.Operations.Dashboard.DashboardCapabilities.MutatingActionsEnabled.get -> bool
+Excalibur.Operations.Dashboard.DashboardCapabilities.MutatingActionsEnabled.init -> void
+Excalibur.Operations.Dashboard.DashboardCapabilities.Subsystems.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Operations.Dashboard.DashboardCapabilities.Subsystems.init -> void
+Excalibur.Operations.Dashboard.DashboardOptions
+Excalibur.Operations.Dashboard.DashboardOptions.DashboardOptions() -> void
+Excalibur.Operations.Dashboard.DashboardOptions.DefaultPageSize.get -> int
+Excalibur.Operations.Dashboard.DashboardOptions.DefaultPageSize.set -> void
+Excalibur.Operations.Dashboard.DashboardOptions.EnableMutatingActions.get -> bool
+Excalibur.Operations.Dashboard.DashboardOptions.EnableMutatingActions.set -> void
+Excalibur.Operations.Dashboard.DashboardOptions.ExposeSensitiveData.get -> bool
+Excalibur.Operations.Dashboard.DashboardOptions.ExposeSensitiveData.set -> void
+Excalibur.Operations.Dashboard.DashboardOptions.MaxPageSize.get -> int
+Excalibur.Operations.Dashboard.DashboardOptions.MaxPageSize.set -> void
+Excalibur.Operations.Dashboard.DashboardOptions.MutatingActionsPolicy.get -> string?
+Excalibur.Operations.Dashboard.DashboardOptions.MutatingActionsPolicy.set -> void
+Excalibur.Operations.Dashboard.DashboardOptions.ReadActionsPolicy.get -> string?
+Excalibur.Operations.Dashboard.DashboardOptions.ReadActionsPolicy.set -> void
+Excalibur.Operations.Dashboard.DashboardOptions.RoutePrefix.get -> string!
+Excalibur.Operations.Dashboard.DashboardOptions.RoutePrefix.set -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView
+Excalibur.Operations.Dashboard.DeadLetterEntryView.CorrelationId.get -> string?
+Excalibur.Operations.Dashboard.DeadLetterEntryView.CorrelationId.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.DeadLetterEntryView() -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.EnqueuedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.DeadLetterEntryView.EnqueuedAt.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.ExceptionMessage.get -> string?
+Excalibur.Operations.Dashboard.DeadLetterEntryView.ExceptionMessage.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.Id.get -> System.Guid
+Excalibur.Operations.Dashboard.DeadLetterEntryView.Id.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.IsReplayed.get -> bool
+Excalibur.Operations.Dashboard.DeadLetterEntryView.IsReplayed.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.MessageType.get -> string!
+Excalibur.Operations.Dashboard.DeadLetterEntryView.MessageType.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.OriginalAttempts.get -> int
+Excalibur.Operations.Dashboard.DeadLetterEntryView.OriginalAttempts.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.Reason.get -> string!
+Excalibur.Operations.Dashboard.DeadLetterEntryView.Reason.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.ReplayedAt.get -> System.DateTimeOffset?
+Excalibur.Operations.Dashboard.DeadLetterEntryView.ReplayedAt.init -> void
+Excalibur.Operations.Dashboard.DeadLetterEntryView.SourceQueue.get -> string?
+Excalibur.Operations.Dashboard.DeadLetterEntryView.SourceQueue.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.DeadLetterReplayBatchRequest() -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.Limit.get -> int?
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.Limit.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.MessageType.get -> string?
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.MessageType.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.SourceQueue.get -> string?
+Excalibur.Operations.Dashboard.DeadLetterReplayBatchRequest.SourceQueue.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayResult
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Count.get -> int
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Count.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.DeadLetterReplayResult() -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Enumerated.get -> int
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Enumerated.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Replayed.get -> bool
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Replayed.init -> void
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Truncated.get -> bool
+Excalibur.Operations.Dashboard.DeadLetterReplayResult.Truncated.init -> void
+Excalibur.Operations.Dashboard.DeadLetterView
+Excalibur.Operations.Dashboard.DeadLetterView.CapturedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.DeadLetterView.CapturedAt.init -> void
+Excalibur.Operations.Dashboard.DeadLetterView.Configured.get -> bool
+Excalibur.Operations.Dashboard.DeadLetterView.Configured.init -> void
+Excalibur.Operations.Dashboard.DeadLetterView.Count.get -> long
+Excalibur.Operations.Dashboard.DeadLetterView.Count.init -> void
+Excalibur.Operations.Dashboard.DeadLetterView.DeadLetterView() -> void
+Excalibur.Operations.Dashboard.IDashboardEndpointModule
+Excalibur.Operations.Dashboard.IDashboardEndpointModule.MapEndpoints(Microsoft.AspNetCore.Routing.RouteGroupBuilder! group, Excalibur.Operations.Dashboard.DashboardOptions! options) -> void
+Excalibur.Operations.Dashboard.IDashboardEndpointModule.Subsystem.get -> string!
+Excalibur.Operations.Dashboard.IDashboardMutatingModule
+Excalibur.Operations.Dashboard.IDashboardMutatingModule.MapMutatingEndpoints(Microsoft.AspNetCore.Routing.RouteGroupBuilder! group, Excalibur.Operations.Dashboard.DashboardOptions! options) -> void
+Excalibur.Operations.Dashboard.IDashboardMutatingModule.Subsystem.get -> string!
+Excalibur.Operations.Dashboard.InboxView
+Excalibur.Operations.Dashboard.InboxView.CapturedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.InboxView.CapturedAt.init -> void
+Excalibur.Operations.Dashboard.InboxView.Configured.get -> bool
+Excalibur.Operations.Dashboard.InboxView.Configured.init -> void
+Excalibur.Operations.Dashboard.InboxView.Failed.get -> int
+Excalibur.Operations.Dashboard.InboxView.Failed.init -> void
+Excalibur.Operations.Dashboard.InboxView.InboxView() -> void
+Excalibur.Operations.Dashboard.InboxView.Pending.get -> int
+Excalibur.Operations.Dashboard.InboxView.Pending.init -> void
+Excalibur.Operations.Dashboard.InboxView.Processed.get -> int
+Excalibur.Operations.Dashboard.InboxView.Processed.init -> void
+Excalibur.Operations.Dashboard.InboxView.Total.get -> int
+Excalibur.Operations.Dashboard.InboxView.Total.init -> void
+Excalibur.Operations.Dashboard.LeaderView
+Excalibur.Operations.Dashboard.LeaderView.CandidateId.get -> string?
+Excalibur.Operations.Dashboard.LeaderView.CandidateId.init -> void
+Excalibur.Operations.Dashboard.LeaderView.CapturedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.LeaderView.CapturedAt.init -> void
+Excalibur.Operations.Dashboard.LeaderView.Configured.get -> bool
+Excalibur.Operations.Dashboard.LeaderView.Configured.init -> void
+Excalibur.Operations.Dashboard.LeaderView.CurrentLeaderId.get -> string?
+Excalibur.Operations.Dashboard.LeaderView.CurrentLeaderId.init -> void
+Excalibur.Operations.Dashboard.LeaderView.FencingToken.get -> long?
+Excalibur.Operations.Dashboard.LeaderView.FencingToken.init -> void
+Excalibur.Operations.Dashboard.LeaderView.IsLeader.get -> bool
+Excalibur.Operations.Dashboard.LeaderView.IsLeader.init -> void
+Excalibur.Operations.Dashboard.LeaderView.LeaderView() -> void
+Excalibur.Operations.Dashboard.LeaderView.Resource.get -> string?
+Excalibur.Operations.Dashboard.LeaderView.Resource.init -> void
+Excalibur.Operations.Dashboard.OutboxView
+Excalibur.Operations.Dashboard.OutboxView.CapturedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.OutboxView.CapturedAt.init -> void
+Excalibur.Operations.Dashboard.OutboxView.Configured.get -> bool
+Excalibur.Operations.Dashboard.OutboxView.Configured.init -> void
+Excalibur.Operations.Dashboard.OutboxView.Failed.get -> int
+Excalibur.Operations.Dashboard.OutboxView.Failed.init -> void
+Excalibur.Operations.Dashboard.OutboxView.OldestFailedSeconds.get -> double?
+Excalibur.Operations.Dashboard.OutboxView.OldestFailedSeconds.init -> void
+Excalibur.Operations.Dashboard.OutboxView.OldestUnsentSeconds.get -> double?
+Excalibur.Operations.Dashboard.OutboxView.OldestUnsentSeconds.init -> void
+Excalibur.Operations.Dashboard.OutboxView.OutboxView() -> void
+Excalibur.Operations.Dashboard.OutboxView.Scheduled.get -> int
+Excalibur.Operations.Dashboard.OutboxView.Scheduled.init -> void
+Excalibur.Operations.Dashboard.OutboxView.Sending.get -> int
+Excalibur.Operations.Dashboard.OutboxView.Sending.init -> void
+Excalibur.Operations.Dashboard.OutboxView.Sent.get -> int
+Excalibur.Operations.Dashboard.OutboxView.Sent.init -> void
+Excalibur.Operations.Dashboard.OutboxView.Staged.get -> int
+Excalibur.Operations.Dashboard.OutboxView.Staged.init -> void
+Excalibur.Operations.Dashboard.SagaInstanceView
+Excalibur.Operations.Dashboard.SagaInstanceView.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Operations.Dashboard.SagaInstanceView.CompletedAt.init -> void
+Excalibur.Operations.Dashboard.SagaInstanceView.IsCompleted.get -> bool
+Excalibur.Operations.Dashboard.SagaInstanceView.IsCompleted.init -> void
+Excalibur.Operations.Dashboard.SagaInstanceView.SagaId.get -> System.Guid
+Excalibur.Operations.Dashboard.SagaInstanceView.SagaId.init -> void
+Excalibur.Operations.Dashboard.SagaInstanceView.SagaInstanceView() -> void
+Excalibur.Operations.Dashboard.SagaInstanceView.SagaType.get -> string!
+Excalibur.Operations.Dashboard.SagaInstanceView.SagaType.init -> void
+Excalibur.Operations.Dashboard.SagaInstanceView.TenantId.get -> string?
+Excalibur.Operations.Dashboard.SagaInstanceView.TenantId.init -> void
+Excalibur.Operations.Dashboard.SagaInstanceView.Version.get -> long
+Excalibur.Operations.Dashboard.SagaInstanceView.Version.init -> void
+Excalibur.Operations.Dashboard.SagaView
+Excalibur.Operations.Dashboard.SagaView.CapturedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.SagaView.CapturedAt.init -> void
+Excalibur.Operations.Dashboard.SagaView.Completed.get -> int
+Excalibur.Operations.Dashboard.SagaView.Completed.init -> void
+Excalibur.Operations.Dashboard.SagaView.Configured.get -> bool
+Excalibur.Operations.Dashboard.SagaView.Configured.init -> void
+Excalibur.Operations.Dashboard.SagaView.Running.get -> int
+Excalibur.Operations.Dashboard.SagaView.Running.init -> void
+Excalibur.Operations.Dashboard.SagaView.SagaView() -> void
+Excalibur.Operations.Dashboard.SagaView.Total.get -> int
+Excalibur.Operations.Dashboard.SagaView.Total.init -> void
+Excalibur.Operations.Dashboard.StuckSagaResult
+Excalibur.Operations.Dashboard.StuckSagaResult.Available.get -> bool
+Excalibur.Operations.Dashboard.StuckSagaResult.Available.init -> void
+Excalibur.Operations.Dashboard.StuckSagaResult.Stuck.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Operations.Dashboard.StuckSagaView!>!
+Excalibur.Operations.Dashboard.StuckSagaResult.Stuck.init -> void
+Excalibur.Operations.Dashboard.StuckSagaResult.StuckSagaResult() -> void
+Excalibur.Operations.Dashboard.StuckSagaView
+Excalibur.Operations.Dashboard.StuckSagaView.DueAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.StuckSagaView.DueAt.init -> void
+Excalibur.Operations.Dashboard.StuckSagaView.OverdueSeconds.get -> double
+Excalibur.Operations.Dashboard.StuckSagaView.OverdueSeconds.init -> void
+Excalibur.Operations.Dashboard.StuckSagaView.SagaId.get -> string!
+Excalibur.Operations.Dashboard.StuckSagaView.SagaId.init -> void
+Excalibur.Operations.Dashboard.StuckSagaView.SagaType.get -> string!
+Excalibur.Operations.Dashboard.StuckSagaView.SagaType.init -> void
+Excalibur.Operations.Dashboard.StuckSagaView.StuckSagaView() -> void
+Excalibur.Operations.Dashboard.StuckSagaView.TimeoutId.get -> string!
+Excalibur.Operations.Dashboard.StuckSagaView.TimeoutId.init -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView
+Excalibur.Operations.Dashboard.WorkflowInstanceView.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Operations.Dashboard.WorkflowInstanceView.CompletedAt.init -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView.InstanceId.get -> string!
+Excalibur.Operations.Dashboard.WorkflowInstanceView.InstanceId.init -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView.StartedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.WorkflowInstanceView.StartedAt.init -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView.Status.get -> string!
+Excalibur.Operations.Dashboard.WorkflowInstanceView.Status.init -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView.TenantId.get -> string?
+Excalibur.Operations.Dashboard.WorkflowInstanceView.TenantId.init -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView.WorkflowInstanceView() -> void
+Excalibur.Operations.Dashboard.WorkflowInstanceView.WorkflowName.get -> string!
+Excalibur.Operations.Dashboard.WorkflowInstanceView.WorkflowName.init -> void
+Excalibur.Operations.Dashboard.WorkflowView
+Excalibur.Operations.Dashboard.WorkflowView.CapturedAt.get -> System.DateTimeOffset
+Excalibur.Operations.Dashboard.WorkflowView.CapturedAt.init -> void
+Excalibur.Operations.Dashboard.WorkflowView.Completed.get -> long
+Excalibur.Operations.Dashboard.WorkflowView.Completed.init -> void
+Excalibur.Operations.Dashboard.WorkflowView.Configured.get -> bool
+Excalibur.Operations.Dashboard.WorkflowView.Configured.init -> void
+Excalibur.Operations.Dashboard.WorkflowView.Faulted.get -> long
+Excalibur.Operations.Dashboard.WorkflowView.Faulted.init -> void
+Excalibur.Operations.Dashboard.WorkflowView.Running.get -> long
+Excalibur.Operations.Dashboard.WorkflowView.Running.init -> void
+Excalibur.Operations.Dashboard.WorkflowView.Total.get -> long
+Excalibur.Operations.Dashboard.WorkflowView.Total.init -> void
+Excalibur.Operations.Dashboard.WorkflowView.WorkflowView() -> void
+Microsoft.AspNetCore.Builder.DashboardEndpointRouteBuilderExtensions
+Microsoft.Extensions.DependencyInjection.DashboardServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ThroughputDashboardServiceCollectionExtensions
+static Microsoft.AspNetCore.Builder.DashboardEndpointRouteBuilderExtensions.MapDashboard(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+static Microsoft.AspNetCore.Builder.DashboardEndpointRouteBuilderExtensions.MapDashboardApi(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+static Microsoft.Extensions.DependencyInjection.DashboardServiceCollectionExtensions.AddDashboard(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DashboardServiceCollectionExtensions.AddDashboard(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Operations.Dashboard.DashboardOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ThroughputDashboardServiceCollectionExtensions.AddThroughputDashboard(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

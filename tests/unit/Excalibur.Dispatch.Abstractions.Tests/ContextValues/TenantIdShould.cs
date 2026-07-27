@@ -23,34 +23,31 @@ public sealed class TenantIdShould
 		tenantId.Value.ShouldBe("tenant-123");
 	}
 
-	[Fact]
-	public void Constructor_WithNullValue_SetsEmptyString()
-	{
-		// Act
-		var tenantId = new TenantId(null);
+	// REJECT, DO NOT COERCE. These three previously asserted that a missing tenant becomes the empty
+	// string. That is the fail-open shape: an identifier that no longer names the tenant the caller
+	// intended, produced with no diagnostic at the point the mistake was made, and carried downstream
+	// where an empty tenant term matches either nothing or everything depending on the store. The
+	// assertions are inverted rather than deleted -- the input cases still deserve coverage, and what
+	// changed is the required outcome.
 
-		// Assert
-		tenantId.Value.ShouldBe(string.Empty);
+	[Fact]
+	public void Constructor_WithNullValue_Throws()
+	{
+		_ = Should.Throw<ArgumentNullException>(() => new TenantId(null!));
 	}
 
 	[Fact]
-	public void Constructor_Parameterless_SetsEmptyString()
+	public void Constructor_WithEmptyString_Throws()
 	{
-		// Act
-		var tenantId = new TenantId();
-
-		// Assert
-		tenantId.Value.ShouldBe(string.Empty);
+		_ = Should.Throw<ArgumentException>(() => new TenantId(string.Empty));
 	}
 
 	[Fact]
-	public void Constructor_WithEmptyString_SetsEmptyString()
+	public void Constructor_WithWhitespace_Throws()
 	{
-		// Act
-		var tenantId = new TenantId(string.Empty);
-
-		// Assert
-		tenantId.Value.ShouldBe(string.Empty);
+		// Whitespace is the case a null-or-empty guard alone would let through, and it reaches storage as
+		// a tenant term that silently matches nothing.
+		_ = Should.Throw<ArgumentException>(() => new TenantId("   "));
 	}
 
 	#endregion
@@ -58,16 +55,20 @@ public sealed class TenantIdShould
 	#region Value Property Tests
 
 	[Fact]
-	public void Value_CanBeSet()
+	public void Value_IsImmutableAfterConstruction()
 	{
-		// Arrange
+		// The predecessor of this test asserted Value COULD be reassigned. A mutable tenant identifier can
+		// be changed after every scope check that read it, so the value authorising an operation need not
+		// be the value the operation runs under. Immutability is now structural -- there is no setter to
+		// call, so the old test does not compile -- and this asserts the property that replaced it.
 		var tenantId = new TenantId("original");
 
-		// Act
-		tenantId.Value = "modified";
+		tenantId.Value.ShouldBe("original");
 
-		// Assert
-		tenantId.Value.ShouldBe("modified");
+		var sameReference = tenantId;
+		sameReference.Value.ShouldBe(
+			"original",
+			"a second reference must observe the same value; the identifier cannot be mutated through it");
 	}
 
 	#endregion
@@ -88,16 +89,15 @@ public sealed class TenantIdShould
 	}
 
 	[Fact]
-	public void ToString_WhenEmpty_ReturnsEmptyString()
+	public void ToString_NeverReturnsEmpty_BecauseAnEmptyIdentifierCannotBeConstructed()
 	{
-		// Arrange
-		var tenantId = new TenantId();
+		// This previously built an empty identifier and asserted ToString returned "". No such instance can
+		// exist now, so the meaningful assertion is the invariant that replaced it: whatever a TenantId
+		// renders as, it is never the empty string a downstream tenant predicate would treat as unscoped.
+		var tenantId = new TenantId("t");
 
-		// Act
-		var result = tenantId.ToString();
-
-		// Assert
-		result.ShouldBe(string.Empty);
+		tenantId.ToString().ShouldNotBeNullOrWhiteSpace();
+		tenantId.ToString().ShouldBe("t");
 	}
 
 	#endregion
@@ -115,37 +115,38 @@ public sealed class TenantIdShould
 	}
 
 	[Fact]
-	public void FromString_WithNull_CreatesInstanceWithEmptyString()
+	public void FromString_WithNull_Throws()
 	{
-		// Act
-		var tenantId = TenantId.FromString(null!);
-
-		// Assert
-		tenantId.Value.ShouldBe(string.Empty);
+		// The named factory must reject exactly as the constructor does. A factory that coerced while the
+		// constructor rejected would be a second, quieter way to obtain the fail-open value the constructor
+		// exists to prevent.
+		_ = Should.Throw<ArgumentNullException>(() => TenantId.FromString(null!));
 	}
 
 	#endregion
 
-	#region Implicit Conversion Tests
+	#region Explicit Construction Tests
+
+	// THE IMPLICIT CONVERSION IS GONE, AND ITS ABSENCE IS THE POINT. `TenantId x = someString;` used to
+	// compile, so any string in scope could become a tenant identifier silently -- including a null, which
+	// became the empty tenant. Removal is enforced by the compiler, so no runtime test can assert it; what
+	// these arms do instead is pin the surviving path and prove it still rejects, which is the property the
+	// conversion was smuggling around.
 
 	[Fact]
-	public void ImplicitConversion_FromString_CreatesInstance()
+	public void ExplicitConstruction_FromString_CreatesInstance()
 	{
-		// Act
-		TenantId tenantId = "implicit-conversion";
+		var tenantId = new TenantId("explicit-construction");
 
-		// Assert
-		tenantId.Value.ShouldBe("implicit-conversion");
+		tenantId.Value.ShouldBe("explicit-construction");
 	}
 
 	[Fact]
-	public void ImplicitConversion_FromNull_CreatesInstanceWithEmptyString()
+	public void ExplicitConstruction_FromNull_Throws()
 	{
-		// Act
-		TenantId tenantId = (string)null!;
+		string? candidate = null;
 
-		// Assert
-		tenantId.Value.ShouldBe(string.Empty);
+		_ = Should.Throw<ArgumentNullException>(() => new TenantId(candidate!));
 	}
 
 	#endregion
@@ -164,14 +165,17 @@ public sealed class TenantIdShould
 	}
 
 	[Fact]
-	public void Equals_WithDifferentCase_ReturnsTrue()
+	public void Equals_WithDifferentCase_ReturnsFalse()
 	{
-		// Arrange (case-insensitive comparison)
+		// INVERTED, security-relevant. Case-insensitive equality makes "Acme" and "acme" ONE tenant in
+		// .NET while storage decides separately by collation — a mismatch that resolves tenant identity
+		// differently on either side of a database call, and fails open. Comparison is Ordinal.
 		var tenantId1 = new TenantId("TENANT");
 		var tenantId2 = new TenantId("tenant");
 
-		// Act & Assert
-		tenantId1.Equals(tenantId2).ShouldBeTrue();
+		tenantId1.Equals(tenantId2).ShouldBeFalse(
+			"Ordinal comparison must treat a case difference as a different tenant; conflating them is a "
+			+ "cross-tenant identity collision");
 	}
 
 	[Fact]
@@ -245,14 +249,15 @@ public sealed class TenantIdShould
 	}
 
 	[Fact]
-	public void GetHashCode_WithDifferentCase_ReturnsSameHash()
+	public void GetHashCode_WithDifferentCase_ReturnsDifferentHash()
 	{
-		// Arrange (case-insensitive hash)
+		// Follows the equality change and must not be forgotten alongside it: a case-insensitive hash beside
+		// a case-sensitive Equals would collide two distinct tenants in every dictionary and set they key —
+		// which is where tenant-scoped lookups actually happen.
 		var tenantId1 = new TenantId("TENANT");
 		var tenantId2 = new TenantId("tenant");
 
-		// Act & Assert
-		tenantId1.GetHashCode().ShouldBe(tenantId2.GetHashCode());
+		tenantId1.GetHashCode().ShouldNotBe(tenantId2.GetHashCode());
 	}
 
 	[Fact]
@@ -264,30 +269,6 @@ public sealed class TenantIdShould
 
 		// Act & Assert
 		tenantId1.GetHashCode().ShouldNotBe(tenantId2.GetHashCode());
-	}
-
-	#endregion
-
-	#region ITenantId Interface Tests
-
-	[Fact]
-	public void ImplementsITenantIdInterface()
-	{
-		// Arrange
-		var tenantId = new TenantId("test");
-
-		// Assert
-		_ = tenantId.ShouldBeAssignableTo<ITenantId>();
-	}
-
-	[Fact]
-	public void ITenantId_Value_ReturnsCorrectValue()
-	{
-		// Arrange
-		ITenantId tenantId = new TenantId("interface-test");
-
-		// Act & Assert
-		tenantId.Value.ShouldBe("interface-test");
 	}
 
 	#endregion

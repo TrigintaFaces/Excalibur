@@ -74,7 +74,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 			using var content = new StringContent(json, Encoding.UTF8, "application/json");
 			using var request = CreateRequest(content);
 
-			var response = await SendWithRetryAsync(request, cancellationToken).ConfigureAwait(false);
+			var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -252,26 +252,6 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		}
 	}
 
-	private static async Task<HttpRequestMessage> CloneRequestAsync(
-		HttpRequestMessage request,
-		CancellationToken cancellationToken)
-	{
-		var clone = new HttpRequestMessage(request.Method, request.RequestUri);
-
-		foreach (var header in request.Headers)
-		{
-			_ = clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
-		}
-
-		if (request.Content != null)
-		{
-			var content = await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-			clone.Content = new StringContent(content, Encoding.UTF8, "application/json");
-		}
-
-		return clone;
-	}
-
 	private static bool IsTransientStatusCode(HttpStatusCode statusCode) =>
 		statusCode is HttpStatusCode.RequestTimeout
 			or HttpStatusCode.TooManyRequests
@@ -298,7 +278,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		using var content = new StringContent(sb.ToString(), Encoding.UTF8, "application/json");
 		using var request = CreateRequest(content);
 
-		var response = await SendWithRetryAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -323,48 +303,14 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		return request;
 	}
 
-	private async Task<HttpResponseMessage> SendWithRetryAsync(
+	private async Task<HttpResponseMessage> SendAsync(
 		HttpRequestMessage request,
 		CancellationToken cancellationToken)
 	{
-		var attempts = 0;
-		HttpResponseMessage? lastResponse = null;
-
-		while (attempts <= _options.Batch.MaxRetryAttempts)
-		{
-			attempts++;
-
-			try
-			{
-				// Clone the request for retry (content is consumed on first send)
-				using var clonedRequest = await CloneRequestAsync(request, cancellationToken).ConfigureAwait(false);
-				lastResponse = await _httpClient.SendAsync(clonedRequest, cancellationToken).ConfigureAwait(false);
-
-				if (lastResponse.IsSuccessStatusCode || !IsTransientStatusCode(lastResponse.StatusCode))
-				{
-					return lastResponse;
-				}
-
-				if (attempts <= _options.Batch.MaxRetryAttempts)
-				{
-					var delay = _options.Batch.RetryBaseDelay * Math.Pow(2, attempts - 1);
-					LogAuditExportRetry(
-						attempts,
-						delay.TotalMilliseconds,
-						lastResponse.StatusCode);
-
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			catch (HttpRequestException) when (attempts <= _options.Batch.MaxRetryAttempts)
-			{
-				var delay = _options.Batch.RetryBaseDelay * Math.Pow(2, attempts - 1);
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		return lastResponse ?? throw new HttpRequestException(
-			Resources.SplunkAuditExporter_FailedAfterRetries);
+		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
+		// resilience pipeline attached to the typed HttpClient in DI. The buffered StringContent is
+		// replayable, so the pipeline can safely re-send across attempts.
+		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}
 
 	private SplunkHecEvent CreateHecEvent(AuditEvent auditEvent)
@@ -427,10 +373,6 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 	[LoggerMessage(SplunkAuditLoggingEventId.HealthCheckFailed, LogLevel.Warning,
 		"Splunk HEC health check failed")]
 	private partial void LogHealthCheckFailed(Exception exception);
-
-	[LoggerMessage(SplunkAuditLoggingEventId.ForwardRetried, LogLevel.Debug,
-		"Retrying Splunk export (attempt {Attempt}) after {Delay}ms due to {StatusCode}")]
-	private partial void LogAuditExportRetry(int attempt, double delay, HttpStatusCode statusCode);
 
 	/// <summary>
 	/// Splunk HEC event wrapper.

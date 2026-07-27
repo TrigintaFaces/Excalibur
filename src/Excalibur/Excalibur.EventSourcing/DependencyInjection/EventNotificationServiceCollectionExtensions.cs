@@ -359,6 +359,10 @@ public static class EventNotificationServiceCollectionExtensions
 		if (!builder.Services.Any(d => d.ServiceType == typeof(Excalibur.EventSourcing.Health.ProjectionHealthCheck)))
 		{
 			_ = builder.Services.AddOptions<Excalibur.EventSourcing.Health.ProjectionHealthCheckOptions>().ValidateOnStart();
+			builder.Services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<
+					Options.IValidateOptions<Excalibur.EventSourcing.Health.ProjectionHealthCheckOptions>,
+					Excalibur.EventSourcing.Health.ProjectionHealthCheckOptionsValidator>());
 			builder.Services.AddSingleton<Excalibur.EventSourcing.Health.ProjectionHealthCheck>();
 			builder.Services.AddHealthChecks()
 				.AddCheck<Excalibur.EventSourcing.Health.ProjectionHealthCheck>("projections");

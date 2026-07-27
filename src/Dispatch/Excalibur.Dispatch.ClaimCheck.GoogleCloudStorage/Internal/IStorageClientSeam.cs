@@ -33,7 +33,7 @@ internal interface IStorageClientSeam
 
 	/// <summary>
 	/// Downloads an object from a GCS bucket. Wraps
-	/// <see cref="Google.Cloud.Storage.V1.StorageClient.DownloadObjectAsync(string, string, System.IO.Stream, Google.Cloud.Storage.V1.DownloadObjectOptions, CancellationToken)"/>.
+	/// <c>StorageClient.DownloadObjectAsync</c>.
 	/// </summary>
 	Task DownloadObjectAsync(
 		string bucket,

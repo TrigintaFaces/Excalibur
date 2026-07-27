@@ -164,7 +164,7 @@ public sealed class DispatchContextInitializerShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => DispatchContextInitializer.CreateFromMetadata(null!));
+			() => DispatchContextInitializer.CreateFromMetadata((IDictionary<string, string?>)null!));
 	}
 
 	#region T.1 Regression -- TraceParent extraction (Sprint 690)

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.MultiTenancy</PackageId>
+    <Description>First-class, free multi-tenancy composition for Excalibur. A single AddMultiTenancy(...) call selects a tenant-isolation strategy (row-discriminator or sharding) and wires fail-closed tenant scoping consistently across the event store, projections, and sagas.</Description>
+    <PackageTags>excalibur;multi-tenancy;tenant-isolation;row-discriminator;sharding;event-sourcing;saga;projections</PackageTags>
+    <!-- Row-discriminator decoration of open-generic IProjectionStore&lt;T&gt; uses reflective
+         MakeGenericType over the DI descriptor set, so this composition package is not AOT-safe. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <!-- IHostedService, for the cold-store tenant-scoping startup validator. Reachable transitively via
+         Excalibur.EventSourcing, but declared explicitly on purpose: an undeclared transitive is a dependency
+         this package cannot see break, and a future trim of that project's references would break a shipping
+         package with no local signal. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+  <!-- Excalibur internal references (always ProjectReference).
+       Excalibur.EventSourcing supplies IEventStore, IProjectionStore<T>, the TenantScoped* decorators
+       (Excalibur.EventSourcing.Sharding), and transitively ISagaStore. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+  </ItemGroup>
+  <!-- Development mode: Dispatch ProjectReferences -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <!-- Enable testing of internal types -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.MultiTenancy.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

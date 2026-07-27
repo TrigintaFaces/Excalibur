@@ -90,10 +90,7 @@ public sealed class AggregateRootApplySnapshotFailClosedShould
 		{
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
-		{
-			// No-op: not exercised by this lock.
-		}
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // No-op: recognizes no events (totality: unhandled => false). Not exercised by this lock.
 
 		// Note: ApplySnapshot is deliberately NOT overridden -> base fail-closed throw is under test.
 	}
@@ -105,6 +102,10 @@ public sealed class AggregateRootApplySnapshotFailClosedShould
 	private sealed class TestSnapshot : ISnapshot
 	{
 		public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+		// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+		// that this double is unscoped instead of assuming it.
+		public string? TenantId { get; init; }
 		public string AggregateId { get; init; } = string.Empty;
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }

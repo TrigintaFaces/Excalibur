@@ -70,11 +70,11 @@ public class Order : AggregateRoot<Guid>
     /// <summary>
     /// Applies domain events using pattern matching (no reflection).
     /// </summary>
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => Apply(e),
         OrderShipped e => Apply(e),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool Apply(OrderCreated e)

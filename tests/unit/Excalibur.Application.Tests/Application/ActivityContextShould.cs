@@ -20,7 +20,7 @@ namespace Excalibur.Tests.Application;
 [Trait("Feature", "Context")]
 public sealed class ActivityContextShould : UnitTestBase
 {
-	private readonly ITenantId _tenantId;
+	private readonly string _tenantId;
 	private readonly ICorrelationId _correlationId;
 	private readonly IETag _eTag;
 	private readonly IConfiguration _configuration;
@@ -29,7 +29,7 @@ public sealed class ActivityContextShould : UnitTestBase
 
 	public ActivityContextShould()
 	{
-		_tenantId = A.Fake<ITenantId>();
+		_tenantId = "tenant-1";
 		_correlationId = A.Fake<ICorrelationId>();
 		_eTag = A.Fake<IETag>();
 		_configuration = A.Fake<IConfiguration>();
@@ -57,7 +57,7 @@ public sealed class ActivityContextShould : UnitTestBase
 		var context = CreateContext();
 
 		// Assert
-		context.GetValue<ITenantId>("TenantId", null!).ShouldBe(_tenantId);
+		context.GetValue<string>("TenantId", null!).ShouldBe(_tenantId);
 		context.GetValue<ICorrelationId>("CorrelationId", null!).ShouldBe(_correlationId);
 		context.GetValue<IETag>("ETag", null!).ShouldBe(_eTag);
 		context.GetValue<IConfiguration>("IConfiguration", null!).ShouldBe(_configuration);
@@ -103,7 +103,7 @@ public sealed class ActivityContextShould : UnitTestBase
 		var context = CreateContext();
 
 		// Act
-		var result = context.GetValue<ITenantId>("TenantId", null!);
+		var result = context.GetValue<string>("TenantId", null!);
 
 		// Assert
 		result.ShouldBe(_tenantId);

@@ -340,6 +340,9 @@ public static class SagaEventId
 	/// <summary>Timeout marked as delivered.</summary>
 	public const int TimeoutMarkedDelivered = 123203;
 
+	/// <summary>Due timeouts claimed by this processor.</summary>
+	public const int TimeoutsClaimed = 123204;
+
 	// ========================================
 	// 123300-123399: Saga SqlServer Monitoring
 	// ========================================
@@ -414,4 +417,20 @@ public static class SagaEventId
 
 	/// <summary>Saga outbox publish delegate is not configured.</summary>
 	public const int SagaOutboxDelegateNotConfigured = 122302;
+
+	// ========================================
+	// 122400-122499: Saga Automatic Cleanup
+	// ========================================
+
+	/// <summary>Automatic saga cleanup background service starting.</summary>
+	public const int CleanupServiceStarted = 122400;
+
+	/// <summary>Automatic saga cleanup background service stopping.</summary>
+	public const int CleanupServiceStopped = 122401;
+
+	/// <summary>A saga cleanup cycle purged completed sagas.</summary>
+	public const int CleanupCyclePurged = 122402;
+
+	/// <summary>A saga cleanup cycle failed and will retry on the next interval.</summary>
+	public const int CleanupCycleFailed = 122403;
 }

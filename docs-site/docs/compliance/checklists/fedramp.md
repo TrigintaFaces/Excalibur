@@ -261,7 +261,7 @@ public sealed record AuditEvent
     public string? ResourceId { get; init; }                // What was affected
     public string? ResourceType { get; init; }              // Resource category
     public string? CorrelationId { get; init; }             // Request traceability
-    public string? TenantId { get; init; }                  // Multi-tenant isolation
+    public string? TenantId { get; init; }                  // Tenant discriminator (scoping is caller-supplied per query)
     public IReadOnlyDictionary<string, string>? Metadata { get; init; } // Additional context
 }
 ```

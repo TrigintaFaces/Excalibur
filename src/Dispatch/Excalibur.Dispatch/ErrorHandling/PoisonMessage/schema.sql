@@ -11,6 +11,13 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[De
 BEGIN
     CREATE TABLE [dbo].[DeadLetterMessages](
         [Id] [nvarchar](32) NOT NULL,
+        -- The owning tenant. A dead-letter row holds the failed message BODY, so an unscoped read
+        -- discloses one tenant's message content to another. The column is NOT NULL and defaults to the
+        -- reserved untenanted sentinel rather than permitting NULL: a nullable tenant fails OPEN, because
+        -- a scoped predicate written as TenantId = @TenantId never matches NULL and the row silently
+        -- leaves its own tenant's results while remaining in the table. A single-tenant deployment binds
+        -- the sentinel, which is a real term like any other.
+        [TenantId] [nvarchar](255) NOT NULL DEFAULT '__untenanted__',
         [MessageId] [nvarchar](128) NOT NULL,
         [MessageType] [nvarchar](500) NOT NULL,
         [MessageBody] [nvarchar](max) NOT NULL,
@@ -26,12 +33,39 @@ BEGIN
         [SourceSystem] [nvarchar](200) NULL,
         [CorrelationId] [nvarchar](128) NULL,
         [Properties] [nvarchar](max) NULL,
+        -- The primary key stays on [Id] ALONE and deliberately does NOT become ([Id], [TenantId]).
+        -- A composite key would permit the same Id to exist in two tenants, and every lookup written as
+        -- WHERE Id = @Id would then resolve an arbitrary tenant's row. Keeping Id globally unique makes
+        -- that ambiguity unrepresentable instead of requiring each predicate to remember the tenant term
+        -- for correctness. The tenant term is still bound on every statement, but for ISOLATION rather
+        -- than for identity.
         CONSTRAINT [PK_DeadLetterMessages] PRIMARY KEY CLUSTERED ([Id] ASC)
     )
 END
 GO
 
+-- Additive upgrade for databases created before the tenant column existed. Existing rows predate
+-- multi-tenancy and are therefore untenanted: they bind the sentinel rather than NULL, so they stay
+-- readable by an untenanted scope instead of vanishing from every tenant's results.
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DeadLetterMessages]') AND type in (N'U'))
+   AND NOT EXISTS (SELECT * FROM sys.columns
+                   WHERE object_id = OBJECT_ID(N'[dbo].[DeadLetterMessages]') AND name = N'TenantId')
+BEGIN
+    ALTER TABLE [dbo].[DeadLetterMessages]
+        ADD [TenantId] [nvarchar](255) NOT NULL CONSTRAINT [DF_DeadLetterMessages_TenantId] DEFAULT '__untenanted__';
+END
+GO
+
 -- Create indexes for common query patterns
+
+-- Every read is tenant-scoped, so the tenant term leads the index rather than trailing it.
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DeadLetterMessages_TenantId_MovedToDeadLetterAt')
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_DeadLetterMessages_TenantId_MovedToDeadLetterAt]
+    ON [dbo].[DeadLetterMessages] ([TenantId], [MovedToDeadLetterAt])
+    INCLUDE ([MessageType], [Reason])
+END
+GO
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DeadLetterMessages_MessageId')
 BEGIN
     CREATE NONCLUSTERED INDEX [IX_DeadLetterMessages_MessageId] 
@@ -77,6 +111,10 @@ CREATE SCHEMA IF NOT EXISTS public;
 
 CREATE TABLE IF NOT EXISTS public.dead_letter_messages (
     id VARCHAR(32) NOT NULL PRIMARY KEY,
+    -- NOT NULL with the reserved sentinel: a nullable tenant fails open, because a scoped predicate
+    -- never matches NULL and the row silently leaves its own tenant's results. See the SQL Server
+    -- definition above for the full rationale, including why the key stays on id alone.
+    tenant_id VARCHAR(255) NOT NULL DEFAULT '__untenanted__',
     message_id VARCHAR(128) NOT NULL,
     message_type VARCHAR(500) NOT NULL,
     message_body TEXT NOT NULL,
@@ -94,7 +132,10 @@ CREATE TABLE IF NOT EXISTS public.dead_letter_messages (
     properties TEXT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_dead_letter_messages_message_id 
+CREATE INDEX IF NOT EXISTS idx_dead_letter_messages_tenant_id_moved_at
+ON public.dead_letter_messages (tenant_id, moved_to_dead_letter_at);
+
+CREATE INDEX IF NOT EXISTS idx_dead_letter_messages_message_id
 ON public.dead_letter_messages (message_id);
 
 CREATE INDEX IF NOT EXISTS idx_dead_letter_messages_message_type 

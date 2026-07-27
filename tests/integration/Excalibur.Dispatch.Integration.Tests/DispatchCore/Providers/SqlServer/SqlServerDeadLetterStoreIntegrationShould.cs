@@ -303,7 +303,11 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 			TableName = "DeadLetterMessages",
 		});
 		var logger = NullLogger<SqlServerDeadLetterStore>.Instance;
-		return new SqlServerDeadLetterStore(options, logger);
+
+		// No ambient tenant: these arms exercise the single-tenant host shape, which is the configuration a
+		// consumer gets when they never register an ITenantContext. The store folds a null context onto the
+		// untenanted partition rather than emitting a tenant-blind statement, so this stays a concrete term.
+		return new SqlServerDeadLetterStore(options, tenantContext: null, logger);
 	}
 
 	private static DeadLetterMessage CreateTestDeadLetterMessage(
@@ -356,10 +360,26 @@ public sealed class SqlServerDeadLetterStoreIntegrationShould : IntegrationTestB
 			        SourceSystem NVARCHAR(255) NULL,
 			        CorrelationId NVARCHAR(255) NULL,
 			        Properties NVARCHAR(MAX) NULL,
+			        -- Mirrors the shipped schema exactly, including NOT NULL and the '__untenanted__' default.
+			        -- NULL-able would be wrong in a way this suite could not see: a scoped predicate written as
+			        -- TenantId = @TenantId never matches NULL, so an untenanted row would silently vanish from
+			        -- every scoped read instead of belonging to the untenanted partition.
+			        [TenantId] NVARCHAR(255) NOT NULL DEFAULT '__untenanted__',
 			        INDEX IX_DeadLetterMessages_MessageId (MessageId),
 			        INDEX IX_DeadLetterMessages_MessageType (MessageType),
 			        INDEX IX_DeadLetterMessages_MovedToDeadLetterAt (MovedToDeadLetterAt)
 			    );
+			END
+
+			-- The CREATE above is guarded by IF NOT EXISTS, so a container that already holds the pre-tenancy
+			-- table from an earlier run would keep it and every tenant-scoped statement would fail on a missing
+			-- column. The shipped schema carries the same ALTER for exactly this reason; the fixture must too,
+			-- or the suite passes on a clean container and fails on a reused one.
+			IF NOT EXISTS (SELECT * FROM sys.columns
+			               WHERE object_id = OBJECT_ID(N'[dbo].[DeadLetterMessages]') AND name = N'TenantId')
+			BEGIN
+			    ALTER TABLE [dbo].[DeadLetterMessages]
+			    ADD [TenantId] NVARCHAR(255) NOT NULL CONSTRAINT [DF_DeadLetterMessages_TenantId] DEFAULT '__untenanted__';
 			END
 			""";
 

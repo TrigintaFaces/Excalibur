@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
       - name: Download unit coverage artifacts
@@ -108,13 +108,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout base branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.pr-base-sha }}
           path: base
           fetch-depth: 1
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -187,13 +187,14 @@ jobs:
         continue-on-error: true
         working-directory: base
         run: |
-          dotnet test "$BASE_UNIT_TESTS_SLNF" \
+          bash ../eng/ci/run-filtered-tests.sh \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
+            "$BASE_UNIT_TESTS_SLNF" \
             --configuration Release \
             --no-build \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ../base-cov \
-            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
       - name: Mark base test status
         if: env.SKIP_COVERAGE_DIFF != 'true'
@@ -367,7 +368,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
 
@@ -456,7 +457,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
       - name: Create coverage baseline markdown

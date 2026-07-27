@@ -72,7 +72,7 @@ public sealed class BreachNotificationServiceWorkflowShould
 	}
 
 	[Fact]
-	public async Task Transition_from_reported_to_subjects_notified()
+	public async Task Refuse_the_transition_to_subjects_notified()
 	{
 		// Arrange
 		var sut = CreateService();
@@ -88,16 +88,20 @@ public sealed class BreachNotificationServiceWorkflowShould
 		var reported = await sut.ReportBreachAsync(report, CancellationToken.None);
 		reported.Status.ShouldBe(BreachNotificationStatus.Reported);
 
-		var notified = await sut.NotifyAffectedSubjectsAsync("b-transition", CancellationToken.None);
+		// FLIPPED: the Reported -> SubjectsNotified transition may only be written by a path that actually
+		// notified. This service has no transport, so the transition is refused and the record stays honest.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.NotifyAffectedSubjectsAsync("b-transition", CancellationToken.None));
 
-		// Assert
-		notified.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
-		notified.SubjectsNotifiedAt.ShouldNotBeNull();
-		notified.SubjectsNotifiedAt.Value.ShouldBeGreaterThanOrEqualTo(reported.ReportedAt!.Value);
+		var after = await sut.GetBreachStatusAsync("b-transition", CancellationToken.None);
+
+		after.ShouldNotBeNull();
+		after.Status.ShouldBe(BreachNotificationStatus.Reported, "the breach remains reported-but-unnotified");
+		after.SubjectsNotifiedAt.ShouldBeNull();
 	}
 
 	[Fact]
-	public async Task Auto_notify_bypasses_manual_notification_step()
+	public async Task Refuse_auto_notify_but_keep_the_report()
 	{
 		// Arrange
 		var options = new BreachNotificationOptions { AutoNotify = true };
@@ -111,16 +115,20 @@ public sealed class BreachNotificationServiceWorkflowShould
 		};
 
 		// Act
-		var result = await sut.ReportBreachAsync(report, CancellationToken.None);
+		// FLIPPED: "auto-notify bypasses the manual step" described a bypass of the notification itself.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.ReportBreachAsync(report, CancellationToken.None));
 
-		// Assert - already notified upon reporting
-		result.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
-		result.SubjectsNotifiedAt.ShouldNotBeNull();
-		result.ReportedAt.ShouldNotBeNull();
+		var recorded = await sut.GetBreachStatusAsync("b-auto", CancellationToken.None);
+
+		recorded.ShouldNotBeNull("the report and its Art. 33 deadline survive the refusal");
+		recorded.ReportedAt.ShouldNotBeNull();
+		recorded.Status.ShouldNotBe(BreachNotificationStatus.SubjectsNotified);
+		recorded.SubjectsNotifiedAt.ShouldBeNull();
 	}
 
 	[Fact]
-	public async Task Prevent_double_notification()
+	public async Task Refuse_every_notification_attempt()
 	{
 		// Arrange
 		var sut = CreateService();
@@ -132,16 +140,18 @@ public sealed class BreachNotificationServiceWorkflowShould
 			AffectedSubjectCount = 10,
 		};
 
+		// FLIPPED: reaching the double-notification guard required writing the false attestation first.
 		await sut.ReportBreachAsync(report, CancellationToken.None);
-		await sut.NotifyAffectedSubjectsAsync("b-double", CancellationToken.None);
 
-		// Act & Assert - second notification should throw
-		await Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.NotifyAffectedSubjectsAsync("b-double", CancellationToken.None));
+
+		_ = await Should.ThrowAsync<NotSupportedException>(
 			() => sut.NotifyAffectedSubjectsAsync("b-double", CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task Prevent_notification_of_auto_notified_breach()
+	public async Task Refuse_both_auto_and_manual_notification()
 	{
 		// Arrange
 		var options = new BreachNotificationOptions { AutoNotify = true };
@@ -154,15 +164,16 @@ public sealed class BreachNotificationServiceWorkflowShould
 			AffectedSubjectCount = 10,
 		};
 
-		await sut.ReportBreachAsync(report, CancellationToken.None);
+		// FLIPPED: the auto-notified state is unreachable now — the report itself refuses.
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.ReportBreachAsync(report, CancellationToken.None));
 
-		// Act & Assert - manual notification after auto should throw
-		await Should.ThrowAsync<InvalidOperationException>(
+		_ = await Should.ThrowAsync<NotSupportedException>(
 			() => sut.NotifyAffectedSubjectsAsync("b-auto-double", CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task Update_breach_status_in_store_after_notification()
+	public async Task Never_persist_a_notified_status_without_notifying()
 	{
 		// Arrange
 		var sut = CreateService();
@@ -174,15 +185,21 @@ public sealed class BreachNotificationServiceWorkflowShould
 			AffectedSubjectCount = 10,
 		};
 
+		// FLIPPED: the store must NOT reflect a notification that never occurred. This is the arm that
+		// most directly asserted the fabricated record, so it is the one most worth keeping — inverted.
 		await sut.ReportBreachAsync(report, CancellationToken.None);
-		await sut.NotifyAffectedSubjectsAsync("b-status", CancellationToken.None);
 
-		// Act
+		_ = await Should.ThrowAsync<NotSupportedException>(
+			() => sut.NotifyAffectedSubjectsAsync("b-status", CancellationToken.None));
+
 		var status = await sut.GetBreachStatusAsync("b-status", CancellationToken.None);
 
-		// Assert - status should reflect notification
 		status.ShouldNotBeNull();
-		status.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
+		status.Status.ShouldNotBe(
+			BreachNotificationStatus.SubjectsNotified,
+			"the persisted record is the evidence a controller shows a regulator; it must not claim a " +
+			"notification that never happened");
+		status.SubjectsNotifiedAt.ShouldBeNull();
 	}
 
 	[Fact]

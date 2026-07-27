@@ -12,6 +12,7 @@ public sealed class BackoffStrategyShould
     [InlineData(BackoffStrategy.Exponential, 2)]
     [InlineData(BackoffStrategy.ExponentialWithJitter, 3)]
     [InlineData(BackoffStrategy.Fibonacci, 4)]
+    [InlineData(BackoffStrategy.FullJitter, 5)]
     public void HaveCorrectEnumValues(BackoffStrategy strategy, int expected)
     {
         ((int)strategy).ShouldBe(expected);
@@ -21,7 +22,7 @@ public sealed class BackoffStrategyShould
     public void HaveAllValues()
     {
         var values = Enum.GetValues<BackoffStrategy>();
-        values.Length.ShouldBe(5);
+        values.Length.ShouldBe(7);
     }
 
     [Fact]
@@ -37,5 +38,6 @@ public sealed class BackoffStrategyShould
         Enum.Parse<BackoffStrategy>("Exponential").ShouldBe(BackoffStrategy.Exponential);
         Enum.Parse<BackoffStrategy>("ExponentialWithJitter").ShouldBe(BackoffStrategy.ExponentialWithJitter);
         Enum.Parse<BackoffStrategy>("Fibonacci").ShouldBe(BackoffStrategy.Fibonacci);
+        Enum.Parse<BackoffStrategy>("FullJitter").ShouldBe(BackoffStrategy.FullJitter);
     }
 }

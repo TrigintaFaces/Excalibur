@@ -18,22 +18,43 @@ Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder.Ser
 Excalibur.Dispatch.LeaderElection.DependencyInjection.LeaderElectionBuilder
 Excalibur.Dispatch.LeaderElection.DependencyInjection.LeaderElectionBuilder.LeaderElectionBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
 Excalibur.Dispatch.LeaderElection.DependencyInjection.LeaderElectionBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenExhaustedException
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenExhaustedException.FencingTokenExhaustedException() -> void
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenExhaustedException.FencingTokenExhaustedException(string! message) -> void
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenExhaustedException.FencingTokenExhaustedException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenExhaustedException.ResourceId.get -> string?
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenExhaustedException.ResourceId.init -> void
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenMiddleware(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider! provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware!>! logger) -> void
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
+Excalibur.Dispatch.LeaderElection.Fencing.IFencedResource
+Excalibur.Dispatch.LeaderElection.Fencing.IFencedResource.GuardAsync(long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.GetTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long?>
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.IssueTokenAsync(string! resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long>
 Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.ValidateTokenAsync(string! resourceId, long token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Dispatch.LeaderElection.Fencing.MonotonicFencedResourceGuard
+Excalibur.Dispatch.LeaderElection.Fencing.MonotonicFencedResourceGuard.GuardAsync(long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.LeaderElection.Fencing.MonotonicFencedResourceGuard.MonotonicFencedResourceGuard() -> void
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.HighWaterToken.get -> long?
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.HighWaterToken.init -> void
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.PresentedToken.get -> long?
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.PresentedToken.init -> void
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.StaleFencingTokenException() -> void
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.StaleFencingTokenException(string! message) -> void
+Excalibur.Dispatch.LeaderElection.Fencing.StaleFencingTokenException.StaleFencingTokenException(string! message, System.Exception! innerException) -> void
 Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection
 Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>!
 Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection.UpdateHealthAsync(bool isHealthy, System.Collections.Generic.IDictionary<string!, string!>? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.LeaderElection.ILeaderElection
+Excalibur.Dispatch.LeaderElection.ILeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.Dispatch.LeaderElection.ILeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.Dispatch.LeaderElection.ILeaderElection.CandidateId.get -> string!
 Excalibur.Dispatch.LeaderElection.ILeaderElection.CurrentLeaderId.get -> string?
+Excalibur.Dispatch.LeaderElection.ILeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.Dispatch.LeaderElection.ILeaderElection.IsLeader.get -> bool
 Excalibur.Dispatch.LeaderElection.ILeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.Dispatch.LeaderElection.ILeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
@@ -43,11 +64,19 @@ Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs
-Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName) -> void
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.FencingToken.get -> long?
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName, long? fencingToken = null) -> void
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.NewLeaderId.get -> string?
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.PreviousLeaderId.get -> string?
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.ResourceName.get -> string!
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.CandidateId.get -> string!
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Exception.get -> System.Exception?
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.LeaderElectionAcquisitionFailedEventArgs(string! candidateId, string! resourceName, string! reason, System.DateTimeOffset timestamp, System.Exception? exception = null) -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Reason.get -> string!
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.ResourceName.get -> string!
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Timestamp.get -> System.DateTimeOffset
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.CandidateId.get -> string!
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.LeaderElectionEventArgs(string! candidateId, string! resourceName) -> void
@@ -75,6 +104,13 @@ Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.se
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator.LeaderElectionOptionsValidator() -> void
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator.Validate(string? name, Excalibur.Dispatch.LeaderElection.LeaderElectionOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Dispatch.LeaderElection.Leadership
+Excalibur.Dispatch.LeaderElection.Leadership.AcquiredAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.LeaderElection.Leadership.AcquiredAt.init -> void
+Excalibur.Dispatch.LeaderElection.Leadership.FencingToken.get -> long?
+Excalibur.Dispatch.LeaderElection.Leadership.FencingToken.init -> void
+Excalibur.Dispatch.LeaderElection.Leadership.Leadership() -> void
+Excalibur.Dispatch.LeaderElection.Leadership.Leadership(long? FencingToken, System.DateTimeOffset AcquiredAt) -> void
 Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingResourceIdKey = "FencingResourceId" -> string!
 const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenKey = "FencingToken" -> string!

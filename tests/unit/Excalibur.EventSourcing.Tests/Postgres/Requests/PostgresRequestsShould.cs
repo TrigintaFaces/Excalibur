@@ -5,6 +5,7 @@ using System.Data;
 
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Postgres.Requests;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Tests.Postgres.Requests;
 
@@ -19,74 +20,12 @@ public sealed class PostgresRequestsShould
 {
 	private static readonly CancellationToken Ct = CancellationToken.None;
 
-	#region InsertEventRequest
-
-	[Fact]
-	public void InsertEventRequest_CreateSuccessfully_WithValidParameters()
-	{
-		var request = new InsertEventRequest(
-			"event-1", "agg-1", "OrderAggregate", "OrderCreated",
-			new byte[] { 1, 2, 3 }, null, 1, DateTimeOffset.UtcNow, null, Ct);
-
-		request.ShouldNotBeNull();
-		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"events\"");
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void InsertEventRequest_ThrowOnInvalidEventId(string? eventId)
-	{
-		Should.Throw<ArgumentException>(() =>
-			new InsertEventRequest(eventId, "agg-1", "Agg", "Evt", new byte[] { 1 }, null, 1, DateTimeOffset.UtcNow, null, Ct));
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void InsertEventRequest_ThrowOnInvalidAggregateId(string? aggregateId)
-	{
-		Should.Throw<ArgumentException>(() =>
-			new InsertEventRequest("e1", aggregateId, "Agg", "Evt", new byte[] { 1 }, null, 1, DateTimeOffset.UtcNow, null, Ct));
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void InsertEventRequest_ThrowOnInvalidAggregateType(string? aggregateType)
-	{
-		Should.Throw<ArgumentException>(() =>
-			new InsertEventRequest("e1", "agg-1", aggregateType, "Evt", new byte[] { 1 }, null, 1, DateTimeOffset.UtcNow, null, Ct));
-	}
-
-	[Theory]
-	[InlineData(null)]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void InsertEventRequest_ThrowOnInvalidEventType(string? eventType)
-	{
-		Should.Throw<ArgumentException>(() =>
-			new InsertEventRequest("e1", "agg-1", "Agg", eventType, new byte[] { 1 }, null, 1, DateTimeOffset.UtcNow, null, Ct));
-	}
-
-	[Fact]
-	public void InsertEventRequest_ThrowOnNullEventData()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new InsertEventRequest("e1", "agg-1", "Agg", "Evt", null!, null, 1, DateTimeOffset.UtcNow, null, Ct));
-	}
-
-	#endregion
-
 	#region LoadEventsRequest
 
 	[Fact]
 	public void LoadEventsRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, Ct);
+		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, TenantScope.Scoped("tenant-1"), Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("SELECT");
@@ -100,7 +39,7 @@ public sealed class PostgresRequestsShould
 	public void LoadEventsRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new LoadEventsRequest(aggregateId, "Agg", -1, Ct));
+			new LoadEventsRequest(aggregateId, "Agg", -1, TenantScope.None, Ct));
 	}
 
 	[Theory]
@@ -110,7 +49,7 @@ public sealed class PostgresRequestsShould
 	public void LoadEventsRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new LoadEventsRequest("agg-1", aggregateType, -1, Ct));
+			new LoadEventsRequest("agg-1", aggregateType, -1, TenantScope.None, Ct));
 	}
 
 	#endregion
@@ -120,7 +59,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void GetCurrentVersionRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new GetCurrentVersionRequest("agg-1", "OrderAggregate", null, Ct);
+		var request = new GetCurrentVersionRequest("agg-1", "OrderAggregate", null, TenantScope.Scoped("tenant-1"), Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("MAX(version)");
@@ -133,7 +72,7 @@ public sealed class PostgresRequestsShould
 	public void GetCurrentVersionRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest(aggregateId, "Agg", null, Ct));
+			new GetCurrentVersionRequest(aggregateId, "Agg", null, TenantScope.None, Ct));
 	}
 
 	[Theory]
@@ -143,7 +82,7 @@ public sealed class PostgresRequestsShould
 	public void GetCurrentVersionRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest("agg-1", aggregateType, null, Ct));
+			new GetCurrentVersionRequest("agg-1", aggregateType, null, TenantScope.None, Ct));
 	}
 
 	#endregion
@@ -153,7 +92,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void GetLatestSnapshotRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", Ct);
+		var request = new GetLatestSnapshotRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("\"public\".\"event_store_snapshots\"");
@@ -166,7 +105,7 @@ public sealed class PostgresRequestsShould
 	public void GetLatestSnapshotRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetLatestSnapshotRequest(aggregateId, "Agg", Ct));
+			new GetLatestSnapshotRequest(aggregateId, "Agg", TenantScope.None, Ct));
 	}
 
 	[Theory]
@@ -176,7 +115,7 @@ public sealed class PostgresRequestsShould
 	public void GetLatestSnapshotRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new GetLatestSnapshotRequest("agg-1", aggregateType, Ct));
+			new GetLatestSnapshotRequest("agg-1", aggregateType, TenantScope.None, Ct));
 	}
 
 	#endregion
@@ -186,7 +125,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void DeleteSnapshotsRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", Ct);
+		var request = new DeleteSnapshotsRequest("agg-1", "OrderAggregate", TenantScope.None, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("DELETE FROM \"public\".\"event_store_snapshots\"");
@@ -199,7 +138,7 @@ public sealed class PostgresRequestsShould
 	public void DeleteSnapshotsRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsRequest(aggregateId, "Agg", Ct));
+			new DeleteSnapshotsRequest(aggregateId, "Agg", TenantScope.None, Ct));
 	}
 
 	[Theory]
@@ -209,7 +148,7 @@ public sealed class PostgresRequestsShould
 	public void DeleteSnapshotsRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsRequest("agg-1", aggregateType, Ct));
+			new DeleteSnapshotsRequest("agg-1", aggregateType, TenantScope.None, Ct));
 	}
 
 	#endregion
@@ -219,7 +158,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void DeleteSnapshotsOlderThanRequest_CreateSuccessfully_WithValidParameters()
 	{
-		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, Ct);
+		var request = new DeleteSnapshotsOlderThanRequest("agg-1", "OrderAggregate", 5, TenantScope.None, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("version < @Version");
@@ -232,7 +171,7 @@ public sealed class PostgresRequestsShould
 	public void DeleteSnapshotsOlderThanRequest_ThrowOnInvalidAggregateId(string? aggregateId)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsOlderThanRequest(aggregateId, "Agg", 5, Ct));
+			new DeleteSnapshotsOlderThanRequest(aggregateId, "Agg", 5, TenantScope.None, Ct));
 	}
 
 	[Theory]
@@ -242,7 +181,7 @@ public sealed class PostgresRequestsShould
 	public void DeleteSnapshotsOlderThanRequest_ThrowOnInvalidAggregateType(string? aggregateType)
 	{
 		Should.Throw<ArgumentException>(() =>
-			new DeleteSnapshotsOlderThanRequest("agg-1", aggregateType, 5, Ct));
+			new DeleteSnapshotsOlderThanRequest("agg-1", aggregateType, 5, TenantScope.None, Ct));
 	}
 
 	#endregion
@@ -260,7 +199,7 @@ public sealed class PostgresRequestsShould
 		A.CallTo(() => snapshot.Data).Returns(new byte[] { 1, 2, 3 });
 		A.CallTo(() => snapshot.CreatedAt).Returns(DateTimeOffset.UtcNow);
 
-		var request = new SaveSnapshotRequest(snapshot, Ct);
+		var request = new SaveSnapshotRequest(snapshot, TenantScope.Untenanted, Ct);
 
 		request.ShouldNotBeNull();
 		request.Command.CommandText.ShouldContain("INSERT INTO \"public\".\"event_store_snapshots\"");
@@ -271,7 +210,7 @@ public sealed class PostgresRequestsShould
 	public void SaveSnapshotRequest_ThrowOnNullSnapshot()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SaveSnapshotRequest(null!, Ct));
+			new SaveSnapshotRequest(null!, TenantScope.Untenanted, Ct));
 	}
 
 	#endregion
@@ -281,7 +220,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void AllRequests_HaveRequestId()
 	{
-		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, Ct);
+		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, TenantScope.Scoped("tenant-1"), Ct);
 
 		request.RequestId.ShouldNotBeNullOrEmpty();
 	}
@@ -289,7 +228,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void AllRequests_HaveRequestType()
 	{
-		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, Ct);
+		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, TenantScope.Scoped("tenant-1"), Ct);
 
 		request.RequestType.ShouldBe("LoadEventsRequest");
 	}
@@ -298,7 +237,7 @@ public sealed class PostgresRequestsShould
 	public void AllRequests_HaveCreatedAtTimestamp()
 	{
 		var before = DateTimeOffset.UtcNow;
-		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, Ct);
+		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, TenantScope.Scoped("tenant-1"), Ct);
 
 		request.CreatedAt.ShouldBeGreaterThanOrEqualTo(before);
 		var assertionUpperBound1 = DateTimeOffset.UtcNow;
@@ -308,7 +247,7 @@ public sealed class PostgresRequestsShould
 	[Fact]
 	public void AllRequests_HaveResolveAsyncDelegate()
 	{
-		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, Ct);
+		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, TenantScope.Scoped("tenant-1"), Ct);
 
 		request.ResolveAsync.ShouldNotBeNull();
 	}

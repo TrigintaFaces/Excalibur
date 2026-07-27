@@ -64,25 +64,27 @@ public sealed class InventoryAggregate : AggregateRoot<string>
 		RaiseEvent(new InventoryReplenished(Id, quantity));
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case InventoryItemCreated e:
 				Apply(e);
-				break;
+				return true;
 
 			case InventoryReserved e:
 				Apply(e);
-				break;
+				return true;
 
 			case InventoryReservationReleased e:
 				Apply(e);
-				break;
+				return true;
 
 			case InventoryReplenished e:
 				Apply(e);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

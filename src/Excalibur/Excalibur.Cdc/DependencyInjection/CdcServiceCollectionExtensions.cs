@@ -172,6 +172,14 @@ public static class CdcServiceCollectionExtensions
 		// (e.g., UseSqlServer, UsePostgres) — the hosted service resolves it at runtime.
 		if (options.EnableBackgroundProcessing)
 		{
+			// Fail fast at HOST START (not registration): a registration-time throw is order-dependent and
+			// breaks pure builder-composition tests that compose the builder but never build+start a host.
+			// The startup validator resolves the full container at start and throws the actionable message
+			// when no ICdcBackgroundProcessor is registered (order-independent). Registered first so it runs
+			// before CdcProcessingHostedService's StartAsync.
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<Hosting.IHostedService, CdcBackgroundProcessingStartupValidator>());
+
 			var optionsBuilder = services.AddOptions<CdcProcessingOptions>();
 
 			if (builder.ProcessingConfigSectionPath is not null)
@@ -182,6 +190,18 @@ public static class CdcServiceCollectionExtensions
 			_ = optionsBuilder.ValidateOnStart();
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IValidateOptions<CdcProcessingOptions>, CdcProcessingOptionsValidator>());
+			// Only register the processing host when a processor is present at registration time, so a
+			// missing dependency surfaces as the startup validator's actionable message rather than an
+			// TimeProvider seam: the polling loop's last-success stamp and adaptive-poll/error-backoff
+			// delays run through the injected provider. TimeProvider.System preserves wall-clock behavior;
+			// TryAdd lets a consumer (or a test) substitute a fake clock.
+			services.TryAddSingleton(TimeProvider.System);
+
+			// Register the host UNCONDITIONALLY (order-independent): CdcProcessingHostedService now takes
+			// IServiceProvider and resolves ICdcBackgroundProcessor lazily at StartAsync, so a provider
+			// that registers the processor AFTER AddCdcProcessor() is still picked up. When no processor
+			// is registered at all, the service fails LOUD (LogError) and no-ops rather than
+			// validate-green-and-silently-skip.
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<Hosting.IHostedService, CdcProcessingHostedService>());
 		}

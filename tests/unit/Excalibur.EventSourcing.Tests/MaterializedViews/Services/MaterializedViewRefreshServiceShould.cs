@@ -3,6 +3,7 @@
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Services;
+using Excalibur.EventSourcing.Views;
 
 using FakeItEasy;
 
@@ -500,7 +501,9 @@ public sealed class MaterializedViewRefreshServiceShould
 			registrationType,
 			typeof(TestMaterializedView),
 			typeof(object),
-			new object()).ShouldNotBeNull();
+			new object(),
+			new ViewStoreAccessor<TestMaterializedView>(),
+			ViewDeliverySemantics.ExactlyOnce).ShouldNotBeNull();
 		var registrationSequenceType = typeof(IEnumerable<>).MakeGenericType(registrationType);
 		var registrations = Array.CreateInstance(registrationType, 1);
 		registrations.SetValue(registration, 0);

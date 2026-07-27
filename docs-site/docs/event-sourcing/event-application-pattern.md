@@ -36,13 +36,13 @@ public class Order : AggregateRoot<Guid>
     }
 
     // Event routing: dispatches to type-specific handlers
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
-            case OrderCreated e: Apply(e); break;
-            case OrderSubmitted e: Apply(e); break;
-            default: throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}");
+            case OrderCreated e: Apply(e); return true;
+            case OrderSubmitted e: Apply(e); return true;
+            default: return false;
         }
     }
 
@@ -97,15 +97,15 @@ When you call `RaiseEvent`:
 `ApplyEventInternal` is an abstract method you must implement. It routes events to the correct `Apply` method using pattern matching:
 
 ```csharp
-protected override void ApplyEventInternal(IDomainEvent @event)
+protected override bool ApplyEventInternal(IDomainEvent @event)
 {
     switch (@event)
     {
-        case OrderCreated e: Apply(e); break;
-        case OrderLineAdded e: Apply(e); break;
-        case OrderSubmitted e: Apply(e); break;
-        case OrderCancelled e: Apply(e); break;
-        default: throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}");
+        case OrderCreated e: Apply(e); return true;
+        case OrderLineAdded e: Apply(e); return true;
+        case OrderSubmitted e: Apply(e); return true;
+        case OrderCancelled e: Apply(e); return true;
+        default: return false;
     }
 }
 ```
@@ -169,8 +169,8 @@ Pattern matching compiles to efficient IL:
 // This switch statement
 switch (@event)
 {
-    case OrderCreated e: Apply(e); break;
-    case OrderSubmitted e: Apply(e); break;
+    case OrderCreated e: Apply(e); return true;
+    case OrderSubmitted e: Apply(e); return true;
     default: throw ...;
 }
 
@@ -285,16 +285,16 @@ public class ShoppingCart : AggregateRoot<Guid>
     }
 
     // Event routing
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
-            case CartCreated e: Apply(e); break;
-            case CartItemAdded e: Apply(e); break;
-            case CartItemQuantityChanged e: Apply(e); break;
-            case CartItemRemoved e: Apply(e); break;
-            case CartCheckedOut e: Apply(e); break;
-            default: throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}");
+            case CartCreated e: Apply(e); return true;
+            case CartItemAdded e: Apply(e); return true;
+            case CartItemQuantityChanged e: Apply(e); return true;
+            case CartItemRemoved e: Apply(e); return true;
+            case CartCheckedOut e: Apply(e); return true;
+            default: return false;
         }
     }
 
@@ -343,30 +343,15 @@ public record CartItem(string ProductId, int Quantity, decimal UnitPrice);
 public enum CartStatus { Active, CheckedOut, Abandoned }
 
 // Events - extend DomainEvent abstract record
-public record CartCreated(Guid CartId, string CustomerId) : DomainEvent
-{
-    public override string AggregateId => CartId.ToString();
-}
+public record CartCreated(Guid CartId, string CustomerId) : DomainEvent;
 
-public record CartItemAdded(Guid CartId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent
-{
-    public override string AggregateId => CartId.ToString();
-}
+public record CartItemAdded(Guid CartId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent;
 
-public record CartItemQuantityChanged(Guid CartId, string ProductId, int NewQuantity) : DomainEvent
-{
-    public override string AggregateId => CartId.ToString();
-}
+public record CartItemQuantityChanged(Guid CartId, string ProductId, int NewQuantity) : DomainEvent;
 
-public record CartItemRemoved(Guid CartId, string ProductId) : DomainEvent
-{
-    public override string AggregateId => CartId.ToString();
-}
+public record CartItemRemoved(Guid CartId, string ProductId) : DomainEvent;
 
-public record CartCheckedOut(Guid CartId, decimal Total) : DomainEvent
-{
-    public override string AggregateId => CartId.ToString();
-}
+public record CartCheckedOut(Guid CartId, decimal Total) : DomainEvent;
 ```
 
 ## Best Practices
@@ -398,14 +383,14 @@ private void Apply(OrderShipped e)
 Always include a default case to catch unhandled events:
 
 ```csharp
-protected override void ApplyEventInternal(IDomainEvent @event)
+protected override bool ApplyEventInternal(IDomainEvent @event)
 {
     switch (@event)
     {
-        case OrderCreated e: Apply(e); break;
-        case OrderSubmitted e: Apply(e); break;
+        case OrderCreated e: Apply(e); return true;
+        case OrderSubmitted e: Apply(e); return true;
         // Don't forget new events!
-        default: throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}");
+        default: return false;
     }
 }
 ```

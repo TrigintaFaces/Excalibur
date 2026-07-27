@@ -23,8 +23,18 @@
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.GooglePubSub\Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Grpc\Excalibur.Dispatch.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Mqtt\Excalibur.Dispatch.Transport.Mqtt.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Pulsar\Excalibur.Dispatch.Transport.Pulsar.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.IbmMq\Excalibur.Dispatch.Transport.IbmMq.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Project-local deterministic runner config (single-threaded, no assembly/collection
+         parallelism) overrides the parallel root config linked by Directory.Build.props.
+         Homogenizes this assembly with its serial siblings so the deterministic superset
+         shard does not deadlock on cross-assembly async-continuation starvation. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

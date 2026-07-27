@@ -9,6 +9,7 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Features;
+using Excalibur.Dispatch.Validation;
 
 using MR = Excalibur.Dispatch.MessageResult;
 
@@ -38,6 +39,10 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	private readonly ILogger<CachingMiddleware> _logger;
 	private readonly IMessageContext _context;
 	private readonly CancellationToken _ct = CancellationToken.None;
+
+	// Captures the CachedValue the middleware's value-factory produced, so tests can assert the
+	// DESCRIBED caching decision (Value extracted, ShouldCache flag) rather than merely "not null".
+	private CachedValue? _capturedFactoryValue;
 
 	public CachingCoverageBoostShould()
 	{
@@ -85,6 +90,48 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		return context;
 	}
 
+	/// <summary>
+	/// Configures the fake <see cref="HybridCache"/> to actually invoke the middleware's value-factory
+	/// (covering CreateCacheValueAsync/CreateAttributeCacheValueAsync) and captures the produced
+	/// <see cref="CachedValue"/> in <see cref="_capturedFactoryValue"/> so tests can assert the real
+	/// caching decision.
+	/// </summary>
+	private void SetupCacheInvokesFactory()
+	{
+		A.CallTo(() => _cache.GetOrCreateAsync(
+			A<string>._,
+			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
+			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
+			A<HybridCacheEntryOptions?>._,
+			A<IEnumerable<string>?>._,
+			A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
+				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
+
+				var result = wrapper != null
+					? await wrapper(underlyingFactory, CancellationToken.None)
+					: await underlyingFactory(CancellationToken.None);
+
+				_capturedFactoryValue = result;
+				return result;
+			});
+	}
+
+	/// <summary>
+	/// Asserts the middleware invoked the cache lookup-or-create exactly once (the handler ran once, not
+	/// re-executed) — the "factory invoked exactly once" guarantee.
+	/// </summary>
+	private void AssertCacheFactoryInvokedOnce() =>
+		A.CallTo(() => _cache.GetOrCreateAsync(
+			A<string>._,
+			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
+			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
+			A<HybridCacheEntryOptions?>._,
+			A<IEnumerable<string>?>._,
+			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+
 	// =========================================================================
 	// CachingMiddleware: Factory delegate execution (CreateCacheValueAsync)
 	// =========================================================================
@@ -97,31 +144,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new CacheableQueryWithResult();
 		var handlerResult = MR.Success<string>("handler-output");
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				// Invoke the factory delegate to cover CreateCacheValueAsync
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -129,8 +152,17 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert - the factory was executed, ExtractReturnValue extracted "handler-output"
-		result.ShouldNotBeNull();
+		// Assert - the factory ran exactly once and ExtractReturnValue extracted "handler-output"
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.ShouldCache.ShouldBeTrue();
+		_capturedFactoryValue.Value.ShouldBe("handler-output");
+		// Fresh execution returns the original handler result carrying the extracted value.
+		result.ShouldBeSameAs(handlerResult);
+		result.ShouldBeAssignableTo<IMessageResult<string>>().ReturnValue.ShouldBe("handler-output");
+		// A cacheable result is NOT evicted as a non-cacheable poison marker.
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -141,30 +173,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new AttrCacheableAction();
 		var handlerResult = MR.Success<string>("attr-handler-output");
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -172,8 +181,15 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		result.ShouldNotBeNull();
+		// Assert - attribute path ran the factory once and cached the extracted value.
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.ShouldCache.ShouldBeTrue();
+		_capturedFactoryValue.Value.ShouldBe("attr-handler-output");
+		result.ShouldBeSameAs(handlerResult);
+		result.ShouldBeAssignableTo<IMessageResult<string>>().ReturnValue.ShouldBe("attr-handler-output");
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -184,30 +200,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new AttrCacheableOnlyIfSuccess();
 		var handlerResult = MR.Success<string>("success-output");
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -215,8 +208,15 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		result.ShouldNotBeNull();
+		// Assert - OnlyIfSuccess with a valid/authorized (default) context caches the successful result.
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.ShouldCache.ShouldBeTrue();
+		_capturedFactoryValue.Value.ShouldBe("success-output");
+		result.ShouldBeAssignableTo<IMessageResult<string>>().ReturnValue.ShouldBe("success-output");
+		// Cacheable => the non-cacheable poison-marker eviction path is NOT taken.
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -227,30 +227,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new AttrCacheableIgnoreNull();
 		var handlerResult = MR.Success<string>(value: null!);
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -258,8 +235,15 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		result.ShouldNotBeNull();
+		// Assert - IgnoreNullResult + a null return value => NOT cacheable, and the stored marker is evicted.
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.ShouldCache.ShouldBeFalse();
+		_capturedFactoryValue.Value.ShouldBeNull();
+		// A freshly-executed non-cacheable marker is evicted so the next identical request re-runs the handler.
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		result.ShouldBeSameAs(handlerResult);
 	}
 
 	[Fact]
@@ -270,30 +254,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new CacheableWithShouldCacheFalse();
 		var handlerResult = MR.Success<int>(42);
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -301,8 +262,22 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert - handler was called, but ShouldCache was false
-		result.ShouldNotBeNull();
+		// Assert - the factory executed exactly once.
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		// A value-type (int) result IS extracted via IMessageResult.UntypedReturnValue, which
+		// IMessageResult<int> overrides to return the boxed ReturnValue (sidestepping the covariance
+		// limitation of IMessageResult<object>). So the stored Value is the boxed 42.
+		_capturedFactoryValue.Value.ShouldBe(42);
+		// CreateCacheValueAsync honors BOTH the registered policy AND the message's own
+		// ICacheable<T>.ShouldCache: shouldCache = ShouldCache(...) && cacheableInfo.ShouldCache(...).
+		// The message returns ShouldCache=false, so the result is NOT cacheable.
+		_capturedFactoryValue.ShouldCache.ShouldBeFalse();
+		// A freshly-executed non-cacheable (ShouldCache=false) marker is evicted so the next identical
+		// request re-runs the handler instead of getting a cache hit that re-executes for the full TTL.
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		result.ShouldBeSameAs(handlerResult);
 	}
 
 	[Fact]
@@ -313,31 +288,12 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new CacheableQueryWithResult();
 		var nonGenericResult = A.Fake<IMessageResult>();
 		A.CallTo(() => nonGenericResult.Succeeded).Returns(true);
+		// A genuine non-generic IMessageResult carries no typed value: the UntypedReturnValue default
+		// interface member returns null. Configure the fake to honor that real contract (an unconfigured
+		// FakeItEasy fake would return a non-null dummy for the object? property).
+		A.CallTo(() => nonGenericResult.UntypedReturnValue).Returns(null);
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(nonGenericResult);
@@ -345,8 +301,13 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		result.ShouldNotBeNull();
+		// Assert - a non-generic IMessageResult yields no extractable return value (Value stays null).
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.Value.ShouldBeNull();
+		// Fresh execution returns the original (non-generic) handler result unchanged.
+		result.ShouldBeSameAs(nonGenericResult);
 	}
 
 	// =========================================================================
@@ -621,42 +582,15 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	[Fact]
 	public async Task InvokeAsync_WithOnlyIfSuccess_AndInvalidValidationResult_DoesNotCache()
 	{
-		// Arrange - set up context with a failed validation result
-		var validationResult = new FakeValidationResult { IsValid = false };
-		var items = new Dictionary<string, object>
-		{
-			["Dispatch:ValidationResult"] = validationResult
-		};
-		A.CallTo(() => _context.Items).Returns(items);
+		// Arrange - context carries a FAILED validation result (real IValidationResult, stored under the
+		// canonical key via the extension method so the middleware's OnlyIfSuccess check actually reads it).
+		_context.ValidationResult(new FailingValidationResult());
 
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableOnlyIfSuccess();
 		var handlerResult = MR.Success<string>("output");
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -664,8 +598,14 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		result.ShouldNotBeNull();
+		// Assert - OnlyIfSuccess + an invalid validation result => NOT cacheable; the marker is evicted.
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.ShouldCache.ShouldBeFalse();
+		_capturedFactoryValue.Value.ShouldBe("output");
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		result.ShouldBeSameAs(handlerResult);
 	}
 
 	// =========================================================================
@@ -1014,30 +954,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		var message = new AttrCacheableAlwaysCache();
 		var handlerResult = MR.Success<string>(value: null!);
 
-		A.CallTo(() => _cache.GetOrCreateAsync(
-			A<string>._,
-			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
-			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
-			A<HybridCacheEntryOptions?>._,
-			A<IEnumerable<string>?>._,
-			A<CancellationToken>._))
-			.ReturnsLazily(async call =>
-			{
-				var underlyingFactory = call.GetArgument<Func<CancellationToken, ValueTask<CachedValue>>>(1);
-				var wrapper = call.GetArgument<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>(2);
-
-				CachedValue result;
-				if (wrapper != null)
-				{
-					result = await wrapper(underlyingFactory, CancellationToken.None);
-				}
-				else
-				{
-					result = await underlyingFactory(CancellationToken.None);
-				}
-
-				return result;
-			});
+		SetupCacheInvokesFactory();
 
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(handlerResult);
@@ -1045,8 +962,14 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
 
-		// Assert
-		result.ShouldNotBeNull();
+		// Assert - OnlyIfSuccess=false + IgnoreNullResult=false => a null result is STILL cached (no eviction).
+		AssertCacheFactoryInvokedOnce();
+		_capturedFactoryValue.ShouldNotBeNull();
+		_capturedFactoryValue.HasExecuted.ShouldBeTrue();
+		_capturedFactoryValue.ShouldCache.ShouldBeTrue();
+		_capturedFactoryValue.Value.ShouldBeNull();
+		A.CallTo(() => _cache.RemoveAsync("test-cache-key", A<CancellationToken>._)).MustNotHaveHappened();
+		result.ShouldBeSameAs(handlerResult);
 	}
 
 	// =========================================================================
@@ -1180,9 +1103,15 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		}
 	}
 
-	private sealed class FakeValidationResult
+	private sealed class FailingValidationResult : IValidationResult
 	{
-		public bool IsValid { get; init; }
+		public IReadOnlyCollection<object> Errors { get; } = ["validation failed"];
+
+		public bool IsValid => false;
+
+		public static IValidationResult Failed(params object[] errors) => new FailingValidationResult();
+
+		public static IValidationResult Success() => new FailingValidationResult();
 	}
 
 	private sealed class CustomPayload

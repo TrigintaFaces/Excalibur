@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
+using System.Runtime.CompilerServices;
 
 using Dapper;
+
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Options;
 
@@ -121,8 +124,17 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		byte[] position,
 		byte[]? sequenceValue,
 		DateTime? commitTime,
+		long? fencingToken,
 		CancellationToken cancellationToken)
 	{
+		// The checkpoint write is a non-decreasing compare-and-swap on FencingToken so a demoted-but-unaware
+		// leader (split-brain: it still believes it leads) cannot regress or skip the LSN checkpoint. The
+		// MATCHED update is guarded: it applies only when fencing is off (@fencingToken IS NULL), the row was
+		// never fenced (target.FencingToken IS NULL — first fenced write over a pre-fencing row), or the
+		// presented token is at least the stored one. A stale token fails the guard, no MATCHED action fires,
+		// and because the row already matched the ON clause the NOT MATCHED insert does not fire either — so
+		// 0 rows are written, which the caller reads as "superseded". FencingToken advances via COALESCE so an
+		// unfenced write leaves the stored token untouched.
 		var commandText = $"""
 		                                 MERGE
 		                                      {_options.QualifiedTableName} AS target
@@ -139,11 +151,12 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                   	target.DatabaseName = source.DatabaseName
 		                   	AND
 		                   	target.TableName = source.TableName
-		                   WHEN MATCHED THEN
+		                   WHEN MATCHED AND (@fencingToken IS NULL OR target.FencingToken IS NULL OR target.FencingToken <= @fencingToken) THEN
 		                   	UPDATE SET
 		                   	LastProcessedLsn = source.LastProcessedLsn,
 		                   	LastProcessedSequenceValue = source.LastProcessedSequenceValue,
 		                   	LastCommitTime = source.LastCommitTime,
+		                   	FencingToken = COALESCE(@fencingToken, target.FencingToken),
 		                   	ProcessedAt = GETUTCDATE()
 		                   WHEN NOT MATCHED THEN
 		                   	INSERT (DatabaseConnectionIdentifier,
@@ -151,8 +164,8 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		                   	TableName,
 		                   	LastProcessedLsn,
 		                   	LastProcessedSequenceValue,
-		                   	LastCommitTime, ProcessedAt)
-		                       VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.TableName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime, GETUTCDATE());
+		                   	LastCommitTime, FencingToken, ProcessedAt)
+		                       VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.TableName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime, @fencingToken, GETUTCDATE());
 		                   """;
 
 		var parameters = new DynamicParameters();
@@ -162,6 +175,7 @@ public class CdcStateStore : ISqlServerCdcStateStore
 		parameters.Add("position", position, DbType.Binary, size: 10);
 		parameters.Add("sequenceValue", sequenceValue, DbType.Binary, size: 10);
 		parameters.Add("commitTime", commitTime, DbType.DateTime2);
+		parameters.Add("fencingToken", fencingToken, DbType.Int64);
 
 		var command = new CommandDefinition(
 			commandText,
@@ -170,6 +184,130 @@ public class CdcStateStore : ISqlServerCdcStateStore
 			cancellationToken: cancellationToken);
 
 		return _connection.Ready().ExecuteAsync(command);
+	}
+
+	// --- Generic ICdcStateStore adapter -------------------------------------------------------
+	// Bridges the provider-neutral consumer-checkpoint contract onto the SQL Server state table.
+	// The generic checkpoint for a consumer is stored as a dedicated row keyed by
+	// DatabaseConnectionIdentifier = consumerId with empty DatabaseName/TableName discriminators,
+	// mirroring the sentinel-row pattern used by the Postgres/Mongo/Cosmos/Dynamo/Firestore stores.
+
+	private const string GenericDiscriminator = "";
+
+	/// <inheritdoc />
+	async Task<ChangePosition?> ICdcStateStore.GetPositionAsync(string consumerId, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+
+		var commandText = $"""
+		                   SELECT TOP 1 LastProcessedLsn, LastProcessedSequenceValue
+		                   FROM {_options.QualifiedTableName}
+		                   WHERE DatabaseConnectionIdentifier = @consumerId
+		                         AND DatabaseName = @discriminator
+		                         AND TableName = @discriminator
+		                   ORDER BY MessageId DESC
+		                   """;
+
+		var parameters = new DynamicParameters();
+		parameters.Add("consumerId", consumerId, DbType.String);
+		parameters.Add("discriminator", GenericDiscriminator, DbType.String);
+
+		var command = new CommandDefinition(
+			commandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var row = await _connection.Ready()
+			.QuerySingleOrDefaultAsync<(byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)?>(command)
+			.ConfigureAwait(false);
+
+		if (row is null)
+		{
+			return null;
+		}
+
+		var position = new CdcPosition(row.Value.LastProcessedLsn, row.Value.LastProcessedSequenceValue);
+		return position.IsValid ? position.ToChangePosition() : null;
+	}
+
+	/// <inheritdoc />
+	async Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		ArgumentNullException.ThrowIfNull(position);
+
+		var native = CdcPosition.FromChangePosition(position);
+		_ = await UpdateLastProcessedPositionAsync(
+				consumerId,
+				GenericDiscriminator,
+				GenericDiscriminator,
+				native.Lsn,
+				native.SequenceValue,
+				commitTime: null,
+				fencingToken: null,
+				cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+
+		var commandText = $"""
+		                   DELETE FROM {_options.QualifiedTableName}
+		                   WHERE DatabaseConnectionIdentifier = @consumerId
+		                         AND DatabaseName = @discriminator
+		                         AND TableName = @discriminator
+		                   """;
+
+		var parameters = new DynamicParameters();
+		parameters.Add("consumerId", consumerId, DbType.String);
+		parameters.Add("discriminator", GenericDiscriminator, DbType.String);
+
+		var command = new CommandDefinition(
+			commandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var affected = await _connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		return affected > 0;
+	}
+
+	/// <inheritdoc />
+	async IAsyncEnumerable<(string ConsumerId, ChangePosition Position)> ICdcStateStore.GetAllPositionsAsync(
+		[EnumeratorCancellation] CancellationToken cancellationToken)
+	{
+		var commandText = $"""
+		                   SELECT DatabaseConnectionIdentifier, LastProcessedLsn, LastProcessedSequenceValue
+		                   FROM {_options.QualifiedTableName}
+		                   WHERE DatabaseName = @discriminator AND TableName = @discriminator
+		                   ORDER BY DatabaseConnectionIdentifier
+		                   """;
+
+		var parameters = new DynamicParameters();
+		parameters.Add("discriminator", GenericDiscriminator, DbType.String);
+
+		var command = new CommandDefinition(
+			commandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var rows = await _connection.Ready()
+			.QueryAsync<(string DatabaseConnectionIdentifier, byte[] LastProcessedLsn, byte[]? LastProcessedSequenceValue)>(command)
+			.ConfigureAwait(false);
+
+		foreach (var row in rows)
+		{
+			var position = new CdcPosition(row.LastProcessedLsn, row.LastProcessedSequenceValue);
+			if (position.IsValid)
+			{
+				yield return (row.DatabaseConnectionIdentifier, position.ToChangePosition());
+			}
+		}
 	}
 
 	/// <summary>

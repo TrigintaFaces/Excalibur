@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Hosting.GoogleCloud;
+using Excalibur.Dispatch.Hosting.GoogleCloudFunctions;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

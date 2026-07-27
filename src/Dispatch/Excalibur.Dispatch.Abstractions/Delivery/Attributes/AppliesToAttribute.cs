@@ -11,7 +11,6 @@ namespace Excalibur.Dispatch.Delivery;
 /// This attribute allows declarative configuration of middleware applicability based on message kinds. When applied to a middleware class,
 /// it overrides the ApplicableMessageKinds property of IDispatchMiddleware. Multiple message kinds can be specified using the flags enum pattern.
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="AppliesToAttribute" /> class. </remarks>
 /// <param name="messageKinds"> The message kinds this middleware applies to. </param>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class AppliesToAttribute(MessageKinds messageKinds) : Attribute

@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 [Trait("Component", "Dispatch.Core")]
 public sealed class ValidationMiddlewareShould
 {
-    private readonly IValidationService _validationService = A.Fake<IValidationService>();
+    private readonly IMessageValidationService _validationService = A.Fake<IMessageValidationService>();
     private readonly ILogger<ValidationMiddleware> _logger;
 
     public ValidationMiddlewareShould()
@@ -139,10 +139,10 @@ public sealed class ValidationMiddlewareShould
     }
 
     [Fact]
-    public void ApplyToActionsOnly()
+    public void ApplyToActionsAndEvents()
     {
         var sut = CreateSut();
-        sut.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+        sut.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
     }
 
     [Fact]

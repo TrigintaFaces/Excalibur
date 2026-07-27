@@ -27,12 +27,9 @@ namespace Excalibur.Cdc.DynamoDb;
 /// </remarks>
 public sealed class DynamoDbCdcPosition : ChangePosition, IEquatable<DynamoDbCdcPosition>
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false,
-
-	};
+	// CDC position is internal framework cursor state (not an event, not a consumer-queried read-model), so it
+	// sources the canonical serialization contract for uniform, well-defaulted checkpoint serialization.
+	private static readonly JsonSerializerOptions JsonOptions = EventSerializationDefaults.Canonical;
 
 	/// <summary>
 	/// Gets the Stream ARN for validation.

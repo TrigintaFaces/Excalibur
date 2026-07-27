@@ -49,6 +49,21 @@ public sealed class SagaManagerShould
 	[Fact]
 	[RequiresUnreferencedCode("Test uses reflection-based saga instantiation")]
 	[RequiresDynamicCode("Test uses dynamic saga instantiation")]
+	public async Task ThrowArgumentNullException_WhenEventIsNull()
+	{
+		// Honor the documented ArgumentNullException contract even on the already-completed skip path
+		// (which would otherwise NRE on @event.GetType()) — vierf9.
+		var sagaId = Guid.NewGuid();
+		A.CallTo(() => _sagaStore.LoadAsync<TestSagaState>(sagaId, A<CancellationToken>._))
+			.Returns(new TestSagaState { SagaId = sagaId, Completed = true });
+
+		_ = await Should.ThrowAsync<ArgumentNullException>(async () =>
+			await _sut.HandleEventAsync<TestSaga, TestSagaState>(sagaId, null!, CancellationToken.None));
+	}
+
+	[Fact]
+	[RequiresUnreferencedCode("Test uses reflection-based saga instantiation")]
+	[RequiresDynamicCode("Test uses dynamic saga instantiation")]
 	public async Task LoadExistingState_WhenSagaStateExists()
 	{
 		// Arrange

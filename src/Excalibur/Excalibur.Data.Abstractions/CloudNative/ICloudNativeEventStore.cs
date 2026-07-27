@@ -40,12 +40,19 @@ public interface ICloudNativeEventStore
 	/// <summary>
 	/// Loads all events for an aggregate within a partition.
 	/// </summary>
-	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <param name="aggregateType">The aggregate type name.</param>
+	/// <param name="aggregateId">The aggregate identifier. Must not be <see langword="null"/>, empty, or white space.</param>
+	/// <param name="aggregateType">The aggregate type name. Must not be <see langword="null"/>, empty, or white space.</param>
 	/// <param name="partitionKey">The partition key containing the aggregate.</param>
 	/// <param name="consistencyOptions">Consistency options for the read.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The events for the aggregate in version order, with cost information.</returns>
+	/// <exception cref="System.ArgumentException">
+	/// <paramref name="aggregateId"/> or <paramref name="aggregateType"/> is empty or white space.
+	/// </exception>
+	/// <exception cref="System.ArgumentNullException">
+	/// <paramref name="aggregateId"/>, <paramref name="aggregateType"/>, or <paramref name="partitionKey"/> is
+	/// <see langword="null"/>.
+	/// </exception>
 	Task<CloudEventLoadResult> LoadAsync(
 		string aggregateId,
 		string aggregateType,
@@ -56,13 +63,20 @@ public interface ICloudNativeEventStore
 	/// <summary>
 	/// Loads events for an aggregate from a specific version.
 	/// </summary>
-	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <param name="aggregateType">The aggregate type name.</param>
+	/// <param name="aggregateId">The aggregate identifier. Must not be <see langword="null"/>, empty, or white space.</param>
+	/// <param name="aggregateType">The aggregate type name. Must not be <see langword="null"/>, empty, or white space.</param>
 	/// <param name="partitionKey">The partition key containing the aggregate.</param>
 	/// <param name="fromVersion">The version to start loading from (exclusive).</param>
 	/// <param name="consistencyOptions">Consistency options for the read.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The events from the specified version, with cost information.</returns>
+	/// <exception cref="System.ArgumentException">
+	/// <paramref name="aggregateId"/> or <paramref name="aggregateType"/> is empty or white space.
+	/// </exception>
+	/// <exception cref="System.ArgumentNullException">
+	/// <paramref name="aggregateId"/>, <paramref name="aggregateType"/>, or <paramref name="partitionKey"/> is
+	/// <see langword="null"/>.
+	/// </exception>
 	Task<CloudEventLoadResult> LoadFromVersionAsync(
 		string aggregateId,
 		string aggregateType,
@@ -74,13 +88,27 @@ public interface ICloudNativeEventStore
 	/// <summary>
 	/// Appends events to the store with optimistic concurrency control.
 	/// </summary>
-	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <param name="aggregateType">The aggregate type name.</param>
+	/// <param name="aggregateId">The aggregate identifier. Must not be <see langword="null"/>, empty, or white space.</param>
+	/// <param name="aggregateType">The aggregate type name. Must not be <see langword="null"/>, empty, or white space.</param>
 	/// <param name="partitionKey">The partition key for the aggregate.</param>
 	/// <param name="events">The events to append.</param>
 	/// <param name="expectedVersion">The expected current version (-1 for new aggregate).</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The result of the append operation with cost information.</returns>
+	/// <remarks>
+	/// An identifier that is <see langword="null"/>, empty, or white space is a usage error, never a legitimate
+	/// stream: accepting one would fabricate a stream or partition key and write events where no reader will
+	/// ever look. Every implementation rejects such an argument by throwing, before any request reaches the
+	/// service. A returned <see cref="CloudAppendResult"/> models a domain or infrastructure outcome — a
+	/// concurrency conflict, a throttled request — never a caller defect.
+	/// </remarks>
+	/// <exception cref="System.ArgumentException">
+	/// <paramref name="aggregateId"/> or <paramref name="aggregateType"/> is empty or white space.
+	/// </exception>
+	/// <exception cref="System.ArgumentNullException">
+	/// <paramref name="aggregateId"/>, <paramref name="aggregateType"/>, <paramref name="partitionKey"/>, or
+	/// <paramref name="events"/> is <see langword="null"/>.
+	/// </exception>
 	Task<CloudAppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
@@ -126,11 +154,18 @@ public interface ICloudNativeEventStoreInfo
 	/// <summary>
 	/// Gets the current aggregate version without loading events.
 	/// </summary>
-	/// <param name="aggregateId">The aggregate identifier.</param>
-	/// <param name="aggregateType">The aggregate type name.</param>
+	/// <param name="aggregateId">The aggregate identifier. Must not be <see langword="null"/>, empty, or white space.</param>
+	/// <param name="aggregateType">The aggregate type name. Must not be <see langword="null"/>, empty, or white space.</param>
 	/// <param name="partitionKey">The partition key containing the aggregate.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The current version, or -1 if the aggregate doesn't exist.</returns>
+	/// <exception cref="System.ArgumentException">
+	/// <paramref name="aggregateId"/> or <paramref name="aggregateType"/> is empty or white space.
+	/// </exception>
+	/// <exception cref="System.ArgumentNullException">
+	/// <paramref name="aggregateId"/>, <paramref name="aggregateType"/>, or <paramref name="partitionKey"/> is
+	/// <see langword="null"/>.
+	/// </exception>
 	Task<long> GetCurrentVersionAsync(
 		string aggregateId,
 		string aggregateType,
@@ -293,6 +328,7 @@ public sealed class CloudAppendResult
 	/// Gets a value indicating whether the failure was due to a concurrency conflict.
 	/// </summary>
 	public bool IsConcurrencyConflict => _isConcurrencyConflict;
+
 
 	/// <summary>
 	/// Creates a successful append result.

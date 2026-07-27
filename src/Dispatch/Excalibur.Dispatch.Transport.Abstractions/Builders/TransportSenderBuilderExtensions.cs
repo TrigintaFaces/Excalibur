@@ -4,8 +4,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using CloudNative.CloudEvents;
-
 using Excalibur.Dispatch.Transport.Decorators;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
@@ -66,18 +64,4 @@ public static class TransportSenderBuilderExtensions
 		this TransportSenderBuilder builder,
 		Func<TransportMessage, DateTimeOffset?> timeSelector) =>
 		builder.Use(inner => new SchedulingTransportSender(inner, timeSelector));
-
-	/// <summary>
-	/// Adds CloudEvents encoding to the sender pipeline.
-	/// Converts outgoing messages to CloudEvents format before sending.
-	/// </summary>
-	/// <param name="builder">The sender builder.</param>
-	/// <param name="mapper">The CloudEvent mapper for converting messages.</param>
-	/// <param name="cloudEventFactory">A factory that creates a <see cref="CloudEvent"/> from a <see cref="TransportMessage"/>.</param>
-	/// <returns>The builder for chaining.</returns>
-	public static TransportSenderBuilder UseCloudEvents(
-		this TransportSenderBuilder builder,
-		ICloudEventMapper<TransportMessage> mapper,
-		Func<TransportMessage, CloudEvent> cloudEventFactory) =>
-		builder.Use(inner => new CloudEventsTransportSender(inner, mapper, cloudEventFactory));
 }

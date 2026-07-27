@@ -53,6 +53,10 @@ internal sealed partial class SagaManager(ISagaStore sagaStore, IServiceProvider
 		where TSaga : SagaBase<TSagaState>
 		where TSagaState : SagaState, new()
 	{
+		// Honor the documented ArgumentNullException contract on EVERY path — including the already-completed
+		// skip below, which dereferences @event.GetType() and would otherwise NRE on a null event (vierf9).
+		ArgumentNullException.ThrowIfNull(@event);
+
 		var sagaState = await sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false) ??
 						new TSagaState { SagaId = sagaId };
 

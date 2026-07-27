@@ -112,13 +112,6 @@ public sealed class GrantRevokedShould
 		typed.Metadata!["source"].ShouldBe("test");
 	}
 
-	[Fact]
-	public void Default_AggregateId_To_Empty()
-	{
-		// Act
-		var grantRevoked = new GrantRevoked("user-abc", "name", "app", "tenant", "type", "qual", null, "admin", DateTimeOffset.UtcNow);
-
-		// Assert — GrantRevoked does not override AggregateId, uses DomainEvent default
-		grantRevoked.AggregateId.ShouldBe(string.Empty);
-	}
+	// Removed Default_AggregateId_To_Empty: stream identity moved to the persistence envelope
+	// (StoredEvent.AggregateId → HistoricEvent); IDomainEvent/DomainEvent no longer carry AggregateId.
 }

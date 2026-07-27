@@ -74,10 +74,11 @@ public class OrderAggregate : AggregateRoot<Guid>
     }
 
     // Events mutate state
-    protected override void ApplyEventInternal(IDomainEvent @event) => @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         PaymentProcessed e => ApplyPaymentProcessed(e),
         // ... other events
+        _ => false
     };
 }
 ```

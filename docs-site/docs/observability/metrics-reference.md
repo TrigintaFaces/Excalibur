@@ -84,35 +84,17 @@ alert on breaker trips out of the box.
 
 ---
 
-### Excalibur.Dispatch.CircuitBreaker
+### Excalibur.Dispatch.PoisonMessage.Middleware
 
-Circuit breaker state and operations, emitted by the optional `CircuitBreakerMetrics` instrumentation in
-the Observability package (registered when you add Dispatch observability metrics).
-
-| Metric | Type | Unit | Description |
-|--------|------|------|-------------|
-| `dispatch.circuitbreaker.state_changes` | Counter | count | Circuit breaker state transitions |
-| `dispatch.circuitbreaker.rejections` | Counter | count | Requests rejected due to open circuit |
-| `dispatch.circuitbreaker.failures` | Counter | count | Failed requests tracked by circuit |
-| `dispatch.circuitbreaker.successes` | Counter | count | Successful requests tracked by circuit |
-| `dispatch.circuitbreaker.state` | ObservableGauge | state | Current circuit state (0=Closed, 1=Open, 2=HalfOpen) |
-
-**Tags:** `circuit_name` (and `exception_type` on `dispatch.circuitbreaker.failures`)
-
----
-
-### Excalibur.Dispatch.DeadLetterQueue
-
-Dead letter queue operations.
+Dead-letter routing counter emitted directly by `PoisonMessageMiddleware` whenever a poison message is
+moved to the dead-letter queue — **no opt-in observability service required**. Subscribe to this meter to
+alert on dead-letter volume out of the box.
 
 | Metric | Type | Unit | Description |
 |--------|------|------|-------------|
-| `dispatch.dlq.enqueued` | Counter | count | Messages added to dead letter queue |
-| `dispatch.dlq.replayed` | Counter | count | Messages replayed from dead letter queue |
-| `dispatch.dlq.purged` | Counter | count | Messages purged from dead letter queue |
-| `dispatch.dlq.depth` | ObservableGauge | messages | Current dead letter queue depth |
+| `dispatch.poison.dead_lettered` | Counter | messages | Poison messages moved to the dead-letter queue |
 
-**Tags:** `reason`, `message_type`
+**Tags:** `poison.detector`, `poison.reason`
 
 ---
 

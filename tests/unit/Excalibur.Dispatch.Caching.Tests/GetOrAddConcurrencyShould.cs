@@ -52,7 +52,9 @@ public sealed class GetOrAddConcurrencyShould
             {
                 factoryEntered.Set();
                 // Hold inside the factory until the test releases it.
+                #pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
                 releaseFactory.Wait(JoinTimeout);
+                #pragma warning restore RS0030
                 return 1;
             }))
         { IsBackground = true, Name = "ac1-factory" };
@@ -67,14 +69,18 @@ public sealed class GetOrAddConcurrencyShould
         try
         {
             factoryThread.Start();
+            #pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
             factoryEntered.Wait(StartTimeout).ShouldBeTrue("the factory should have started");
+            #pragma warning restore RS0030
 
             // Probe runs while the factory is provably still in flight (releaseFactory not yet set).
             probeThread.Start();
 
             // Deterministic assertion target: the different-key op finishes WHILE the factory is held.
             // Pre-fix the probe is blocked on _lock → never signals → false → RED.
+            #pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
             var completedWhileFactoryHeld = differentKeyOpDone.Wait(StartTimeout);
+            #pragma warning restore RS0030
 
             completedWhileFactoryHeld.ShouldBeTrue(
                 "a cache op on a DIFFERENT key must not block on an in-flight factory " +

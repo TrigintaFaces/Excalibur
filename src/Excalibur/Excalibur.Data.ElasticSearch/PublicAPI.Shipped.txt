@@ -987,6 +987,22 @@ Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Pass
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Username.get -> string?
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionAuthOptions.Username.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.CreateIndexOnInitialize.get -> bool
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.CreateIndexOnInitialize.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.ElasticSearchProjectionIndexOptions() -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.IndexMappingConvention.get -> Excalibur.Data.ElasticSearch.Projections.IIndexMappingConvention?
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.IndexMappingConvention.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.IndexName.get -> string?
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.IndexName.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.IndexPrefix.get -> string!
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.IndexPrefix.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.NumberOfReplicas.get -> int
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.NumberOfReplicas.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.NumberOfShards.get -> int
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.NumberOfShards.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.RefreshInterval.get -> string!
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions.RefreshInterval.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar.Add<TProjection>(System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStore<TProjection>
@@ -1003,27 +1019,15 @@ Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Aut
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Auth.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ConnectionPoolType.get -> Excalibur.Data.ElasticSearch.ConnectionPoolType
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ConnectionPoolType.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.CreateIndexOnInitialize.get -> bool
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.CreateIndexOnInitialize.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.ElasticSearchProjectionStoreOptions() -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.EnableDebugMode.get -> bool
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.EnableDebugMode.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexMappingConvention.get -> Excalibur.Data.ElasticSearch.Projections.IIndexMappingConvention?
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexMappingConvention.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexName.get -> string?
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexName.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexPrefix.get -> string!
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.IndexPrefix.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Index.get -> Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexOptions!
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Index.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUri.get -> string!
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUri.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.get -> System.Collections.Generic.List<System.Uri!>?
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfReplicas.get -> int
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfReplicas.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfShards.get -> int
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NumberOfShards.set -> void
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.RefreshInterval.get -> string!
-Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.RefreshInterval.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.RequestTimeoutSeconds.get -> int
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.RequestTimeoutSeconds.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Validate() -> void
@@ -1647,6 +1651,8 @@ Excalibur.Data.ElasticSearch.Security.AuditOptions.EnsureLogIntegrity.get -> boo
 Excalibur.Data.ElasticSearch.Security.AuditOptions.EnsureLogIntegrity.init -> void
 Excalibur.Data.ElasticSearch.Security.AuditOptions.MaskPiiInAuditEvents.get -> bool
 Excalibur.Data.ElasticSearch.Security.AuditOptions.MaskPiiInAuditEvents.init -> void
+Excalibur.Data.ElasticSearch.Security.AuditOptions.MaxPendingAuditEvents.get -> int
+Excalibur.Data.ElasticSearch.Security.AuditOptions.MaxPendingAuditEvents.init -> void
 Excalibur.Data.ElasticSearch.Security.AuditOptions.MaxQueryResultSize.get -> int
 Excalibur.Data.ElasticSearch.Security.AuditOptions.MaxQueryResultSize.init -> void
 Excalibur.Data.ElasticSearch.Security.AuditOptions.RetentionPeriod.get -> System.TimeSpan
@@ -2094,7 +2100,7 @@ Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.Algorithm.get -> stri
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.AuthenticationTag.get -> string?
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.Classification.get -> Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedAt.get -> System.DateTimeOffset
-Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedFieldResult(string! encryptedValue, string! algorithm, string! keyVersion, string? initializationVector = null, string? authenticationTag = null, Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification classification = Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential, string! formatVersion = "1") -> void
+Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedFieldResult(string! encryptedValue, string! algorithm, string! keyVersion, string? initializationVector = null, string? authenticationTag = null, Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification classification = Excalibur.Data.ElasticSearch.Security.ElasticSearchDataClassification.Confidential, string! formatVersion = "2") -> void
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.EncryptedValue.get -> string!
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.FormatVersion.get -> string!
 Excalibur.Data.ElasticSearch.Security.EncryptedFieldResult.HasIntegrityProtection.get -> bool
@@ -3017,6 +3023,8 @@ const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.Document
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.DocumentUpdated = 106202 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.ElasticsearchException = 106603 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.GettingLifecycleStatus = 106119 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.InboxTryClaimDuplicate = 106208 -> int
+const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.InboxTryClaimSuccess = 106207 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexAliasCreated = 106105 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexAlreadyInFinalPhase = 106126 -> int
 const Excalibur.Data.ElasticSearch.Diagnostics.DataElasticsearchEventId.IndexCreated = 106100 -> int

@@ -1,0 +1,3 @@
+#nullable enable
+Microsoft.AspNetCore.Builder.DashboardSpaEndpointExtensions
+static Microsoft.AspNetCore.Builder.DashboardSpaEndpointExtensions.MapDashboardSpa(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! basePath = "/dashboard") -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!

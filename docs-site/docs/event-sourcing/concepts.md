@@ -22,16 +22,10 @@ Events represent things that have happened - they cannot be changed or deleted:
 
 ```csharp
 // Events use past tense - they describe completed actions
-// Events extend DomainEvent which provides EventId, AggregateId, Version, OccurredAt
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+// Events extend DomainEvent which provides EventId, OccurredAt, EventType, Metadata
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
-public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity) : DomainEvent;
 ```
 
 ### 2. State Is Derived
@@ -77,18 +71,18 @@ Event Stream: order-123
 Every domain event should extend `DomainEvent` (from `Excalibur.Dispatch.Abstractions`) which provides standard properties:
 
 ```csharp
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
 // DomainEvent provides these properties automatically:
 // - EventId: Auto-generated UUID v7 string (time-ordered)
-// - AggregateId: Override in derived records to link to aggregate
-// - Version: Set by infrastructure during event sourcing (default 0)
 // - OccurredAt: DateTimeOffset.UtcNow at construction time
 // - EventType: Derived type name (e.g. "OrderCreated")
 // - Metadata: Optional cross-cutting concerns (null by default)
+// - CorrelationId / CausationId: Optional causation tracking (null by default)
+//
+// The event carries only its own business data. The aggregate id is passed to
+// the event store on append/load, and the stream version is store-assigned and
+// surfaced on the envelope during replay (never read from the event payload).
 ```
 
 ### Event Naming Conventions
@@ -283,12 +277,10 @@ public class OrderCreatedUpcaster : IMessageUpcaster<OrderCreatedV1, OrderCreate
 {
     public OrderCreated Upcast(OrderCreatedV1 source)
     {
-        return new OrderCreated(source.AggregateId, source.Version)
-        {
-            OrderId = source.OrderId,
-            CustomerId = source.CustomerId,
-            Currency = "USD"  // Default for historical events
-        };
+        return new OrderCreated(
+            source.OrderId,
+            source.CustomerId,
+            Currency: "USD");  // Default for historical events
     }
 }
 ```

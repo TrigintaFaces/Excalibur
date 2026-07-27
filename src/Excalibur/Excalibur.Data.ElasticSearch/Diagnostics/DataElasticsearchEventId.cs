@@ -162,6 +162,12 @@ public static class DataElasticsearchEventId
 	/// <summary>Document marked as processing.</summary>
 	public const int DocumentProcessing = 106206;
 
+	/// <summary>Inbox entry claim succeeded (claimed into non-terminal Processing state).</summary>
+	public const int InboxTryClaimSuccess = 106207;
+
+	/// <summary>Inbox entry claim detected an already-claimed/processed duplicate.</summary>
+	public const int InboxTryClaimDuplicate = 106208;
+
 	// ========================================
 	// 106300-106399: Search/Query
 	// ========================================

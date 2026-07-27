@@ -27,12 +27,18 @@ public sealed class InboxMiddlewareShould
 {
 	private readonly IInboxStore _inboxStore;
 	private readonly IInMemoryDeduplicator _deduplicator;
+	private readonly IClaimableDeduplicator _claim;
 	private readonly ILogger<InboxMiddleware> _logger;
 
 	public InboxMiddlewareShould()
 	{
 		_inboxStore = A.Fake<IInboxStore>();
-		_deduplicator = A.Fake<IInMemoryDeduplicator>();
+		// bd-2wiylb: inbox light mode now requires an atomic claim primitive. The registered deduplicator
+		// MUST implement IClaimableDeduplicator (the default InMemoryDeduplicator does); light-mode tests
+		// assert the claim contract ("inbox:"+id key; a successful claim IS the processed-marker, kept on
+		// success and released on failure).
+		_deduplicator = A.Fake<IInMemoryDeduplicator>(o => o.Implements<IClaimableDeduplicator>());
+		_claim = (IClaimableDeduplicator)_deduplicator;
 		_logger = NullLoggerFactory.Instance.CreateLogger<InboxMiddleware>();
 	}
 
@@ -268,9 +274,9 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "context-msg-id-123");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"context-msg-id-123", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:context-msg-id-123", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		var wasCalled = new[] { false };
 
@@ -280,8 +286,8 @@ public sealed class InboxMiddlewareShould
 
 		// Assert
 		wasCalled[0].ShouldBeTrue();
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"context-msg-id-123", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:context-msg-id-123", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -298,9 +304,10 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "new-msg-123");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"new-msg-123", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		// Claim succeeds (true = first writer) -> not a duplicate -> handler runs.
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:new-msg-123", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		var wasCalled = new[] { false };
 
@@ -311,6 +318,9 @@ public sealed class InboxMiddlewareShould
 		// Assert
 		wasCalled[0].ShouldBeTrue();
 		result.Succeeded.ShouldBeTrue();
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:new-msg-123", A<TimeSpan>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -322,9 +332,10 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "duplicate-msg-123");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"duplicate-msg-123", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+		// Claim fails (false) -> already claimed/processed -> duplicate -> handler skipped.
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:duplicate-msg-123", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(false));
 
 		var wasCalled = new[] { false };
 
@@ -346,19 +357,22 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "new-msg-456");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"new-msg-456", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:new-msg-456", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		// Act
 		var result = await middleware.InvokeAsync(
 			message, context, SuccessDelegate(), CancellationToken.None);
 
-		// Assert
+		// Assert - the successful claim IS the processed-marker: the claim was taken and, on success, NOT
+		// released (a redelivery must now see it as a duplicate). No separate MarkProcessedAsync finalize.
 		result.Succeeded.ShouldBeTrue();
-		_ = A.CallTo(() => _deduplicator.MarkProcessedAsync(
-			"new-msg-456", A<TimeSpan>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:new-msg-456", A<TimeSpan>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => _claim.ReleaseAsync(A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -370,19 +384,19 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "fail-msg-789");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"fail-msg-789", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:fail-msg-789", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		// Act
 		var result = await middleware.InvokeAsync(
 			message, context, FailureDelegate("Processing failed"), CancellationToken.None);
 
-		// Assert
+		// Assert - on handler failure the claim MUST be released so a redelivery can re-admit the message.
 		result.Succeeded.ShouldBeFalse();
-		A.CallTo(() => _deduplicator.MarkProcessedAsync(
-			A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
+		_ = A.CallTo(() => _claim.ReleaseAsync(
+			"inbox:fail-msg-789", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -394,9 +408,9 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "throw-msg-101");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"throw-msg-101", A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:throw-msg-101", A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		ValueTask<IMessageResult> ThrowingDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			=> throw new InvalidOperationException("Handler exploded");
@@ -404,6 +418,11 @@ public sealed class InboxMiddlewareShould
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(
 			middleware.InvokeAsync(message, context, ThrowingDelegate, CancellationToken.None).AsTask());
+
+		// On a thrown handler the claim MUST be released so the message stays retryable on redelivery.
+		_ = A.CallTo(() => _claim.ReleaseAsync(
+			"inbox:throw-msg-101", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -416,17 +435,17 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "expiry-msg-202");
 
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"expiry-msg-202", TimeSpan.FromHours(12), A<CancellationToken>._))
-			.Returns(Task.FromResult(false));
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:expiry-msg-202", TimeSpan.FromHours(12), A<CancellationToken>._))
+			.Returns(Task.FromResult(true));
 
 		// Act
 		_ = await middleware.InvokeAsync(
 			message, context, SuccessDelegate(), CancellationToken.None);
 
-		// Assert - verify the correct expiry TimeSpan was used
-		_ = A.CallTo(() => _deduplicator.IsDuplicateAsync(
-			"expiry-msg-202", TimeSpan.FromHours(12), A<CancellationToken>._))
+		// Assert - verify the claim carried the correct expiry TimeSpan (DeduplicationExpiryHours = 12).
+		_ = A.CallTo(() => _claim.TryClaimAsync(
+			"inbox:expiry-msg-202", TimeSpan.FromHours(12), A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -697,8 +716,8 @@ public sealed class InboxMiddlewareShould
 			"priority-msg-401", A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 
-		// Deduplicator should NOT have been called
-		A.CallTo(() => _deduplicator.IsDuplicateAsync(
+		// Deduplicator claim path should NOT have been taken (full inbox mode wins)
+		A.CallTo(() => _claim.TryClaimAsync(
 			A<string>._, A<TimeSpan>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}

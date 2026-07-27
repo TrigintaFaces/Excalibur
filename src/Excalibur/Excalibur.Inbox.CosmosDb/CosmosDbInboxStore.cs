@@ -26,11 +26,16 @@ namespace Excalibur.Inbox.CosmosDb;
 /// are typically queried by handler type.
 /// </para>
 /// </remarks>
-public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
+public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IScopedTransactionalInboxStore, IInboxStoreCapabilities, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly CosmosDbInboxOptions _options;
 	private readonly ILogger<CosmosDbInboxStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// Ambient tenant context. When active, the tenant is composed INTO the dedup id (via ScopedId) so two
+	// tenants' identical (messageId, handlerType) can never collide on the dedup key, and is stamped on write.
+	private readonly ITenantContext? _tenantContext;
+
 	private CosmosClient? _client;
 	private Container? _container;
 	private bool _initialized;
@@ -41,9 +46,15 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context; when active it composes the tenant into the dedup <c>id</c> and stamps
+	/// the tenant on write. When <see langword="null"/> the untenanted sentinel is composed, so an untenanted
+	/// deployment is a single named partition rather than an unbounded shared one.
+	/// </param>
 	public CosmosDbInboxStore(
 		IOptions<CosmosDbInboxOptions> options,
-		ILogger<CosmosDbInboxStore> logger)
+		ILogger<CosmosDbInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -51,7 +62,17 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_tenantContext = tenantContext;
 	}
+
+	// The keyed partition seam resolves the ambient tenant to a concrete term (a real tenant, or the reserved
+	// untenanted sentinel) — never null, never empty. A keyed store must never emit an empty tenant segment.
+	private string TenantTerm => KeyedTenantPartition.FromContext(_tenantContext).TenantId;
+
+	// Composes the ambient tenant into the dedup id via the keyed partition seam, so the dedup/claim key —
+	// and thus every keyed read/write/claim — is tenant-isolated by construction.
+	private string ScopedId(string messageId, string handlerType)
+		=> CosmosDbInboxDocument.CreateId(messageId, handlerType, TenantTerm);
 
 	/// <summary>
 	/// Initializes the Cosmos DB client and container reference.
@@ -75,8 +96,41 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			var clientOptions = CreateClientOptions();
 			_client = CreateClient(clientOptions);
 
-			var database = _client!.GetDatabase(_options.DatabaseName);
-			_container = database.GetContainer(_options.ContainerName);
+			Database database;
+
+			if (_options.CreateContainerIfNotExists)
+			{
+				// The database is provisioned too, not just the container. Both sibling Cosmos stores
+				// create only the container because they run against an account that already has the
+				// database; the inbox's first-run target is an EMPTY account (a fresh emulator), where
+				// GetDatabase returns a handle to something that does not exist and the container create
+				// then fails NotFound. Provisioning both is what makes first run work.
+				var databaseResponse = await _client!
+					.CreateDatabaseIfNotExistsAsync(_options.DatabaseName, cancellationToken: cancellationToken)
+					.ConfigureAwait(false);
+				database = databaseResponse.Database;
+
+				var containerProperties = new ContainerProperties(_options.ContainerName, _options.PartitionKeyPath);
+
+				// Enable the TTL subsystem at creation with -1 (no blanket default) rather than relying on
+				// the read-then-replace below: -1 means "per-item ttl honored, nothing expires by default",
+				// so an unprocessed dedup record never expires out from under an in-flight handler.
+				if (_options.DefaultTimeToLiveSeconds > 0)
+				{
+					containerProperties.DefaultTimeToLive = -1;
+				}
+
+				var containerResponse2 = await database
+					.CreateContainerIfNotExistsAsync(containerProperties, cancellationToken: cancellationToken)
+					.ConfigureAwait(false);
+
+				_container = containerResponse2.Container;
+			}
+			else
+			{
+				database = _client!.GetDatabase(_options.DatabaseName);
+				_container = database.GetContainer(_options.ContainerName);
+			}
 
 			// Verify connectivity and ensure the container's TTL subsystem is enabled. Cosmos ignores a
 			// per-item `ttl` unless the container has TTL turned on; we enable it with -1 (no blanket
@@ -121,11 +175,20 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 		var document = CosmosDbInboxDocument.FromInboxEntry(entry);
 
+		// Compose the ambient tenant INTO the dedup id and stamp the row, so the dedup key + every keyed read
+		// isolate per tenant — two tenants' identical (messageId, handlerType) can never collide.
+		document.Id = ScopedId(messageId, handlerType);
+		document.TenantId = TenantTerm;
+
+		// The stored partition-key field (handler_type) MUST equal the partition we write to, so it matches the
+		// uniform partition selection: the shared partition-key value when configured, else the handler type.
+		document.HandlerType = ResolvePartitionKeyValue(handlerType);
+
 		try
 		{
 			_ = await _container!.CreateItemAsync(
 				document,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
 				cancellationToken).ConfigureAwait(false);
 
@@ -149,13 +212,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
@@ -178,7 +241,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { IfMatchEtag = response.ETag },
 				cancellationToken).ConfigureAwait(false);
 
@@ -199,13 +262,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
@@ -215,7 +278,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { IfMatchEtag = response.ETag },
 				cancellationToken).ConfigureAwait(false);
 
@@ -240,9 +303,10 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		var now = DateTimeOffset.UtcNow;
 		var document = new CosmosDbInboxDocument
 		{
-			Id = CosmosDbInboxDocument.CreateId(messageId, handlerType),
+			Id = ScopedId(messageId, handlerType),
+			TenantId = TenantTerm,
 			MessageId = messageId,
-			HandlerType = handlerType,
+			HandlerType = ResolvePartitionKeyValue(handlerType),
 			MessageType = string.Empty,
 			Payload = string.Empty,
 			Status = (int)InboxStatus.Processed,
@@ -256,7 +320,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		{
 			_ = await _container!.CreateItemAsync(
 				document,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { EnableContentResponseOnWrite = false },
 				cancellationToken).ConfigureAwait(false);
 
@@ -286,9 +350,10 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		var now = DateTimeOffset.UtcNow;
 		var document = new CosmosDbInboxDocument
 		{
-			Id = CosmosDbInboxDocument.CreateId(messageId, handlerType),
+			Id = ScopedId(messageId, handlerType),
+			TenantId = TenantTerm,
 			MessageId = messageId,
-			HandlerType = handlerType,
+			HandlerType = ResolvePartitionKeyValue(handlerType),
 			MessageType = string.Empty,
 			Payload = string.Empty,
 			Status = (int)InboxStatus.Processing,
@@ -299,7 +364,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 		{
 			_ = await _container!.CreateItemAsync(
 				document,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { EnableContentResponseOnWrite = false },
 				cancellationToken).ConfigureAwait(false);
 
@@ -321,13 +386,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			// Never delete a finalized (Processed) entry.
@@ -340,7 +405,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			// since the read (e.g. was finalized), so a finalized claim is never deleted even under a race.
 			_ = await _container!.DeleteItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { IfMatchEtag = response.ETag },
 				cancellationToken).ConfigureAwait(false);
 		}
@@ -361,13 +426,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			return response.Resource.Status == (int)InboxStatus.Processed;
@@ -386,13 +451,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			return response.Resource.ToInboxEntry();
@@ -414,13 +479,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
@@ -432,7 +497,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { IfMatchEtag = response.ETag },
 				cancellationToken).ConfigureAwait(false);
 
@@ -455,13 +520,13 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbInboxDocument.CreateId(messageId, handlerType);
+		var documentId = ScopedId(messageId, handlerType);
 
 		try
 		{
 			var response = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
@@ -476,7 +541,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			_ = await _container!.ReplaceItemAsync(
 				document,
 				documentId,
-				new PartitionKey(handlerType),
+				ResolvePartitionKey(handlerType),
 				new ItemRequestOptions { IfMatchEtag = response.ETag },
 				cancellationToken).ConfigureAwait(false);
 
@@ -634,7 +699,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			{
 				_ = await _container!.DeleteItemAsync<CosmosDbInboxDocument>(
 					id,
-					new PartitionKey(handlerType),
+					ResolvePartitionKey(handlerType),
 					cancellationToken: cancellationToken).ConfigureAwait(false);
 				deletedCount++;
 			}
@@ -646,6 +711,115 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		LogCleanedUp(deletedCount, olderThan);
 		return deletedCount;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>The Cosmos DB store implements <see cref="IClaimableInboxStore"/> directly.</remarks>
+	public bool SupportsClaim => true;
+
+	/// <inheritdoc/>
+	/// <remarks>The Cosmos DB store implements <see cref="IProcessingTrackingInboxStore"/> directly.</remarks>
+	public bool SupportsProcessingTracking => true;
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// A Cosmos DB <c>TransactionalBatch</c> is single-partition, so atomic handler-plus-mark processing is only
+	/// possible when the handler's writes share a partition key with the inbox mark. The capability is therefore
+	/// gated on <see cref="CosmosDbInboxOptions.SharedPartitionKey"/> being configured; without it the store
+	/// advertises no transactional capability and callers fall back to the at-least-once idempotent claim
+	/// protocol rather than falsely advertising atomicity.
+	/// </remarks>
+	public bool SupportsTransactional => _options.SharedPartitionKey is not null;
+
+	/// <inheritdoc/>
+	public async ValueTask<bool> TryProcessTransactionallyAsync(
+		string messageId,
+		string handlerType,
+		Func<IInboxTransactionScope, CancellationToken, ValueTask> handler,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentNullException.ThrowIfNull(handler);
+
+		if (_options.SharedPartitionKey is null)
+		{
+			throw new NotSupportedException(
+				"Transactional inbox processing requires 'CosmosDbInboxOptions.SharedPartitionKey' to be configured " +
+				"so the handler's writes and the inbox processed-mark share a single partition (a Cosmos DB " +
+				"TransactionalBatch is single-partition). Without it the store reports SupportsTransactional=false " +
+				"and the caller must use the idempotent claim protocol.");
+		}
+
+		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Uniform partition selection: resolves to the shared partition key (non-null here), the same value used
+		// by the store's read/mark/claim paths, so the transactional mark and the non-transactional reads agree.
+		var partitionKey = ResolvePartitionKey(handlerType);
+		var documentId = ScopedId(messageId, handlerType);
+
+		// Duplicate check in the SHARED partition (where transactional marks are written): a message already
+		// marked processed is a duplicate — do not run the handler again.
+		try
+		{
+			var existing = await _container!.ReadItemAsync<CosmosDbInboxDocument>(
+				documentId,
+				partitionKey,
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			if (existing.Resource.Status == (int)InboxStatus.Processed)
+			{
+				LogDuplicateDetected(messageId, handlerType);
+				return false;
+			}
+		}
+		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		{
+			// No prior mark in the shared partition — proceed to process.
+		}
+
+		var batch = _container!.CreateTransactionalBatch(partitionKey);
+
+		// The handler enlists its own operations onto this batch (via scope.AsCosmosBatch()); those writes must
+		// target the shared partition key or the batch will reject them.
+		await handler(new CosmosInboxTransactionScope(batch, partitionKey), cancellationToken).ConfigureAwait(false);
+
+		// Add the processed-mark to the SAME batch so it commits atomically with the handler's writes.
+			// CreateItem (below), not UpsertItem, is the exactly-once guard: Cosmos serializes single-partition batch
+			// commits and CreateItem fails the batch with 409 Conflict when the id already exists, so the second of
+			// two concurrent redeliveries is rejected (its handler writes roll back with it), redelivered, and the
+			// pre-read sees Processed. First-writer-wins = exactly-once; Upsert would let both write-sets commit.
+		// The mark lives in the shared partition (handler_type = shared partition-key value) so it can share the
+		// batch; the composite id still encodes the real handler type.
+		var now = DateTimeOffset.UtcNow;
+		var markDocument = new CosmosDbInboxDocument
+		{
+			Id = documentId,
+			TenantId = TenantTerm,
+			MessageId = messageId,
+			HandlerType = ResolvePartitionKeyValue(handlerType),
+			MessageType = string.Empty,
+			Payload = string.Empty,
+			Status = (int)InboxStatus.Processed,
+			ReceivedAt = now,
+			ProcessedAt = now,
+			Ttl = _options.DefaultTimeToLiveSeconds > 0 ? _options.DefaultTimeToLiveSeconds : null
+		};
+
+		_ = batch.CreateItem(markDocument);
+
+		using var response = await batch.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+		if (!response.IsSuccessStatusCode)
+		{
+			throw new InvalidOperationException(
+				$"Transactional inbox batch failed with status '{response.StatusCode}' for message '{messageId}' " +
+				$"and handler '{handlerType}'. The handler's writes and the processed-mark were rolled back.");
+		}
+
+		LogMarkedProcessed(messageId, handlerType);
+		return true;
 	}
 
 	/// <inheritdoc/>
@@ -704,6 +878,14 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 			options.ApplicationPreferredRegions = _options.Client.PreferredRegions.ToList();
 		}
 
+		// Honor a consumer-supplied HttpClientFactory (as every other Cosmos store does), e.g. the Testcontainers
+		// Cosmos emulator's cert-bypassing HttpClient — without it the framework-built client cannot reach an
+		// emulator serving a self-signed cert, and the transactional path is not real-infra testable.
+		if (_options.Client.HttpClientFactory is not null)
+		{
+			options.HttpClientFactory = _options.Client.HttpClientFactory;
+		}
+
 		return options;
 	}
 
@@ -716,6 +898,22 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		return new CosmosClient(_options.Client.AccountEndpoint, _options.Client.AccountKey, options);
 	}
+
+	/// <summary>
+	/// Resolves the partition key for an operation on the given handler type: the configured shared partition
+	/// key when set (so every operation — read, mark, claim, and the transactional batch — targets one partition
+	/// and stays self-consistent), otherwise the per-handler partition.
+	/// </summary>
+	private PartitionKey ResolvePartitionKey(string handlerType) =>
+		new(_options.SharedPartitionKey ?? handlerType);
+
+	/// <summary>
+	/// Resolves the partition-key <em>value</em> to stamp on a written document's <c>handler_type</c> field so
+	/// it matches the partition the document is written to (Cosmos derives the partition from the document's
+	/// partition-key path, so the field and the write partition must agree).
+	/// </summary>
+	private string ResolvePartitionKeyValue(string handlerType) =>
+		_options.SharedPartitionKey ?? handlerType;
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{

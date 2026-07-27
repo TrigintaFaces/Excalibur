@@ -49,4 +49,17 @@ public interface IGlobalStreamQuery
 		GlobalStreamPosition position,
 		int maxCount,
 		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Gets the current head position of the global stream — the position of the most recently
+	/// committed event across all aggregates.
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// The highest committed global-stream position, or <c>0</c> when the stream is empty.
+	/// </returns>
+	/// <remarks>
+	/// Pairing the head with a subscription's checkpoint yields the subscription's projection lag.
+	/// </remarks>
+	ValueTask<long> GetHeadPositionAsync(CancellationToken cancellationToken);
 }

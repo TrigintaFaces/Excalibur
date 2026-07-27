@@ -70,6 +70,6 @@ internal sealed partial class InMemoryChangeFeedCheckpointStore : IChangeFeedChe
         LogLevel.Warning,
         "Change-feed continuation is NON-DURABLE (in-memory default) — checkpoints are lost on restart and "
         + "changes may be re-read from the beginning. Call AddCosmosDbChangeFeedCheckpointStore(...) to "
-        + "enable durable continuation. (bd-egwtku/ajt1iy)")]
+        + "enable durable continuation.")]
     private partial void LogNonDurableContinuation();
 }

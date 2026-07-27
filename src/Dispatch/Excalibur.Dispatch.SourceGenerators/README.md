@@ -102,7 +102,7 @@ public static class GeneratedServiceCollectionExtensions
 | `MessageTypeRegistrySourceGenerator` | **Archived** | Superseded by `MessageTypeSourceGenerator` + manual `MessageTypeRegistry` |
 | `RoutingRuleSourceGenerator` | Active | Compile-time routing rules |
 | `MessageFactorySourceGenerator` | **Archived** | `Activator.CreateInstance` calls are in JIT-only paths with AOT annotations |
-| `DispatchInterceptorGenerator` | **Archived** | No-op stub — superseded by `StaticPipelineGenerator` (Sprint 760) |
+| `DispatchInterceptorGenerator` | **Archived** | No-op stub — superseded by `StaticPipelineGenerator` |
 | `CachePolicySourceGenerator` | Active | Caching policy generation |
 | `CacheInfoSourceGenerator` | Active | Cache key generation |
 

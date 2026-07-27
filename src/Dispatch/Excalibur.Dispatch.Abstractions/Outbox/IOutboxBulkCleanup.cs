@@ -26,22 +26,7 @@ public interface IOutboxBulkCleanup
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>The total number of messages deleted across all batches.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="batchSize"/> is less than 1.</exception>
-	ValueTask<int> BulkCleanupSentMessagesAsync(
-		DateTimeOffset olderThan,
-		int batchSize,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Deletes failed messages that have exceeded the maximum retry count in batches.
-	/// </summary>
-	/// <param name="maxRetries">Only delete messages that have exceeded this retry count.</param>
-	/// <param name="olderThan">Only delete messages that failed before this timestamp.</param>
-	/// <param name="batchSize">Maximum number of messages to delete per batch iteration.</param>
-	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>The total number of messages deleted across all batches.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="batchSize"/> is less than 1.</exception>
-	ValueTask<int> BulkCleanupFailedMessagesAsync(
-		int maxRetries,
+	ValueTask<int> BulkCleanupAllTenantsSentMessagesAsync(
 		DateTimeOffset olderThan,
 		int batchSize,
 		CancellationToken cancellationToken);

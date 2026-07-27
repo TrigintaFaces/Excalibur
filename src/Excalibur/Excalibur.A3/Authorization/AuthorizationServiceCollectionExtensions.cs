@@ -28,7 +28,7 @@ public static class AuthorizationServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 			new AttributeAuthorizationCache(sp.GetRequiredService<ILogger<AttributeAuthorizationCache>>()));
 		services.TryAddSingleton<ConditionExpressionEvaluator>();
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, Excalibur.A3.Authorization.AuthorizationMiddleware>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, Excalibur.A3.Authorization.A3AuthorizationMiddleware>());
 
 		return services;
 	}

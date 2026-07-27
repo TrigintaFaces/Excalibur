@@ -149,10 +149,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 	}
 
 	[Fact]
-	public void ApplyToActionsOnly()
+	public void ApplyToActionsAndEvents()
 	{
 		var middleware = CreateMiddleware();
-		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
 	}
 
 	#endregion

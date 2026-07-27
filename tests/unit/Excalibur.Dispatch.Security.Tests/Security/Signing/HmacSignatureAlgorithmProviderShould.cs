@@ -27,7 +27,6 @@ public sealed class HmacSignatureAlgorithmProviderShould
 
 	[Theory]
 	[InlineData(SigningAlgorithm.ECDSASHA256)]
-	[InlineData(SigningAlgorithm.Ed25519)]
 	[InlineData(SigningAlgorithm.RSASHA256)]
 	[InlineData(SigningAlgorithm.Unknown)]
 	public void NotSupportNonHmacAlgorithms(SigningAlgorithm algorithm)

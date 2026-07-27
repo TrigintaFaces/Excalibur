@@ -146,7 +146,7 @@ public sealed partial class TransportRouterMiddleware(ILogger<TransportRouterMid
 			kinds |= MessageKinds.Document;
 		}
 
-		return kinds == MessageKinds.None ? MessageKinds.Document : kinds;
+		return kinds == MessageKinds.None ? Delivery.UnclassifiedMessage.FailClosed(type) : kinds;
 	}
 
 	// Source-generated logging methods

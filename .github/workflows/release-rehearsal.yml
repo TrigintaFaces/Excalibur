@@ -38,16 +38,24 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 60
 
+    # Signing-certificate availability is evaluated by step-level `if:` conditions below.
+    # It MUST be declared at job scope: a step's own `env:` block is not in scope for that
+    # step's `if:`, so a step-scoped declaration makes the condition reference an always-empty
+    # value and the guarded step becomes unreachable by construction.
+    env:
+      NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+      NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -55,7 +63,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -70,9 +78,6 @@ jobs:
       - name: Sign NuGet packages (if certificate available)
         if: env.NUGET_SIGNING_CERT_BASE64 != ''
         shell: pwsh
-        env:
-          NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
-          NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
         run: |
           $certPath = Join-Path $env:RUNNER_TEMP 'nuget-signing.pfx'
           try {
@@ -119,8 +124,6 @@ jobs:
 
       - name: NuGet signing skipped (no certificate)
         if: env.NUGET_SIGNING_CERT_BASE64 == ''
-        env:
-          NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
         shell: bash
         run: |
           echo "::notice::NuGet package signing skipped -- NUGET_SIGNING_CERT_BASE64 secret not configured."

@@ -56,4 +56,47 @@ public sealed class AwsSqsVisibilityHeartbeatOptions
 	/// is allowed to become visible again, providing a safety bound against a stuck handler.
 	/// </remarks>
 	public TimeSpan MaxExtension { get; set; } = TimeSpan.FromMinutes(10);
+
+	/// <summary>
+	/// The maximum visibility timeout AWS SQS permits (12 hours).
+	/// </summary>
+	private static readonly TimeSpan MaxSqsVisibilityTimeout = TimeSpan.FromHours(12);
+
+	/// <summary>
+	/// Validates the heartbeat configuration, enforcing the cross-property invariant that the extension
+	/// <see cref="Interval"/> is shorter than the <see cref="VisibilityTimeout"/> (otherwise the window can
+	/// lapse — and the same message be redelivered — before the next extension is applied). Only enforced
+	/// when <see cref="Enabled"/> is <see langword="true"/>, since a disabled heartbeat never runs.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when any constraint is violated.</exception>
+	public void Validate()
+	{
+		if (!Enabled)
+		{
+			return;
+		}
+
+		if (Interval <= TimeSpan.Zero)
+		{
+			throw new InvalidOperationException("VisibilityHeartbeat.Interval must be greater than zero when the heartbeat is enabled.");
+		}
+
+		if (VisibilityTimeout <= TimeSpan.Zero || VisibilityTimeout > MaxSqsVisibilityTimeout)
+		{
+			throw new InvalidOperationException(
+				$"VisibilityHeartbeat.VisibilityTimeout must be greater than zero and at most {MaxSqsVisibilityTimeout} (AWS SQS maximum).");
+		}
+
+		if (Interval >= VisibilityTimeout)
+		{
+			throw new InvalidOperationException(
+				$"VisibilityHeartbeat.Interval ({Interval}) must be shorter than VisibilityTimeout ({VisibilityTimeout}) so the extension is applied before the current visibility window expires.");
+		}
+
+		if (MaxExtension < Interval)
+		{
+			throw new InvalidOperationException(
+				$"VisibilityHeartbeat.MaxExtension ({MaxExtension}) must be at least one Interval ({Interval}) so at least one extension can be applied.");
+		}
+	}
 }

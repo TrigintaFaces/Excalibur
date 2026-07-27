@@ -52,8 +52,8 @@ public sealed class MultiTransportHealthCheckShould
 		var adapter1 = CreateRunningAdapter("adapter1", "RabbitMQ");
 		var adapter2 = CreateRunningAdapter("adapter2", "Kafka");
 
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 
@@ -73,8 +73,8 @@ public sealed class MultiTransportHealthCheckShould
 		var adapter1 = CreateRunningAdapter("adapter1", "RabbitMQ");
 		var adapter2 = CreateStoppedAdapter("adapter2", "Kafka");
 
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
@@ -95,8 +95,8 @@ public sealed class MultiTransportHealthCheckShould
 		var adapter1 = CreateStoppedAdapter("adapter1", "RabbitMQ");
 		var adapter2 = CreateStoppedAdapter("adapter2", "Kafka");
 
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 
@@ -116,8 +116,8 @@ public sealed class MultiTransportHealthCheckShould
 		var adapter1 = CreateStoppedAdapter("adapter1", "RabbitMQ");
 		var adapter2 = CreateRunningAdapter("adapter2", "Kafka");
 
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		var options = new MultiTransportHealthCheckOptions { RequireDefaultTransportHealthy = true };
@@ -139,8 +139,8 @@ public sealed class MultiTransportHealthCheckShould
 		var adapter1 = CreateStoppedAdapter("adapter1", "RabbitMQ");
 		var adapter2 = CreateRunningAdapter("adapter2", "Kafka");
 
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		var options = new MultiTransportHealthCheckOptions { RequireDefaultTransportHealthy = false };
@@ -159,7 +159,7 @@ public sealed class MultiTransportHealthCheckShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateRunningAdapter("adapter1", "RabbitMQ");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 
@@ -177,7 +177,7 @@ public sealed class MultiTransportHealthCheckShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateRunningAdapter("adapter1", "RabbitMQ");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 
@@ -206,7 +206,7 @@ public sealed class MultiTransportHealthCheckShould
 				TimeSpan.FromMilliseconds(5),
 				new Dictionary<string, object> { ["Connections"] = 5 }));
 
-		registry.RegisterTransport("custom", adapter, "Custom");
+		registry.RegisterTransport("custom", adapter, "Custom", TransportLocality.Local);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 
@@ -229,7 +229,7 @@ public sealed class MultiTransportHealthCheckShould
 			isRunning: true,
 			throwOnHealthCheck: new InvalidOperationException("Connection lost"));
 
-		registry.RegisterTransport("failing", adapter, "Custom");
+		registry.RegisterTransport("failing", adapter, "Custom", TransportLocality.Local);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 
@@ -246,7 +246,7 @@ public sealed class MultiTransportHealthCheckShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateRunningAdapter("adapter1", "RabbitMQ");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		var healthCheck = new MultiTransportHealthCheck(registry);
 		using var cts = new CancellationTokenSource();

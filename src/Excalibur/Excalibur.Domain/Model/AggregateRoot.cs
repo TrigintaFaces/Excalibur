@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch;
+using Excalibur.Domain.Exceptions;
 
 namespace Excalibur.Domain.Model;
 
@@ -20,11 +21,11 @@ namespace Excalibur.Domain.Model;
 /// <code>
 /// public class OrderAggregate : AggregateRoot
 /// {
-///     protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+///     protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 ///     {
 ///         OrderCreated e => Apply(e),
 ///         OrderShipped e => Apply(e),
-///         _ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
+///         _ => false
 ///     };
 /// }
 /// </code>
@@ -63,17 +64,17 @@ public abstract class AggregateRoot : AggregateRoot<string>
 /// {
 ///     public static OrderAggregate Create(Guid id) =&gt; new() { Id = id };
 ///
-///     public static OrderAggregate FromEvents(Guid id, IEnumerable&lt;IDomainEvent&gt; events)
+///     public static OrderAggregate FromEvents(Guid id, IEnumerable&lt;HistoricEvent&gt; events)
 ///     {
 ///         var aggregate = Create(id);
 ///         aggregate.LoadFromHistory(events);
 ///         return aggregate;
 ///     }
 ///
-///     protected override void ApplyEventInternal(IDomainEvent @event) =&gt; _ = @event switch
+///     protected override bool ApplyEventInternal(IDomainEvent @event) =&gt; @event switch
 ///     {
 ///         OrderCreated e =&gt; Apply(e),
-///         _ =&gt; throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+///         _ =&gt; false
 ///     };
 /// }
 /// </code>
@@ -127,7 +128,7 @@ public abstract class AggregateRoot<TAggregate, TKey> : AggregateRoot<TKey>, IAg
 	/// <param name="id">The unique identifier for the aggregate.</param>
 	/// <param name="events">The stream of events to replay.</param>
 	/// <returns>The aggregate rebuilt from the events.</returns>
-	public static TAggregate FromEvents(TKey id, IEnumerable<IDomainEvent> events)
+	public static TAggregate FromEvents(TKey id, IEnumerable<HistoricEvent> events)
 	{
 		var aggregate = Create(id);
 		aggregate.LoadFromHistory(events);
@@ -162,11 +163,11 @@ public abstract class AggregateRoot<TAggregate, TKey> : AggregateRoot<TKey>, IAg
 /// {
 ///     public OrderStatus Status { get; private set; }
 ///
-///     protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+///     protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 ///     {
 ///         OrderCreated e => Apply(e),
 ///         OrderShipped e => Apply(e),
-///         _ => throw new InvalidOperationException($"Unknown event type: {@event.GetType().Name}")
+///         _ => false
 ///     };
 ///
 ///     private bool Apply(OrderCreated e)
@@ -239,14 +240,34 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	}
 
 	/// <inheritdoc/>
-	public void LoadFromHistory(IEnumerable<IDomainEvent> history)
+	public void LoadFromHistory(IEnumerable<HistoricEvent> history)
 	{
 		ArgumentNullException.ThrowIfNull(history);
 
-		foreach (var @event in history)
+		foreach (var historic in history)
 		{
-			ApplyEventInternal(@event);
-			Version++;
+			// Contiguity: replayed events MUST be gap-free and in order. The store's version is the durable
+			// 0-based stream index (first event = 0), while Version is the count of applied events (also the
+			// next expected index). The authoritative version travels in the envelope, never in the payload:
+			// a domain event cannot be trusted to report the position it was written at, and 36 of the types
+			// that implement IDomainEvent have no way to be told it. Inferring the version by counting (the
+			// removed `Version++`) would silently apply an event where a missing one belongs and rehydrate a
+			// corrupt aggregate without any error.
+			var expectedVersion = Version;
+			if (historic.Version != expectedVersion)
+			{
+				throw new EventStreamContiguityException(GetType(), expectedVersion, historic.Version);
+			}
+
+			// Totality: an event with no matching ApplyEventInternal arm returns false and is refused here,
+			// rather than being silently ignored while the version still advances.
+			if (!ApplyEventInternal(historic.Event))
+			{
+				throw new UnhandledDomainEventException(GetType(), historic.Event.GetType());
+			}
+
+			// Advance the count to one past the applied 0-based index.
+			Version = historic.Version + 1;
 		}
 	}
 
@@ -275,7 +296,10 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	public void ApplyEvent(IDomainEvent eventData)
 	{
 		ArgumentNullException.ThrowIfNull(eventData);
-		ApplyEventInternal(eventData);
+		if (!ApplyEventInternal(eventData))
+		{
+			throw new UnhandledDomainEventException(GetType(), eventData.GetType());
+		}
 	}
 
 	/// <inheritdoc/>
@@ -306,19 +330,11 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	{
 		ArgumentNullException.ThrowIfNull(@event);
 
-		// Framework enforces metadata via internal IEventMetadataWriter.
-		// The public IDomainEvent interface is read-only -- consumers cannot set
-		// AggregateId or Version. Only the framework stamps these values.
-		// Events deriving from DomainEvent get this automatically.
-		// Custom IDomainEvent implementations are responsible for their own metadata.
-		if (@event is IEventMetadataWriter writer)
+		if (!ApplyEventInternal(@event))
 		{
-			writer.SetAggregateMetadata(
-				Id?.ToString() ?? string.Empty,
-				Version + _uncommittedEvents.Count + 1);
+			throw new UnhandledDomainEventException(GetType(), @event.GetType());
 		}
 
-		ApplyEventInternal(@event);
 		_uncommittedEvents.Add(@event);
 	}
 
@@ -326,20 +342,28 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>, IAggregateSnap
 	/// Applies the event's changes to the aggregate's state using pattern matching.
 	/// </summary>
 	/// <param name="event">The domain event to apply.</param>
+	/// <returns>
+	/// <see langword="true"/> if the aggregate recognized and applied the event type; otherwise
+	/// <see langword="false"/>. Returning <see langword="false"/> (a missing switch arm) causes the caller
+	/// to throw <see cref="UnhandledDomainEventException"/> — an unrecognized event is refused, never
+	/// silently ignored.
+	/// </returns>
 	/// <remarks>
 	/// <para>
-	/// Implement this method using a switch expression for optimal performance:
+	/// Implement this method using a switch expression for optimal performance. The default arm returns
+	/// <see langword="false"/> so an unhandled event fails loud:
 	/// </para>
 	/// <code>
-	/// protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	/// protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 	/// {
 	///     OrderCreated e => Apply(e),
 	///     OrderConfirmed e => Apply(e),
-	///     _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+	///     _ => false
 	/// };
 	/// </code>
+	/// <para>Each <c>Apply</c> overload returns <see langword="true"/>.</para>
 	/// </remarks>
-	protected abstract void ApplyEventInternal(IDomainEvent @event);
+	protected abstract bool ApplyEventInternal(IDomainEvent @event);
 
 	/// <summary>
 	/// Applies a snapshot to restore aggregate state.

@@ -319,6 +319,21 @@ Prerequisite validators are registered for:
 
 These validators are AOT-safe (no reflection) and invisible to consumers — they are registered transparently by each subsystem's DI extension.
 
+### Host-less containers must trigger the gates explicitly
+
+Prerequisite validators — and the fail-fast durability gates (audit-store, key, grant, schedule, and separation-of-duties checks) registered with `ValidateOnStart()` — run from the host's startup validation, which only fires when the application calls `IHost.StartAsync`. A consumer who builds an `IServiceProvider` manually and resolves services directly, without ever starting a host (a custom serverless runtime, a manual `BuildServiceProvider()`, a unit of work that never builds a host), never triggers them, so those fail-fast guarantees are silently inert.
+
+Such a consumer **must** call `ValidateStartupGates()` once, immediately after building the provider, to run the same checks the host would have run at start:
+
+```csharp
+var provider = services.BuildServiceProvider();
+provider.ValidateStartupGates(); // runs every ValidateOnStart() gate now; throws OptionsValidationException on failure
+```
+
+`ValidateStartupGates()` runs the framework's own startup validator, so it validates *every* registered gate — a gate added later is covered automatically. It no-ops when nothing registered startup validation, returns the same provider for chaining, and is safe to call once after build.
+
+Hosts that build their provider through the generic host and call `StartAsync` — including Azure Functions and AWS Lambda on the isolated-worker model — already run these gates at start and do not need this call. It is for the genuinely host-less path only.
+
 ## Transport and Cross-Cutting Registration
 
 The `AddDispatch()` builder also supports transport and cross-cutting concern registration through extension methods:

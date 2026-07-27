@@ -456,6 +456,8 @@ public class OrderAntiCorruptionHandler : IDataChangeHandler
 
         if (domainEvent is not null)
         {
+            // Dispatch from within a handler; DispatchAsync auto-childs so causation/correlation
+            // identifiers propagate to the child message.
             await _dispatcher.DispatchAsync(domainEvent, ct);
         }
     }

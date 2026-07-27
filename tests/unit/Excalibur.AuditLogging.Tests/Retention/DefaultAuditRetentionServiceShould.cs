@@ -13,51 +13,95 @@ public sealed class DefaultAuditRetentionServiceShould
 {
     private readonly IAuditStore _fakeStore = A.Fake<IAuditStore>();
 
-    private DefaultAuditRetentionService CreateSut(AuditRetentionOptions? options = null)
+    private DefaultAuditRetentionService CreateSut(
+        AuditRetentionOptions? options = null,
+        TimeProvider? timeProvider = null)
     {
         var opts = Microsoft.Extensions.Options.Options.Create(options ?? new AuditRetentionOptions());
         return new DefaultAuditRetentionService(
             _fakeStore,
             opts,
-            NullLogger<DefaultAuditRetentionService>.Instance);
+            NullLogger<DefaultAuditRetentionService>.Instance,
+            timeProvider);
     }
 
-    [Fact]
-    public async Task Enforce_retention_queries_expired_events()
+    /// <summary>
+    /// A clock that does not move, so a cutoff derived from it can be asserted EXACTLY.
+    /// </summary>
+    /// <remarks>
+    /// The cutoff arm below used to bound the value in a one-day window because the service read the system
+    /// clock internally. That window was not merely imprecise — it was <b>wrong in one direction</b>: the
+    /// service computes <c>UtcNow - period</c> <i>after</i> the test captures its reference instant, so the
+    /// real cutoff is always slightly LATER than <c>reference - period</c> while the predicate demanded it be
+    /// earlier or equal. It passed only while the clock happened not to tick between the two statements.
+    /// The service takes an injectable <see cref="TimeProvider"/>, so the range can be replaced by equality.
+    /// </remarks>
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
-        var sut = CreateSut(new AuditRetentionOptions
-        {
-            RetentionPeriod = TimeSpan.FromDays(30),
-            BatchSize = 100
-        });
+        public override DateTimeOffset GetUtcNow() => now;
+    }
 
-        A.CallTo(() => _fakeStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
-            .Returns(Task.FromResult<IReadOnlyList<AuditEvent>>([]));
+    /// <summary>
+    /// Retention must DELETE, and it must delete at the configured cutoff.
+    /// </summary>
+    /// <remarks>
+    /// Rebound from the previous arms, which asserted that retention <c>QueryAsync</c>-ed the expired events.
+    /// That is what the service used to do — query them, log that deletion had completed, and delete nothing.
+    /// An arm asserting the query therefore passed against a service that removed no data at all: it described
+    /// the defect rather than the contract. The service now resolves <see cref="IAuditPurgeCapability"/> and
+    /// purges; asserting the query would today assert a call that no longer exists.
+    /// </remarks>
+    [Fact]
+    public async Task Enforce_retention_purges_at_the_configured_cutoff()
+    {
+        var now = new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero);
+        var sut = CreateSut(
+            new AuditRetentionOptions
+            {
+                RetentionPeriod = TimeSpan.FromDays(30),
+                BatchSize = 100
+            },
+            new FixedTimeProvider(now));
+
+        var purge = A.Fake<IAuditPurgeCapability>();
+        A.CallTo(() => _fakeStore.GetService(typeof(IAuditPurgeCapability))).Returns(purge);
+        A.CallTo(() => purge.PurgeExpiredAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(0));
 
         await sut.EnforceRetentionAsync(CancellationToken.None);
 
-        A.CallTo(() => _fakeStore.QueryAsync(
-                A<AuditQuery>.That.Matches(q =>
-                    q.MaxResults == 100 &&
-                    q.OrderByDescending == false &&
-                    q.EndDate.HasValue),
+        // EXACT, not a window. With the clock injected the cutoff is fully determined, so this pins the
+        // property outright: retention deletes at precisely the configured period back. A drifting or
+        // zeroed cutoff — the failure that would silently purge everything, or nothing — cannot slip
+        // through an equality the way it could through a one-day range.
+        A.CallTo(() => purge.PurgeExpiredAsync(
+                now - TimeSpan.FromDays(30),
                 A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
 
+    /// <summary>
+    /// A store with no purge capability must not be treated as a successful retention run.
+    /// </summary>
+    /// <remarks>
+    /// This is the non-target half: the service must not report that retention happened when it had no way to
+    /// delete anything. That exact shape — reporting completion while deleting nothing — is the defect this
+    /// service was repaired for, and nothing else here would notice its return.
+    /// </remarks>
     [Fact]
-    public async Task Return_early_when_no_expired_events()
+    public async Task Not_purge_when_the_store_provides_no_purge_capability()
     {
         var sut = CreateSut();
 
-        A.CallTo(() => _fakeStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
-            .Returns(Task.FromResult<IReadOnlyList<AuditEvent>>([]));
+        A.CallTo(() => _fakeStore.GetService(typeof(IAuditPurgeCapability))).Returns(null);
 
-        await sut.EnforceRetentionAsync(CancellationToken.None);
+        var ex = await Should.ThrowAsync<NotSupportedException>(
+            () => sut.EnforceRetentionAsync(CancellationToken.None));
 
-        // Should have queried but not called anything beyond the query
-        A.CallTo(() => _fakeStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
-            .MustHaveHappenedOnceExactly();
+        ex.Message.ShouldContain(
+            "does not",
+            Case.Insensitive,
+            "the failure must name what is missing, so an operator can act rather than guess.");
     }
 
     [Fact]

@@ -35,6 +35,14 @@ public sealed class CapabilityPresenceGuardsShould
 	public void Succeed_WhenOutboxStoreCanDeadLetter()
 	{
 		var store = A.Fake<IOutboxStore>(b => b.Implements<IDeadLetterableOutboxStore>());
+
+		// FIXTURE HONESTY (l0qpxo seam migration). OutboxDeadLetterCapabilityValidator now resolves the capability
+		// via _outboxStore.GetService(typeof(IDeadLetterableOutboxStore)), not an `is`-cast. A bare fake answers
+		// GetService with a non-null dummy that is NOT the interface, so the validator sees no capability and
+		// FAILS — a false RED against correct code. A real store returns itself for a capability it implements.
+		A.CallTo(() => store.GetService(A<Type>._))
+			.ReturnsLazily((Type serviceType) => serviceType.IsInstanceOfType(store) ? store : null);
+
 		var validator = new OutboxDeadLetterCapabilityValidator(store);
 
 		var result = validator.Validate(null, new OutboxDeliveryOptions());

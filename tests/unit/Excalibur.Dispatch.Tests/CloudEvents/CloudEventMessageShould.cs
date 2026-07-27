@@ -24,7 +24,6 @@ public sealed class CloudEventMessageShould
 		message.Headers.ShouldNotBeNull();
 		message.Headers.Count.ShouldBe(0);
 		message.Features.ShouldNotBeNull();
-		message.Kind.ShouldBe(MessageKinds.Event);
 	}
 
 	[Fact]

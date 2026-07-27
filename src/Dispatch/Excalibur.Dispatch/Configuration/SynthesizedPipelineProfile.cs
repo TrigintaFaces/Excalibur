@@ -36,7 +36,8 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 	{
 		Name = name ?? throw new ArgumentNullException(nameof(name));
 		Description = description ?? throw new ArgumentNullException(nameof(description));
-		MiddlewareTypes = middlewareTypes ?? throw new ArgumentNullException(nameof(middlewareTypes));
+		ArgumentNullException.ThrowIfNull(middlewareTypes);
+		MiddlewareEntries = BuildRequiredEntries(middlewareTypes);
 		IsStrict = isStrict;
 		SupportedMessageKinds = supportedMessageKinds;
 		_middlewareRules = BuildMiddlewareRules(middlewareTypes);
@@ -65,7 +66,28 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 	public MessageKinds SupportedMessageKinds { get; }
 
 	/// <inheritdoc />
-	public IReadOnlyList<Type> MiddlewareTypes { get; }
+	/// <remarks>
+	/// A synthesized profile has already decided which middleware belongs in it, so every surviving entry is
+	/// <see cref="MiddlewareCriticality.Required" />. Middleware the synthesizer chose to omit is absent from this list entirely rather than
+	/// present-and-optional, which keeps "omitted by synthesis" distinguishable from "declared but unresolvable at build".
+	/// </remarks>
+	public IReadOnlyList<MiddlewareEntry> MiddlewareEntries { get; }
+
+	private static IReadOnlyList<MiddlewareEntry> BuildRequiredEntries(Type[] middlewareTypes)
+	{
+		if (middlewareTypes.Length == 0)
+		{
+			return [];
+		}
+
+		var entries = new MiddlewareEntry[middlewareTypes.Length];
+		for (var i = 0; i < middlewareTypes.Length; i++)
+		{
+			entries[i] = new MiddlewareEntry(middlewareTypes[i], MiddlewareCriticality.Required);
+		}
+
+		return Array.AsReadOnly(entries);
+	}
 
 	/// <summary>
 	/// Gets metadata about the synthesis process.
@@ -76,7 +98,7 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 	/// <summary>
 	/// Gets the middleware types for this profile.
 	/// </summary>
-	public IEnumerable<Type> GetMiddlewareTypes() => MiddlewareTypes;
+	public IEnumerable<Type> GetMiddlewareTypes() => MiddlewareEntries.Select(static e => e.MiddlewareType);
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Uses reflection to determine message kind.")]
@@ -206,19 +228,13 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 
 	private readonly struct MiddlewareRule
 	{
-		private readonly MessageKinds _includedKinds;
-		private readonly MessageKinds _excludedKinds;
 		private readonly DispatchFeatures[] _requiredFeatures;
 
 		private MiddlewareRule(
 			Type middlewareType,
-			MessageKinds includedKinds,
-			MessageKinds excludedKinds,
 			DispatchFeatures[] requiredFeatures)
 		{
 			MiddlewareType = middlewareType;
-			_includedKinds = includedKinds;
-			_excludedKinds = excludedKinds;
 			_requiredFeatures = requiredFeatures;
 		}
 
@@ -226,8 +242,10 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 
 		public static MiddlewareRule Create(Type middlewareType)
 		{
-			var appliesToAttribute = middlewareType.GetCustomAttribute<AppliesToAttribute>();
-			var excludeKindsAttribute = middlewareType.GetCustomAttribute<ExcludeKindsAttribute>();
+			// akwb5j: message-kind applicability is resolved at runtime from each middleware's
+			// ApplicableMessageKinds property via IMiddlewareApplicabilityStrategy (the single source of
+			// truth). The build-time [AppliesTo]/[ExcludeKinds] kinds filter was a divergent second source
+			// and is removed; only the orthogonal [RequiresFeatures] gate remains here.
 			var requiresFeaturesAttribute = middlewareType.GetCustomAttribute<RequiresFeaturesAttribute>();
 
 			var requiredFeatures = requiresFeaturesAttribute?.Features;
@@ -247,22 +265,14 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile, IPipelinePr
 
 			return new MiddlewareRule(
 				middlewareType,
-				appliesToAttribute?.MessageKinds ?? MessageKinds.All,
-				excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
 				requiredFeatureArray);
 		}
 
 		public bool IsApplicable(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
 		{
-			if ((_excludedKinds & messageKind) != MessageKinds.None)
-			{
-				return false;
-			}
-
-			if ((_includedKinds & messageKind) == MessageKinds.None)
-			{
-				return false;
-			}
+			// Kind applicability is the runtime property strategy's responsibility (akwb5j); this rule now
+			// gates only on required features. messageKind is retained for the IPipelineProfile signature.
+			_ = messageKind;
 
 			for (var i = 0; i < _requiredFeatures.Length; i++)
 			{

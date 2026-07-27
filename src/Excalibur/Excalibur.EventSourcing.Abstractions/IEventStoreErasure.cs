@@ -13,8 +13,24 @@ namespace Excalibur.EventSourcing;
 /// to preserve the event sequence for other aggregates that reference these events.
 /// </para>
 /// <para>
-/// Consumers that do not need erasure support should not implement this interface.
-/// Use <c>GetService(typeof(IEventStoreErasure))</c> to probe for erasure capability.
+/// Event stores that do not support erasure should not implement this interface.
+/// </para>
+/// <para>
+/// This is a <b>capability of the event store</b>, not a separately registered service. It is never added to
+/// the service collection on its own, so resolving it from the container always yields <see langword="null"/>.
+/// Probe the resolved <see cref="IEventStore"/> instead:
+/// </para>
+/// <code>
+/// var eventStore = serviceProvider.GetRequiredKeyedService&lt;IEventStore&gt;("default");
+/// if (eventStore is IEventStoreErasure erasure)
+/// {
+///     _ = await erasure.EraseEventsAsync(aggregateId, aggregateType, requestId, cancellationToken);
+/// }
+/// </code>
+/// <para>
+/// A store wrapped by a decorator exposes this capability only if the decorator re-implements it and forwards.
+/// A decorator that omits it silently strips the capability: the probe answers <see langword="false"/> for a
+/// store that supports erasure.
 /// </para>
 /// </remarks>
 public interface IEventStoreErasure

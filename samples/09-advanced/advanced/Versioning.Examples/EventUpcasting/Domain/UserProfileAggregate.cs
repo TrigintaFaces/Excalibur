@@ -107,19 +107,21 @@ public class UserProfileAggregate : AggregateRoot<string>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			// Only handle V3 events - older versions are automatically upcasted
-			case UserCreatedV3 e: Apply(e); break;
-			case UserNameChangedV3 e: Apply(e); break;
-			case UserAddressChangedV3 e: Apply(e); break;
+			case UserCreatedV3 e: Apply(e); return true;
+			case UserNameChangedV3 e: Apply(e); return true;
+			case UserAddressChangedV3 e: Apply(e); return true;
 
 			// These should never reach the aggregate (they get upcasted)
 			// but we handle them gracefully for demonstration
-			case UserCreatedV1 e: Apply(e); break;
-			case UserCreatedV2 e: Apply(e); break;
+			case UserCreatedV1 e: Apply(e); return true;
+			case UserCreatedV2 e: Apply(e); return true;
+			default:
+				return false;
 		}
 	}
 

@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Serialization;
 
+using Excalibur.Outbox;
 using Excalibur.Outbox.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -153,7 +154,7 @@ public sealed partial class MessageOutbox(
 			messageId: Uuid7Extensions.GenerateString(),
 			messageType: evt.GetType().FullName ?? evt.GetType().Name,
 			messageMetadata: serializer.Serialize(metadata),
-			messageBody: serializer.Serialize(evt),
+			messageBody: serializer.SerializeToUtf8Bytes(evt, evt.GetType()),
 			createdAt: created,
 			expiresAt: expires)).ToArray();
 
@@ -223,6 +224,8 @@ public sealed partial class MessageOutbox(
 	public async Task<IEnumerable<IDispatchMessage>> GetPendingMessagesAsync(CancellationToken cancellationToken)
 	{
 		// Get pending messages from the outbox store
+		// Unfenced drain: MessageOutbox holds no leadership tenure, so it claims through the unfenced
+		// IOutboxStore members. The fenced drain is OutboxProcessor, which presents its leadership token.
 		var pendingMessages = await outboxStore.GetUnsentMessagesAsync(
 			_options.ProducerBatchSize,
 			cancellationToken).ConfigureAwait(false);
@@ -236,8 +239,11 @@ public sealed partial class MessageOutbox(
 			{
 				if (ResolveMessageType(message.MessageType) is { } messageType)
 				{
-					var payloadString = Encoding.UTF8.GetString(message.Payload);
-					var deserializedMessage = await serializer.DeserializeAsync(payloadString, messageType).ConfigureAwait(false);
+					// Deserialize directly from the stored UTF-8 payload bytes (x8387b). Routing through
+					// Encoding.UTF8.GetString first is a lossy round-trip for any payload byte that is not
+					// valid UTF-8 (invalid sequences become the replacement character), corrupting binary or
+					// non-UTF8 bodies; the byte-native path is the exact inverse of SerializeToUtf8Bytes.
+					var deserializedMessage = serializer.DeserializeFromBytes(message.Payload, messageType);
 					if (deserializedMessage is IDispatchMessage dispatchMessage)
 					{
 						dispatchMessages.Add(dispatchMessage);
@@ -333,12 +339,12 @@ public sealed partial class MessageOutbox(
 	{
 		var headers = string.IsNullOrEmpty(outboxMessage.MessageMetadata)
 			? []
-			: JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.MessageMetadata) ?? [];
+			: JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.MessageMetadata, EventSerializationDefaults.Canonical) ?? [];
 
 		return new OutboundMessage(
 			messageType: outboxMessage.MessageType,
-			payload: Encoding.UTF8.GetBytes(outboxMessage.MessageBody),
-			destination: "default", // OutboxMessage doesn't have destination
+			payload: outboxMessage.MessageBody,
+			destination: outboxMessage.Destination ?? "default",
 			headers: headers)
 		{
 			Id = outboxMessage.MessageId,
@@ -346,6 +352,14 @@ public sealed partial class MessageOutbox(
 			ScheduledAt = outboxMessage.ExpiresAt,
 			RetryCount = outboxMessage.Attempts,
 			Status = OutboxStatus.Staged,
+			TenantId = outboxMessage.TenantId,
+			CorrelationId = outboxMessage.CorrelationId,
+			CausationId = outboxMessage.CausationId,
+			PartitionKey = outboxMessage.PartitionKey,
+			GroupKey = outboxMessage.GroupKey,
+			SequenceNumber = outboxMessage.SequenceNumber,
+			TargetTransports = outboxMessage.TargetTransports,
+			IsMultiTransport = outboxMessage.IsMultiTransport,
 		};
 	}
 
@@ -358,14 +372,21 @@ public sealed partial class MessageOutbox(
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
 	private static OutboundMessage ConvertIOutboxMessageToOutboundMessage(IOutboxMessage outboxMessage)
 	{
+		// The concrete OutboxMessage carries the dedicated routing/correlation fields; route through the
+		// concrete converter so no field is dropped on the SaveMessagesAsync path.
+		if (outboxMessage is OutboxMessage concrete)
+		{
+			return ConvertToOutboundMessage(concrete);
+		}
+
 		var headers = string.IsNullOrEmpty(outboxMessage.MessageMetadata)
 			? []
-			: JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.MessageMetadata) ?? [];
+			: JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.MessageMetadata, EventSerializationDefaults.Canonical) ?? [];
 
 		return new OutboundMessage(
 			messageType: outboxMessage.MessageType,
-			payload: Encoding.UTF8.GetBytes(outboxMessage.MessageBody),
-			destination: "default", // IOutboxMessage doesn't have destination
+			payload: outboxMessage.MessageBody,
+			destination: outboxMessage.Destination ?? "default",
 			headers: headers)
 		{
 			Id = outboxMessage.MessageId,
@@ -373,6 +394,7 @@ public sealed partial class MessageOutbox(
 			ScheduledAt = outboxMessage.ExpiresAt,
 			RetryCount = outboxMessage.Attempts,
 			Status = OutboxStatus.Staged,
+			TenantId = outboxMessage.TenantId,
 		};
 	}
 

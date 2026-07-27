@@ -93,9 +93,6 @@ public sealed class MemoryMessage : IMemoryMessage, IDisposable
 	/// <inheritdoc />
 	public Guid Id => EnsureId();
 
-	/// <inheritdoc />
-	public MessageKinds Kind => MessageKinds.Action;
-
 	/// <summary>
 	/// Disposes the message and returns any owned memory to the pool.
 	/// </summary>

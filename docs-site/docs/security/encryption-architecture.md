@@ -225,22 +225,16 @@ builder.Services.AddDevEncryption();
 ```csharp
 using Excalibur.Compliance.Azure;
 
-builder.Services.AddAzureKeyVaultKeyManagement(options =>
+builder.Services.AddAzureKeyVaultKeyManagement(azure =>
 {
-    options.VaultUri = new Uri("https://my-vault.vault.azure.net/");
-
-    // Option 1: Managed Identity (recommended)
-    options.UseManagedIdentity = true;
-
-    // Option 2: Service Principal
-    options.TenantId = configuration["Azure:TenantId"];
-    options.ClientId = configuration["Azure:ClientId"];
-    options.ClientSecret = configuration["Azure:ClientSecret"];
-
-    // Key settings
-    options.KeyName = "dispatch-encryption-key";
-    options.KeyRotationDays = 90;
+    azure.VaultUri(new Uri("https://my-vault.vault.azure.net/"))
+         // Key naming
+         .KeyNamePrefix("dispatch-encryption-")
+         // Require Premium (HSM-backed) keys in production
+         .RequirePremiumTier();
 });
+// Authentication uses DefaultAzureCredential (Managed Identity, environment,
+// or developer credentials) unless a custom TokenCredential is supplied.
 ```
 
 ### AWS KMS

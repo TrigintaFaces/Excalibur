@@ -37,7 +37,7 @@ public static class SqlServerOutboxExtensions
 	/// services.AddSqlServerOutboxStore(options =>
 	/// {
 	///     options.ConnectionString = "Server=.;Database=MyDb;Trusted_Connection=True;";
-	///     options.SchemaName = "messaging";
+	///     options.Tables.SchemaName = "messaging";
 	/// });
 	/// </code>
 	/// </example>
@@ -51,7 +51,18 @@ public static class SqlServerOutboxExtensions
 		_ = services.Configure(configure);
 		BridgeProcessorIdFromOutboxBuilder(services);
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerOutboxOptions>, SqlServerOutboxOptionsValidator>());
-		services.TryAddSingleton<SqlServerOutboxStore>();
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves ITenantContext.
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore emits the ITenantScopingCapability<IOutboxStore> marker inseparably from the store
+		// registration (S886 rw2ull (B)). The outbox store enforces tenant isolation by persisting each message's
+		// own TenantId column (the drain is intentionally cross-tenant) and reads no ambient tenant context, so
+		// the resolved context is not threaded into construction.
+		services.AddTenantScopedStore<IOutboxStore, SqlServerOutboxStore>(
+			static (sp, _) => new SqlServerOutboxStore(
+				sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>(),
+				sp.GetService<IPayloadSerializer>(),
+				inboxOptions: null,
+				sp.GetRequiredService<ILogger<SqlServerOutboxStore>>()));
 		services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerOutboxStore>());
 		services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
@@ -78,7 +89,7 @@ public static class SqlServerOutboxExtensions
 	/// <code>
 	/// services.AddSqlServerOutboxStore(
 	///     sp => () => (SqlConnection)sp.GetRequiredService&lt;IOutboxDb&gt;().Connection,
-	///     options => options.SchemaName = "messaging");
+	///     options => options.Tables.SchemaName = "messaging");
 	/// </code>
 	/// </para>
 	/// </remarks>
@@ -93,7 +104,12 @@ public static class SqlServerOutboxExtensions
 
 		_ = services.Configure(configure);
 		BridgeProcessorIdFromOutboxBuilder(services);
-		services.TryAddSingleton(sp =>
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves ITenantContext.
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore emits the ITenantScopingCapability<IOutboxStore> marker inseparably from the store
+		// registration (S886 rw2ull (B)). Isolation is carried by each message's own persisted TenantId column;
+		// the store reads no ambient tenant context (the drain is intentionally cross-tenant).
+		services.AddTenantScopedStore<IOutboxStore, SqlServerOutboxStore>((sp, _) =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
@@ -112,7 +128,7 @@ public static class SqlServerOutboxExtensions
 	}
 
 	/// <summary>
-	/// vdcxk4: honors the outbox builder's <c>WithProcessorId(x)</c> as the SQL lease owner. The
+	/// Honors the outbox builder's <c>WithProcessorId(x)</c> as the SQL lease owner. The
 	/// <c>Excalibur.Outbox</c> builder sets <c>OutboxOptions.ProcessorId</c>; this flows it to
 	/// <see cref="SqlServerOutboxOptions.ProcessorId"/> (and thus the persisted <c>LeasedBy</c>).
 	/// </summary>

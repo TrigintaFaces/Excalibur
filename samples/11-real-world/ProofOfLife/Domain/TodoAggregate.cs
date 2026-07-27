@@ -89,21 +89,23 @@ public sealed class TodoAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case TodoCreated e:
 				Id = e.TodoId;
 				Title = e.Title;
-				break;
+				return true;
 			case TodoCompleted:
 				IsCompleted = true;
 				CompletedAt = DateTimeOffset.UtcNow;
-				break;
+				return true;
 			case TodoTitleUpdated e:
 				Title = e.NewTitle;
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 }

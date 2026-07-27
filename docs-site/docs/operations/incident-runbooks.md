@@ -35,20 +35,20 @@ Use this guide for production incident response across Excalibur workloads.
 
 ## Common Playbooks
 
-## Transport backlog surge
+### Transport backlog surge
 
 - check queue depth and lag,
 - verify consumer health and recent config/deploy changes,
 - scale consumers or throttle producers,
 - rollback recent runtime/transport changes if no recovery trend.
 
-## Dead-letter spike
+### Dead-letter spike
 
 - identify dominant failure reason,
 - validate retry/poison policy config,
 - patch root cause and replay DLQ in controlled batches.
 
-## Cancellation/timeout regression
+### Cancellation/timeout regression
 
 - verify token propagation from HTTP/job trigger to dispatcher and transport calls,
 - compare behavior with last known-good release,

@@ -185,41 +185,5 @@ namespace Excalibur.Data.Redis {
                 return ResourceManager.GetString("RedisRetryPolicy_NoExceptionCapturedDuringRetryAttempts", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot commit transaction in {0} state.
-        /// </summary>
-        internal static string RedisTransactionScope_CannotCommitTransactionInStateFormat {
-            get {
-                return ResourceManager.GetString("RedisTransactionScope_CannotCommitTransactionInStateFormat", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot rollback transaction in {0} state.
-        /// </summary>
-        internal static string RedisTransactionScope_CannotRollbackTransactionInStateFormat {
-            get {
-                return ResourceManager.GetString("RedisTransactionScope_CannotRollbackTransactionInStateFormat", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Redis transaction scope only supports creating provider..
-        /// </summary>
-        internal static string RedisTransactionScope_OnlySupportsCreatingProvider {
-            get {
-                return ResourceManager.GetString("RedisTransactionScope_OnlySupportsCreatingProvider", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Redis does not support savepoints.
-        /// </summary>
-        internal static string RedisTransactionScope_SavepointsNotSupported {
-            get {
-                return ResourceManager.GetString("RedisTransactionScope_SavepointsNotSupported", resourceCulture);
-            }
-        }
     }
 }

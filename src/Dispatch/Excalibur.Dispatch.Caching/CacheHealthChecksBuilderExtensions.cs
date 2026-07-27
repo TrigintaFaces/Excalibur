@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Caching;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,11 @@ public static class CacheHealthChecksBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		tags ??= DefaultTags;
+
+		// Self-wire the health check's only dependency so AddCacheHealthCheck can never resolve-throw
+		// when the caller registered caching but not the monitor. TryAdd => a consumer-supplied monitor wins.
+		builder.Services.TryAddSingleton<ICacheHealthMonitor, CacheHealthMonitor>();
+
 		return builder.Add(new HealthCheckRegistration(
 			name,
 			sp => ActivatorUtilities.CreateInstance<CacheHealthCheck>(sp),

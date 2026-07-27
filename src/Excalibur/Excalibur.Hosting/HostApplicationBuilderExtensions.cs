@@ -9,6 +9,9 @@ using Excalibur.Domain.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Excalibur.Hosting;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -64,6 +67,8 @@ public static class HostApplicationBuilderExtensions
 		_ = services.AddOptions<ApplicationContextOptions>()
 			.Bind(configuration.GetSection(nameof(ApplicationContext)))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ApplicationContextOptions>>(new ApplicationContextOptionsValidator()));
 
 		return services;
 	}

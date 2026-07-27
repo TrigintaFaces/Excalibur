@@ -211,6 +211,7 @@ public sealed partial class FirestoreOutboxListenerSubscription : IChangeFeedSub
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,
 			CausationId = doc.ContainsField("causationId") ? doc.GetValue<string?>("causationId") : null,
 			TenantId = doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null,
+			Destination = doc.ContainsField("destination") ? doc.GetValue<string?>("destination") : null,
 			CreatedAt = DateTimeOffset.Parse(doc.GetValue<string>("createdAt"), CultureInfo.InvariantCulture),
 			PublishedAt = doc.ContainsField("publishedAt") && doc.GetValue<string?>("publishedAt") != null
 				? DateTimeOffset.Parse(doc.GetValue<string>("publishedAt"), CultureInfo.InvariantCulture)

@@ -296,7 +296,7 @@ services.AddAwsSqsTransport(sqs =>
 
 ### Standalone CloudEvents
 ```csharp
-services.UseCloudEventsForSqs(options =>
+services.AddCloudEventsForSqs(options =>
 {
     options.UseFifoFeatures = true;
     options.DefaultMessageGroupId = "orders";

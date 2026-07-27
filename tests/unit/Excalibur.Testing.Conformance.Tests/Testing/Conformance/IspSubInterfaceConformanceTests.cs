@@ -33,8 +33,6 @@ public sealed class IspSubInterfaceConformanceTests
 	public static TheoryData<Type, int> SubInterfacesWithExpectedMethodCount => new()
 	{
 		// Abstractions package
-		{ typeof(IConnectionPoolDiagnostics<>), 3 },
-		{ typeof(ITransportProviderFactory), 4 },
 		{ typeof(IRemoteMessageBusProvider), 3 },
 		{ typeof(ITimePolicyConfiguration), 4 },
 		{ typeof(IOutboxStoreBatch), 3 },
@@ -78,7 +76,7 @@ public sealed class IspSubInterfaceConformanceTests
 	public void SubInterface_ShouldNotInheritParentContract(Type subInterface, int _)
 	{
 		// Sub-interfaces should be standalone (ISP) -- not inherit the core parent interface.
-		var parentNames = new[] { "IOutboxStore", "ITimePolicy", "IKeyCache", "IConnectionPool", "ITransportProvider", "IMessageBusProvider" };
+		var parentNames = new[] { "IOutboxStore", "ITimePolicy", "IKeyCache", "IMessageBusProvider" };
 		var interfaces = subInterface.GetInterfaces();
 		foreach (var iface in interfaces)
 		{
@@ -93,8 +91,6 @@ public sealed class IspSubInterfaceConformanceTests
 	/// <summary>Extension classes that must be reflection-free.</summary>
 	public static TheoryData<Type> ExtensionClassTypes => new()
 	{
-		{ typeof(ConnectionPoolExtensions) },
-		{ typeof(TransportProviderExtensions) },
 		{ typeof(MessageBusProviderExtensions) },
 		{ typeof(TimePolicyExtensions) },
 		{ typeof(OutboxStoreExtensions) },
@@ -169,17 +165,6 @@ public sealed class IspSubInterfaceConformanceTests
 		cache.Invalidate("key-1");
 
 		A.CallTo(() => cache.Remove("key-1")).MustHaveHappenedOnceExactly();
-	}
-
-	[Fact]
-	public void ConnectionPoolDiagnostics_FallbackReturnsEmptyStats()
-	{
-		// Pool WITHOUT IConnectionPoolDiagnostics should return empty stats.
-		var pool = A.Fake<IConnectionPool<object>>();
-
-		var stats = pool.GetStatistics();
-
-		_ = stats.ShouldNotBeNull();
 	}
 
 	#region ILongPollingStrategyAdmin Fallback Pattern

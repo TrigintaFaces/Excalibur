@@ -236,7 +236,9 @@ public sealed partial class ComplianceTelemetrySanitizer : ITelemetrySanitizer
 		var result = new Regex[patterns.Count];
 		for (var i = 0; i < patterns.Count; i++)
 		{
-			result[i] = new Regex(patterns[i], RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+			// No RegexOptions.Compiled: under Native AOT it emits no runtime IL (interpreter fallback,
+			// zero benefit) while adding JIT cost elsewhere. The 1s matchTimeout still bounds ReDoS.
+			result[i] = new Regex(patterns[i], RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 		}
 
 		return result;

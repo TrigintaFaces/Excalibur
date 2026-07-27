@@ -76,6 +76,14 @@ Excalibur.Domain.Exceptions.DomainException
 Excalibur.Domain.Exceptions.DomainException.DomainException() -> void
 Excalibur.Domain.Exceptions.DomainException.DomainException(string! message) -> void
 Excalibur.Domain.Exceptions.DomainException.DomainException(string! message, System.Exception? innerException) -> void
+Excalibur.Domain.Exceptions.EventStreamContiguityException
+Excalibur.Domain.Exceptions.EventStreamContiguityException.ActualVersion.get -> long
+Excalibur.Domain.Exceptions.EventStreamContiguityException.AggregateType.get -> System.Type?
+Excalibur.Domain.Exceptions.EventStreamContiguityException.EventStreamContiguityException() -> void
+Excalibur.Domain.Exceptions.EventStreamContiguityException.EventStreamContiguityException(System.Type! aggregateType, long expectedVersion, long actualVersion) -> void
+Excalibur.Domain.Exceptions.EventStreamContiguityException.EventStreamContiguityException(string! message) -> void
+Excalibur.Domain.Exceptions.EventStreamContiguityException.EventStreamContiguityException(string! message, System.Exception? innerException) -> void
+Excalibur.Domain.Exceptions.EventStreamContiguityException.ExpectedVersion.get -> long
 Excalibur.Domain.Exceptions.InvalidConfigurationException
 Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException() -> void
 Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(int statusCode, string? message, System.Exception? innerException) -> void
@@ -83,6 +91,13 @@ Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationEx
 Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(string! message, System.Exception? innerException) -> void
 Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(string! setting, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
 Excalibur.Domain.Exceptions.InvalidConfigurationException.Setting.get -> string!
+Excalibur.Domain.Exceptions.UnhandledDomainEventException
+Excalibur.Domain.Exceptions.UnhandledDomainEventException.AggregateType.get -> System.Type?
+Excalibur.Domain.Exceptions.UnhandledDomainEventException.EventType.get -> System.Type?
+Excalibur.Domain.Exceptions.UnhandledDomainEventException.UnhandledDomainEventException() -> void
+Excalibur.Domain.Exceptions.UnhandledDomainEventException.UnhandledDomainEventException(System.Type! aggregateType, System.Type! eventType) -> void
+Excalibur.Domain.Exceptions.UnhandledDomainEventException.UnhandledDomainEventException(string! message) -> void
+Excalibur.Domain.Exceptions.UnhandledDomainEventException.UnhandledDomainEventException(string! message, System.Exception? innerException) -> void
 Excalibur.Domain.Extensions.ConfigurationExtensions
 Excalibur.Domain.Extensions.StringExtensions
 Excalibur.Domain.Extensions.TaskExtensions
@@ -111,7 +126,7 @@ Excalibur.Domain.Model.AggregateRoot<TKey>.GetUncommittedEvents() -> System.Coll
 Excalibur.Domain.Model.AggregateRoot<TKey>.HasUncommittedEvents.get -> bool
 Excalibur.Domain.Model.AggregateRoot<TKey>.Id.get -> TKey
 Excalibur.Domain.Model.AggregateRoot<TKey>.Id.set -> void
-Excalibur.Domain.Model.AggregateRoot<TKey>.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! history) -> void
+Excalibur.Domain.Model.AggregateRoot<TKey>.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Domain.Model.HistoricEvent>! history) -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.MarkEventsAsCommitted() -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.RaiseEvent(Excalibur.Dispatch.IDomainEvent! event) -> void
 Excalibur.Domain.Model.AggregateRoot<TKey>.Version.get -> long
@@ -120,6 +135,13 @@ Excalibur.Domain.Model.EntityBase
 Excalibur.Domain.Model.EntityBase.EntityBase() -> void
 Excalibur.Domain.Model.EntityBase<TKey>
 Excalibur.Domain.Model.EntityBase<TKey>.EntityBase() -> void
+Excalibur.Domain.Model.HistoricEvent
+Excalibur.Domain.Model.HistoricEvent.Event.get -> Excalibur.Dispatch.IDomainEvent!
+Excalibur.Domain.Model.HistoricEvent.Event.init -> void
+Excalibur.Domain.Model.HistoricEvent.HistoricEvent() -> void
+Excalibur.Domain.Model.HistoricEvent.HistoricEvent(Excalibur.Dispatch.IDomainEvent! Event, long Version) -> void
+Excalibur.Domain.Model.HistoricEvent.Version.get -> long
+Excalibur.Domain.Model.HistoricEvent.Version.init -> void
 Excalibur.Domain.Model.IAggregateRoot
 Excalibur.Domain.Model.IAggregateRoot.ApplyEvent(Excalibur.Dispatch.IDomainEvent! eventData) -> void
 Excalibur.Domain.Model.IAggregateRoot.GetService(System.Type! serviceType) -> object?
@@ -129,7 +151,7 @@ Excalibur.Domain.Model.IAggregateRoot.MarkEventsAsCommitted() -> void
 Excalibur.Domain.Model.IAggregateRoot.Version.get -> long
 Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>
 Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>.Create(TKey id) -> TAggregate
-Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> TAggregate
+Excalibur.Domain.Model.IAggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Domain.Model.HistoricEvent>! events) -> TAggregate
 Excalibur.Domain.Model.IAggregateRoot<TKey>
 Excalibur.Domain.Model.IAggregateRoot<TKey>.Id.get -> TKey
 Excalibur.Domain.Model.IAggregateSnapshotSupport
@@ -137,7 +159,7 @@ Excalibur.Domain.Model.IAggregateSnapshotSupport.AggregateType.get -> string!
 Excalibur.Domain.Model.IAggregateSnapshotSupport.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot!
 Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.get -> string?
 Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.set -> void
-Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! history) -> void
+Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Domain.Model.HistoricEvent>! history) -> void
 Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
 Excalibur.Domain.Model.IDomainEventEnricher
 Excalibur.Domain.Model.IDomainEventEnricher.EnrichAsync(Excalibur.Dispatch.IDomainEvent! event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IDomainEvent!>!
@@ -155,6 +177,7 @@ Excalibur.Domain.Model.ISnapshot.CreatedAt.get -> System.DateTimeOffset
 Excalibur.Domain.Model.ISnapshot.Data.get -> System.ReadOnlyMemory<byte>
 Excalibur.Domain.Model.ISnapshot.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Domain.Model.ISnapshot.SnapshotId.get -> string!
+Excalibur.Domain.Model.ISnapshot.TenantId.get -> string?
 Excalibur.Domain.Model.ISnapshot.Version.get -> long
 Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>
 Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.KeyedAggregateRoot() -> void
@@ -176,6 +199,8 @@ Excalibur.Domain.Model.Snapshot.Metadata.get -> System.Collections.Generic.IDict
 Excalibur.Domain.Model.Snapshot.Metadata.init -> void
 Excalibur.Domain.Model.Snapshot.SnapshotId.get -> string!
 Excalibur.Domain.Model.Snapshot.SnapshotId.init -> void
+Excalibur.Domain.Model.Snapshot.TenantId.get -> string?
+Excalibur.Domain.Model.Snapshot.TenantId.init -> void
 Excalibur.Domain.Model.Snapshot.Version.get -> long
 Excalibur.Domain.Model.Snapshot.Version.init -> void
 Excalibur.Domain.Model.ValueObjects.Address
@@ -213,7 +238,7 @@ Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading
 Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions
-abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.IDomainEvent! event) -> void
+abstract Excalibur.Domain.Model.AggregateRoot<TKey>.ApplyEventInternal(Excalibur.Dispatch.IDomainEvent! event) -> bool
 abstract Excalibur.Domain.Model.EntityBase<TKey>.Key.get -> TKey
 abstract Excalibur.Domain.Model.KeyedAggregateRoot<TKey, TBusinessKey>.BusinessKey.get -> TBusinessKey
 abstract Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<object?>!
@@ -256,7 +281,7 @@ static Excalibur.Domain.Extensions.StringExtensions.ToSnakeCaseUpper(this string
 static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync(this System.Threading.Tasks.Task! task, System.TimeSpan timeout) -> System.Threading.Tasks.Task!
 static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync<T>(this System.Threading.Tasks.Task<T>! task, System.TimeSpan timeout) -> System.Threading.Tasks.Task<T>!
 static Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.Create(TKey id) -> TAggregate!
-static Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> TAggregate!
+static Excalibur.Domain.Model.AggregateRoot<TAggregate, TKey>.FromEvents(TKey id, System.Collections.Generic.IEnumerable<Excalibur.Domain.Model.HistoricEvent>! events) -> TAggregate!
 static Excalibur.Domain.Model.SmartEnum<T>.FromId(int id) -> T!
 static Excalibur.Domain.Model.SmartEnum<T>.FromName(string! name) -> T!
 static Excalibur.Domain.Model.SmartEnum<T>.GetAll() -> System.Collections.Generic.IReadOnlyCollection<T!>!
@@ -299,13 +324,11 @@ static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Domain.BoundedContext.BoundedContextOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, System.Type! interfaceType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DomainServiceCollectionExtensions.AddImplementations<TInterface>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, bool registerImplementingType = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.AddExcaliburContextServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "Default", bool localAddress = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.AddExcaliburContextServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "__default__", bool localAddress = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddClientAddress(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddCorrelationId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddETag(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddLocalClientAddress(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, string!>! tenantResolver) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tenant = "Default") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.AggregateType.get -> string!
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.ApplySnapshot(Excalibur.Domain.Model.ISnapshot! snapshot) -> void
 virtual Excalibur.Domain.Model.AggregateRoot<TKey>.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot!

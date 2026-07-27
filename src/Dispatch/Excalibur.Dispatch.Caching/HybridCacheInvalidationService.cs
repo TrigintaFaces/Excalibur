@@ -16,18 +16,27 @@ internal sealed class HybridCacheInvalidationService(HybridCache cache) : ICache
 	/// <inheritdoc />
 	public async Task InvalidateTagsAsync(IEnumerable<string> tags, CancellationToken cancellationToken)
 	{
-		if (tags.Any())
+		ArgumentNullException.ThrowIfNull(tags);
+
+		// Materialize once: a deferred/lazy sequence would otherwise be enumerated twice (the emptiness
+		// check and the RemoveByTagAsync call), which can disagree or run its side effects twice.
+		var materialized = tags as IReadOnlyCollection<string> ?? tags.ToArray();
+		if (materialized.Count > 0)
 		{
-			await cache.RemoveByTagAsync(tags, cancellationToken).ConfigureAwait(false);
+			await cache.RemoveByTagAsync(materialized, cancellationToken).ConfigureAwait(false);
 		}
 	}
 
 	/// <inheritdoc />
 	public async Task InvalidateKeysAsync(IEnumerable<string> keys, CancellationToken cancellationToken)
 	{
-		if (keys.Any())
+		ArgumentNullException.ThrowIfNull(keys);
+
+		// Materialize once (see InvalidateTagsAsync) to avoid double-enumerating a deferred sequence.
+		var materialized = keys as IReadOnlyCollection<string> ?? keys.ToArray();
+		if (materialized.Count > 0)
 		{
-			await cache.RemoveAsync(keys, cancellationToken).ConfigureAwait(false);
+			await cache.RemoveAsync(materialized, cancellationToken).ConfigureAwait(false);
 		}
 	}
 }

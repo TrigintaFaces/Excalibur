@@ -8,6 +8,8 @@ using Excalibur.Hosting.Configuration;
 using Excalibur.Hosting.Configuration.Validators;
 
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,11 +31,15 @@ public static class ConfigurationValidationExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Register the validation options via IOptions<T> pattern
-		var optionsBuilder = services.AddOptions<ConfigurationValidationOptions>();
+		var optionsBuilder = services.AddOptions<ConfigurationValidationOptions>()
+			.ValidateOnStart();
 		if (configureOptions is not null)
 		{
 			optionsBuilder.Configure(configureOptions);
 		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ConfigurationValidationOptions>>(new ConfigurationValidationOptionsValidator()));
 
 		// Register the validation service as a hosted service
 		_ = services.AddHostedService<ConfigurationValidationService>();
@@ -231,42 +237,42 @@ public static class ConfigurationValidationExtensions
 		});
 
 		// Add database validation if configured
-		if (options.ValidateDatabases)
+		if (options.Databases.Enabled)
 		{
-			foreach (var db in options.DatabaseConnections)
+			foreach (var db in options.Databases.Connections)
 			{
-				_ = services.AddConnectionStringValidation(db.Key, db.Value, options.TestDatabaseConnections);
+				_ = services.AddConnectionStringValidation(db.Key, db.Value, options.Databases.TestConnections);
 			}
 		}
 
 		// Add cloud provider validation if configured
-		if (options.ValidateCloudProviders)
+		if (options.CloudProviders.Enabled)
 		{
-			if (options.UseAws)
+			if (options.CloudProviders.UseAws)
 			{
 				_ = services.AddAwsConfigurationValidation();
 			}
 
-			if (options.UseAzure)
+			if (options.CloudProviders.UseAzure)
 			{
 				_ = services.AddAzureConfigurationValidation();
 			}
 
-			if (options.UseGoogleCloud)
+			if (options.CloudProviders.UseGoogleCloud)
 			{
 				_ = services.AddGoogleCloudConfigurationValidation();
 			}
 		}
 
 		// Add message broker validation if configured
-		if (options.ValidateMessageBrokers)
+		if (options.MessageBrokers.Enabled)
 		{
-			if (options.UseRabbitMq)
+			if (options.MessageBrokers.UseRabbitMq)
 			{
 				_ = services.AddRabbitMqConfigurationValidation();
 			}
 
-			if (options.UseKafka)
+			if (options.MessageBrokers.UseKafka)
 			{
 				_ = services.AddKafkaConfigurationValidation();
 			}

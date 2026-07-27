@@ -168,8 +168,7 @@ public sealed class InMemoryOutboxBuilderShould : UnitTestBase
 				{
 					_ = inmemory.MaxMessages(200);
 				})
-				.WithProcessing(p => p.BatchSize(50).PollingInterval(TimeSpan.FromSeconds(1)))
-				.WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromMinutes(30)));
+				.WithProcessing(p => p.BatchSize(50).PollingInterval(TimeSpan.FromSeconds(1)));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -181,8 +180,6 @@ public sealed class InMemoryOutboxBuilderShould : UnitTestBase
 		var outboxOptions = provider.GetRequiredService<OutboxOptions>();
 		outboxOptions.BatchSize.ShouldBe(50);
 		outboxOptions.PollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
-		outboxOptions.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		outboxOptions.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Fact]

@@ -72,12 +72,13 @@ public sealed class EventSourcedRepositoryDisposedOutboxStoreShould
 
 		public void DoWork(string payload)
 		{
-			RaiseEvent(new OutboxIntegrationEvent { AggregateId = Id, Version = Version, Payload = payload });
+			RaiseEvent(new OutboxIntegrationEvent { Payload = payload });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No state mutation needed for this lock.
+					return true;
 		}
 	}
 

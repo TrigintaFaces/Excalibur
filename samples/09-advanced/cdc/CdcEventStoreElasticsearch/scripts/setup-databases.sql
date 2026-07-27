@@ -142,6 +142,7 @@ BEGIN
         [LastProcessedLsn]              BINARY(10)              NOT NULL,
         [LastProcessedSequenceValue]    BINARY(10)              NULL,
         [LastCommitTime]                DATETIME2               NULL,
+        [FencingToken]                  BIGINT                  NULL,
         [ProcessedAt]                   DATETIMEOFFSET          NOT NULL DEFAULT SYSDATETIMEOFFSET(),
 
         CONSTRAINT [PK_CdcProcessingState] PRIMARY KEY CLUSTERED ([MessageId]),
@@ -186,13 +187,17 @@ BEGIN
         [AggregateId]    NVARCHAR(256)         NOT NULL,
         [AggregateType]  NVARCHAR(256)         NOT NULL,
         [EventType]      NVARCHAR(256)         NOT NULL,
-        [EventData]      VARBINARY(MAX)        NOT NULL,
+        -- MUST be nullable. GDPR erasure tombstones an event by setting EventData to
+        -- NULL while preserving its position in the stream. A NOT NULL column makes
+        -- every erasure fail.
+        [EventData]      VARBINARY(MAX)        NULL,
         [Metadata]       VARBINARY(MAX)        NULL,
         [Version]        BIGINT                NOT NULL,
         [Timestamp]      DATETIMEOFFSET        NOT NULL,
+        [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2         NOT NULL,
 
         CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
-        CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version])
+        CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
     );
 
     CREATE INDEX [IX_EventStoreEvents_AggregateId] ON [dbo].[EventStoreEvents]([AggregateId], [AggregateType]);
@@ -215,17 +220,62 @@ BEGIN
         [Data]           VARBINARY(MAX)        NOT NULL,
         [CreatedAt]      DATETIMEOFFSET        NOT NULL,
         [Metadata]       VARBINARY(MAX)        NULL,
+        -- Part of the primary key so two tenants holding the same aggregate identifier occupy
+        -- separate rows instead of overwriting one another. NOT NULL and no default:
+        -- SQL Server forbids a nullable column in a PRIMARY KEY, and the reserved '__untenanted__' sentinel is the single-tenant value the
+        -- store writes explicitly — omitting it must fail the INSERT, not silently land in that partition.
+        [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2         NOT NULL,
 
-        CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
+        CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
     );
 
     PRINT 'Created table: dbo.EventStoreSnapshots';
 END
 GO
 
--- Outbox table: The unified outbox (dbo.OutboxMessages) is managed by
--- Excalibur.Outbox.SqlServer and is created separately via services.AddExcalibur(x => x.AddOutbox(...)).
--- It is NOT part of the event store schema.
+-- Outbox table: dbo.OutboxMessages is NOT part of the event store schema, and it is
+-- NOT created for you. AddOutbox(...) registers services only -- it runs no DDL. You
+-- must create the table yourself before the first send, or dispatch fails with
+-- "Invalid object name 'dbo.OutboxMessages'".
+--
+-- The outbox DDL is published at docs/patterns/outbox.md. (The reference
+-- script under Excalibur.Outbox.SqlServer/Scripts is a repository artifact -- it is
+-- not included in the NuGet package, so it is not on disk for package consumers.)
+
+-- ============================================================================
+-- Identity Map (Anti-Corruption Layer ID resolution)
+-- ============================================================================
+-- Maps external legacy identifiers to internal aggregate IDs. This is what makes
+-- CDC replay IDEMPOTENT: when the same legacy row is re-delivered after a restart
+-- or a capture-instance reset, the handler resolves it back to the SAME aggregate
+-- instead of creating a new one.
+--
+-- The table must be durable for that to hold across restarts, which is why this
+-- sample registers the SQL Server identity map rather than the in-memory provider
+-- (AddInMemoryIdentityMap is documented for testing/development only).
+--
+-- Copied verbatim from the canonical script at
+-- Excalibur.Data.IdentityMap.SqlServer/Scripts/CreateIdentityMapTable.sql.
+
+IF OBJECT_ID(N'dbo.IdentityMap', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[IdentityMap] (
+        ExternalSystem  NVARCHAR(128)    NOT NULL,
+        ExternalId      NVARCHAR(256)    NOT NULL,
+        AggregateType   NVARCHAR(256)    NOT NULL,
+        AggregateId     NVARCHAR(256)    NOT NULL,
+        CreatedAt       DATETIMEOFFSET   NOT NULL CONSTRAINT DF_IdentityMap_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt       DATETIMEOFFSET   NOT NULL CONSTRAINT DF_IdentityMap_UpdatedAt DEFAULT SYSUTCDATETIME(),
+
+        CONSTRAINT PK_IdentityMap PRIMARY KEY CLUSTERED (ExternalSystem, ExternalId, AggregateType)
+    );
+
+    CREATE NONCLUSTERED INDEX IX_IdentityMap_AggregateId
+        ON [dbo].[IdentityMap] (AggregateType, AggregateId);
+
+    PRINT 'Created dbo.IdentityMap table';
+END;
+GO
 
 PRINT '';
 PRINT '============================================================================';
@@ -234,6 +284,7 @@ PRINT '';
 PRINT 'Tables created:';
 PRINT '  - dbo.EventStoreEvents     (domain events)';
 PRINT '  - dbo.EventStoreSnapshots  (aggregate snapshots)';
+PRINT '  - dbo.IdentityMap          (external-to-internal ID resolution)';
 PRINT '';
 PRINT 'Note: The outbox table (dbo.OutboxMessages) is managed separately by';
 PRINT '      Excalibur.Outbox.SqlServer via services.AddExcalibur(x => x.AddOutbox(...)).';

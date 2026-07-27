@@ -69,7 +69,7 @@ public static class CursorEncoder
 			writer.WriteEndArray();
 		}
 
-		return ToBase64Url(Convert.ToBase64String(buffer.WrittenSpan));
+		return System.Buffers.Text.Base64Url.EncodeToString(buffer.WrittenSpan);
 	}
 
 	/// <summary>
@@ -96,7 +96,7 @@ public static class CursorEncoder
 
 		try
 		{
-			var json = Convert.FromBase64String(ToBase64(cursor));
+			var json = System.Buffers.Text.Base64Url.DecodeFromChars(cursor);
 
 			using var doc = JsonDocument.Parse(json);
 			var root = doc.RootElement;
@@ -181,25 +181,4 @@ public static class CursorEncoder
 		}
 	}
 
-	/// <summary>
-	/// Converts standard Base64 to Base64url (URL-safe, no padding).
-	/// </summary>
-	private static string ToBase64Url(string base64) =>
-		base64.TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-	/// <summary>
-	/// Converts Base64url back to standard Base64 for decoding.
-	/// </summary>
-	private static string ToBase64(string base64Url)
-	{
-		var s = base64Url.Replace('-', '+').Replace('_', '/');
-
-		// Restore padding
-		return (s.Length % 4) switch
-		{
-			2 => s + "==",
-			3 => s + "=",
-			_ => s
-		};
-	}
 }

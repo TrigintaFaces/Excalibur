@@ -260,11 +260,17 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 		var options = new SqlServerOutboxOptions
 		{
 			ConnectionString = _connectionString!,
-			SchemaName = "dbo",
-			OutboxTableName = "OutboxMessages",
-			TransportsTableName = "OutboxTransports",
-			CommandTimeoutSeconds = 30,
-			LeaseTimeoutSeconds = leaseTimeoutSeconds
+			Tables =
+			{
+				SchemaName = "dbo",
+				OutboxTableName = "OutboxMessages",
+				TransportsTableName = "OutboxTransports",
+			},
+			Processing =
+			{
+				CommandTimeoutSeconds = 30,
+				LeaseTimeoutSeconds = leaseTimeoutSeconds,
+			},
 		};
 
 		return new SqlServerOutboxStore(Options.Create(options), NullLogger<SqlServerOutboxStore>.Instance);

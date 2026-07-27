@@ -38,7 +38,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.SchemaName.ShouldBe(schema);
+		options.Tables.SchemaName.ShouldBe(schema);
 	}
 
 	[Fact]
@@ -105,7 +105,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.OutboxTableName.ShouldBe(tableName);
+		options.Tables.OutboxTableName.ShouldBe(tableName);
 	}
 
 	[Fact]
@@ -158,7 +158,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.TransportsTableName.ShouldBe(tableName);
+		options.Tables.TransportsTableName.ShouldBe(tableName);
 	}
 
 	[Fact]
@@ -197,7 +197,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.DeadLetterTableName.ShouldBe(tableName);
+		options.Tables.DeadLetterTableName.ShouldBe(tableName);
 	}
 
 	[Fact]
@@ -238,7 +238,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.CommandTimeoutSeconds.ShouldBe(seconds);
+		options.Processing.CommandTimeoutSeconds.ShouldBe(seconds);
 	}
 
 	[Fact]
@@ -288,7 +288,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.UseRowLocking.ShouldBeTrue();
+		options.Processing.UseRowLocking.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -306,7 +306,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.UseRowLocking.ShouldBeFalse();
+		options.Processing.UseRowLocking.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -324,7 +324,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.UseRowLocking.ShouldBeTrue();
+		options.Processing.UseRowLocking.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -342,7 +342,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.UseRowLocking.ShouldBeTrue();
+		options.Processing.UseRowLocking.ShouldBeTrue();
 	}
 
 	#endregion
@@ -368,7 +368,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.DefaultBatchSize.ShouldBe(size);
+		options.Processing.DefaultBatchSize.ShouldBe(size);
 	}
 
 	[Theory]
@@ -415,13 +415,13 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
-		options.SchemaName.ShouldBe("messaging");
-		options.OutboxTableName.ShouldBe("Messages");
-		options.TransportsTableName.ShouldBe("Deliveries");
-		options.DeadLetterTableName.ShouldBe("FailedMessages");
-		options.CommandTimeoutSeconds.ShouldBe(60);
-		options.UseRowLocking.ShouldBeTrue();
-		options.DefaultBatchSize.ShouldBe(200);
+		options.Tables.SchemaName.ShouldBe("messaging");
+		options.Tables.OutboxTableName.ShouldBe("Messages");
+		options.Tables.TransportsTableName.ShouldBe("Deliveries");
+		options.Tables.DeadLetterTableName.ShouldBe("FailedMessages");
+		options.Processing.CommandTimeoutSeconds.ShouldBe(60);
+		options.Processing.UseRowLocking.ShouldBeTrue();
+		options.Processing.DefaultBatchSize.ShouldBe(200);
 	}
 
 	#endregion

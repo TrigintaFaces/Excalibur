@@ -87,14 +87,36 @@ public sealed record CascadeErasureResult
 	public required string PrimarySubjectId { get; init; }
 
 	/// <summary>
-	/// Gets the total number of subjects erased (including primary).
+	/// Gets the number of subjects (including primary) whose erasure completed synchronously
+	/// (status <c>Completed</c> or <c>PartiallyCompleted</c>). Erasure typically executes asynchronously
+	/// via the scheduler, so this is often zero — see <see cref="SubjectsScheduled"/>.
 	/// </summary>
 	public int SubjectsErased { get; init; }
 
 	/// <summary>
-	/// Gets the identifiers of all related subjects that were erased.
+	/// Gets the number of subjects (including primary) whose erasure was accepted for later execution
+	/// (status <c>Pending</c>, <c>Scheduled</c>, or <c>InProgress</c>) but has not yet completed.
+	/// </summary>
+	public int SubjectsScheduled { get; init; }
+
+	/// <summary>
+	/// Gets the identifiers of related subjects whose erasure was accepted (erased or scheduled).
+	/// Subjects that were blocked or failed are reported in <see cref="BlockedSubjects"/> and
+	/// <see cref="FailedSubjects"/> instead.
 	/// </summary>
 	public IReadOnlyList<string> RelatedSubjectsErased { get; init; } = [];
+
+	/// <summary>
+	/// Gets the identifiers of subjects whose erasure was blocked (e.g. by a legal hold) and therefore
+	/// not performed. A non-empty list forces <see cref="Success"/> to <see langword="false"/>.
+	/// </summary>
+	public IReadOnlyList<string> BlockedSubjects { get; init; } = [];
+
+	/// <summary>
+	/// Gets the identifiers of subjects whose erasure failed or was cancelled without completing. A
+	/// non-empty list forces <see cref="Success"/> to <see langword="false"/>.
+	/// </summary>
+	public IReadOnlyList<string> FailedSubjects { get; init; } = [];
 
 	/// <summary>
 	/// Gets the error message if the operation failed.

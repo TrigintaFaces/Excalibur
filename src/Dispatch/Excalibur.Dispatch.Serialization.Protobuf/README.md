@@ -100,7 +100,7 @@ Per Excalibur framework requirements:
 
 1. **Excalibur.Dispatch MUST NOT reference this package** (R0.14 compliance)
 2. **This package is pay-for-play** (R0.5: no transitive bloat)
-3. **System.Text.Json is the default serializer** (ADR-295)
+3. **System.Text.Json is the default serializer**
 4. **This package is opt-in only** (R9.46)
 
 ## Performance Characteristics

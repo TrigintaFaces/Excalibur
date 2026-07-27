@@ -21,9 +21,12 @@ internal sealed partial class RedisDistributedJobLock(
 	string ownerToken,
 	DateTimeOffset acquiredAt,
 	DateTimeOffset expiresAt,
+	TimeProvider timeProvider,
 	ILogger logger)
 	: IDistributedJobLock
 {
+	private readonly TimeProvider _timeProvider = timeProvider;
+
 	// Atomic owner-checked release: DEL the key ONLY if its stored value still equals
 	// this acquisition's per-acquisition owner token. A stale handle (lock expired and
 	// re-acquired by another holder) will not match and the script is a no-op. [bd-jqlqc8]
@@ -50,7 +53,7 @@ internal sealed partial class RedisDistributedJobLock(
 	public DateTimeOffset ExpiresAt { get; private set; } = expiresAt;
 
 	/// <inheritdoc />
-	public bool IsValid => !_disposed && DateTimeOffset.UtcNow < ExpiresAt;
+	public bool IsValid => !_disposed && _timeProvider.GetUtcNow() < ExpiresAt;
 
 	/// <inheritdoc />
 	public async Task<bool> ExtendAsync(TimeSpan additionalDuration, CancellationToken cancellationToken)
@@ -73,7 +76,7 @@ internal sealed partial class RedisDistributedJobLock(
 
 		if (extended)
 		{
-			ExpiresAt = DateTimeOffset.UtcNow.Add(additionalDuration);
+			ExpiresAt = _timeProvider.GetUtcNow().Add(additionalDuration);
 		}
 
 		return extended;

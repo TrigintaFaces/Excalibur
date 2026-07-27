@@ -28,11 +28,14 @@ public sealed class PipelineProfileShould
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
+		// srz528: the concrete profile is an internal implementation detail; IPipelineProfile is the
+		// single public contract. The type stays sealed and is reachable here only via InternalsVisibleTo.
 		// Assert
-		typeof(PipelineProfile).IsPublic.ShouldBeTrue();
+		typeof(PipelineProfile).IsPublic.ShouldBeFalse();
 		typeof(PipelineProfile).IsSealed.ShouldBeTrue();
+		typeof(IPipelineProfile).IsPublic.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -96,8 +99,8 @@ public sealed class PipelineProfileShould
 		var profile = new PipelineProfile("Test", MessageKinds.All);
 
 		// Assert
-		profile.MiddlewareTypes.ShouldNotBeNull();
-		profile.MiddlewareTypes.ShouldBeEmpty();
+		profile.MiddlewareEntries.ShouldNotBeNull();
+		profile.MiddlewareEntries.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -165,7 +168,7 @@ public sealed class PipelineProfileShould
 		profile.Description.ShouldBe("Full configuration description");
 		profile.IsStrict.ShouldBeTrue();
 		profile.SupportedMessageKinds.ShouldBe(MessageKinds.Action);
-		profile.MiddlewareTypes.ShouldContain(typeof(TestMiddleware));
+		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldContain(typeof(TestMiddleware));
 	}
 
 	[Fact]
@@ -186,7 +189,7 @@ public sealed class PipelineProfileShould
 		profile.AddMiddleware<TestMiddleware>(0);
 
 		// Assert
-		profile.MiddlewareTypes.ShouldContain(typeof(TestMiddleware));
+		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldContain(typeof(TestMiddleware));
 	}
 
 	[Fact]
@@ -200,7 +203,7 @@ public sealed class PipelineProfileShould
 		profile.AddMiddleware(typeof(TestMiddleware), 0);
 
 		// Assert
-		profile.MiddlewareTypes.ShouldContain(typeof(TestMiddleware));
+		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldContain(typeof(TestMiddleware));
 	}
 
 	[Fact]
@@ -236,7 +239,7 @@ public sealed class PipelineProfileShould
 		profile.RemoveMiddleware<TestMiddleware>();
 
 		// Assert
-		profile.MiddlewareTypes.ShouldNotContain(typeof(TestMiddleware));
+		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldNotContain(typeof(TestMiddleware));
 	}
 
 	[Fact]
@@ -251,7 +254,7 @@ public sealed class PipelineProfileShould
 		profile.RemoveMiddleware(typeof(TestMiddleware));
 
 		// Assert
-		profile.MiddlewareTypes.ShouldNotContain(typeof(TestMiddleware));
+		profile.MiddlewareEntries.Select(e => e.MiddlewareType).ShouldNotContain(typeof(TestMiddleware));
 	}
 
 	[Fact]
@@ -276,7 +279,7 @@ public sealed class PipelineProfileShould
 		profile.ClearMiddleware();
 
 		// Assert
-		profile.MiddlewareTypes.ShouldBeEmpty();
+		profile.MiddlewareEntries.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -288,12 +291,12 @@ public sealed class PipelineProfileShould
 		profile.AddMiddleware<TestMiddleware>(1);
 
 		// Act
-		var middleware = profile.GetMiddleware();
+		var middleware = profile.MiddlewareEntries;
 
 		// Assert
 		middleware.Count.ShouldBe(2);
-		middleware[0].ShouldBe(typeof(TestMiddleware));
-		middleware[1].ShouldBe(typeof(AnotherTestMiddleware));
+		middleware[0].MiddlewareType.ShouldBe(typeof(TestMiddleware));
+		middleware[1].MiddlewareType.ShouldBe(typeof(AnotherTestMiddleware));
 	}
 
 	[Fact]
@@ -308,6 +311,22 @@ public sealed class PipelineProfileShould
 
 		// Assert
 		middleware.ShouldNotBeEmpty();
+	}
+
+	[Fact]
+	public void GetApplicableMiddleware_DoesNotExcludeByAttributeKind_akwb5j()
+	{
+		// akwb5j convergence lock (non-vacuous): the profile no longer filters by the [AppliesTo] attribute —
+		// message-kind applicability is the single-source-of-truth runtime IMiddlewareApplicabilityStrategy's
+		// job (each middleware's ApplicableMessageKinds property). An [AppliesTo(Action)]-decorated middleware
+		// is STILL returned when querying a DIFFERENT kind (Event). RED before convergence (the attribute
+		// kinds-filter excluded it); GREEN after (kind filtering moved to the property strategy).
+		var profile = new PipelineProfile("Test", MessageKinds.All);
+		profile.AddMiddleware<ActionScopedMiddleware>(0);
+
+		var middleware = profile.GetApplicableMiddleware(MessageKinds.Event);
+
+		middleware.ShouldContain(typeof(ActionScopedMiddleware));
 	}
 
 	[Fact]
@@ -337,32 +356,6 @@ public sealed class PipelineProfileShould
 	}
 
 	[Fact]
-	public void CreateStrictProfile()
-	{
-		// Act
-		var profile = PipelineProfile.CreateStrictProfile();
-
-		// Assert
-		profile.ShouldNotBeNull();
-		profile.Name.ShouldBe("Strict");
-		profile.IsStrict.ShouldBeTrue();
-		profile.SupportedMessageKinds.ShouldBe(MessageKinds.Action);
-	}
-
-	[Fact]
-	public void CreateInternalEventProfile()
-	{
-		// Act
-		var profile = PipelineProfile.CreateInternalEventProfile();
-
-		// Assert
-		profile.ShouldNotBeNull();
-		profile.Name.ShouldBe("InternalEvent");
-		profile.IsStrict.ShouldBeFalse();
-		profile.SupportedMessageKinds.ShouldBe(MessageKinds.Event);
-	}
-
-	[Fact]
 	public void NotAddDuplicateMiddleware()
 	{
 		// Arrange
@@ -373,7 +366,7 @@ public sealed class PipelineProfileShould
 		profile.AddMiddleware<TestMiddleware>(1); // Duplicate
 
 		// Assert
-		profile.MiddlewareTypes.Count(t => t == typeof(TestMiddleware)).ShouldBe(1);
+		profile.MiddlewareEntries.Count(e => e.MiddlewareType == typeof(TestMiddleware)).ShouldBe(1);
 	}
 
 	[Fact]
@@ -420,6 +413,21 @@ public sealed class PipelineProfileShould
 	/// Another test middleware implementation.
 	/// </summary>
 	private sealed class AnotherTestMiddleware : IDispatchMiddleware
+	{
+		public DispatchMiddlewareStage? Stage => null;
+
+		public ValueTask<IMessageResult> InvokeAsync(
+			IDispatchMessage message,
+			IMessageContext context,
+			DispatchRequestDelegate nextDelegate,
+			CancellationToken cancellationToken) =>
+			nextDelegate(message, context, cancellationToken);
+	}
+
+	// akwb5j: [AppliesTo(Action)] proves the profile no longer honors the attribute for kind-applicability —
+	// it is returned for Event, because kind filtering is the runtime property strategy's job.
+	[AppliesTo(MessageKinds.Action)]
+	private sealed class ActionScopedMiddleware : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => null;
 

@@ -61,24 +61,26 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 
 		public void SetData(string data)
 		{
-			RaiseEvent(new TestDomainEvent { AggregateId = Id, Version = Version, Data = data });
+			RaiseEvent(new TestDomainEvent { Data = data });
 		}
 
 		public void SetValue(string value)
 		{
-			RaiseEvent(new NonVersionedEvent { AggregateId = Id, Version = Version, Value = value });
+			RaiseEvent(new NonVersionedEvent { Value = value });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			switch (@event)
 			{
 				case TestDomainEvent testEvent:
 					Data = testEvent.Data;
-					break;
+					return true;
 				case NonVersionedEvent nonVersioned:
 					Value = nonVersioned.Value;
-					break;
+					return true;
+				default:
+					return false;
 			}
 		}
 
@@ -395,7 +397,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	{
 		// Arrange
 		var aggregateId = "agg-upcast-fallback";
-		var originalEvent = new TestDomainEvent { AggregateId = aggregateId, Version = 0, Data = "original" };
+		var originalEvent = new TestDomainEvent { Data = "original" };
 
 		var storedEvent = new StoredEvent(
 			EventId: originalEvent.EventId,
@@ -492,7 +494,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		public GuidAggregate() : base(Guid.Empty) { }
 		public GuidAggregate(Guid id) : base(id) { }
 
-		protected override void ApplyEventInternal(IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 	}
 
 	#endregion
@@ -533,9 +535,12 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	#region Version Gap Detection Tests (T.9)
 
 	[Fact]
-	public async Task GetByIdAsync_ShouldSucceed_WhenVersionGapExistsBetweenSnapshotAndEvents()
+	public async Task GetByIdAsync_FailsLoud_WhenVersionGapExistsBetweenSnapshotAndEvents()
 	{
-		// Arrange - T.9: Version gap detection logs warning but doesn't fail
+		// Arrange - T.9: a version hole between the snapshot and the first available event means the
+		// intervening versions never legitimately existed. Replaying onto the snapshot would produce a
+		// corrupt aggregate, so the repository MUST fail loud (InvalidOperationException) rather than
+		// silently return a version-hole state.
 		var aggregateId = "agg-gap-1";
 		var eventStore = A.Fake<IEventStore>();
 		var snapshotManager = A.Fake<ISnapshotManager>();
@@ -562,7 +567,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 				AggregateId: aggregateId,
 				AggregateType: "EdgeCaseAggregate",
 				EventType: "TestDomainEvent",
-				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { AggregateId = aggregateId, Data = "gap-event" }),
+				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { Data = "gap-event" }),
 				Metadata: null,
 				Version: 10,
 				Timestamp: DateTimeOffset.UtcNow),
@@ -570,9 +575,8 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
 			.Returns(gapEvents);
 		_ = A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, typeof(TestDomainEvent)))
-			.Returns(new TestDomainEvent { AggregateId = aggregateId, Data = "gap-event" });
+			.Returns(new TestDomainEvent { Data = "gap-event" });
 
-		// Use NullLogger -- version gap produces a warning but doesn't throw
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
 			serializer,
@@ -580,12 +584,11 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 			snapshotManager: snapshotManager,
 			logger: NullLogger<EventSourcedRepository<EdgeCaseAggregate, string>>.Instance);
 
-		// Act - Should succeed even with version gap
-		var result = await repository.GetByIdAsync(aggregateId, CancellationToken.None);
-
-		// Assert - Aggregate loaded successfully despite gap
-		_ = result.ShouldNotBeNull();
-		result.Data.ShouldBe("gap-event");
+		// Act & Assert - a version hole (snapshot v5, first event v10, versions 5-9 missing) must be
+		// refused rather than rehydrated into a corrupt aggregate.
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => repository.GetByIdAsync(aggregateId, CancellationToken.None));
+		ex.Message.ShouldContain("version hole");
 	}
 
 	[Fact]
@@ -618,7 +621,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 				AggregateId: aggregateId,
 				AggregateType: "EdgeCaseAggregate",
 				EventType: "TestDomainEvent",
-				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { AggregateId = aggregateId, Data = "contiguous" }),
+				EventData: JsonSerializer.SerializeToUtf8Bytes(new TestDomainEvent { Data = "contiguous" }),
 				Metadata: null,
 				Version: 5,
 				Timestamp: DateTimeOffset.UtcNow),
@@ -626,7 +629,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 		_ = A.CallTo(() => eventStore.LoadAsync(aggregateId, "EdgeCaseAggregate", A<long>._, A<CancellationToken>._))
 			.Returns(contiguousEvents);
 		_ = A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, typeof(TestDomainEvent)))
-			.Returns(new TestDomainEvent { AggregateId = aggregateId, Data = "contiguous" });
+			.Returns(new TestDomainEvent { Data = "contiguous" });
 
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,

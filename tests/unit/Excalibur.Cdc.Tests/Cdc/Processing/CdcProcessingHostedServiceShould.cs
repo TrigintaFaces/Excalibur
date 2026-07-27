@@ -29,6 +29,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		_ = Should.Throw<ArgumentNullException>(() => new CdcProcessingHostedService(
 			null!,
 			options,
+			TimeProvider.System,
 			logger));
 	}
 
@@ -41,7 +42,24 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new CdcProcessingHostedService(
-			processor,
+			SpWith(processor),
+			null!,
+			TimeProvider.System,
+			logger));
+	}
+
+	[Fact]
+	public void Constructor_ThrowsArgumentNullException_WhenTimeProviderIsNull()
+	{
+		// Arrange
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		var options = CreateValidOptions();
+		var logger = NullLogger<CdcProcessingHostedService>.Instance;
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() => new CdcProcessingHostedService(
+			SpWith(processor),
+			options,
 			null!,
 			logger));
 	}
@@ -55,8 +73,9 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new CdcProcessingHostedService(
-			processor,
+			SpWith(processor),
 			options,
+			TimeProvider.System,
 			null!));
 	}
 
@@ -69,7 +88,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
 		// Act
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Assert
 		_ = service.ShouldNotBeNull();
@@ -91,7 +110,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
@@ -123,7 +142,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -164,7 +183,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -208,7 +227,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -251,7 +270,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -308,7 +327,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -346,7 +365,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -380,7 +399,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
@@ -429,7 +448,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -481,7 +500,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
@@ -543,6 +562,11 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	private static TaskCompletionSource<bool> CreateSignal()
 	{
 		return new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+	}
+
+	private static IServiceProvider SpWith(ICdcBackgroundProcessor processor)
+	{
+		return new ServiceCollection().AddSingleton(processor).BuildServiceProvider();
 	}
 
 	#endregion

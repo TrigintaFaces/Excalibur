@@ -72,7 +72,7 @@ public static class RouteMessageHandlerFactory
 		Action<MessageContext>? customizeContext = null)
 		where TRequest : class
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		async (
 			[AsParameters] TRequest request,
 			[FromServices] IDispatcher dispatcher,
@@ -97,7 +97,7 @@ public static class RouteMessageHandlerFactory
 		Func<HttpContext, IMessageResult<TResponse>, IResult> responseFactory,
 		Action<MessageContext>? customizeContext = null)
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		async (
 			[AsParameters] TAction action,
 			[FromServices] IDispatcher dispatcher,

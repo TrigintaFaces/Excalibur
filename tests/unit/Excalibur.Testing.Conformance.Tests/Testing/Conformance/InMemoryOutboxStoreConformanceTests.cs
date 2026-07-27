@@ -113,12 +113,12 @@ public sealed class InMemoryOutboxStoreConformanceTests : OutboxStoreConformance
 	#region Cleanup Tests
 
 	[Fact]
-	public Task CleanupSentMessagesAsync_ShouldRemoveOldMessages_Test() =>
-		CleanupSentMessagesAsync_ShouldRemoveOldMessages();
+	public Task CleanupAllTenantsSentMessagesAsync_ShouldRemoveOldMessages_Test() =>
+		CleanupAllTenantsSentMessagesAsync_ShouldRemoveOldMessages();
 
 	[Fact]
-	public Task CleanupSentMessagesAsync_ShouldRespectBatchSize_Test() =>
-		CleanupSentMessagesAsync_ShouldRespectBatchSize();
+	public Task CleanupAllTenantsSentMessagesAsync_ShouldRespectBatchSize_Test() =>
+		CleanupAllTenantsSentMessagesAsync_ShouldRespectBatchSize();
 
 	#endregion Cleanup Tests
 

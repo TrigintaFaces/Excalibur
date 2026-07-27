@@ -70,7 +70,6 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 			HandlerRegistryFrozen: HandlerInvokerRegistry.IsCacheFrozen,
 			HandlerActivatorFrozen: HandlerActivator.IsCacheFrozen,
 			ResultFactoryFrozen: FinalDispatchHandler.IsResultFactoryCacheFrozen,
-			MiddlewareEvaluatorFrozen: MiddlewareApplicabilityEvaluator.IsCacheFrozen,
 			ProfileSelectionFrozen: _profileRegistry?.IsProfileSelectionCacheFrozen ?? true,
 			FrozenAt: _frozenAt);
 	}
@@ -133,13 +132,6 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 			{
 				FinalDispatchHandler.FreezeResultFactoryCache();
 				LogCacheFrozen("ResultFactory");
-			}
-
-			// Freeze middleware metadata cache
-			if (!status.MiddlewareEvaluatorFrozen)
-			{
-				MiddlewareApplicabilityEvaluator.FreezeCache();
-				LogCacheFrozen("MiddlewareApplicabilityEvaluator");
 			}
 
 			// Freeze pipeline profile selection cache

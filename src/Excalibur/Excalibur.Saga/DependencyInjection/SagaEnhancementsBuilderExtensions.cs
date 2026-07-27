@@ -5,7 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Handlers;
-using Excalibur.Saga.Reminders;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,20 +17,6 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class SagaEnhancementsBuilderExtensions
 {
-	/// <summary>
-	/// Adds saga correlation services including the convention-based correlator.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithCorrelation(this ISagaBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		_ = builder.Services.AddSagaCorrelation();
-
-		return builder;
-	}
-
 	/// <summary>
 	/// Adds the default logging-based not-found handler for a saga type.
 	/// </summary>
@@ -63,58 +48,6 @@ public static class SagaEnhancementsBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 
 		_ = builder.Services.AddSagaNotFoundHandler<TSaga, THandler>();
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Adds saga reminder services.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <param name="configure">Optional action to configure reminder options.</param>
-	/// <returns>The saga builder for chaining.</returns>
-	public static ISagaBuilder WithReminders(
-		this ISagaBuilder builder,
-		Action<SagaReminderOptions>? configure = null)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		if (configure is not null)
-		{
-			_ = builder.Services.AddSagaReminders(configure);
-		}
-		else
-		{
-			_ = builder.Services.AddSagaReminders();
-		}
-
-		return builder;
-	}
-
-	/// <summary>
-	/// Adds saga reminder services using an <see cref="IConfiguration"/> section.
-	/// </summary>
-	/// <param name="builder">The saga builder.</param>
-	/// <param name="configuration">The configuration section to bind to <see cref="SagaReminderOptions"/>.</param>
-	/// <returns>The saga builder for chaining.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static ISagaBuilder WithReminders(
-		this ISagaBuilder builder,
-		IConfiguration configuration)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configuration);
-
-		_ = builder.Services.AddOptions<SagaReminderOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<SagaReminderOptions>, SagaReminderOptionsValidator>());
-
-		_ = builder.Services.AddSagaReminders();
 
 		return builder;
 	}

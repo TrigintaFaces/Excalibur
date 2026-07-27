@@ -40,10 +40,17 @@ if (-not $SkipBuild) {
 
 # Run tests with coverage
 Write-Host "`nRunning tests with coverage collection..." -ForegroundColor Yellow
+# --blame-hang-timeout: a wedged test host has no self-recovery. Without a bound this
+# invocation blocks forever instead of failing, silently consuming a phase. The CI workflows
+# already pass this; a local runner that omits it is the same run with the safety removed.
+# Override with COVERAGE_HANG_TIMEOUT for a legitimately slower suite.
+$HangTimeout = if ($env:COVERAGE_HANG_TIMEOUT) { $env:COVERAGE_HANG_TIMEOUT } else { "10m" }
+
 $TestCommand = "dotnet test `"$SolutionRoot/Excalibur.sln`" " +
                "--collect:`"XPlat Code Coverage`" " +
                "--settings `"$RunSettingsPath`" " +
                "--results-directory `"$ArtifactsDir`" " +
+               "--blame-hang-timeout $HangTimeout " +
                "-c Release --no-build -v q $Filter"
 
 Invoke-Expression $TestCommand

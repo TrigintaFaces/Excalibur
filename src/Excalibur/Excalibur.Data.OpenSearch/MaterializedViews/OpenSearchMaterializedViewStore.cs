@@ -31,6 +31,12 @@ namespace Excalibur.Data.OpenSearch.MaterializedViews;
 /// <para>
 /// Uses upsert operations for thread-safe save operations.
 /// </para>
+/// <para>
+/// Does not implement <see cref="Excalibur.EventSourcing.IAtomicMaterializedViewStore"/>: a view and its
+/// checkpoint live in different indices and there is no cross-index transaction to commit them together, so
+/// this store cannot offer exactly-once projection. Wiring it to a projection that requires exactly-once is
+/// refused at startup rather than degrading to at-least-once in production.
+/// </para>
 /// </remarks>
 public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewStore, IAsyncDisposable
 {
@@ -58,6 +64,9 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		// Read-model serialization — intentionally NOT the event canonical contract (a view is not an event;
+		// consumer-injectable). The numeric-enum representation is preserved: this JSON is a queryable,
+		// consumer-facing surface (SQL/search filters) where enum-as-string would break range/equality queries.
 		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -86,6 +95,9 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		// Read-model serialization — intentionally NOT the event canonical contract (a view is not an event;
+		// consumer-injectable). The numeric-enum representation is preserved: this JSON is a queryable,
+		// consumer-facing surface (SQL/search filters) where enum-as-string would break range/equality queries.
 		_jsonOptions = jsonOptions ?? new JsonSerializerOptions
 		{
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -151,12 +163,23 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 		var documentId = CreateDocumentId(viewName, viewId);
 		var now = DateTimeOffset.UtcNow;
 
+		// SaveAsync is a full-document IndexAsync overwrite, so the original CreatedAt must be
+		// carried forward on update — re-read the existing document and preserve its CreatedAt,
+		// falling back to now for a first insert (or an unreadable prior document).
+		var existing = await _client!.GetAsync<MaterializedViewDocument>(
+			documentId,
+			g => g.Index(_options.ViewsIndexName),
+			cancellationToken).ConfigureAwait(false);
+		var createdAt = existing is { Found: true, Source: not null }
+			? existing.Source.CreatedAt
+			: now;
+
 		var document = new MaterializedViewDocument
 		{
 			ViewName = viewName,
 			ViewId = viewId,
 			Data = JsonSerializer.Serialize(view, _jsonOptions),
-			CreatedAt = now,
+			CreatedAt = createdAt,
 			UpdatedAt = now
 		};
 
@@ -241,16 +264,33 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 
 		var document = new MaterializedViewPositionDocument { ViewName = viewName, Position = position, CreatedAt = now, UpdatedAt = now };
 
+		// Monotonic advance, enforced by the store rather than by the caller. The checkpoint is written under
+		// external versioning: OpenSearch accepts the write only when the supplied version is greater than or
+		// equal to the stored one, and answers 409 otherwise. A delayed or retried write carrying an older
+		// position is therefore rejected instead of rewinding the checkpoint and replaying applied events.
+		//
+		// The version is the position offset by one because external versions must be positive, and position
+		// zero is a legitimate starting checkpoint. Versioning is index metadata, so this does not depend on
+		// how the document's fields happen to be serialized.
 		var response = await _client!.IndexAsync(
 			document,
 			idx => idx
 				.Index(_options.PositionsIndexName)
 				.Id(viewName)
+				.Version(position + 1)
+				.VersionType(VersionType.ExternalGte)
 				.Refresh(GetRefresh()),
 			cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsValid)
 		{
+			// A stale write losing the race is the guard working, not a failure: a higher checkpoint is
+			// already durable, and re-applying this one would move it backwards.
+			if (response.ApiCall?.HttpStatusCode == 409)
+			{
+				return;
+			}
+
 			throw new InvalidOperationException(
 				$"Failed to save position for {viewName}: {response.DebugInformation}");
 		}

@@ -218,6 +218,16 @@ var provider = new PersistenceProviderBuilder(innerProvider)
 | [Redis](./redis.md) | `Excalibur.Data.Redis` | Key-value | Caching, pub/sub, session state |
 | [Elasticsearch](./elasticsearch.md) | `Excalibur.Data.ElasticSearch` | Search | Full-text search, analytics |
 | [In-Memory](./inmemory.md) | `Excalibur.Data.InMemory` | Testing | Unit tests, development |
+| [Oracle](./oracle.md) | `Excalibur.EventSourcing.Oracle` (+ Outbox/Inbox/Saga) | SQL | Event-sourcing, outbox, inbox, and saga persistence on Oracle Database |
+| [Spanner](./spanner.md) | `Excalibur.Data.Spanner` | Cloud-native | Google Cloud Spanner connection foundation (retryable transactions) — **foundation only, no stores yet** |
+
+:::note Oracle scope
+The Oracle packages provide the **reliable-persistence subsystems** (event store, snapshot store, outbox, inbox, saga stores), not the `IDb` data-access layer used by the other rows above. See the [Oracle Provider](./oracle.md) page.
+:::
+
+:::note Spanner scope
+`Excalibur.Data.Spanner` currently ships the **connection foundation only** — `AddSpannerDataProvider` + `ISpannerConnectionProvider` with retryable-transaction support. The event store, outbox, inbox, and saga stores are not yet available on Spanner. See the [Spanner Provider](./spanner.md) page.
+:::
 
 ## Resilience
 

@@ -172,10 +172,16 @@ public sealed class TestDomainEvent : IDomainEvent
 	/// <inheritdoc/>
 	public string EventId { get; set; } = Guid.NewGuid().ToString();
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Gets or sets the aggregate identifier this test event is associated with. Retained as a convenience
+	/// on the test double; the authoritative stream identity and version live in the persistence envelope.
+	/// </summary>
 	public string AggregateId { get; set; } = string.Empty;
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Gets or sets the stream position for this test event. Retained as a convenience on the test double;
+	/// the authoritative version lives in the persistence envelope.
+	/// </summary>
 	public long Version { get; set; }
 
 	/// <inheritdoc/>

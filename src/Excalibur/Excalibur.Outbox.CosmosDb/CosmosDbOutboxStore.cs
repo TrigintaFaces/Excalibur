@@ -23,7 +23,7 @@ namespace Excalibur.Outbox.CosmosDb;
 /// <summary>
 /// Azure Cosmos DB implementation of the cloud-native outbox store.
 /// </summary>
-public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyncDisposable
+public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, IAsyncDisposable
 {
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -718,6 +718,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			CorrelationId = message.CorrelationId,
 			CausationId = message.CausationId,
 			TenantId = message.TenantId,
+			Destination = message.Destination,
 			CreatedAt = message.CreatedAt.ToString("o"),
 			PublishedAt = message.PublishedAt?.ToString("o"),
 			IsPublished = message.IsPublished,
@@ -741,6 +742,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			CorrelationId = doc.CorrelationId,
 			CausationId = doc.CausationId,
 			TenantId = doc.TenantId,
+			Destination = doc.Destination,
 			CreatedAt = DateTimeOffset.Parse(doc.CreatedAt, CultureInfo.InvariantCulture),
 			PublishedAt = !string.IsNullOrEmpty(doc.PublishedAt) ? DateTimeOffset.Parse(doc.PublishedAt, CultureInfo.InvariantCulture) : null,
 			RetryCount = doc.RetryCount,
@@ -802,6 +804,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 		public string? CorrelationId { get; set; }
 		public string? CausationId { get; set; }
 		public string? TenantId { get; set; }
+		public string? Destination { get; set; }
 		public required string CreatedAt { get; set; }
 		public string? PublishedAt { get; set; }
 		public bool IsPublished { get; set; }

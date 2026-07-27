@@ -159,6 +159,39 @@ public sealed class ServiceCollectionTransportExtensionsShould
 		result.ShouldBeSameAs(services);
 	}
 
+	[Fact]
+	public void RequireAtLeastOneTransport_SetsFlag_WhenCalledFresh()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+
+		// Act
+		var result = services.RequireAtLeastOneTransport();
+
+		// Assert
+		result.ShouldBeSameAs(services);
+		var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<TransportValidationOptions>().RequireAtLeastOneTransport.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void RequireAtLeastOneTransport_SetsFlagOnExistingOptions_WhenValidationAlreadyAdded()
+	{
+		// Arrange — validation already registered with the flag OFF (order-independence regression)
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddTransportValidation(opts => opts.RequireAtLeastOneTransport = false);
+
+		// Act — the fluent shorthand must flip the flag on the ALREADY-registered options instance,
+		// not silently no-op against a second TryAddSingleton.
+		_ = services.RequireAtLeastOneTransport();
+
+		// Assert
+		var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<TransportValidationOptions>().RequireAtLeastOneTransport.ShouldBeTrue();
+	}
+
 	#endregion AddTransportValidation Tests
 
 	#region AddMultiTransportHealthChecks Tests

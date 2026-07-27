@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
+
 using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Roles;
 using Excalibur.A3.Authorization.Roles.Events;
+using Excalibur.Domain.Model;
 
 namespace Excalibur.Tests.A3.Authorization.Roles;
 
@@ -305,7 +308,17 @@ public sealed class RoleShould : UnitTestBase
 		var original = new Role("role-1", "Admin", null, null, [], ["Act1"], "creator");
 		original.ChangeActivities(["Act2", "Act3"]);
 
-		var rebuilt = Role.FromEvents("role-1", original.GetUncommittedEvents());
+		// The construction raises RoleCreated and ChangeActivities raises RoleActivitiesChanged: two events,
+		// which the store would have appended at stream positions 0 and 1. The count is pinned so that an
+		// event added to either operation fails here loudly, rather than being silently renumbered.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(2);
+
+		var rebuilt = Role.FromEvents("role-1", new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+		});
 
 		rebuilt.ActivityNames.Count.ShouldBe(2);
 		rebuilt.ActivityNames.ShouldContain("Act2");
@@ -409,8 +422,18 @@ public sealed class RoleShould : UnitTestBase
 		original.ChangeActivityGroups(["GroupB", "GroupC"]);
 		original.Deactivate("Maintenance");
 
-		var events = original.GetUncommittedEvents().ToList();
-		var rebuilt = Role.FromEvents("role-1", events);
+		// Construction, Modify, ChangeActivityGroups and Deactivate raise one event each, in that order:
+		// four events at stream positions 0 through 3. Pinned, per the note above.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(4);
+
+		var rebuilt = Role.FromEvents("role-1", new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+			new(uncommitted[3], 3),
+		});
 
 		rebuilt.Id.ShouldBe("role-1");
 		rebuilt.Name.ShouldBe("SuperAdmin");

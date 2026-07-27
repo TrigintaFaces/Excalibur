@@ -39,9 +39,13 @@ public sealed class SqlServerErasureStoreOptions
 	public int CommandTimeoutSeconds { get; set; } = 30;
 
 	/// <summary>
-	/// Gets or sets whether to auto-create the schema and tables on startup.
+	/// Gets or sets whether to auto-create the schema and tables on startup. Defaults to
+	/// <see langword="false"/>: an application connection holding schema-DDL privileges in production is a
+	/// posture most regulated environments refuse, so provisioning is opt-in. When <see langword="false"/>,
+	/// startup VERIFIES the required schema and tables exist and FAILS FAST if they do not — it never
+	/// silently skips, and it never creates them.
 	/// </summary>
-	public bool AutoCreateSchema { get; set; } = true;
+	public bool AutoCreateSchema { get; set; }
 
 	/// <summary>
 	/// Gets the full requests table name including schema.

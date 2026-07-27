@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities
+internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, ITransactionalInboxStore
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -67,6 +67,35 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	/// </remarks>
 	public bool SupportsProcessingTracking =>
 		_inner is IProcessingTrackingInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsProcessingTracking);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Reports the EFFECTIVE transactional handler+mark capability and composes through chains (see
+	/// <see cref="SupportsClaim"/>).
+	/// </remarks>
+	public bool SupportsTransactional =>
+		_inner is ITransactionalInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsTransactional);
+
+	/// <inheritdoc />
+	public ValueTask<bool> TryProcessTransactionallyAsync(
+		string messageId,
+		string handlerType,
+		Func<System.Data.IDbTransaction, CancellationToken, ValueTask> handler,
+		CancellationToken cancellationToken)
+	{
+		// Forward the transactional handler+mark to the inner store. Fail LOUD (never a silent no-op) if the
+		// inner store cannot enlist a transaction — a silent fallback would downgrade exactly-once to
+		// at-least-once undetected. The SupportsTransactional presence-guard makes this path unreachable at
+		// runtime for a correctly-validated configuration.
+		if (_inner is not ITransactionalInboxStore transactional)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement ITransactionalInboxStore; " +
+				"transactional handler+mark cannot be forwarded through the encrypting decorator.");
+		}
+
+		return transactional.TryProcessTransactionallyAsync(messageId, handlerType, handler, cancellationToken);
+	}
 
 	/// <inheritdoc />
 	public async ValueTask<InboxEntry> CreateEntryAsync(
@@ -119,6 +148,23 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 	public ValueTask<bool> TryMarkAsProcessedAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		return _inner.TryMarkAsProcessedAsync(messageId, handlerType, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	/// <inheritdoc/>
+	public ValueTask<bool> TryClaimAsync(string messageId, string handlerType, TimeSpan leaseDuration, CancellationToken cancellationToken)
+	{
+		// Forward the lease-based claim to the inner store. The claim carries no encrypted payload (only the
+		// message/handler identifiers), so no transformation is needed. Fail LOUD if the inner store cannot
+		// claim atomically — a silent fallback would re-create the race.
+		if (_inner is not IClaimableInboxStore claimable)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' does not implement IClaimableInboxStore; " +
+				"lease-based claiming cannot be forwarded through the encrypting decorator.");
+		}
+
+		return claimable.TryClaimAsync(messageId, handlerType, leaseDuration, cancellationToken);
 	}
 
 	/// <inheritdoc/>

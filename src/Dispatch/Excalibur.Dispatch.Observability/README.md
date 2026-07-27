@@ -34,7 +34,7 @@ dotnet add package Excalibur.Dispatch.Observability
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.AddObservability(obs => obs.Enabled = true);
+    dispatch.UseObservability(obs => obs.Enabled = true);
 });
 
 // Or register directly

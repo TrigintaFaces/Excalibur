@@ -4,6 +4,8 @@
 using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.CryptoShredding;
+using Excalibur.Compliance.Encryption;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Encryption.Decorators;
 
@@ -26,12 +28,25 @@ public sealed class EncryptingEventStoreDecoratorShould
 {
 	private readonly IEventStore _innerStore;
 	private readonly IEncryptionProviderRegistry _registry;
+	private readonly SubjectFieldCryptor _subjectCryptor;
+	private readonly IEventSerializer _serializer;
 	private readonly CancellationToken _ct = CancellationToken.None;
 
 	public EncryptingEventStoreDecoratorShould()
 	{
 		_innerStore = A.Fake<IEventStore>();
 		_registry = A.Fake<IEncryptionProviderRegistry>();
+		_subjectCryptor = new SubjectFieldCryptor(A.Fake<IFieldEncryptor>());
+		_serializer = A.Fake<IEventSerializer>();
+
+		// These locks cover the LEGACY whole-blob decrypt path; their fixture payloads are raw bytes, not
+		// serialized domain events. A real IEventSerializer throws when asked to deserialize them, which the
+		// decorator catches and returns the event unchanged. An unconfigured fake instead returns a faked Type
+		// and a faked IDomainEvent, so the per-subject field-decrypt step would re-serialize the event and
+		// overwrite EventData with empty bytes. Model the real serializer's contract so the fallback branch,
+		// not a fake artifact, is what these locks exercise.
+		A.CallTo(() => _serializer.DeserializeEvent(A<byte[]>._, A<Type>._))
+			.Throws<InvalidOperationException>();
 	}
 
 	private EncryptingEventStoreDecorator CreateDecorator(EncryptionMode mode = EncryptionMode.EncryptAndDecrypt)
@@ -42,7 +57,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 			DefaultPurpose = "test",
 			DefaultTenantId = "tenant-1"
 		});
-		return new EncryptingEventStoreDecorator(_innerStore, _registry, options);
+		return new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options);
 	}
 
 	private static StoredEvent CreatePlaintextStoredEvent(string eventId, byte[] data, byte[]? metadata = null)
@@ -57,7 +72,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		var options = Options.Create(new EncryptionOptions());
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(null!, _registry, options));
+			new EncryptingEventStoreDecorator(null!, _registry, _subjectCryptor, _serializer, options));
 	}
 
 	[Fact]
@@ -65,14 +80,14 @@ public sealed class EncryptingEventStoreDecoratorShould
 	{
 		var options = Options.Create(new EncryptionOptions());
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, null!, options));
+			new EncryptingEventStoreDecorator(_innerStore, null!, _subjectCryptor, _serializer, options));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, _registry, null!));
+			new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, null!));
 	}
 
 	#endregion

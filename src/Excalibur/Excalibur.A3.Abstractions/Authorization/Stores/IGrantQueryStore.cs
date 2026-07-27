@@ -10,7 +10,7 @@ namespace Excalibur.A3.Authorization;
 /// <remarks>
 /// <para>
 /// Follows the Microsoft ASP.NET Core Identity <c>IQueryableUserStore&lt;TUser&gt;</c> pattern:
-/// an ISP sub-interface accessed via <see cref="IGrantStore.GetService(Type)"/>.
+/// an ISP sub-interface accessed via <see cref="IServiceProvider.GetService(Type)"/>.
 /// </para>
 /// <para>
 /// Replaces <c>IGrantQueryProvider</c> from ISP split.

@@ -1,6 +1,6 @@
 ﻿# IVersionedMessage Interface
 
-**Namespace:** `Excalibur.Dispatch.Abstractions.Versioning`
+**Namespace:** `Excalibur.Dispatch.Versioning`
 **Assembly:** `Excalibur.Dispatch.Abstractions`
 
 Marker interface for messages that support explicit versioning.

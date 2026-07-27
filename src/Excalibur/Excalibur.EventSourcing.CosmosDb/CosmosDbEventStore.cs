@@ -91,6 +91,9 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -130,7 +133,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 			return new CloudEventLoadResult(events, totalRu, sessionToken);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			activity.RecordException(ex);
@@ -156,6 +159,9 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -195,7 +201,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 			return new CloudEventLoadResult(events, totalRu, sessionToken);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			activity.RecordException(ex);
@@ -213,6 +219,14 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// When transactional batching is enabled, an append of up to 100 events commits as a single atomic
+	/// Cosmos DB transactional batch within the stream's partition. Cosmos DB caps a transactional batch
+	/// at 100 operations, so an append of <b>more than 100 events</b> is committed in sequential batches of
+	/// at most 100. Those batches are each individually atomic but are <b>not</b> a single atomic unit — a
+	/// failure partway through a large append can leave earlier batches committed while later ones are not.
+	/// Callers that require all-or-nothing semantics should keep a single append at or below 100 events.
+	/// </remarks>
 	public async Task<CloudAppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
@@ -221,6 +235,10 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
+		ArgumentNullException.ThrowIfNull(events);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -249,6 +267,22 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 
 		try
 		{
+			// Contiguity + concurrency pre-check — match the SQL/InMemory contract (currentVersion must equal
+			// expectedVersion). The id-uniqueness guard ('{streamId}:{version}' → 409) rejects a STALE
+			// expectedVersion (collision on an existing version) but NOT a GAP: an expectedVersion beyond the
+			// stream tail targets an unused id, so the write would silently succeed and leave a hole in the
+			// stream. Re-read the tail (MAX(c.version), -1 for an empty stream) and reject a non-contiguous
+			// expectedVersion before writing. The concurrent-writer race is still caught by the 409 catch below.
+			var precheckVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
+				.ConfigureAwait(false);
+			if (precheckVersion != expectedVersion)
+			{
+				LogConcurrencyConflict(streamId, expectedVersion);
+				result = WriteStoreTelemetry.Results.Conflict;
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+				return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, precheckVersion, 0);
+			}
+
 			CloudAppendResult appendResult;
 			if (_options.Value.UseTransactionalBatch && eventList.Count > 1)
 			{
@@ -285,7 +319,10 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion, ex.RequestCharge);
 		}
-		catch (Exception ex)
+		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
+		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is
+		// wrong. Neither is a store outcome, and neither should be retried by a resilience pipeline.
+		catch (CosmosException ex)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			using var scope = WriteStoreTelemetry.BeginLogScope(
@@ -298,7 +335,13 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			_logger.LogError(ex, "Failed to append events to {AggregateType}/{AggregateId}", aggregateType, aggregateId);
 			activity.RecordException(ex);
 			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
+
+			// Liskov (MS-01): a transient store fault is REPORTED as a failed result, never propagated as a
+			// raw provider exception — a leaked CosmosException is the substitutability violation. Version
+			// conflicts are already returned above; every other fault returns a failure the caller handles
+			// uniformly across providers.
+			var requestCharge = ex is CosmosException cosmosEx ? cosmosEx.RequestCharge : 0d;
+			return CloudAppendResult.CreateFailure(ex.Message, requestCharge);
 		}
 		finally
 		{
@@ -334,6 +377,9 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		IPartitionKey partitionKey,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var streamId = BuildStreamId(aggregateType, aggregateId);
@@ -362,6 +408,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var partitionKey = new Data.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadAsync(aggregateId, aggregateType, partitionKey, null, cancellationToken)
 			.ConfigureAwait(false);
@@ -375,6 +423,8 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var partitionKey = new Data.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadFromVersionAsync(aggregateId, aggregateType, partitionKey, fromVersion, null, cancellationToken)
 			.ConfigureAwait(false);
@@ -389,13 +439,18 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		var partitionKey = new Data.CloudNative.PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await AppendAsync(aggregateId, aggregateType, partitionKey, events, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (result.Success)
 		{
-			return AppendResult.CreateSuccess(result.NextExpectedVersion, 0);
+			// Cosmos DB has no store-wide global sequence across partitions/streams; global ordering is
+			// unsupported for this provider, so no global first-event position is reported.
+			return AppendResult.CreateSuccess(result.NextExpectedVersion, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)
@@ -418,6 +473,9 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		await Task.CompletedTask.ConfigureAwait(false);
 	}
 
+	private static readonly System.Text.Json.JsonSerializerOptions CanonicalEventOptions =
+		Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
+
 	private static EventDocument CreateEventDocument(
 		string streamId,
 		string aggregateId,
@@ -437,10 +495,10 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			EventType = eventTypeName,
 			Version = version,
 			Timestamp = evt.OccurredAt,
-#pragma warning disable IL2026
-			EventData = JsonSerializer.SerializeToUtf8Bytes(evt),
-			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata) : null
-#pragma warning restore IL2026
+#pragma warning disable IL2026, IL3050
+			EventData = JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), CanonicalEventOptions),
+			Metadata = evt.Metadata != null ? JsonSerializer.SerializeToUtf8Bytes(evt.Metadata, CanonicalEventOptions) : null
+#pragma warning restore IL2026, IL3050
 		};
 	}
 
@@ -541,6 +599,29 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		_initialized = true;
 	}
 
+	/// <summary>
+	/// Maximum number of operations Cosmos DB permits in a single transactional batch.
+	/// </summary>
+	/// <remarks>
+	/// Cosmos DB hard-caps a <c>TransactionalBatch</c> at 100 operations. Appends larger than this are
+	/// split into multiple sequential batches (each atomic within its own partition, but not atomic across
+	/// batches — see <see cref="AppendWithTransactionAsync"/>).
+	/// </remarks>
+	private const int MaxTransactionalBatchOperations = 100;
+
+	/// <summary>
+	/// Appends events using one or more Cosmos DB transactional batches.
+	/// </summary>
+	/// <remarks>
+	/// Cosmos DB caps a single <c>TransactionalBatch</c> at
+	/// <see cref="MaxTransactionalBatchOperations"/> operations. When the append exceeds that limit the
+	/// events are committed in sequential batches of at most that size. Each batch is atomic within the
+	/// stream's partition, but the batches are <b>not</b> a single atomic unit: an append of more than
+	/// <see cref="MaxTransactionalBatchOperations"/> events commits in chunks, so a failure partway
+	/// through can leave earlier chunks committed while later chunks are not. Optimistic-concurrency and
+	/// version handling are preserved per chunk (each event's deterministic id makes a duplicate version a
+	/// conflict).
+	/// </remarks>
 	private async Task<CloudAppendResult> AppendWithTransactionAsync(
 		string streamId,
 		string aggregateId,
@@ -550,28 +631,43 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		Microsoft.Azure.Cosmos.PartitionKey pk,
 		CancellationToken cancellationToken)
 	{
-		var batch = _container!.CreateTransactionalBatch(pk);
 		var version = expectedVersion;
+		double totalRu = 0;
+		string? sessionToken = null;
 
-		foreach (var evt in events)
+		var chunkCount = (events.Count + MaxTransactionalBatchOperations - 1) / MaxTransactionalBatchOperations;
+		if (chunkCount > 1)
 		{
-			version++;
-			var doc = CreateEventDocument(streamId, aggregateId, aggregateType, evt, version);
-			_ = batch.CreateItem(doc);
+			LogLargeAppendChunked(streamId, events.Count, chunkCount, MaxTransactionalBatchOperations);
 		}
 
-		using var response = await batch.ExecuteAsync(cancellationToken).ConfigureAwait(false);
-		var totalRu = response.RequestCharge;
-
-		if (!response.IsSuccessStatusCode)
+		for (var offset = 0; offset < events.Count; offset += MaxTransactionalBatchOperations)
 		{
-			return CloudAppendResult.CreateFailure(
-				$"Transactional batch failed with status {response.StatusCode}",
-				totalRu);
+			var batch = _container!.CreateTransactionalBatch(pk);
+			var chunkEnd = Math.Min(offset + MaxTransactionalBatchOperations, events.Count);
+
+			for (var i = offset; i < chunkEnd; i++)
+			{
+				version++;
+				var doc = CreateEventDocument(streamId, aggregateId, aggregateType, events[i], version);
+				_ = batch.CreateItem(doc);
+			}
+
+			using var response = await batch.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+			totalRu += response.RequestCharge;
+
+			if (!response.IsSuccessStatusCode)
+			{
+				return CloudAppendResult.CreateFailure(
+					$"Transactional batch failed with status {response.StatusCode}",
+					totalRu);
+			}
+
+			sessionToken = response.Headers.Session;
 		}
 
 		LogEventsAppended(streamId, events.Count, totalRu);
-		return CloudAppendResult.CreateSuccess(version, totalRu, response.Headers.Session);
+		return CloudAppendResult.CreateSuccess(version, totalRu, sessionToken);
 	}
 
 	private async Task<CloudAppendResult> AppendSequentiallyAsync(

@@ -101,11 +101,9 @@ public static class ServerlessHostBuilderExtensions
 	/// Configures the host builder specifically for AWS Lambda.
 	/// </summary>
 	/// <param name="hostBuilder"> The host builder. </param>
-	/// <param name="configureOptions"> Optional configuration action for AWS Lambda options. </param>
 	/// <returns> The host builder for chaining. </returns>
 	public static IHostBuilder UseAwsLambda(
-		this IHostBuilder hostBuilder,
-		Action<AwsLambdaOptions>? configureOptions = null)
+		this IHostBuilder hostBuilder)
 	{
 		ArgumentNullException.ThrowIfNull(hostBuilder);
 
@@ -114,11 +112,6 @@ public static class ServerlessHostBuilderExtensions
 			options.PreferredPlatform = ServerlessPlatform.AwsLambda;
 		});
 
-		if (configureOptions != null)
-		{
-			_ = hostBuilder.ConfigureServices((_, services) => services.Configure(configureOptions));
-		}
-
 		return hostBuilder;
 	}
 
@@ -126,11 +119,9 @@ public static class ServerlessHostBuilderExtensions
 	/// Configures the host builder specifically for Azure Functions.
 	/// </summary>
 	/// <param name="hostBuilder"> The host builder. </param>
-	/// <param name="configureOptions"> Optional configuration action for Azure Functions options. </param>
 	/// <returns> The host builder for chaining. </returns>
 	public static IHostBuilder UseAzureFunctions(
-		this IHostBuilder hostBuilder,
-		Action<AzureFunctionsOptions>? configureOptions = null)
+		this IHostBuilder hostBuilder)
 	{
 		ArgumentNullException.ThrowIfNull(hostBuilder);
 
@@ -139,11 +130,6 @@ public static class ServerlessHostBuilderExtensions
 			options.PreferredPlatform = ServerlessPlatform.AzureFunctions;
 		});
 
-		if (configureOptions != null)
-		{
-			_ = hostBuilder.ConfigureServices((_, services) => services.Configure(configureOptions));
-		}
-
 		return hostBuilder;
 	}
 
@@ -151,11 +137,9 @@ public static class ServerlessHostBuilderExtensions
 	/// Configures the host builder specifically for Google Cloud Functions.
 	/// </summary>
 	/// <param name="hostBuilder"> The host builder. </param>
-	/// <param name="configureOptions"> Optional configuration action for Google Cloud Functions options. </param>
 	/// <returns> The host builder for chaining. </returns>
 	public static IHostBuilder UseGoogleCloudFunctions(
-		this IHostBuilder hostBuilder,
-		Action<GoogleCloudFunctionsOptions>? configureOptions = null)
+		this IHostBuilder hostBuilder)
 	{
 		ArgumentNullException.ThrowIfNull(hostBuilder);
 
@@ -163,11 +147,6 @@ public static class ServerlessHostBuilderExtensions
 		{
 			options.PreferredPlatform = ServerlessPlatform.GoogleCloudFunctions;
 		});
-
-		if (configureOptions != null)
-		{
-			_ = hostBuilder.ConfigureServices((_, services) => services.Configure(configureOptions));
-		}
 
 		return hostBuilder;
 	}

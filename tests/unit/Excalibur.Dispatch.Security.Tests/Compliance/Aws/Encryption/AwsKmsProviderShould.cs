@@ -4,6 +4,7 @@
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 
+using Excalibur.Compliance;
 using Excalibur.Compliance.Aws;
 
 using FakeItEasy;
@@ -1361,7 +1362,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var result = await _sut.DeleteKeyAsync(keyId, retentionDays: 30, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.State.ShouldBe(KeyDestructionState.ScheduledIrreversible);
 
 		A.CallTo(() => _mockKmsClient.ScheduleKeyDeletionAsync(
 			A<ScheduleKeyDeletionRequest>.That.Matches(r => r.PendingWindowInDays == 30),
@@ -1464,7 +1465,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var result = await _sut.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeFalse();
+		result.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	[Fact]
@@ -1502,7 +1503,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var result = await _sut.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - should still succeed
-		result.ShouldBeTrue();
+		result.State.ShouldBe(KeyDestructionState.ScheduledIrreversible);
 	}
 
 	[Fact]
@@ -1593,7 +1594,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var result = await _sut.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.State.ShouldBe(KeyDestructionState.ScheduledIrreversible);
 
 		// ScheduleKeyDeletion should be called with the resolved KMS key ID
 		A.CallTo(() => _mockKmsClient.ScheduleKeyDeletionAsync(
@@ -1633,7 +1634,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var result = await _sut.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - should return false since key wasn't found
-		result.ShouldBeFalse();
+		result.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	[Fact]
@@ -1655,7 +1656,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var result = await _sut.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.ShouldBeFalse();
+		result.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	#endregion DeleteKeyAsync Tests

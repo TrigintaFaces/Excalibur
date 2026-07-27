@@ -6,8 +6,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MessagePack;
 
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -49,20 +47,7 @@ public static class MessagePackSerializationExtensions
 
 		var serializer = new MessagePackSerializer();
 
-		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
-		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
-		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
-		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
-		services.RemoveAll<ISerializer>();
-		services.AddSingleton<ISerializer>(serializer);
-
-		services.PostConfigure<PluggableSerializationOptions>(options =>
-		{
-			options.AddRegistration(registry => registry.Register(SerializerIds.MessagePack, serializer));
-			options.CurrentSerializerName = "MessagePack";
-		});
-
-		return services;
+		return services.SetCurrentSerializer(SerializerIds.MessagePack, serializer, "MessagePack");
 	}
 
 	/// <summary>
@@ -84,19 +69,6 @@ public static class MessagePackSerializationExtensions
 
 		var serializer = new MessagePackSerializer(options);
 
-		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
-		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
-		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
-		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
-		services.RemoveAll<ISerializer>();
-		services.AddSingleton<ISerializer>(serializer);
-
-		services.PostConfigure<PluggableSerializationOptions>(opts =>
-		{
-			opts.AddRegistration(registry => registry.Register(SerializerIds.MessagePack, serializer));
-			opts.CurrentSerializerName = "MessagePack";
-		});
-
-		return services;
+		return services.SetCurrentSerializer(SerializerIds.MessagePack, serializer, "MessagePack");
 	}
 }

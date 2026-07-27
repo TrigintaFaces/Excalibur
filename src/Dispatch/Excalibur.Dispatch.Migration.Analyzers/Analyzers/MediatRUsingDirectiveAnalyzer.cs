@@ -15,9 +15,9 @@ namespace Excalibur.Dispatch.Migration.Analyzers;
 /// (EXMIG0003), enabling the companion using-swap code-fix.
 /// </summary>
 /// <remarks>
-/// Implements FR-12 / AC-15 of EPIC w2zq7d. Only the exact top-level <c>MediatR</c> namespace import is
+/// Only the exact top-level <c>MediatR</c> namespace import is
 /// flagged (not aliased or <c>using static</c> forms), so the swap is unambiguous and idempotent on
-/// partially-migrated files (EC-7).
+/// partially-migrated files.
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MediatRUsingDirectiveAnalyzer : DiagnosticAnalyzer

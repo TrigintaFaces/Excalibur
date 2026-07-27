@@ -4,6 +4,9 @@ Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.CommandTim
 Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.CommandTimeoutSeconds.set -> void
 Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.ConnectionString.get -> string!
 Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.ConnectionString.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.EventsTableName.get -> string!
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.EventsTableName.set -> void
+Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.FullyQualifiedEventsTableName.get -> string!
 Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.FullyQualifiedTableName.get -> string!
 Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.SchemaName.get -> string!
 Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions.SchemaName.set -> void
@@ -41,17 +44,6 @@ Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.EnableRetentionE
 Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.RetentionPeriod.get -> System.TimeSpan
 Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.RetentionPeriod.set -> void
 Excalibur.AuditLogging.SqlServer.SqlServerAuditRetentionOptions.SqlServerAuditRetentionOptions() -> void
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.CountAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.Dispose() -> void
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.EnforceRetentionAsync(System.DateTimeOffset cutoffDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.GetByIdAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.GetLastEventAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEvent?>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.QueryAsync(Excalibur.Compliance.AuditQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEvent!>!>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.SqlServerAuditStore(Microsoft.Extensions.Options.IOptions<Excalibur.AuditLogging.SqlServer.SqlServerAuditOptions!>! options, Excalibur.AuditLogging.IAuditIntegrityStrategy! integrity, Microsoft.Extensions.Logging.ILogger<Excalibur.AuditLogging.SqlServer.SqlServerAuditStore!>! logger) -> void
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.StoreAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditEventId>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.StoreBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Compliance.AuditEvent!>! auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.AuditEventId>!>!
-Excalibur.AuditLogging.SqlServer.SqlServerAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditIntegrityResult!>!
 Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditAnnotationStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.SqlServerAuditServiceCollectionExtensions.AddSqlServerAuditAnnotationStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.SqlServer.SqlServerAuditAnnotationStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

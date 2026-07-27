@@ -62,7 +62,7 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 		_options = options.Value;
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 
 	/// <inheritdoc/>

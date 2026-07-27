@@ -6,7 +6,11 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 /// <summary>
 /// A message that represents a bulk collection of operations.
 /// </summary>
-internal sealed class BulkMessage(IList<IDispatchMessage> messages, string operationKey) : IDispatchMessage
+/// <remarks>
+/// Classified as an action because it carries a batch of dispatched operations down the remaining pipeline. Leaving it
+/// unclassifiable would make the pipeline decide its protection from a default rather than from its declared intent.
+/// </remarks>
+internal sealed class BulkMessage(IList<IDispatchMessage> messages, string operationKey) : IDispatchAction
 {
 	/// <inheritdoc/>
 	public string MessageId { get; } = Guid.NewGuid().ToString();
@@ -28,9 +32,6 @@ internal sealed class BulkMessage(IList<IDispatchMessage> messages, string opera
 
 	/// <inheritdoc/>
 	public Guid Id => Guid.TryParse(MessageId, out var guid) ? guid : Guid.Empty;
-
-	/// <inheritdoc/>
-	public MessageKinds Kind => MessageKinds.Action;
 
 	public IList<IDispatchMessage> Messages { get; } = messages;
 

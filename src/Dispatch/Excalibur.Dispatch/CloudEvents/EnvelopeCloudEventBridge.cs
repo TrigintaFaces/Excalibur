@@ -1,47 +1,50 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
-
 using CloudNative.CloudEvents;
 
 namespace Excalibur.Dispatch.CloudEvents;
 
 /// <summary>
-/// Default implementation of <see cref="IEnvelopeCloudEventBridge" /> that composes the <see cref="ICloudEventEnvelopeConverter" /> with
-/// registered CloudEvent mapper instances to translate between Dispatch envelopes and transport specific representations.
+/// Default implementation of <see cref="IEnvelopeCloudEventBridge" /> that composes the
+/// <see cref="ICloudEventEnvelopeConverter" /> with registered CloudEvent mapper adapters to translate
+/// between Dispatch envelopes and transport-specific representations.
 /// </summary>
 /// <remarks>
-/// Initializes a new instance of the <see cref="EnvelopeCloudEventBridge" /> class.
+/// Mappers are resolved through pre-closed <see cref="ICloudEventMapperAdapter"/> instances keyed by
+/// transport-message <see cref="Type"/>. This keeps the bridge trimming/AOT-safe: there is no
+/// <see cref="System.Type.MakeGenericType(System.Type[])"/> and no late-bound <c>dynamic</c> dispatch —
+/// each generic mapper is closed once, at its DI registration site, via
+/// <c>AddCloudEventMapper</c>.
 /// </remarks>
-/// <param name="converter"> The envelope converter that produces <see cref="CloudEvent" /> instances. </param>
-/// <param name="serviceProvider"> The service provider used to resolve transport specific mappers. </param>
-public sealed class EnvelopeCloudEventBridge(ICloudEventEnvelopeConverter converter, IServiceProvider serviceProvider)
-	: IEnvelopeCloudEventBridge
+public sealed class EnvelopeCloudEventBridge : IEnvelopeCloudEventBridge
 {
-	private const string MapperTypeName =
-		Microsoft.Extensions.DependencyInjection.CloudEventsServiceCollectionExtensions.CloudEventMapperTypeName;
+	private readonly ICloudEventEnvelopeConverter _converter;
+	private readonly IReadOnlyDictionary<Type, ICloudEventMapperAdapter> _adapters;
 
-	// 6v2z7q: trusted — MapperTypeName is a fixed framework-internal type name (a compile-time constant),
-	// not untrusted input, so the assembly-scan fallback is safe here.
-	private static readonly Type MapperOpenGenericType = TypeResolution.TypeResolver.ResolveType(MapperTypeName, allowAssemblyScan: true)
-														 ?? throw new InvalidOperationException(
-															 $"Unable to locate CloudEvent mapper type: {MapperTypeName}");
+	/// <summary>
+	/// Initializes a new instance of the <see cref="EnvelopeCloudEventBridge" /> class.
+	/// </summary>
+	/// <param name="converter"> The envelope converter that produces <see cref="CloudEvent" /> instances. </param>
+	/// <param name="adapters"> The registered transport mapper adapters, keyed internally by transport-message type. </param>
+	public EnvelopeCloudEventBridge(
+		ICloudEventEnvelopeConverter converter,
+		IEnumerable<ICloudEventMapperAdapter> adapters)
+	{
+		_converter = converter ?? throw new ArgumentNullException(nameof(converter));
+		ArgumentNullException.ThrowIfNull(adapters);
 
-	private readonly ICloudEventEnvelopeConverter _converter = converter ?? throw new ArgumentNullException(nameof(converter));
-	private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-	private readonly ConcurrentDictionary<Type, Lazy<object>> _mapperCache = new();
+		var map = new Dictionary<Type, ICloudEventMapperAdapter>();
+		foreach (var adapter in adapters)
+		{
+			// Last registration wins for a given transport type (matches TryAdd-style override semantics).
+			map[adapter.TransportMessageType] = adapter;
+		}
+
+		_adapters = map;
+	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "CloudEvent mapping uses known transport types registered at startup.")]
-	[UnconditionalSuppressMessage(
-		"AotAnalysis",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "CloudEvent mapping relies on dynamic dispatch and is not supported in AOT scenarios.")]
 	public async Task<TTransportMessage> ToTransportAsync<TTransportMessage>(
 		MessageEnvelope envelope,
 		CloudEventMode mode,
@@ -56,19 +59,12 @@ public sealed class EnvelopeCloudEventBridge(ICloudEventEnvelopeConverter conver
 			return (TTransportMessage)(object)cloudEvent;
 		}
 
-		var mapper = ResolveMapper(typeof(TTransportMessage));
-		return await InvokeToTransportAsync<TTransportMessage>(mapper, cloudEvent, mode, cancellationToken).ConfigureAwait(false);
+		var adapter = ResolveAdapter(typeof(TTransportMessage));
+		var transportMessage = await adapter.ToTransportAsync(cloudEvent, mode, cancellationToken).ConfigureAwait(false);
+		return (TTransportMessage)transportMessage;
 	}
 
 	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-		"Trimming",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification = "CloudEvent mapping uses known transport types registered at startup.")]
-	[UnconditionalSuppressMessage(
-		"AotAnalysis",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "CloudEvent mapping relies on dynamic dispatch and is not supported in AOT scenarios.")]
 	public async Task<MessageEnvelope> FromTransportAsync(
 		object transportMessage,
 		CancellationToken cancellationToken)
@@ -80,52 +76,16 @@ public sealed class EnvelopeCloudEventBridge(ICloudEventEnvelopeConverter conver
 			return await _converter.ToEnvelopeAsync(cloudEvent, cancellationToken).ConfigureAwait(false);
 		}
 
-		var mapper = ResolveMapper(transportMessage.GetType());
-		var cloudEventResult = await InvokeFromTransportAsync(mapper, transportMessage, cancellationToken)
-			.ConfigureAwait(false);
+		var adapter = ResolveAdapter(transportMessage.GetType());
+		var cloudEventResult = await adapter.FromTransportAsync(transportMessage, cancellationToken).ConfigureAwait(false);
 
 		return await _converter.ToEnvelopeAsync(cloudEventResult, cancellationToken).ConfigureAwait(false);
 	}
 
-	[RequiresUnreferencedCode("Uses dynamic dispatch to invoke transport mappers.")]
-	[RequiresDynamicCode("Uses dynamic dispatch to invoke transport mappers.")]
-	private static async Task<TTransportMessage> InvokeToTransportAsync<TTransportMessage>(
-		object mapper,
-		CloudEvent cloudEvent,
-		CloudEventMode mode,
-		CancellationToken cancellationToken)
-	{
-		dynamic dynamicMapper = mapper;
-		return await dynamicMapper.ToTransportMessageAsync(cloudEvent, mode, cancellationToken).ConfigureAwait(false);
-	}
-
-	[RequiresUnreferencedCode("Uses dynamic dispatch to invoke transport mappers.")]
-	[RequiresDynamicCode("Uses dynamic dispatch to invoke transport mappers.")]
-	private static async Task<CloudEvent> InvokeFromTransportAsync(
-		object mapper,
-		object transportMessage,
-		CancellationToken cancellationToken)
-	{
-		dynamic dynamicMapper = mapper;
-		return await dynamicMapper.FromTransportMessageAsync((dynamic)transportMessage, cancellationToken).ConfigureAwait(false);
-	}
-
-	[RequiresUnreferencedCode("Uses dynamic mapper resolution for transport message types.")]
-	[RequiresDynamicCode("Uses dynamic mapper resolution for transport message types.")]
-	private object ResolveMapper(Type transportMessageType) => _mapperCache.GetOrAdd(
-		transportMessageType,
-		(key, self) => new Lazy<object>(() => self.ResolveMapperInstance(key)),
-		this).Value;
-
-	[RequiresDynamicCode("Calls System.Type.MakeGenericType(params Type[])")]
-	private object ResolveMapperInstance(Type transportMessageType)
-	{
-#pragma warning disable IL2055 // MakeGenericType with runtime type arguments
-		var mapperType = MapperOpenGenericType.MakeGenericType(transportMessageType);
-#pragma warning restore IL2055
-		var mapper = _serviceProvider.GetService(mapperType) ?? throw new InvalidOperationException(
-			$"No CloudEvent mapper registered for transport message type '{transportMessageType.FullName}'.");
-
-		return mapper;
-	}
+	private ICloudEventMapperAdapter ResolveAdapter(Type transportMessageType) =>
+		_adapters.TryGetValue(transportMessageType, out var adapter)
+			? adapter
+			: throw new InvalidOperationException(
+				$"No CloudEvent mapper registered for transport message type '{transportMessageType.FullName}'. " +
+				$"Register one with services.AddCloudEventMapper<{transportMessageType.Name}, TMapper>().");
 }

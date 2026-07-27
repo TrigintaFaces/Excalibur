@@ -231,8 +231,17 @@ public sealed class OutboundMessage
 	/// Gets the per-transport delivery records.
 	/// </summary>
 	/// <remarks>
-	/// This collection tracks the delivery status of the message to each target transport independently.
-	/// It is typically populated by the outbox store when retrieving messages for multi-transport scenarios.
+	/// <para>
+	/// Tracks the delivery status of the message to each target transport independently, for multi-transport
+	/// fan-out.
+	/// </para>
+	/// <para>
+	/// Per-transport delivery state is persisted in a <strong>separate per-transport delivery table</strong>,
+	/// not as a column on the single-message outbox row — so it is intentionally <em>not</em> a field on the
+	/// message read/query projection. The single-message read path leaves this collection empty; the publisher
+	/// then loads the per-transport deliveries on demand by message id when it needs them. Adding a delivered
+	/// transport to this collection is what marks the message multi-transport (see <see cref="AddTransport"/>).
+	/// </para>
 	/// </remarks>
 	public ICollection<OutboundMessageTransport> TransportDeliveries { get; } = [];
 

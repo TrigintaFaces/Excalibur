@@ -81,8 +81,7 @@ public static class ActivityContextExtensions
 	public static string? TenantId(this IActivityContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		var tenantId = context.GetValue<ITenantId?>("TenantId", defaultValue: null);
-		return tenantId?.Value;
+		return context.GetValue<string?>("TenantId", defaultValue: null);
 	}
 
 	/// <summary>

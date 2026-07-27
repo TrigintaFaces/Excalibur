@@ -28,13 +28,15 @@ public static class ThreadingServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, Action<ThreadingOptions>? configure = null)
 	{
+		ArgumentNullException.ThrowIfNull(services);
+
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ThreadingOptions>, ThreadingOptionsValidator>());
 
 		_ = services.ConfigureOptions(configure, static _ => { });
 		_ = services.AddOptions<ThreadingOptions>()
 			.ValidateOnStart();
-		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
+		services.TryAddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 
 		return services;
@@ -53,6 +55,7 @@ public static class ThreadingServiceCollectionExtensions
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IServiceCollection AddDispatchThreading(this IServiceCollection services, IConfiguration configuration)
 	{
+		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		services.TryAddEnumerable(
@@ -61,7 +64,7 @@ public static class ThreadingServiceCollectionExtensions
 		_ = services.AddOptions<ThreadingOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
-		_ = services.AddSingleton<IKeyedLock, KeyedLock>();
+		services.TryAddSingleton<IKeyedLock, KeyedLock>();
 		services.TryAddSingleton<BackgroundExecutionMiddleware>();
 
 		return services;

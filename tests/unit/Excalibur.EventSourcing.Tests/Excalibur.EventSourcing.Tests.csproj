@@ -20,6 +20,7 @@
     <!-- ProjectReferences from all merged event sourcing test projects -->
     <!-- From Excalibur.EventSourcing.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.MultiTenancy\Excalibur.MultiTenancy.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
     <!-- From Excalibur.EventSourcing.Abstractions.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
@@ -38,6 +39,9 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Sqlite\Excalibur.EventSourcing.Sqlite.csproj" />
     <!-- From Excalibur.EventSourcing.Postgres.Tests (S510.3) -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
+    <!-- Oracle snapshot-store keyed-registration lock (5nw7xa) — moved here from the integration project so
+         the pure-DI test actually runs in the CI unit shard. Brings Oracle.ManagedDataAccess transitively. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Oracle\Excalibur.EventSourcing.Oracle.csproj" />
     <!-- Sprint 518: MongoDB and Elasticsearch MV Provider tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />

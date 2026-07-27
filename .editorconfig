@@ -2036,7 +2036,11 @@ dotnet_diagnostic.IL2070.severity = suggestion  # Trim analysis - DynamicallyAcc
 dotnet_diagnostic.IL2075.severity = suggestion  # Trim analysis - GetMethod/GetProperty (ADR-041 Phase 5)
 dotnet_diagnostic.IL2095.severity = suggestion  # AOT analysis - Generic parameter annotations (ADR-041 Phase 5)
 dotnet_diagnostic.CS8656.severity = suggestion  # Readonly member implicit copy
-dotnet_diagnostic.CS1574.severity = suggestion  # XML comment cref resolution
+# XML comment cref resolution. Raised from suggestion to warning (and so to an error under
+# TreatWarningsAsErrors) because an unresolved cref ships as a dead link in the NuGet .xml and in
+# consumer IntelliSense. The compiler has the semantic model and reports this at the source line; a
+# post-hoc scan of emitted xml under bin/ cannot distinguish a real defect from a stale build artifact.
+dotnet_diagnostic.CS1574.severity = warning
 dotnet_diagnostic.CA1720.severity = suggestion  # Identifier contains type name
 dotnet_diagnostic.CA1869.severity = suggestion  # JsonSerializerOptions caching
 dotnet_diagnostic.CA5392.severity = suggestion  # DllImport security paths

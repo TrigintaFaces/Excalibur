@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Delivery;
@@ -61,6 +62,9 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	private long _duplicatesDetected;
 	private long _entriesExpired;
 
+	private readonly Meter _meter;
+	private readonly Counter<long> _duplicatesSuppressedCounter;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryDeduplicator"/> class.
 	/// </summary>
@@ -69,11 +73,32 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	public InMemoryDeduplicator(
 		IOptions<InMemoryDeduplicatorOptions> options,
 		ILogger<InMemoryDeduplicator> logger)
+		: this(options, meterFactory: null, logger)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemoryDeduplicator"/> class.
+	/// </summary>
+	/// <param name="options">Configuration options for the deduplicator.</param>
+	/// <param name="meterFactory"> Optional meter factory for DI-managed metric lifecycle; when null a standalone meter is created. </param>
+	/// <param name="logger"> Logger for diagnostic information. </param>
+	public InMemoryDeduplicator(
+		IOptions<InMemoryDeduplicatorOptions> options,
+		IMeterFactory? meterFactory,
+		ILogger<InMemoryDeduplicator> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_logger = logger;
+
+		_meter = meterFactory?.Create(DispatchTelemetryConstants.Meters.ExactlyOnce)
+			?? new Meter(DispatchTelemetryConstants.Meters.ExactlyOnce, "1.0.0");
+		_duplicatesSuppressedCounter = _meter.CreateCounter<long>(
+			"dispatch.exactlyonce.duplicates.suppressed",
+			unit: "duplicates",
+			description: "Number of duplicate messages suppressed by exactly-once deduplication.");
 
 		var opts = options.Value;
 
@@ -117,6 +142,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			{
 				// Message is a duplicate
 				_ = Interlocked.Increment(ref _duplicatesDetected);
+				_duplicatesSuppressedCounter.Add(1);
 
 				LogDuplicateDetected(messageId, entry.ExpiresAt);
 
@@ -197,6 +223,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 			if (existing.ExpiresAt > now)
 			{
 				_ = Interlocked.Increment(ref _duplicatesDetected);
+				_duplicatesSuppressedCounter.Add(1);
 				return Task.FromResult(false);
 			}
 
@@ -229,6 +256,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 		}
 
 		_ = Interlocked.Increment(ref _duplicatesDetected);
+		_duplicatesSuppressedCounter.Add(1);
 		return Task.FromResult(false);
 	}
 
@@ -322,6 +350,7 @@ internal sealed partial class InMemoryDeduplicator : IInMemoryDeduplicator, ICla
 	{
 		_cleanupTimer?.Dispose();
 		_cleanupGuard.Dispose();
+		_meter.Dispose();
 		_processedMessages.Clear();
 
 		var finalStats = GetStatistics();

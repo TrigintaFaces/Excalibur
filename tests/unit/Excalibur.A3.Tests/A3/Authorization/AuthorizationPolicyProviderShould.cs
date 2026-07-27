@@ -24,15 +24,15 @@ public sealed class AuthorizationPolicyProviderShould
 		var currentUser = A.Fake<IAuthenticationToken>();
 		A.CallTo(() => currentUser.UserId).Returns(null);
 
-		var tenantId = A.Fake<ITenantId>();
-		A.CallTo(() => tenantId.Value).Returns("tenant-1");
+		var tenantId = A.Fake<ITenantContext>();
+		A.CallTo(() => tenantId.TenantId).Returns("tenant-1");
 
 		var sut = new AuthorizationPolicyProvider(
 			activityGroups: null!,
 			userGrants: null!,
 			currentUser: currentUser,
 			cache: A.Fake<IDistributedCache>(),
-			tenantId: tenantId);
+			tenantContext: tenantId);
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(sut.GetPolicyAsync());
@@ -46,15 +46,15 @@ public sealed class AuthorizationPolicyProviderShould
 		var currentUser = A.Fake<IAuthenticationToken>();
 		A.CallTo(() => currentUser.UserId).Returns("user-1");
 
-		var tenantId = A.Fake<ITenantId>();
-		A.CallTo(() => tenantId.Value).Returns(string.Empty);
+		var tenantId = A.Fake<ITenantContext>();
+		A.CallTo(() => tenantId.TenantId).Returns(string.Empty);
 
 		var sut = new AuthorizationPolicyProvider(
 			activityGroups: null!,
 			userGrants: null!,
 			currentUser: currentUser,
 			cache: A.Fake<IDistributedCache>(),
-			tenantId: tenantId);
+			tenantContext: tenantId);
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(sut.GetPolicyAsync());
@@ -68,15 +68,15 @@ public sealed class AuthorizationPolicyProviderShould
 		var currentUser = A.Fake<IAuthenticationToken>();
 		A.CallTo(() => currentUser.UserId).Returns("user-1");
 
-		var tenantId = A.Fake<ITenantId>();
-		A.CallTo(() => tenantId.Value).Returns(null!);
+		var tenantId = A.Fake<ITenantContext>();
+		A.CallTo(() => tenantId.TenantId).Returns(null!);
 
 		var sut = new AuthorizationPolicyProvider(
 			activityGroups: null!,
 			userGrants: null!,
 			currentUser: currentUser,
 			cache: A.Fake<IDistributedCache>(),
-			tenantId: tenantId);
+			tenantContext: tenantId);
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(sut.GetPolicyAsync());

@@ -5,10 +5,12 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.AuditLogging;
 using Excalibur.Data.ElasticSearch.Security;
+using Excalibur.Data.ElasticSearch.Security.Auditing;
 using Excalibur.Dispatch.Telemetry;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,6 +47,8 @@ public static class SecurityServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchSecurityOptions>()
 			.Bind(securitySection)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchSecurityOptions>, ElasticsearchSecurityOptionsValidator>());
 
 		if (configureOptions != null)
 		{
@@ -82,6 +86,8 @@ public static class SecurityServiceCollectionExtensions
 		_ = services.AddOptions<AuthenticationOptions>()
 			.Bind(configuration.GetSection("Elasticsearch:Security:Authentication"))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuthenticationOptions>, AuthenticationOptionsValidator>());
 
 		// Register authentication provider
 		services.TryAddSingleton<IElasticsearchAuthenticationProvider, SecureElasticsearchAuthenticationProvider>();
@@ -128,6 +134,8 @@ public static class SecurityServiceCollectionExtensions
 		_ = services.AddOptions<KeyManagementOptions>()
 			.Bind(keyManagementSection)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KeyManagementOptions>, KeyManagementOptionsValidator>());
 
 		// Register key provider based on configuration
 		var provider = keyManagementSection.GetValue<KeyManagementProvider>("Provider");
@@ -258,6 +266,13 @@ public static class SecurityServiceCollectionExtensions
 		services.TryAddSingleton<IElasticsearchSecurityAuditorEvents>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorReporting>(static sp => sp.GetRequiredService<SecurityAuditor>());
 		services.TryAddSingleton<IElasticsearchSecurityAuditorMaintenance>(static sp => sp.GetRequiredService<SecurityAuditor>());
+
+		// vbv0at-A: fail the host fast at startup when EnsureLogIntegrity=true but the signing-key provider
+		// cannot produce a key — provider-agnostic (default or KMS-backed), so the misconfiguration surfaces
+		// before the first audit write rather than failing closed silently at runtime.
+		_ = services.AddHostedService(static sp => new AuditSigningKeyStartupProbe(
+			sp.GetRequiredService<IOptions<AuditOptions>>(),
+			sp.GetRequiredService<IAuditSigningKeyProvider>()));
 
 		return services;
 	}

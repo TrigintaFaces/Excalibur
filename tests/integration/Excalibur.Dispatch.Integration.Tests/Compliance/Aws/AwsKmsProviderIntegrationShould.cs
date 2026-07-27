@@ -191,8 +191,8 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		// Act
 		var result = await _provider.DeleteKeyAsync(keyId, retentionDays: 7, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert — AWS KMS schedules deletion (recoverable window), so a successful delete is ScheduledIrreversible.
+		result.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.ScheduledIrreversible);
 
 		var metadata = await _provider.GetKeyAsync(keyId, CancellationToken.None);
 		// Key should be in pending deletion state or not found
@@ -212,7 +212,7 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		var result = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 
 		// Assert
-		result.ShouldBeFalse();
+		result.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.NotFound);
 	}
 
 	[Fact]

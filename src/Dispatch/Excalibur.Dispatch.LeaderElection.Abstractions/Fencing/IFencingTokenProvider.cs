@@ -50,10 +50,23 @@ public interface IFencingTokenProvider
 	ValueTask<bool> ValidateTokenAsync(string resourceId, long token, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Issues a new fencing token, incrementing the sequence for the resource.
+	/// Issues a fencing token for the resource that is strictly greater than any token previously issued
+	/// for it, advancing the fencing sequence on each leadership transition.
 	/// </summary>
+	/// <remarks>
+	/// The strictly-monotonic guarantee may be satisfied either by the provider incrementing its own
+	/// persisted counter, or by observing a backing store's native monotonic counter that the store itself
+	/// advances on each leadership change (for example, the Kubernetes Lease <c>leaseTransitions</c> field).
+	/// In the native-counter case the provider does not mutate the sequence itself; it reads the value the
+	/// store guarantees to be strictly increasing. Either way the returned token is safe to fence with.
+	/// </remarks>
 	/// <param name="resourceId">The identifier of the protected resource.</param>
 	/// <param name="cancellationToken">The cancellation token to observe.</param>
 	/// <returns>The newly issued fencing token value.</returns>
+	/// <exception cref="FencingTokenExhaustedException">
+	/// Thrown when the next monotonic token would exceed the provider's token domain. Fencing tokens are
+	/// strictly monotonic and must never wrap, so an exhausted domain fails closed (no token issued); the
+	/// caller must relinquish leadership rather than proceed with an unsafe token.
+	/// </exception>
 	ValueTask<long> IssueTokenAsync(string resourceId, CancellationToken cancellationToken);
 }

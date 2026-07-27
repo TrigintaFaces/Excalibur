@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Messaging;
 using System.Security.Cryptography;
 
 using Excalibur.Dispatch.Diagnostics;
@@ -124,6 +125,17 @@ public partial class RetryPolicy : IRetryPolicy
 				return 0; // Dummy return value
 			}, cancellationToken, operationName).ConfigureAwait(false);
 
+	/// <summary>
+	/// Returns whether an exception represents a failure that cannot succeed on a later attempt, regardless of
+	/// how the caller has configured retries.
+	/// </summary>
+	/// <remarks>
+	/// A floor rather than a policy: it names only failures whose permanence is a property of the exception's
+	/// own contract. <see cref="IsRetryableException"/> already refuses these by default — this exists because
+	/// a consumer-supplied predicate REPLACES that default rather than refining it.
+	/// </remarks>
+	private static bool IsNeverRetryable(Exception ex) => ex is TenantIsolationViolationException;
+
 	private static bool IsRetryableException(Exception ex) =>
 
 		// Default retryable exceptions
@@ -146,7 +158,12 @@ public partial class RetryPolicy : IRetryPolicy
 			MaxRetryAttempts = _options.MaxRetries,
 			DelayGenerator = GenerateDelayWithJitterAsync,
 			ShouldHandle = new PredicateBuilder()
-				.Handle<Exception>(ex => _options.ShouldRetry?.Invoke(ex) ?? IsRetryableException(ex)),
+				// The floor is composed with AND so a consumer predicate can only NARROW what is retried. Without
+				// it, ShouldRetry replaces the default classifier entirely — including its correct refusal of
+				// InvalidOperationException — so a permissive predicate silently re-enables retrying a failure
+				// that cannot succeed. A caller may choose to retry less; nobody should be able to choose to
+				// retry a tenant-isolation violation.
+				.Handle<Exception>(ex => !IsNeverRetryable(ex) && (_options.ShouldRetry?.Invoke(ex) ?? IsRetryableException(ex))),
 			OnRetry = args =>
 			{
 				var delay = args.RetryDelay;
@@ -219,11 +236,14 @@ public partial class RetryPolicy : IRetryPolicy
 			{
 				BackoffStrategy.Fixed => DelayBackoffType.Constant,
 				BackoffStrategy.Linear => DelayBackoffType.Linear,
+				// FullJitter → Polly exponential with jitter forced on (no distinct Polly FullJitter member).
+				BackoffStrategy.FullJitter => DelayBackoffType.Exponential,
 				_ => DelayBackoffType.Exponential,
 			},
 			options.BaseDelay,
 			options.MaxDelay ?? TimeSpan.FromMinutes(1),
-			useJitter: false); // Jitter is handled separately by ApplyJitter
+			// FullJitter forces Polly's AWS-style jitter; other strategies handle jitter separately via ApplyJitter.
+			useJitter: options.BackoffStrategy == BackoffStrategy.FullJitter);
 	}
 
 	/// <summary>

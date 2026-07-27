@@ -6,6 +6,7 @@ using System.Net;
 using Excalibur.Data.CosmosDb.Diagnostics;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
@@ -33,6 +34,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 {
 	private readonly CosmosDbSnapshotStoreOptions _options;
 	private readonly ILogger<CosmosDbSnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
@@ -44,12 +46,18 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot document identifier.
+	/// </param>
 	public CosmosDbSnapshotStore(
 		IOptions<CosmosDbSnapshotStoreOptions> options,
-		ILogger<CosmosDbSnapshotStore> logger)
+		ILogger<CosmosDbSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
@@ -124,7 +132,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId);
+		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 
 		try
 		{
@@ -175,7 +183,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = CosmosDbSnapshotDocument.FromSnapshot(snapshot);
+		var document = CosmosDbSnapshotDocument.FromSnapshot(snapshot, TenantScope.FromContext(_tenantContext).TenantId);
 		var partitionKey = new PartitionKey(snapshot.AggregateType);
 
 		try
@@ -330,7 +338,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId);
+		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 
 		try
 		{
@@ -382,7 +390,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId);
+		var documentId = CosmosDbSnapshotDocument.CreateId(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 
 		try
 		{

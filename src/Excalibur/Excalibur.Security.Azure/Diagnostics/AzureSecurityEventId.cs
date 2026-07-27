@@ -34,4 +34,22 @@ public static class AzureSecurityEventId
 
 	/// <summary>Credential stored in Azure Key Vault.</summary>
 	public const int AzureKeyVaultStored = 70912;
+
+	/// <summary>Signing key retrieved from Azure Key Vault.</summary>
+	public const int AzureKeyVaultKeyRetrieved = 70913;
+
+	/// <summary>Signing key served from the local cache.</summary>
+	public const int AzureKeyVaultKeyCacheHit = 70914;
+
+	/// <summary>Signing key not found in Azure Key Vault (fail-closed).</summary>
+	public const int AzureKeyVaultKeyNotFound = 70915;
+
+	/// <summary>Signing key stored in Azure Key Vault.</summary>
+	public const int AzureKeyVaultKeyStored = 70916;
+
+	/// <summary>Signing key rotated in Azure Key Vault.</summary>
+	public const int AzureKeyVaultKeyRotated = 70917;
+
+	/// <summary>Azure Key Vault key operation failed.</summary>
+	public const int AzureKeyVaultKeyOperationFailed = 70918;
 }

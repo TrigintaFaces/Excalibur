@@ -22,8 +22,19 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		_sut = new CronTimerTransportAdapter(
 			NullLogger<CronTimerTransportAdapter>.Instance,
 			A.Fake<ICronScheduler>(),
-			A.Fake<IServiceProvider>(),
+			FakeServiceProvider(),
 			new CronTimerTransportAdapterOptions { CronExpression = "*/5 * * * *" });
+	}
+
+	// The adapter ctor resolves an OPTIONAL TimeProvider via serviceProvider.GetService<TimeProvider>()
+	// (falling back to TimeProvider.System when absent). A bare A.Fake<IServiceProvider>() returns a non-null
+	// proxy for every GetService call, which then fails to cast to TimeProvider. Return null for TimeProvider
+	// so the ctor takes its documented System-clock fallback.
+	private static IServiceProvider FakeServiceProvider()
+	{
+		var serviceProvider = A.Fake<IServiceProvider>();
+		_ = A.CallTo(() => serviceProvider.GetService(typeof(TimeProvider))).Returns(null);
+		return serviceProvider;
 	}
 
 	[Fact]
@@ -32,7 +43,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 			new CronTimerTransportAdapter(
 				null!,
 				A.Fake<ICronScheduler>(),
-				A.Fake<IServiceProvider>(),
+				FakeServiceProvider(),
 				new CronTimerTransportAdapterOptions()));
 
 	[Fact]
@@ -41,7 +52,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 			new CronTimerTransportAdapter(
 				NullLogger<CronTimerTransportAdapter>.Instance,
 				null!,
-				A.Fake<IServiceProvider>(),
+				FakeServiceProvider(),
 				new CronTimerTransportAdapterOptions()));
 
 	[Fact]
@@ -59,7 +70,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 			new CronTimerTransportAdapter(
 				NullLogger<CronTimerTransportAdapter>.Instance,
 				A.Fake<ICronScheduler>(),
-				A.Fake<IServiceProvider>(),
+				FakeServiceProvider(),
 				null!));
 
 	[Fact]
@@ -127,7 +138,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 			new CronTimerTransportAdapter(
 				NullLogger<CronTimerTransportAdapter>.Instance,
 				A.Fake<ICronScheduler>(),
-				A.Fake<IServiceProvider>(),
+				FakeServiceProvider(),
 				new CronTimerTransportAdapterOptions { CronExpression = "" }));
 	}
 
@@ -138,7 +149,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 			new CronTimerTransportAdapter(
 				NullLogger<CronTimerTransportAdapter>.Instance,
 				A.Fake<ICronScheduler>(),
-				A.Fake<IServiceProvider>(),
+				FakeServiceProvider(),
 				new CronTimerTransportAdapterOptions { CronExpression = "   " }));
 	}
 
@@ -235,7 +246,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		await using var adapter = new CronTimerTransportAdapter(
 			NullLogger<CronTimerTransportAdapter>.Instance,
 			A.Fake<ICronScheduler>(),
-			A.Fake<IServiceProvider>(),
+			FakeServiceProvider(),
 			new CronTimerTransportAdapterOptions { CronExpression = "*/5 * * * *" });
 
 		// Act -- dispose twice should not throw
@@ -331,6 +342,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		var fakeDispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var fakeScheduler = A.Fake<ICronScheduler>();
 		var fakeServiceProvider = A.Fake<IServiceProvider>();
+		_ = A.CallTo(() => fakeServiceProvider.GetService(typeof(TimeProvider))).Returns(null);
 
 		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.Returns(fakeDispatcher);
@@ -368,6 +380,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		var fakeDispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var fakeScheduler = A.Fake<ICronScheduler>();
 		var fakeServiceProvider = A.Fake<IServiceProvider>();
+		_ = A.CallTo(() => fakeServiceProvider.GetService(typeof(TimeProvider))).Returns(null);
 
 		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.Returns(fakeDispatcher);
@@ -404,6 +417,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 		var fakeDispatcher = A.Fake<Excalibur.Dispatch.IDispatcher>();
 		var fakeScheduler = A.Fake<ICronScheduler>();
 		var fakeServiceProvider = A.Fake<IServiceProvider>();
+		_ = A.CallTo(() => fakeServiceProvider.GetService(typeof(TimeProvider))).Returns(null);
 
 		A.CallTo(() => fakeServiceProvider.GetService(typeof(Excalibur.Dispatch.IDispatcher)))
 			.Returns(fakeDispatcher);

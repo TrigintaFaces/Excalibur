@@ -315,7 +315,7 @@ gantt
 | **2. Install** | 2 weeks | 2 weeks | 2 weeks | N/A | 2 weeks |
 | **3. Implement** | 9 weeks (14 controls) | 7 weeks (Articles 17, 30, 32) | 8 weeks (Security + optional) | N/A | 12 weeks (§164.312) |
 | **4. Policies** | SSP, SAR | Privacy policy, RoPA | System description | N/A | Security + Privacy policies |
-| **5. Tests** | 80 conformance tests | 80 conformance tests | Automated validators | N/A | 80 conformance tests |
+| **5. Tests** | Opt-in conformance arms | Opt-in conformance arms | Automated validators | N/A | Opt-in conformance arms |
 | **6. Evidence** | SBOM, scans, audit logs | Erasure certs, RoPA | Reports, logs | Continuous | Audit logs, BAAs |
 | **7. Audit** | 3PAO (3 months) | External DPO (1 month) | CPA (2 months) | CPA (2 months) | External (2 months) |
 | **8. Timeline** | **6-12 months** | **3-6 months** | **3-6 months** | **12-18 months** | **6-12 months** |

@@ -49,14 +49,15 @@ projects:
   - path: samples/06-security/ProvisioningWorkflow/ProvisioningWorkflow.csproj
   - path: samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj
   - path: samples/07-observability/HealthChecks/HealthChecks.csproj
+  - path: samples/07-observability/OperationalDashboard/OperationalDashboard.csproj
   - path: samples/07-observability/OpenTelemetry/OpenTelemetry.csproj
   - path: samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj
   - path: samples/08-serialization/MessagePackSample/MessagePackSample.csproj
   - path: samples/08-serialization/Protobuf/Protobuf.csproj
+  - path: samples/09-advanced/ConsumerConformanceExample/ConsumerConformanceExample.csproj
   - path: samples/09-advanced/deployment/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj
   - path: samples/09-advanced/deployment/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj
   - path: samples/09-advanced/deployment/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj
-  - path: samples/09-advanced/deployment/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj
   - path: samples/09-advanced/cdc/CdcAntiCorruption/CdcAntiCorruption.csproj
   - path: samples/09-advanced/cdc/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj
   - path: samples/09-advanced/persistence-patterns/CosmosDbEventStore/CosmosDbEventStore.csproj
@@ -71,7 +72,6 @@ projects:
   - path: samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj
   - path: samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj
   - path: samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj
-  - path: samples/09-advanced/persistence-patterns/SessionManagement/SessionManagementExample.csproj
   - path: samples/09-advanced/persistence-patterns/SnapshotStrategies/SnapshotStrategies.csproj
   - path: samples/09-advanced/persistence-patterns/SqlServerEventStore/SqlServerEventStore.csproj
   - path: samples/09-advanced/querying/StreamingHandlers/StreamingHandlers.csproj
@@ -167,7 +167,10 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/Excalibur.Dispatch.Transport.AzureServiceBus.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/Excalibur.Dispatch.Transport.GooglePubSub.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Transport.Grpc/Excalibur.Dispatch.Transport.Grpc.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.IbmMq/Excalibur.Dispatch.Transport.IbmMq.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Transport.Kafka/Excalibur.Dispatch.Transport.Kafka.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Mqtt/Excalibur.Dispatch.Transport.Mqtt.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Transport.Pulsar/Excalibur.Dispatch.Transport.Pulsar.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Excalibur.Dispatch.Transport.RabbitMQ.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/Excalibur.Dispatch.Validation.FluentValidation.csproj
   - path: src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
@@ -203,6 +206,7 @@ projects:
   - path: src/Excalibur/Excalibur.Data.MySql/Excalibur.Data.MySql.csproj
   - path: src/Excalibur/Excalibur.Data.Postgres/Excalibur.Data.Postgres.csproj
   - path: src/Excalibur/Excalibur.Data.Redis/Excalibur.Data.Redis.csproj
+  - path: src/Excalibur/Excalibur.Data.Spanner/Excalibur.Data.Spanner.csproj
   - path: src/Excalibur/Excalibur.Data.SqlServer/Excalibur.Data.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Data/Excalibur.Data.csproj
   - path: src/Excalibur/Excalibur.Domain/Excalibur.Domain.csproj
@@ -264,11 +268,13 @@ projects:
   - path: src/Excalibur/Excalibur.LeaderElection.SqlServer/Excalibur.LeaderElection.SqlServer.csproj
   - path: src/Excalibur/Excalibur.LeaderElection/Excalibur.LeaderElection.csproj
   - path: src/Excalibur/Excalibur.Migrate.Tool/Excalibur.Migrate.Tool.csproj
+  - path: src/Excalibur/Excalibur.MultiTenancy/Excalibur.MultiTenancy.csproj
   - path: src/Excalibur/Excalibur.Outbox.CosmosDb/Excalibur.Outbox.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.Outbox.DynamoDb/Excalibur.Outbox.DynamoDb.csproj
   - path: src/Excalibur/Excalibur.Outbox.ElasticSearch/Excalibur.Outbox.ElasticSearch.csproj
   - path: src/Excalibur/Excalibur.Outbox.Firestore/Excalibur.Outbox.Firestore.csproj
   - path: src/Excalibur/Excalibur.Outbox.InMemory/Excalibur.Outbox.InMemory.csproj
+  - path: src/Excalibur/Excalibur.Outbox.Marten/Excalibur.Outbox.Marten.csproj
   - path: src/Excalibur/Excalibur.Outbox.MongoDB/Excalibur.Outbox.MongoDB.csproj
   - path: src/Excalibur/Excalibur.Outbox.Postgres/Excalibur.Outbox.Postgres.csproj
   - path: src/Excalibur/Excalibur.Outbox.Redis/Excalibur.Outbox.Redis.csproj
@@ -287,7 +293,13 @@ projects:
   - path: src/Excalibur/Excalibur.Security.Azure/Excalibur.Security.Azure.csproj
   - path: src/Excalibur/Excalibur.Security/Excalibur.Security.csproj
   - path: src/Excalibur/Excalibur.Testing.Conformance/Excalibur.Testing.Conformance.csproj
+  - path: src/Excalibur/Excalibur.Testing.Containers/Excalibur.Testing.Containers.csproj
   - path: src/Excalibur/Excalibur.Testing/Excalibur.Testing.csproj
+  - path: src/Excalibur/Excalibur.Workflows.Abstractions/Excalibur.Workflows.Abstractions.csproj
+  - path: src/Excalibur/Excalibur.Workflows/Excalibur.Workflows.csproj
+  - path: src/Excalibur/Excalibur.Workflows.Analyzers/Excalibur.Workflows.Analyzers.csproj
+  - path: src/Excalibur/Excalibur.Workflows.CodeFixes/Excalibur.Workflows.CodeFixes.csproj
+  - path: src/Excalibur/Excalibur.Workflows.SqlServer/Excalibur.Workflows.SqlServer.csproj
   - path: tests/Shared/Excalibur.Dispatch.Testing/Excalibur.Dispatch.Testing.csproj
   - path: tests/Shared/Tests.Shared/Tests.Shared.csproj
   - path: tests/architecture/Boundary.Tests/Boundary.Tests.csproj
@@ -366,6 +378,7 @@ projects:
   - path: tests/unit/Excalibur.Jobs.Tests/Excalibur.Jobs.Tests.csproj
   - path: tests/unit/Excalibur.LeaderElection.Tests/Excalibur.LeaderElection.Tests.csproj
   - path: tests/unit/Excalibur.MediatRMigration.Tests/Excalibur.MediatRMigration.Tests.csproj
+  - path: tests/unit/Excalibur.MultiTenancy.Tests/Excalibur.MultiTenancy.Tests.csproj
   - path: tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj
   - path: tests/unit/Excalibur.Postgres.Tests/Excalibur.Postgres.Tests.csproj
   - path: tests/unit/Excalibur.Saga.Tests/Excalibur.Saga.Tests.csproj
@@ -373,3 +386,19 @@ projects:
   - path: tests/unit/Excalibur.SqlServer.Tests/Excalibur.SqlServer.Tests.csproj
   - path: tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj
   - path: tests/unit/Excalibur.Tests/Excalibur.Tests.csproj
+  - path: tests/unit/Excalibur.Workflows.Abstractions.Tests/Excalibur.Workflows.Abstractions.Tests.csproj
+  - path: tests/unit/Excalibur.Workflows.Analyzers.Tests/Excalibur.Workflows.Analyzers.Tests.csproj
+  - path: tests/unit/Excalibur.Workflows.SqlServer.Tests/Excalibur.Workflows.SqlServer.Tests.csproj
+  - path: tests/unit/Excalibur.Workflows.Tests/Excalibur.Workflows.Tests.csproj
+  - path: src/Excalibur/Excalibur.Operations.Dashboard/Excalibur.Operations.Dashboard.csproj
+  - path: src/Excalibur/Excalibur.Operations.Dashboard.EventSourcing/Excalibur.Operations.Dashboard.EventSourcing.csproj
+  - path: src/Excalibur/Excalibur.Operations.Dashboard.Spa/Excalibur.Operations.Dashboard.Spa.csproj
+  - path: tests/unit/Excalibur.Operations.Dashboard.Tests/Excalibur.Operations.Dashboard.Tests.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.Handlers/Excalibur.EventSourcing.Handlers.csproj
+  - path: tests/unit/Excalibur.EventSourcing.Handlers.Tests/Excalibur.EventSourcing.Handlers.Tests.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.Oracle/Excalibur.EventSourcing.Oracle.csproj
+  - path: src/Excalibur/Excalibur.Inbox.Oracle/Excalibur.Inbox.Oracle.csproj
+  - path: src/Excalibur/Excalibur.Outbox.Oracle/Excalibur.Outbox.Oracle.csproj
+  - path: src/Excalibur/Excalibur.Saga.Oracle/Excalibur.Saga.Oracle.csproj
+  - path: tests/unit/Excalibur.Inbox.Oracle.Tests/Excalibur.Inbox.Oracle.Tests.csproj
+  - path: tests/unit/Excalibur.Outbox.Oracle.Tests/Excalibur.Outbox.Oracle.Tests.csproj

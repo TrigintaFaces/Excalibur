@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Compliance.Diagnostics;
+using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -20,7 +21,7 @@ namespace Excalibur.Compliance.Retention;
 /// <para>
 /// This service polls at the configured interval and delegates enforcement to
 /// <see cref="IRetentionEnforcementService"/>. It follows the same pattern as
-/// <see cref="ErasureSchedulerBackgroundService"/>.
+/// <c>ErasureSchedulerBackgroundService</c>.
 /// </para>
 /// </remarks>
 internal sealed partial class RetentionEnforcementBackgroundService : BackgroundService

@@ -138,7 +138,12 @@ public static class EventSourcingBuilderMongoDbExtensions
 			services.TryAddSingleton<IMongoClient>(factory);
 		}
 
-		services.TryAddScoped<IEventStore>(sp =>
+		// Keyed singleton mirroring every sibling provider. A non-keyed Scoped registration both created a
+		// captive-dependency hazard (a singleton forwarder capturing a Scoped store) and left Mongo out of
+		// every keyed-"default" consumer (GDPR erasure, prereq validator, projections, time-travel all
+		// resolve IEventStore via GetKeyedService("default")). Non-keyed consumers resolve through the core
+		// forwarder that maps non-keyed IEventStore -> keyed "default".
+		services.TryAddKeyedSingleton<IEventStore>("mongodb", (sp, _) =>
 		{
 			var client = sp.GetRequiredService<IMongoClient>();
 			var opts = sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
@@ -153,6 +158,8 @@ public static class EventSourcingBuilderMongoDbExtensions
 				internalSerializer,
 				payloadSerializer);
 		});
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("mongodb"));
 	}
 
 	/// <summary>
@@ -160,7 +167,10 @@ public static class EventSourcingBuilderMongoDbExtensions
 	/// </summary>
 	private static void RegisterStoreFromOptions(IServiceCollection services)
 	{
-		services.TryAddScoped<IEventStore>(sp =>
+		// Keyed singleton mirroring every sibling provider (see RegisterClientAndStore). Repairs both the
+		// captive-dependency hazard and Mongo's absence from every keyed-"default" consumer; non-keyed
+		// consumers resolve through the core forwarder that maps non-keyed IEventStore -> keyed "default".
+		services.TryAddKeyedSingleton<IEventStore>("mongodb", (sp, _) =>
 		{
 			var opts = sp.GetRequiredService<IOptions<MongoDbEventStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<MongoDbEventStore>>();
@@ -173,5 +183,7 @@ public static class EventSourcingBuilderMongoDbExtensions
 				internalSerializer,
 				payloadSerializer);
 		});
+		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
+			sp.GetRequiredKeyedService<IEventStore>("mongodb"));
 	}
 }

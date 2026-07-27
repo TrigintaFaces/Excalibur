@@ -75,11 +75,11 @@ public static class ContextValidationDispatchBuilderExtensions
 	/// </summary>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder UseStrictContextValidation(this IDispatchBuilder builder)
+	public static IDispatchBuilder AddStrictContextValidation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		_ = builder.Services.UseStrictContextValidation();
+		_ = builder.Services.AddStrictContextValidation();
 
 		return builder;
 	}
@@ -89,11 +89,11 @@ public static class ContextValidationDispatchBuilderExtensions
 	/// </summary>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <returns> The dispatch builder for chaining. </returns>
-	public static IDispatchBuilder UseLenientContextValidation(this IDispatchBuilder builder)
+	public static IDispatchBuilder AddLenientContextValidation(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		_ = builder.Services.UseLenientContextValidation();
+		_ = builder.Services.AddLenientContextValidation();
 
 		return builder;
 	}

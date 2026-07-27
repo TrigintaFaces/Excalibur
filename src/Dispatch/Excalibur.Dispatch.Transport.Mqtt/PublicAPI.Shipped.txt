@@ -1,0 +1,36 @@
+#nullable enable
+Excalibur.Dispatch.Transport.Mqtt.IMqttConnectionProvider
+Excalibur.Dispatch.Transport.Mqtt.IMqttConnectionProvider.BuildClientOptions(string! clientIdSuffix) -> MQTTnet.MqttClientOptions!
+Excalibur.Dispatch.Transport.Mqtt.IMqttConnectionProvider.CreateClient() -> MQTTnet.IMqttClient!
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ClientId.get -> string!
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ClientId.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Host.get -> string!
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Host.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.MaxPayloadBytes.get -> int?
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.MaxPayloadBytes.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.MqttOptions() -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Password.get -> string?
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Password.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Port.get -> int
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Port.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.QualityOfService.get -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.QualityOfService.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ResponseTopic.get -> string?
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.ResponseTopic.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SharedSubscriptionGroup.get -> string!
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.SharedSubscriptionGroup.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Topic.get -> string!
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Topic.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.UseSharedSubscription.get -> bool
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.UseSharedSubscription.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.UseTls.get -> bool
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.UseTls.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Username.get -> string?
+Excalibur.Dispatch.Transport.Mqtt.MqttOptions.Username.set -> void
+Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
+Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.AtLeastOnce = 1 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
+Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.AtMostOnce = 0 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
+Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService.ExactlyOnce = 2 -> Excalibur.Dispatch.Transport.Mqtt.MqttQualityOfService
+Microsoft.Extensions.DependencyInjection.MqttTransportServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MqttTransportServiceCollectionExtensions.AddMqttTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.Mqtt.MqttOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

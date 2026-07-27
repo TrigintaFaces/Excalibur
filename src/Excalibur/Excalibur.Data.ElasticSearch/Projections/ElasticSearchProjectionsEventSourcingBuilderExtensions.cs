@@ -74,7 +74,7 @@ public static class ElasticSearchProjectionsEventSourcingBuilderExtensions
 	///     es.AddElasticSearchProjectionStore&lt;OrderSummary&gt;(opts =&gt;
 	///     {
 	///         opts.NodeUri = "https://es.example.com:9200";
-	///         opts.IndexPrefix = "orders";
+	///         opts.Index.IndexPrefix = "orders";
 	///     });
 	/// }));
 	/// </code>

@@ -21,17 +21,14 @@ Domain events represent facts that have happened in your domain. They are immuta
 
 ### Using the Base Record
 
-The `DomainEvent` abstract record provides auto-generated defaults for `EventId` (UUID v7), `Version`, `OccurredAt`, `EventType`, and `Metadata`. Override `AggregateId` in derived records:
+The `DomainEvent` abstract record provides auto-generated defaults for `EventId` (UUID v7), `OccurredAt`, `EventType`, and `Metadata`. A domain event carries only its own business data — it does **not** carry an aggregate id or a stream version. The aggregate id is supplied when the event is persisted (as a parameter to the event store), and the stream version is assigned by the store at append time (see [Event Store](event-store.md)).
 
 ```csharp
 public sealed record OrderCreated(
     Guid OrderId,
     string CustomerId,
     decimal TotalAmount,
-    IReadOnlyList<OrderLineItem> Items) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    IReadOnlyList<OrderLineItem> Items) : DomainEvent;
 
 public record OrderLineItem(
     string ProductId,
@@ -59,18 +56,12 @@ public sealed record OrderShipped(
     string Carrier,
     Address ShippingAddress,
     DateTime EstimatedDelivery,
-    IReadOnlyList<ShippedItem> Items) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    IReadOnlyList<ShippedItem> Items) : DomainEvent;
 
 // Bad - lacks context
 public sealed record OrderShipped(
     Guid OrderId,
-    string TrackingNumber) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    string TrackingNumber) : DomainEvent;
 ```
 
 ## Event Properties
@@ -80,27 +71,31 @@ public sealed record OrderShipped(
 Every domain event includes:
 
 ```csharp
-public interface IDomainEvent
+public interface IDomainEvent : IDispatchEvent
 {
     // Unique identifier for this event instance
     string EventId { get; }
 
-    // Which aggregate this event belongs to
-    string AggregateId { get; }
-
-    // Aggregate version after this event
-    long Version { get; }
-
-    // When the event occurred
+    // When the event occurred (UTC)
     DateTimeOffset OccurredAt { get; }
 
-    // Type name for serialization
+    // Type name for serialization and routing
     string EventType { get; }
 
-    // Optional metadata
+    // Optional metadata for cross-cutting concerns
     IDictionary<string, object>? Metadata { get; }
+
+    // Correlation ID for tracking a chain of related operations (read from Metadata)
+    string? CorrelationId { get; }
+
+    // Causation ID identifying the command or event that caused this event (read from Metadata)
+    string? CausationId { get; }
 }
 ```
+
+:::info Stream identity is not on the event
+An event no longer carries an `AggregateId` or a `Version`. The **aggregate id** is passed to the event store as a parameter when appending or loading, and the **stream version** is assigned by the store and surfaced on the persisted envelope (`StoredEvent.Version` / `HistoricEvent.Version`) during replay — never read from the event payload. This keeps the messaging contract free of persistence concerns.
+:::
 
 ### Metadata
 
@@ -161,10 +156,7 @@ public sealed record OrderCreated(
     string CustomerId,
     decimal TotalAmount,
     IReadOnlyList<OrderLineItem> Items,
-    DiscountApplied? Discount = null) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    DiscountApplied? Discount = null) : DomainEvent;
 
 // Integration Event - published to other bounded contexts
 // Contains only what others need to know (no base class required)
@@ -196,19 +188,18 @@ public class OrderCreatedPublisher : IEventHandler<OrderCreated>
     public async Task HandleAsync(OrderCreated @event, CancellationToken ct)
     {
         var integrationEvent = new OrderCreatedIntegrationEvent(
-            Guid.Parse(@event.AggregateId),
+            @event.OrderId,
             @event.CustomerId,
             @event.TotalAmount,
             @event.OccurredAt);
 
-        // CreateChildContext() automatically propagates:
+        // Called from within a handler, DispatchAsync derives a child context from
+        // the current handler's message and automatically propagates:
         // - CorrelationId (for distributed tracing)
         // - CausationId (set to parent's MessageId)
         // - TenantId, UserId, SessionId, WorkflowId
-        // - TraceParent (OpenTelemetry)
-        var childContext = _contextAccessor.MessageContext?.CreateChildContext();
-
-        await _dispatcher.DispatchAsync(integrationEvent, childContext!, ct);
+        // - TraceParent/tracestate (OpenTelemetry)
+        await _dispatcher.DispatchAsync(integrationEvent, ct);
     }
 }
 ```
@@ -233,7 +224,6 @@ public sealed record OrderCreated : DomainEvent
     public Guid OrderId { get; }
     public string CustomerId { get; }
     public decimal TotalAmount { get; }
-    public override string AggregateId => OrderId.ToString();
 
     public OrderCreated(Guid orderId, string customerId, decimal totalAmount)
     {
@@ -262,7 +252,6 @@ public sealed record OrderCreated : DomainEvent
     public required Guid OrderId { get; init; }
     public required string CustomerId { get; init; }
     public required decimal TotalAmount { get; init; }
-    public override string AggregateId => OrderId.ToString();
 }
 
 // Usage - compiler enforces required properties
@@ -306,8 +295,6 @@ The default `EventType` returns the class name (e.g., `"OrderCreated"`). To cust
 ```csharp
 public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
-    public override string AggregateId => OrderId.ToString();
-
     // Override the virtual EventType property to customize the serialization name
     public override string EventType => "order.created.v1";
 }

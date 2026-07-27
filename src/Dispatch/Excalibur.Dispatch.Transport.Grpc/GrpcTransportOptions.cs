@@ -10,6 +10,13 @@ namespace Excalibur.Dispatch.Transport.Grpc;
 /// <summary>
 /// Configuration options for the gRPC transport.
 /// </summary>
+/// <remarks>
+/// This type intentionally exposes more than ten properties: it mirrors the native channel and
+/// call configuration surface of the underlying gRPC client (address, deadlines, message-size
+/// limits, keep-alive, retry, and TLS settings) so consumers can tune the transport from a single
+/// options object. The property count reflects the provider's own configuration breadth rather
+/// than a design that should be split into narrower types.
+/// </remarks>
 public sealed class GrpcTransportOptions
 {
 	/// <summary>
@@ -37,6 +44,16 @@ public sealed class GrpcTransportOptions
 	/// </summary>
 	/// <value>The maximum receive message size, or <see langword="null"/> for default.</value>
 	public int? MaxReceiveMessageSize { get; set; }
+
+	/// <summary>
+	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at the ingress trust
+	/// boundary before an inbound body is materialized/deserialized. Guards against allocation-based
+	/// denial-of-service from an oversized payload. A <see langword="null"/> value opts out of the
+	/// limit (unbounded).
+	/// </summary>
+	/// <value>The maximum inbound-payload length in bytes, or <see langword="null"/> to opt out. Defaults to 4 MiB.</value>
+	[Range(1, int.MaxValue)]
+	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
 
 	/// <summary>
 	/// Gets or sets the destination service method path used for sending messages.

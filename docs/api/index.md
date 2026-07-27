@@ -65,7 +65,6 @@ The application framework handles **what gets persisted and domain modeling**.
 
 - `IDispatchTelemetryProvider` - Telemetry provider
 - `IDispatchMetrics` - Metrics collection
-- `ICircuitBreakerMetrics` - Circuit breaker metrics
 
 ## Generating Documentation
 

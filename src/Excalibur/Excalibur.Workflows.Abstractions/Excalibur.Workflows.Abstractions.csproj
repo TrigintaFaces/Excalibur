@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>Excalibur.Workflows</RootNamespace>
+    <PackageId>Excalibur.Workflows.Abstractions</PackageId>
+    <Description>Durable workflow execution abstractions for the Excalibur framework: the deterministic replay context that is the sole boundary for non-deterministic operations, the append-only workflow journal event schema, the at-least-once idempotent activity contract, and the replay-engine executor seam.</Description>
+    <PackageTags>workflow;durable-execution;replay;event-sourcing;abstractions</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

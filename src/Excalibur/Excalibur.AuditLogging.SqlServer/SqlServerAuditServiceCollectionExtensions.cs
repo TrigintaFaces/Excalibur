@@ -4,11 +4,15 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.AuditLogging;
+using Excalibur.AuditLogging.Retention;
 using Excalibur.AuditLogging.SqlServer;
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -174,14 +178,54 @@ public static class SqlServerAuditServiceCollectionExtensions
 		// SqlServerAuditStore depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
 
+		// The retention opt-out a consumer actually sets lives on SqlServerAuditRetentionOptions, but the
+		// service that enforces it reads AuditRetentionOptions. The two types are unrelated — both sealed,
+		// no inheritance — so without this projection the provider-facing switch is wired to nothing: a
+		// consumer sets EnableRetentionEnforcement = false, the enforcing service still reads its own
+		// default of true, and their audit data is deleted anyway.
+		//
+		// Placed in the shared core rather than in one overload deliberately: all three AddSqlServerAuditStore
+		// overloads funnel through here, so the projection cannot be present on one registration path and
+		// missing from another.
+		_ = services.AddOptions<AuditRetentionOptions>()
+			.Configure<IOptions<SqlServerAuditOptions>>(static (core, sqlServer) =>
+				core.EnableRetentionEnforcement = sqlServer.Value.Retention.EnableRetentionEnforcement);
+
+		// Idempotent single-tenant default: SqlServerAuditStore takes ITenantContext positionally, so without
+		// a registration the store cannot be constructed at all — it would throw at resolve while every unit
+		// test that news it up directly still passed. A single-tenant host resolves the default tenant here;
+		// a multi-tenant host has already registered its own and TryAdd leaves that untouched.
+		_ = services.AddDefaultTenantContext();
+
 		services.TryAddSingleton<SqlServerAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<SqlServerAuditStore>());
 	}
 
 	private static void RegisterSqlServerAuditAnnotationStoreCore(IServiceCollection services)
 	{
-		services.TryAddSingleton<SqlServerAuditAnnotationStore>();
-		services.TryAddSingleton<IAuditAnnotationStore>(sp =>
-			sp.GetRequiredService<SqlServerAuditAnnotationStore>());
+		// Built by an explicit factory rather than by type activation, because the store's ITenantContext
+		// is OPTIONAL: a single-tenant host registers none, and type activation would demand every
+		// constructor parameter be resolvable and fail at resolve time for that supported shape. GetService
+		// yields null there, which the store reads as the untenanted partition — a concrete tenant term,
+		// not an absent one — so a host that never opted into multi-tenancy still emits a scoped predicate.
+		services.TryAddSingleton(sp => new SqlServerAuditAnnotationStore(
+			sp.GetRequiredService<IOptions<SqlServerAuditAnnotationStoreOptions>>(),
+			sp.GetRequiredService<IAuditActorProvider>(),
+			sp.GetRequiredService<TimeProvider>(),
+			sp.GetService<ITenantContext>(),
+			sp.GetRequiredService<ILogger<SqlServerAuditAnnotationStore>>()));
+
+		// Registered under the core package's inner-store KEY, and deliberately NOT as IAuditAnnotationStore.
+		// That interface is bound by the core package and always yields the access-checking decorator; a
+		// provider that bound it directly would hand consumers a store with no role or authorship checks on
+		// it — which is exactly what this package used to do, and no call order could recover from it.
+		//
+		// AddKeyedSingleton rather than TryAdd is load-bearing: the core package registers the in-memory
+		// store under this key with TryAdd, so a plain TryAdd here would lose whenever AddAuditAnnotations
+		// ran first and this package would go silently unused. A later keyed registration supersedes an
+		// earlier one, so this store wins in BOTH call orders.
+		services.AddKeyedSingleton<IAuditAnnotationStore>(
+			AuditLoggingServiceCollectionExtensions.InnerAuditAnnotationStoreKey,
+			(sp, _) => sp.GetRequiredService<SqlServerAuditAnnotationStore>());
 	}
 }

@@ -78,10 +78,14 @@ public static class TestTiming
 		Task.Delay(delay, cancellationToken);
 
 	public static void Sleep(int millisecondsTimeout) =>
+		#pragma warning disable RS0030 // sanctioned central blocking primitive; raw Thread.Sleep is banned everywhere else (1b54fe)
 		Thread.Sleep(millisecondsTimeout);
+		#pragma warning restore RS0030
 
 	public static void Sleep(TimeSpan timeout) =>
+		#pragma warning disable RS0030 // sanctioned central blocking primitive; raw Thread.Sleep is banned everywhere else (1b54fe)
 		Thread.Sleep(timeout);
+		#pragma warning restore RS0030
 
 	/// <summary>
 	/// Preferred blocking wait primitive for tests that must use synchronous APIs.
@@ -90,7 +94,9 @@ public static class TestTiming
 	{
 		if (millisecondsTimeout > 0)
 		{
+			#pragma warning disable RS0030 // sanctioned central blocking primitive; raw Thread.Sleep is banned everywhere else (1b54fe)
 			Thread.Sleep(millisecondsTimeout);
+			#pragma warning restore RS0030
 		}
 	}
 
@@ -101,7 +107,9 @@ public static class TestTiming
 	{
 		if (timeout > TimeSpan.Zero)
 		{
+			#pragma warning disable RS0030 // sanctioned central blocking primitive; raw Thread.Sleep is banned everywhere else (1b54fe)
 			Thread.Sleep(timeout);
+			#pragma warning restore RS0030
 		}
 	}
 }

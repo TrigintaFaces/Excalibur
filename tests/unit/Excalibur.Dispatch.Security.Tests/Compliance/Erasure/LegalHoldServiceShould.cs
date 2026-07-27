@@ -27,7 +27,7 @@ public sealed class LegalHoldServiceShould
 		_ = A.CallTo(() => _store.GetService(typeof(ILegalHoldQueryStore)))
 			.Returns(_queryStore);
 
-		_sut = new LegalHoldService(_store, NullLogger<LegalHoldService>.Instance);
+		_sut = new LegalHoldService(_store, TestDataSubjectHasher.Instance, NullLogger<LegalHoldService>.Instance);
 	}
 
 	#region Constructor Tests
@@ -38,7 +38,7 @@ public sealed class LegalHoldServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new LegalHoldService(
 			null!,
-			NullLogger<LegalHoldService>.Instance));
+			TestDataSubjectHasher.Instance, NullLogger<LegalHoldService>.Instance));
 	}
 
 	[Fact]
@@ -47,6 +47,7 @@ public sealed class LegalHoldServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => new LegalHoldService(
 			_store,
+			TestDataSubjectHasher.Instance,
 			null!));
 	}
 

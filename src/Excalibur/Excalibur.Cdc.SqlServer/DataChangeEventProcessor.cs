@@ -38,6 +38,10 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 	/// <param name="stateStoreOptions"> The CDC state store options. </param>
 	/// <param name="serviceProvider"> The service provider for dependency injection. </param>
 	/// <param name="policyFactory"> The factory for creating data access policies. </param>
+	/// <param name="timeProvider">
+	/// The time provider used for the stale-position recovery backoff delay, so recovery retries are
+	/// deterministically testable without wall-clock sleeps.
+	/// </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
 	/// <param name="fatalErrorOptions">
 	/// Options containing an optional delegate that is invoked if a fatal error occurs during event processing.
@@ -51,9 +55,10 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
+			TimeProvider timeProvider,
 			ILogger<DataChangeEventProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions = null)
-			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions)
+			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -74,10 +79,11 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			IOptions<SqlServerCdcStateStoreOptions>? stateStoreOptions,
 			IServiceProvider serviceProvider,
 			IDataAccessPolicyFactory policyFactory,
+			TimeProvider timeProvider,
 			ILogger<DataChangeEventProcessor> logger,
 			IOptions<CdcFatalErrorOptions<DataChangeEvent>>? fatalErrorOptions,
 			ICdcIdempotencyFilter? idempotencyFilter)
-			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, logger, fatalErrorOptions, idempotencyFilter)
+			: base(appLifetime, dbConfig, cdcRepository, stateStoreConnection, stateStoreOptions, policyFactory, timeProvider, logger, fatalErrorOptions, idempotencyFilter)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);

@@ -12,7 +12,7 @@ namespace Excalibur.Inbox.SqlServer;
 /// <para>
 /// Provides the canonical 4 connection overloads plus subsystem-specific configuration
 /// for inbox schema, table, and deduplication window. Follows the builder pattern
-/// established by <see cref="Excalibur.EventSourcing.SqlServer.ISqlServerEventSourcingBuilder"/>.
+/// established by <c>ISqlServerEventSourcingBuilder</c>.
 /// </para>
 /// <para>
 /// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection

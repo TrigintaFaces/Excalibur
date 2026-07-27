@@ -18,21 +18,21 @@ public sealed class CloudEventContentTypesShould
 	public void HaveCloudEventsJsonConstant()
 	{
 		// Assert
-		CloudEventContentTypes.CloudEventsJson.ShouldBe("APPLICATION/CLOUDEVENTS+JSON");
+		CloudEventContentTypes.CloudEventsJson.ShouldBe("application/cloudevents+json");
 	}
 
 	[Fact]
 	public void HaveCloudEventsBatchJsonConstant()
 	{
 		// Assert
-		CloudEventContentTypes.CloudEventsBatchJson.ShouldBe("APPLICATION/CLOUDEVENTS-BATCH+JSON");
+		CloudEventContentTypes.CloudEventsBatchJson.ShouldBe("application/cloudevents-batch+json");
 	}
 
 	[Fact]
 	public void HaveApplicationJsonConstant()
 	{
 		// Assert
-		CloudEventContentTypes.ApplicationJson.ShouldBe("APPLICATION/JSON");
+		CloudEventContentTypes.ApplicationJson.ShouldBe("application/json");
 	}
 
 	[Fact]

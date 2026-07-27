@@ -91,15 +91,15 @@ public sealed class EventSourcedRepositoryShould
 
 		public void Create(string name)
 		{
-			RaiseEvent(new TestCreatedEventV1 { AggregateId = Id, Version = Version, Name = name });
+			RaiseEvent(new TestCreatedEventV1 { Name = name });
 		}
 
 		public void Update(string newValue)
 		{
-			RaiseEvent(new TestUpdatedEvent { AggregateId = Id, Version = Version, NewValue = newValue });
+			RaiseEvent(new TestUpdatedEvent { NewValue = newValue });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			switch (@event)
 			{
@@ -107,17 +107,19 @@ public sealed class EventSourcedRepositoryShould
 					var parts = v1.Name.Split(' ', 2);
 					FirstName = parts[0];
 					LastName = parts.Length > 1 ? parts[1] : string.Empty;
-					break;
+					return true;
 
 				case TestCreatedEventV2 v2:
 					FirstName = v2.FirstName;
 					LastName = v2.LastName;
 					WasUpcastedEventApplied = true;
-					break;
+					return true;
 
 				case TestUpdatedEvent updated:
 					CurrentValue = updated.NewValue;
-					break;
+					return true;
+				default:
+					return false;
 			}
 		}
 	}
@@ -126,16 +128,18 @@ public sealed class EventSourcedRepositoryShould
 
 	#region Helper Methods
 
-	private static StoredEvent CreateStoredEvent(IDomainEvent domainEvent, string eventType)
+	// AggregateId/Version now live on the persistence envelope (StoredEvent), not the event payload —
+	// they are supplied explicitly here rather than read off the domain event.
+	private static StoredEvent CreateStoredEvent(IDomainEvent domainEvent, string eventType, string aggregateId, long version)
 	{
 		return new StoredEvent(
 			EventId: domainEvent.EventId,
-			AggregateId: domainEvent.AggregateId,
+			AggregateId: aggregateId,
 			AggregateType: "TestAggregate",
 			EventType: eventType,
 			EventData: JsonSerializer.SerializeToUtf8Bytes(domainEvent),
 			Metadata: null,
-			Version: domainEvent.Version,
+			Version: version,
 			Timestamp: domainEvent.OccurredAt);
 	}
 
@@ -207,13 +211,13 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
-		var updateEvent = new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, NewValue = "Updated Value" };
+		var v1Event = new TestCreatedEventV1 { Name = "John Doe" };
+		var updateEvent = new TestUpdatedEvent { NewValue = "Updated Value" };
 
 		var storedEvents = new List<StoredEvent>
 		{
-			CreateStoredEvent(v1Event, "TestCreatedEventV1"),
-			CreateStoredEvent(updateEvent, "TestUpdatedEvent")
+			CreateStoredEvent(v1Event, "TestCreatedEventV1", aggregateId, 0),
+			CreateStoredEvent(updateEvent, "TestUpdatedEvent", aggregateId, 1)
 		};
 
 		var eventStore = A.Fake<IEventStore>();
@@ -249,8 +253,8 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange — a stream with a good event followed by a poison event that deserializes to null.
 		var aggregateId = "agg-poison";
-		var goodEvent = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
-		var goodStored = CreateStoredEvent(goodEvent, "TestCreatedEventV1");
+		var goodEvent = new TestCreatedEventV1 { Name = "John Doe" };
+		var goodStored = CreateStoredEvent(goodEvent, "TestCreatedEventV1", aggregateId, 0);
 		var poisonStored = new StoredEvent(
 			EventId: "evt-poison",
 			AggregateId: aggregateId,
@@ -292,11 +296,11 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "Jane Smith" };
+		var v1Event = new TestCreatedEventV1 { Name = "Jane Smith" };
 
 		var storedEvents = new List<StoredEvent>
 		{
-			CreateStoredEvent(v1Event, "TestCreatedEventV1")
+			CreateStoredEvent(v1Event, "TestCreatedEventV1", aggregateId, 0)
 		};
 
 		var eventStore = A.Fake<IEventStore>();
@@ -310,7 +314,7 @@ public sealed class EventSourcedRepositoryShould
 				if (msg is TestCreatedEventV1 v1)
 				{
 					var parts = v1.Name.Split(' ', 2);
-					return new TestCreatedEventV2 { AggregateId = v1.AggregateId, Version = v1.Version, FirstName = parts[0], LastName = parts.Length > 1 ? parts[1] : "" };
+					return new TestCreatedEventV2 { FirstName = parts[0], LastName = parts.Length > 1 ? parts[1] : "" };
 				}
 				return msg;
 			});
@@ -339,11 +343,11 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
+		var v1Event = new TestCreatedEventV1 { Name = "John Doe" };
 
 		var storedEvents = new List<StoredEvent>
 		{
-			CreateStoredEvent(v1Event, "TestCreatedEventV1")
+			CreateStoredEvent(v1Event, "TestCreatedEventV1", aggregateId, 0)
 		};
 
 		var eventStore = A.Fake<IEventStore>();
@@ -374,11 +378,11 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var updateEvent = new TestUpdatedEvent { AggregateId = aggregateId, Version = 0, NewValue = "Some Value" };
+		var updateEvent = new TestUpdatedEvent { NewValue = "Some Value" };
 
 		var storedEvents = new List<StoredEvent>
 		{
-			CreateStoredEvent(updateEvent, "TestUpdatedEvent")
+			CreateStoredEvent(updateEvent, "TestUpdatedEvent", aggregateId, 0)
 		};
 
 		var eventStore = A.Fake<IEventStore>();
@@ -409,11 +413,11 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
+		var v1Event = new TestCreatedEventV1 { Name = "John Doe" };
 
 		var storedEvents = new List<StoredEvent>
 		{
-			CreateStoredEvent(v1Event, "TestCreatedEventV1")
+			CreateStoredEvent(v1Event, "TestCreatedEventV1", aggregateId, 0)
 		};
 
 		var eventStore = A.Fake<IEventStore>();

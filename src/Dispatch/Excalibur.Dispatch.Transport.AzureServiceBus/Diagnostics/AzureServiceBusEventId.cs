@@ -761,6 +761,9 @@ public static class AzureServiceBusEventId
 	/// <summary>Transport receiver: message cache full, skipping cache entry.</summary>
 	public const int TransportReceiverCacheFull = 24988;
 
+	/// <summary>Transport receiver: oversized inbound payload rejected before materialization.</summary>
+	public const int TransportReceiverPayloadTooLarge = 24989;
+
 	// ========================================
 	// 24990-24997: ITransportSubscriber
 	// ========================================
@@ -789,9 +792,8 @@ public static class AzureServiceBusEventId
 	/// <summary>Transport subscriber: disposed.</summary>
 	public const int TransportSubscriberDisposed = 24997;
 
-	// ========================================
-	// 24998: Reserved
-	// ========================================
+	/// <summary>Transport subscriber: oversized inbound payload rejected before materialization.</summary>
+	public const int TransportSubscriberPayloadTooLarge = 24998;
 
 	// ========================================
 	// 25100-25119: Event Grid Sender

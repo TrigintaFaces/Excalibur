@@ -177,15 +177,17 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case AccountOpened e: Apply(e); break;
-			case MoneyDeposited e: Apply(e); break;
-			case MoneyWithdrawn e: Apply(e); break;
-			case MoneyTransferred e: Apply(e); break;
-			case AccountClosed e: Apply(e); break;
+			case AccountOpened e: Apply(e); return true;
+			case MoneyDeposited e: Apply(e); return true;
+			case MoneyWithdrawn e: Apply(e); return true;
+			case MoneyTransferred e: Apply(e); return true;
+			case AccountClosed e: Apply(e); return true;
+			default:
+				return false;
 		}
 	}
 

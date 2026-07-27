@@ -329,7 +329,7 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             DatabaseName = "test"
         });
 
-        var store = new MongoDbComplianceStore(client, options, A.Fake<ILogger<MongoDbComplianceStore>>());
+        var store = new MongoDbComplianceStore(client, options, tenantContext: null, A.Fake<ILogger<MongoDbComplianceStore>>());
 
         // Act
         store.Dispose();
@@ -348,7 +348,7 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
             DatabaseName = "test"
         });
 
-        var store = new MongoDbComplianceStore(options, A.Fake<ILogger<MongoDbComplianceStore>>());
+        var store = new MongoDbComplianceStore(options, tenantContext: null, A.Fake<ILogger<MongoDbComplianceStore>>());
 
         // Act & Assert — idempotent disposal
         store.Dispose();

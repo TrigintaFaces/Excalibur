@@ -223,8 +223,7 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var options = new ExcaliburValidationOptions
 		{
-			ValidateCloudProviders = true,
-			UseAws = true,
+			CloudProviders = { Enabled = true, UseAws = true },
 		};
 
 		// Act
@@ -242,8 +241,7 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var options = new ExcaliburValidationOptions
 		{
-			ValidateCloudProviders = true,
-			UseAzure = true,
+			CloudProviders = { Enabled = true, UseAzure = true },
 		};
 
 		// Act
@@ -261,8 +259,7 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var options = new ExcaliburValidationOptions
 		{
-			ValidateCloudProviders = true,
-			UseGoogleCloud = true,
+			CloudProviders = { Enabled = true, UseGoogleCloud = true },
 		};
 
 		// Act
@@ -280,8 +277,7 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var options = new ExcaliburValidationOptions
 		{
-			ValidateMessageBrokers = true,
-			UseRabbitMq = true,
+			MessageBrokers = { Enabled = true, UseRabbitMq = true },
 		};
 
 		// Act
@@ -299,8 +295,7 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var options = new ExcaliburValidationOptions
 		{
-			ValidateMessageBrokers = true,
-			UseKafka = true,
+			MessageBrokers = { Enabled = true, UseKafka = true },
 		};
 
 		// Act
@@ -318,9 +313,9 @@ public sealed class ConfigurationValidationExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var options = new ExcaliburValidationOptions
 		{
-			ValidateDatabases = true,
+			Databases = { Enabled = true },
 		};
-		options.DatabaseConnections.Add("Default", DatabaseProvider.SqlServer);
+		options.Databases.Connections.Add("Default", DatabaseProvider.SqlServer);
 
 		// Act
 		services.AddExcaliburConfigurationValidation(options);

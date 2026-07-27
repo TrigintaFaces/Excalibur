@@ -92,7 +92,7 @@ public sealed class SmallOptionsShould
 		var opts = new ContextValidationOptions();
 
 		opts.Mode.ShouldBe(ValidationMode.Lenient);
-		opts.ValidateRequiredFields.ShouldBeTrue();
+		opts.Checks.ValidateRequiredFields.ShouldBeTrue();
 	}
 
 	[Fact]

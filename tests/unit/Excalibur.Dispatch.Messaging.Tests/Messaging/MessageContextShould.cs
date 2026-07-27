@@ -1302,11 +1302,12 @@ public sealed class MessageContextShould
 	}
 
 	/// <summary>
-	/// Verifies that CreateChildContext does NOT copy Items dictionary.
-	/// Child context should start with an empty Items dictionary.
+	/// Verifies that CreateChildContext copies the parent's Items baggage into the child so a child
+	/// dispatch keeps the same ambient cross-cutting state a context-reuse dispatch would (n79zqd), and
+	/// that the copy is independent (mutating the child does not affect the parent).
 	/// </summary>
 	[Fact]
-	public void CreateChildContext_Should_Not_Copy_Items()
+	public void CreateChildContext_Should_Copy_Items_Independently()
 	{
 		// Arrange
 		var parent = new MessageContext();
@@ -1317,10 +1318,15 @@ public sealed class MessageContextShould
 		// Act
 		var child = parent.CreateChildContext();
 
-		// Assert
-		child.Items.ShouldBeEmpty();
-		child.ContainsItem("key1").ShouldBeFalse();
-		child.ContainsItem("key2").ShouldBeFalse();
+		// Assert - baggage propagated to the child
+		child.ContainsItem("key1").ShouldBeTrue();
+		child.ContainsItem("key2").ShouldBeTrue();
+		child.GetItem<string>("key1").ShouldBe("value1");
+		child.GetItem<int>("key2").ShouldBe(42);
+
+		// Assert - independent copy: mutating the child does not leak back to the parent
+		child.SetItem("child-only", "x");
+		parent.ContainsItem("child-only").ShouldBeFalse();
 	}
 
 	/// <summary>
@@ -1361,7 +1367,7 @@ public sealed class MessageContextShould
 
 		parent.GetOrCreateRoutingFeature().Source = "TestService";
 		parent.Initialize(_serviceProvider);
-		parent.SetItem("should-not-copy", "value");
+		parent.SetItem("baggage-key", "value");
 
 		// Act
 		var child = parent.CreateChildContext();
@@ -1382,8 +1388,8 @@ public sealed class MessageContextShould
 		child.GetTraceParent().ShouldBe("00-trace-span-01");
 		child.GetSource().ShouldBe("TestService");
 
-		// Assert - Items not copied
-		child.Items.ShouldBeEmpty();
+		// Assert - Items baggage copied (n79zqd)
+		child.GetItem<string>("baggage-key").ShouldBe("value");
 	}
 
 	#endregion

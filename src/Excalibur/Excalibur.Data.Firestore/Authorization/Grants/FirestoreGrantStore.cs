@@ -23,7 +23,7 @@ namespace Excalibur.Data.Firestore.Authorization;
 /// Uses SetAsync for upsert operations and UpdateAsync for soft deletes.
 /// </para>
 /// </remarks>
-public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore, IAsyncDisposable
+public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStore, IGrantQueryStore, IAsyncDisposable
 {
 	private readonly FirestoreAuthorizationOptions _options;
 	private readonly ILogger<FirestoreGrantStore> _logger;
@@ -339,6 +339,11 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IGrantQueryStore,
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IDurableGrantStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IGrantQueryStore))
 		{

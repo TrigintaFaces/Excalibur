@@ -42,12 +42,15 @@ public sealed class AutoSnapshotIntegrationShould
 			});
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is ValueSetEvent e)
 			{
 				Value = e.Value;
+				return true;
 			}
+
+			return false;
 		}
 	}
 

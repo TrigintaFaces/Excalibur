@@ -119,19 +119,6 @@ public sealed class CommandBaseShould : UnitTestBase
 
 	#endregion
 
-	#region Kind Property Tests
-
-	[Fact]
-	public void Kind_ReturnsAction()
-	{
-		// Arrange
-		var command = new TestCommand(Guid.NewGuid());
-
-		// Act & Assert
-		command.Kind.ShouldBe(MessageKinds.Action);
-	}
-
-	#endregion
 
 	#region Headers Property Tests
 

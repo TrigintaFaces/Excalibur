@@ -26,6 +26,7 @@ public sealed class RedisJobCoordinatorShould
 	{
 		_coordinator = new RedisJobCoordinator(
 			_database,
+			TimeProvider.System,
 			NullLogger<RedisJobCoordinator>.Instance,
 			"test:");
 	}
@@ -34,21 +35,28 @@ public sealed class RedisJobCoordinatorShould
 	public void ThrowArgumentNullException_WhenDatabaseIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new RedisJobCoordinator(null!, NullLogger<RedisJobCoordinator>.Instance));
+			new RedisJobCoordinator(null!, TimeProvider.System, NullLogger<RedisJobCoordinator>.Instance));
+	}
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenTimeProviderIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() =>
+			new RedisJobCoordinator(_database, null!, NullLogger<RedisJobCoordinator>.Instance));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new RedisJobCoordinator(_database, null!));
+			new RedisJobCoordinator(_database, TimeProvider.System, null!));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenKeyPrefixIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new RedisJobCoordinator(_database, NullLogger<RedisJobCoordinator>.Instance, null!));
+			new RedisJobCoordinator(_database, TimeProvider.System, NullLogger<RedisJobCoordinator>.Instance, null!));
 	}
 
 	[Fact]

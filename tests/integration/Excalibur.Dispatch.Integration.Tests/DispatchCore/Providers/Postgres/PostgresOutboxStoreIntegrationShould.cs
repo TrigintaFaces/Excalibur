@@ -7,7 +7,7 @@ using Excalibur.Dispatch;
 
 using Excalibur.Data;
 
-using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using OutboxMessage = Excalibur.Outbox.OutboxMessage;
 using Excalibur.Outbox.Postgres;
 
 using FakeItEasy;
@@ -219,7 +219,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 				Guid.NewGuid().ToString(),
 				"TestMessage",
 				$"{{\"sequence\": {i}}}",
-				$"{{\"data\": \"message-{i}\"}}",
+				System.Text.Encoding.UTF8.GetBytes($"{{\"data\": \"message-{i}\"}}"),
 				DateTimeOffset.UtcNow);
 			messages.Add(msg);
 			_ = await store.SaveMessagesAsync(new[] { msg }, TestCancellationToken);
@@ -291,7 +291,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			Guid.NewGuid().ToString(),
 			"TestMessage",
 			"{\"correlationId\": \"sched-123\"}",
-			"{\"data\": \"scheduled payload\"}",
+			System.Text.Encoding.UTF8.GetBytes("{\"data\": \"scheduled payload\"}"),
 			DateTimeOffset.UtcNow)
 		{
 			TenantId = ExpectedTenantId
@@ -317,6 +317,69 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 		reloaded.TenantId.ShouldBe(ExpectedTenantId);
 	}
 
+	/// <summary>
+	/// bbazps (j604qc-b / cys98n) — <see cref="PostgresOutboxStore.EnqueueAsync(IDispatchMessage, IMessageContext, CancellationToken)"/>
+	/// must derive the routing <c>destination</c> from the message context's metadata (S867 bi35j9 parity),
+	/// persisting it to the <c>destination</c> column so a consumer's configured destination is honored on
+	/// dispatch — and, when the context carries no destination, fall back to the message TYPE name (the
+	/// convention the other providers use), NOT a hardcoded default. Real-infra round-trip against a live
+	/// Postgres container. RED on an impl that hardcodes the destination or ignores the context.
+	/// </summary>
+	[Fact]
+	public async Task EnqueueAsync_DerivesDestinationFromContext_ElseFallsBackToTypeName()
+	{
+		// Arrange
+		_pgFixture.DockerAvailable.ShouldBeTrue("cys98n destination derivation is a real-Postgres persistence invariant — never skipped.");
+		await InitializeOutboxTableAsync();
+		var (store, _) = CreateOutboxStore();
+
+		const string ConfiguredDestination = "orders.commands.v1";
+		var derivedId = Guid.NewGuid().ToString();
+		var fallbackId = Guid.NewGuid().ToString();
+
+		// Case A: context carries a destination (metadata property, copied from Items on ExtractMetadata).
+		await store.EnqueueAsync(new DestinationDerivationTestMessage(), CreateContext(derivedId, ConfiguredDestination), TestCancellationToken);
+		// Case B: context carries NO destination → the store must fall back to the message type name.
+		await store.EnqueueAsync(new DestinationDerivationTestMessage(), CreateContext(fallbackId, destination: null), TestCancellationToken);
+
+		// Assert — read the persisted destination column for each.
+		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
+		await connection.OpenAsync(TestCancellationToken);
+
+		var derivedDestination = await connection.ExecuteScalarAsync<string?>(
+			"SELECT destination FROM outbox WHERE message_id = @id", new { id = derivedId });
+		derivedDestination.ShouldBe(ConfiguredDestination,
+			"cys98n: EnqueueAsync must persist the destination derived from the context metadata.");
+
+		var fallbackDestination = await connection.ExecuteScalarAsync<string?>(
+			"SELECT destination FROM outbox WHERE message_id = @id", new { id = fallbackId });
+		fallbackDestination.ShouldBe(nameof(DestinationDerivationTestMessage),
+			"cys98n: with no context destination, EnqueueAsync must fall back to the message TYPE name, not a hardcoded default.");
+	}
+
+	private static IMessageContext CreateContext(string messageId, string? destination)
+	{
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		if (destination is not null)
+		{
+			// The store derives via context.ExtractMetadata().GetDestination(), which surfaces the
+			// MetadataPropertyKeys.Destination item copied from the context's Items on extraction.
+			items[MetadataPropertyKeys.Destination] = destination;
+		}
+
+		// A bare fake returns "" for unconfigured string properties, which trips ExtractMetadata's
+		// non-empty guards (WithCorrelationId). Configure the direct-read properties explicitly:
+		// CorrelationId non-empty, CausationId null; all other metadata is read from Items.
+		var context = A.Fake<IMessageContext>();
+		_ = A.CallTo(() => context.MessageId).Returns(messageId);
+		_ = A.CallTo(() => context.CorrelationId).Returns(messageId);
+		_ = A.CallTo(() => context.CausationId).Returns((string?)null);
+		_ = A.CallTo(() => context.Items).Returns(items);
+		return context;
+	}
+
+	private sealed record DestinationDerivationTestMessage : IDispatchMessage;
+
 	private static OutboundMessage CreateTestOutboundMessage(string? messageId = null)
 	{
 		var message = new OutboundMessage(
@@ -339,7 +402,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			Guid.NewGuid().ToString(),
 			"TestMessage",
 			"{\"correlationId\": \"test-123\"}",
-			"{\"data\": \"test payload\"}",
+			System.Text.Encoding.UTF8.GetBytes("{\"data\": \"test payload\"}"),
 			DateTimeOffset.UtcNow);
 	}
 
@@ -368,10 +431,20 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			    message_id VARCHAR(100) NOT NULL UNIQUE,
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
-			    message_body TEXT NOT NULL,
+			    message_body BYTEA NOT NULL,
 			    tenant_id VARCHAR(255),
+			    destination VARCHAR(500),
+			    correlation_id VARCHAR(255),
+			    causation_id VARCHAR(255),
+			    priority INT NOT NULL DEFAULT 0,
+			    partition_key VARCHAR(255),
+			    group_key VARCHAR(255),
+			    sequence_number BIGINT NOT NULL DEFAULT 0,
+			    target_transports VARCHAR(500),
+			    is_multi_transport BOOLEAN NOT NULL DEFAULT FALSE,
 			    occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			    attempts INT NOT NULL DEFAULT 0,
+			    error_message TEXT,
 			    dispatcher_id VARCHAR(100),
 			    dispatcher_timeout TIMESTAMPTZ,
 			    next_attempt_at TIMESTAMPTZ,
@@ -383,7 +456,7 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 			    message_id VARCHAR(100) NOT NULL UNIQUE,
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
-			    message_body TEXT NOT NULL,
+			    message_body BYTEA NOT NULL,
 			    occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			    attempts INT NOT NULL DEFAULT 0,
 			    error_message TEXT,

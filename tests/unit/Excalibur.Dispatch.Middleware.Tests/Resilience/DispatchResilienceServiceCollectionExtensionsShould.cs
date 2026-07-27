@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 [Trait("Component", "Dispatch.Core")]
 public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTestBase
 {
-	#region UseDispatchResilience Tests
+	#region AddDispatchResilience Tests
 
 	[Fact]
 	public void UseDispatchResilience_ThrowsArgumentNullException_WhenServicesIsNull()
@@ -24,7 +24,7 @@ public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTe
 		IServiceCollection services = null!;
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.UseDispatchResilience("test", _ => { }));
+			services.AddDispatchResilience("test", _ => { }));
 	}
 
 	[Fact]
@@ -33,7 +33,7 @@ public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTe
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.UseDispatchResilience(null!, _ => { }));
+			services.AddDispatchResilience(null!, _ => { }));
 	}
 
 	[Fact]
@@ -42,7 +42,7 @@ public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTe
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.UseDispatchResilience("test", null!));
+			services.AddDispatchResilience("test", null!));
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTe
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.UseDispatchResilience("test-pipeline", builder =>
+		var result = services.AddDispatchResilience("test-pipeline", builder =>
 			builder.AddTimeout(TimeSpan.FromSeconds(10)));
 
 		// Assert
@@ -64,7 +64,7 @@ public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTe
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.UseDispatchResilience("my-pipeline", builder =>
+		services.AddDispatchResilience("my-pipeline", builder =>
 			builder.AddTimeout(TimeSpan.FromSeconds(30)));
 
 		// Act
@@ -80,7 +80,7 @@ public sealed class DispatchResilienceServiceCollectionExtensionsShould : UnitTe
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.UseDispatchResilience("my-pipeline", builder =>
+		services.AddDispatchResilience("my-pipeline", builder =>
 			builder.AddTimeout(TimeSpan.FromSeconds(30)));
 
 		// Act

@@ -49,12 +49,13 @@ Excalibur.Compliance.Vault.VaultKeyOptions.TransitMountPath.get -> string!
 Excalibur.Compliance.Vault.VaultKeyOptions.TransitMountPath.set -> void
 Excalibur.Compliance.Vault.VaultKeyOptions.VaultKeyOptions() -> void
 Excalibur.Compliance.Vault.VaultKeyProvider
-Excalibur.Compliance.Vault.VaultKeyProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Vault.VaultKeyProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyDestructionOutcome>!
 Excalibur.Compliance.Vault.VaultKeyProvider.Dispose() -> void
 Excalibur.Compliance.Vault.VaultKeyProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Vault.VaultKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Vault.VaultKeyProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyMetadata?>!
 Excalibur.Compliance.Vault.VaultKeyProvider.ListKeysAsync(Excalibur.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.KeyMetadata!>!>!
+Excalibur.Compliance.Vault.VaultKeyProvider.ReactivateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Vault.VaultKeyProvider.RotateKeyAsync(string! keyId, Excalibur.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.KeyRotationResult!>!
 Excalibur.Compliance.Vault.VaultKeyProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.Vault.VaultKeyProvider.VaultKeyProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Vault.VaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Vault.VaultKeyProvider!>! logger) -> void

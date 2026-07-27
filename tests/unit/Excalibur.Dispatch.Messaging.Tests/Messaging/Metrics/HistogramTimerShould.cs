@@ -225,25 +225,25 @@ public sealed class HistogramTimerShould
 	}
 
 	[Fact]
-	public void GetHashCode_ForDifferentTimers_ReturnsValues()
+	public void GetHashCode_ForEqualTimers_ReturnsSameValue()
 	{
-		// Arrange
-		var histogram1 = new ValueHistogram();
-		var histogram2 = new ValueHistogram();
-		var timer1 = new HistogramTimer(histogram1);
-		var timer2 = new HistogramTimer(histogram2);
+		// Arrange - two timers that compare equal (same histogram reference + same start ticks)
+		var histogram = new ValueHistogram();
+		var timer1 = new HistogramTimer(histogram);
+		var timer2 = timer1; // struct copy => Equals-equal by contract
 
 		// Act
 		var hash1 = timer1.GetHashCode();
 		var hash2 = timer2.GetHashCode();
 
-		// Assert - Hash codes should be different (high probability)
-		// Note: Not guaranteed to be different, but very likely with different objects
-		(hash1 != hash2 || hash1 == hash2).ShouldBeTrue(); // Always passes, just exercises code
+		// Assert - the GetHashCode contract: equal values MUST produce equal hash codes.
+		// (The converse -- distinct values producing distinct hashes -- is NOT guaranteed,
+		// since hash collisions are legal, so it is deliberately not asserted here.)
+		timer1.Equals(timer2).ShouldBeTrue();
+		hash1.ShouldBe(hash2);
 
 		// Cleanup
 		timer1.Dispose();
-		timer2.Dispose();
 	}
 
 	#endregion

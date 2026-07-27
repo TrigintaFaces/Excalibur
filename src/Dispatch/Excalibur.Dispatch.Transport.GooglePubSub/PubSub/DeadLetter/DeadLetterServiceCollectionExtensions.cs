@@ -104,6 +104,8 @@ public static class DeadLetterServiceCollectionExtensions
 				configure?.Invoke(options);
 			})
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PoisonDetectionOptions>, PoisonDetectionOptionsValidator>());
 
 		// Register detector
 		services.TryAddSingleton<AdvancedPoisonMessageDetector>();
@@ -127,6 +129,8 @@ public static class DeadLetterServiceCollectionExtensions
 		_ = services.AddOptions<PubSubRetryPolicyOptions>()
 			.Configure(options => configure?.Invoke(options))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PubSubRetryPolicyOptions>, PubSubRetryPolicyOptionsValidator>());
 
 		// Register manager
 		services.TryAddSingleton<RetryPolicyManager>();
@@ -150,6 +154,8 @@ public static class DeadLetterServiceCollectionExtensions
 		_ = services.AddOptions<DeadLetterAnalyticsOptions>()
 			.Configure(options => configure?.Invoke(options))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DeadLetterAnalyticsOptions>, DeadLetterAnalyticsOptionsValidator>());
 
 		// Register analytics service as hosted service
 		_ = services.AddSingleton<DeadLetterAnalyticsService>();

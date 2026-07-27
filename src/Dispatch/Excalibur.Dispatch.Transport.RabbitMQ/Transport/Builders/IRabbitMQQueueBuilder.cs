@@ -112,6 +112,18 @@ internal sealed class RabbitMQQueueBuilder : IRabbitMQQueueBuilder
 	}
 
 	/// <inheritdoc/>
+	public IRabbitMQQueueBuilder MaxPayloadBytes(int? maxBytes)
+	{
+		if (maxBytes is int max)
+		{
+			ArgumentOutOfRangeException.ThrowIfLessThan(max, 1);
+		}
+
+		_options.MaxPayloadBytes = maxBytes;
+		return this;
+	}
+
+	/// <inheritdoc/>
 	public IRabbitMQQueueBuilder Arguments(IDictionary<string, object> arguments)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);

@@ -241,17 +241,16 @@ public sealed class DeliveryOptionsShould
 		// Assert
 		OutboxDeliveryGuarantee.AtLeastOnce.ShouldBe((OutboxDeliveryGuarantee)0);
 		OutboxDeliveryGuarantee.MinimizedWindow.ShouldBe((OutboxDeliveryGuarantee)1);
-		OutboxDeliveryGuarantee.TransactionalWhenApplicable.ShouldBe((OutboxDeliveryGuarantee)2);
 	}
 
 	[Fact]
-	public void OutboxDeliveryGuarantee_HaveThreeValues()
+	public void OutboxDeliveryGuarantee_HaveTwoValues()
 	{
 		// Act
 		var values = Enum.GetValues<OutboxDeliveryGuarantee>();
 
 		// Assert
-		values.Length.ShouldBe(3);
+		values.Length.ShouldBe(2);
 	}
 
 	// --- OutboxDeliveryOptions ---
@@ -364,10 +363,10 @@ public sealed class DeliveryOptionsShould
 	{
 		// Act
 		var options = OutboxDeliveryOptions.Balanced()
-			.WithDeliveryGuarantee(OutboxDeliveryGuarantee.TransactionalWhenApplicable);
+			.WithDeliveryGuarantee(OutboxDeliveryGuarantee.MinimizedWindow);
 
 		// Assert
-		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.TransactionalWhenApplicable);
+		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.MinimizedWindow);
 	}
 
 	[Fact]
@@ -435,17 +434,4 @@ public sealed class DeliveryOptionsShould
 		options.PoolContexts.ShouldBeTrue();
 	}
 
-	// --- FilteredInvokerOptions ---
-
-	[Fact]
-	public void FilteredInvokerOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new FilteredInvokerOptions();
-
-		// Assert
-		options.EnableCaching.ShouldBeTrue();
-		options.IncludeMiddlewareOnFilterError.ShouldBeFalse();
-		options.MaxCachedEntries.ShouldBe(64);
-	}
 }

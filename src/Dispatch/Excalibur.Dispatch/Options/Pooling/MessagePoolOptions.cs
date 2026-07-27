@@ -36,12 +36,6 @@ public sealed class MessagePoolOptions
 	public Dictionary<string, TypePoolOptions> TypeConfigurations { get; } = [];
 
 	/// <summary>
-	/// Gets or sets the default reset strategy.
-	/// </summary>
-	/// <value> The current <see cref="DefaultResetStrategy" /> value. </value>
-	public ResetStrategy DefaultResetStrategy { get; set; } = ResetStrategy.Auto;
-
-	/// <summary>
 	/// Gets or sets trim behavior under memory pressure.
 	/// </summary>
 	/// <value> The current <see cref="TrimBehavior" /> value. </value>

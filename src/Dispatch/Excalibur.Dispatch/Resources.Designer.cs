@@ -142,8 +142,6 @@ namespace Excalibur.Dispatch {
         internal static string TransportAdapterRouter_RoutingFailureDetail { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureDetail", resourceCulture); } }
         internal static string TransportAdapterRouter_RoutingFailureTitle { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureTitle", resourceCulture); } }
         internal static string TransportAdapterRouter_RoutingFailureType { get { return ResourceManager.GetString("TransportAdapterRouter_RoutingFailureType", resourceCulture); } }
-        internal static string DispatcherContextExtensions_ChildMessageRequiresContext { get { return ResourceManager.GetString("DispatcherContextExtensions_ChildMessageRequiresContext", resourceCulture); } }
-        internal static string DispatcherContextExtensions_ChildActionRequiresContext { get { return ResourceManager.GetString("DispatcherContextExtensions_ChildActionRequiresContext", resourceCulture); } }
         internal static string MessageBufferPool_MinimumLengthNonNegative { get { return ResourceManager.GetString("MessageBufferPool_MinimumLengthNonNegative", resourceCulture); } }
         internal static string MessageBufferPool_RequestExceedsMaxArrayLength { get { return ResourceManager.GetString("MessageBufferPool_RequestExceedsMaxArrayLength", resourceCulture); } }
         internal static string PooledBufferWriter_CannotAdvancePastEnd { get { return ResourceManager.GetString("PooledBufferWriter_CannotAdvancePastEnd", resourceCulture); } }
@@ -213,10 +211,15 @@ namespace Excalibur.Dispatch {
         internal static string DispatchBuilder_DispatcherNotInitialized { get { return ResourceManager.GetString("DispatchBuilder_DispatcherNotInitialized", resourceCulture); } }
         internal static string PipelineBuilder_ProfileRegistryNotRegistered { get { return ResourceManager.GetString("PipelineBuilder_ProfileRegistryNotRegistered", resourceCulture); } }
         internal static string PipelineBuilder_ProfileNotFoundFormat { get { return ResourceManager.GetString("PipelineBuilder_ProfileNotFoundFormat", resourceCulture); } }
+        internal static string PipelineBuilder_RequiredMiddlewareUnresolvedFormat { get { return ResourceManager.GetString("PipelineBuilder_RequiredMiddlewareUnresolvedFormat", resourceCulture); } }
+        internal static string PipelineBuilder_RequiredMiddlewareUnresolvedEntryFormat { get { return ResourceManager.GetString("PipelineBuilder_RequiredMiddlewareUnresolvedEntryFormat", resourceCulture); } }
+        internal static string PipelineBuilder_MiddlewareNotRegistered { get { return ResourceManager.GetString("PipelineBuilder_MiddlewareNotRegistered", resourceCulture); } }
+        internal static string MiddlewareEntry_MissingTypeFormat { get { return ResourceManager.GetString("MiddlewareEntry_MissingTypeFormat", resourceCulture); } }
+        internal static string MiddlewareEntry_UnspecifiedCriticalityFormat { get { return ResourceManager.GetString("MiddlewareEntry_UnspecifiedCriticalityFormat", resourceCulture); } }
+        internal static string PipelineBuilder_FactoryProvidedMiddleware { get { return ResourceManager.GetString("PipelineBuilder_FactoryProvidedMiddleware", resourceCulture); } }
         internal static string Dispatcher_NotConfigured { get { return ResourceManager.GetString("Dispatcher_NotConfigured", resourceCulture); } }
         internal static string Dispatcher_ResultTypeMismatchFormat { get { return ResourceManager.GetString("Dispatcher_ResultTypeMismatchFormat", resourceCulture); } }
         internal static string Dispatcher_HandlerNotFoundFormat { get { return ResourceManager.GetString("Dispatcher_HandlerNotFoundFormat", resourceCulture); } }
-        internal static string EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented { get { return ResourceManager.GetString("EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented", resourceCulture); } }
         internal static string MemoryMessageOfT_CannotDeserializeWithoutSerializer { get { return ResourceManager.GetString("MemoryMessageOfT_CannotDeserializeWithoutSerializer", resourceCulture); } }
         internal static string MemoryOptimizations_SourceAndDestinationMustHaveSameLength { get { return ResourceManager.GetString("MemoryOptimizations_SourceAndDestinationMustHaveSameLength", resourceCulture); } }
         internal static string HistogramOptions_AtLeastOneBucketBoundaryIsRequired { get { return ResourceManager.GetString("HistogramOptions_AtLeastOneBucketBoundaryIsRequired", resourceCulture); } }

@@ -38,6 +38,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 	private readonly FirestoreInboxOptions _options;
 	private readonly ILogger<FirestoreInboxStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
 	private bool _initialized;
@@ -48,9 +49,14 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// </summary>
 	/// <param name="options">The Firestore inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. An absent context
+	/// resolves to the reserved untenanted term, so the document id has the same shape either way.
+	/// </param>
 	public FirestoreInboxStore(
 		IOptions<FirestoreInboxOptions> options,
-		ILogger<FirestoreInboxStore> logger)
+		ILogger<FirestoreInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -58,6 +64,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_tenantContext = tenantContext;
 	}
 
 	/// <summary>
@@ -66,10 +73,14 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// <param name="db">An existing Firestore database instance.</param>
 	/// <param name="options">The Firestore inbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host.
+	/// </param>
 	public FirestoreInboxStore(
 		FirestoreDb db,
 		IOptions<FirestoreInboxOptions> options,
-		ILogger<FirestoreInboxStore> logger)
+		ILogger<FirestoreInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(db);
 		ArgumentNullException.ThrowIfNull(options);
@@ -79,6 +90,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_tenantContext = tenantContext;
 		_collection = db.Collection(_options.CollectionName);
 		_initialized = true;
 	}
@@ -135,30 +147,51 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
 
-		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-		if (!snapshot.Exists)
+		// Atomic finalize: read-then-CONDITIONAL-update guarded by Precondition.LastUpdated so a concurrent
+		// transition between our read and write fails the precondition (re-read + re-evaluate) instead of
+		// blindly overwriting — closing the TOCTOU race that let two consumers both finalize. Mirrors the
+		// conditional-delete guard in ReleaseAsync.
+		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
 		{
-			throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-		}
+			var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
-		var status = snapshot.GetValue<int>("status");
-		if (status == (int)InboxStatus.Processed)
-		{
-			throw new InvalidOperationException(
-				$"Inbox entry already processed for message '{messageId}' and handler '{handlerType}'.");
-		}
-
-		_ = await docRef.UpdateAsync(
-			new Dictionary<string, object>
+			if (!snapshot.Exists)
 			{
-				["status"] = (int)InboxStatus.Processed,
-				["processedAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
-				["lastError"] = FieldValue.Delete
-			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+				throw new InvalidOperationException(
+					$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+			}
 
-		LogProcessedEntry(_logger, messageId, handlerType, null);
+			if (snapshot.GetValue<int>("status") == (int)InboxStatus.Processed)
+			{
+				throw new InvalidOperationException(
+					$"Inbox entry already processed for message '{messageId}' and handler '{handlerType}'.");
+			}
+
+			var precondition = snapshot.UpdateTime is { } updatedAt
+				? Precondition.LastUpdated(updatedAt)
+				: Precondition.MustExist;
+
+			try
+			{
+				_ = await docRef.UpdateAsync(
+					new Dictionary<string, object>
+					{
+						["status"] = (int)InboxStatus.Processed,
+						["processedAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+						["lastError"] = FieldValue.Delete
+					}, precondition, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+				LogProcessedEntry(_logger, messageId, handlerType, null);
+				return;
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
+			{
+				// Concurrent transition — re-read and re-evaluate (terminal check above) on the next iteration.
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"Failed to mark inbox entry as processed for message '{messageId}' and handler '{handlerType}' after {ReleaseMaxRetries} attempts due to concurrent modification.");
 	}
 
 	/// <inheritdoc/>
@@ -172,22 +205,48 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
 
-		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-		if (!snapshot.Exists)
+		// Atomic guarded transition: never downgrade a concurrently-finalized (Processed) entry back to
+		// Processing (would re-admit the message → double-processing). Conditional update guarded by
+		// Precondition.LastUpdated; refused/finalized → no-op.
+		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
 		{
-			throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-		}
+			var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await docRef.UpdateAsync(
-			new Dictionary<string, object>
+			if (!snapshot.Exists)
 			{
-				["status"] = (int)InboxStatus.Processing,
-				["lastAttemptAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
-			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+				throw new InvalidOperationException(
+					$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+			}
 
-		_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+			if (snapshot.GetValue<int>("status") == (int)InboxStatus.Processed)
+			{
+				_logger.LogDebug(
+					"Skipped Processing transition for message {MessageId} and handler {HandlerType} (already finalized)",
+					messageId, handlerType);
+				return;
+			}
+
+			var precondition = snapshot.UpdateTime is { } updatedAt
+				? Precondition.LastUpdated(updatedAt)
+				: Precondition.MustExist;
+
+			try
+			{
+				_ = await docRef.UpdateAsync(
+					new Dictionary<string, object>
+					{
+						["status"] = (int)InboxStatus.Processing,
+						["lastAttemptAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
+					}, precondition, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+				_logger.LogDebug("Marked inbox entry as processing for message {MessageId} and handler {HandlerType}", messageId, handlerType);
+				return;
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
+			{
+				// Concurrent transition — re-read and re-evaluate on the next iteration.
+			}
+		}
 	}
 
 	/// <inheritdoc/>
@@ -254,12 +313,12 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		try
 		{
 			_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
-			LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
+			LogTryClaimSuccess(_logger, messageId, handlerType, null);
 			return true;
 		}
 		catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
 		{
-			LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
+			LogTryClaimDuplicate(_logger, messageId, handlerType, null);
 			return false;
 		}
 	}
@@ -372,22 +431,18 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
 
-		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-		if (!snapshot.Exists)
-		{
-			throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-		}
-
-		_ = await docRef.UpdateAsync(
+		await MarkFailedConditionalAsync(
+			docRef,
 			new Dictionary<string, object>
 			{
 				["status"] = (int)InboxStatus.Failed,
 				["lastError"] = errorMessage,
 				["lastAttemptAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
 				["retryCount"] = FieldValue.Increment(1)
-			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+			},
+			messageId,
+			handlerType,
+			cancellationToken).ConfigureAwait(false);
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
 	}
@@ -406,26 +461,67 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
 
-		var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-		if (!snapshot.Exists)
-		{
-			throw new InvalidOperationException(
-				$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
-		}
-
 		// Set retryCount EXACTLY (not FieldValue.Increment) so a transient short-circuit leaves the entry
 		// re-admittable without consuming a delivery attempt (FR-4).
-		_ = await docRef.UpdateAsync(
+		await MarkFailedConditionalAsync(
+			docRef,
 			new Dictionary<string, object>
 			{
 				["status"] = (int)InboxStatus.Failed,
 				["lastError"] = errorMessage,
 				["lastAttemptAt"] = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
 				["retryCount"] = retryCount
-			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+			},
+			messageId,
+			handlerType,
+			cancellationToken).ConfigureAwait(false);
 
 		LogFailedEntry(_logger, messageId, handlerType, errorMessage, null);
+	}
+
+	// Atomic guarded Failed transition: conditional update guarded by Precondition.LastUpdated so a concurrent
+	// finalize is never overwritten; refuse to downgrade a terminal Processed entry (no-op). Throws if the
+	// entry is absent. Mirrors the conditional-delete guard in ReleaseAsync.
+	private static async Task MarkFailedConditionalAsync(
+		DocumentReference docRef,
+		Dictionary<string, object> updates,
+		string messageId,
+		string handlerType,
+		CancellationToken cancellationToken)
+	{
+		for (var attempt = 0; attempt < ReleaseMaxRetries; attempt++)
+		{
+			var snapshot = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+			if (!snapshot.Exists)
+			{
+				throw new InvalidOperationException(
+					$"Inbox entry not found for message '{messageId}' and handler '{handlerType}'.");
+			}
+
+			// Never downgrade a finalized (Processed) entry to Failed → no-op.
+			if (snapshot.GetValue<int>("status") == (int)InboxStatus.Processed)
+			{
+				return;
+			}
+
+			var precondition = snapshot.UpdateTime is { } updatedAt
+				? Precondition.LastUpdated(updatedAt)
+				: Precondition.MustExist;
+
+			try
+			{
+				_ = await docRef.UpdateAsync(updates, precondition, cancellationToken: cancellationToken).ConfigureAwait(false);
+				return;
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
+			{
+				// Concurrent transition — re-read and re-evaluate on the next iteration.
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"Failed to mark inbox entry as failed for message '{messageId}' and handler '{handlerType}' after {ReleaseMaxRetries} attempts due to concurrent modification.");
 	}
 
 	/// <inheritdoc/>
@@ -560,8 +656,20 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		return ValueTask.CompletedTask;
 	}
 
-	private static string GetDocumentId(string messageId, string handlerType) =>
-		$"{messageId}_{handlerType}";
+	/// <summary>
+	/// Composes the deduplication document id for an entry, discriminated by the ambient tenant.
+	/// </summary>
+	/// <remarks>
+	/// The tenant term is part of the id, not merely a field on the document. Keying on
+	/// (messageId, handlerType) alone makes the dedup decision tenant-blind: two tenants processing
+	/// messages that share a message id resolve to the same document, so the second is treated as a
+	/// duplicate and silently dropped -- a cross-tenant isolation breach and a message-loss bug that
+	/// fails on the success path. Note the carried tenantId field was written only when non-empty, so
+	/// it could not have served this purpose even as a filter.
+	/// <para>Every call site routes through here, so the write id and the lookup id cannot drift apart.</para>
+	/// </remarks>
+	private string GetDocumentId(string messageId, string handlerType) =>
+		$"{KeyedTenantPartition.FromContext(_tenantContext).TenantId}_{messageId}_{handlerType}";
 
 	private static Dictionary<string, object> CreateDocumentData(InboxEntry entry)
 	{
@@ -650,6 +758,14 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	[LoggerMessage(DataFirestoreEventId.InboxTryMarkProcessedDuplicate, LogLevel.Debug,
 		"TryMarkAsProcessed detected duplicate for message '{MessageId}' and handler '{HandlerType}'")]
 	private static partial void LogTryMarkProcessedDuplicate(ILogger logger, string messageId, string handlerType, Exception? exception);
+
+	[LoggerMessage(DataFirestoreEventId.InboxTryClaimSuccess, LogLevel.Debug,
+		"TryClaim succeeded for message '{MessageId}' and handler '{HandlerType}'")]
+	private static partial void LogTryClaimSuccess(ILogger logger, string messageId, string handlerType, Exception? exception);
+
+	[LoggerMessage(DataFirestoreEventId.InboxTryClaimDuplicate, LogLevel.Debug,
+		"TryClaim detected duplicate for message '{MessageId}' and handler '{HandlerType}'")]
+	private static partial void LogTryClaimDuplicate(ILogger logger, string messageId, string handlerType, Exception? exception);
 
 	[LoggerMessage(DataFirestoreEventId.InboxEntryFailed, LogLevel.Warning,
 		"Marked inbox entry as failed for message '{MessageId}' and handler '{HandlerType}': {ErrorMessage}")]

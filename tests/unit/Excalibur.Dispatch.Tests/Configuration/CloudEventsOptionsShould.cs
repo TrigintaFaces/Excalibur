@@ -24,7 +24,7 @@ public sealed class CloudEventsOptionsShould
 		options.Mode.ShouldBe(CloudEventMode.Structured);
 		options.SpecVersion.ShouldBe(CloudEventsSpecVersion.V1_0);
 		options.DefaultSource.ShouldBe(new Uri("urn:dispatch"));
-		options.Schema.ValidateSchema.ShouldBeTrue();
+		options.Schema.ValidateSchema.ShouldBeFalse();
 		options.Schema.IncludeSchemaVersion.ShouldBeTrue();
 		options.Schema.AutoRegisterSchemas.ShouldBeFalse();
 		options.Schema.SchemaProvider.ShouldBeNull();
@@ -33,11 +33,9 @@ public sealed class CloudEventsOptionsShould
 		options.Schema.OutgoingTransformer.ShouldBeNull();
 		options.ExcludedExtensions.ShouldNotBeNull();
 		options.ExcludedExtensions.ShouldBeEmpty();
-		options.PreserveEnvelopeProperties.ShouldBeTrue();
 		options.DispatchExtensionPrefix.ShouldBe("dispatch");
 		options.Compression.UseCompression.ShouldBeFalse();
 		options.Compression.CompressionThreshold.ShouldBe(1024);
-		options.EnableDoDCompliance.ShouldBeFalse();
 		options.DefaultMode.ShouldBe(CloudEventMode.Structured);
 	}
 
@@ -58,14 +56,12 @@ public sealed class CloudEventsOptionsShould
 				SchemaProvider = _ => "schema",
 				SchemaVersionProvider = _ => "1.0",
 			},
-			PreserveEnvelopeProperties = false,
 			DispatchExtensionPrefix = "custom",
 			Compression =
 			{
 				UseCompression = true,
 				CompressionThreshold = 2048,
 			},
-			EnableDoDCompliance = true,
 			DefaultMode = CloudEventMode.Binary,
 		};
 
@@ -77,11 +73,9 @@ public sealed class CloudEventsOptionsShould
 		options.Schema.AutoRegisterSchemas.ShouldBeTrue();
 		options.Schema.SchemaProvider.ShouldNotBeNull();
 		options.Schema.SchemaVersionProvider.ShouldNotBeNull();
-		options.PreserveEnvelopeProperties.ShouldBeFalse();
 		options.DispatchExtensionPrefix.ShouldBe("custom");
 		options.Compression.UseCompression.ShouldBeTrue();
 		options.Compression.CompressionThreshold.ShouldBe(2048);
-		options.EnableDoDCompliance.ShouldBeTrue();
 		options.DefaultMode.ShouldBe(CloudEventMode.Binary);
 	}
 

@@ -27,6 +27,18 @@ public sealed class SqlServerAuditAnnotationStoreOptions
 	public string TableName { get; set; } = "AuditAnnotations";
 
 	/// <summary>
+	/// Gets or sets the audit events table name. Default is "AuditEvents".
+	/// </summary>
+	/// <remarks>
+	/// An annotation cannot exist without the event it annotates, and that event carries the tenant. The
+	/// annotations table therefore stores no tenant of its own: every annotation operation resolves the
+	/// tenant by joining the event, so this name must match the table the audit events are written to.
+	/// Storing a tenant on the annotation instead would make "annotation tenant" and "event tenant" two
+	/// facts that can disagree; deriving it makes the disagreement unrepresentable.
+	/// </remarks>
+	public string EventsTableName { get; set; } = "AuditEvents";
+
+	/// <summary>
 	/// Gets or sets the command timeout for SQL operations in seconds. Default is 30.
 	/// </summary>
 	public int CommandTimeoutSeconds { get; set; } = 30;
@@ -35,4 +47,9 @@ public sealed class SqlServerAuditAnnotationStoreOptions
 	/// Gets the fully qualified table name.
 	/// </summary>
 	public string FullyQualifiedTableName => $"[{SchemaName}].[{TableName}]";
+
+	/// <summary>
+	/// Gets the fully qualified audit events table name, the source of an annotation's derived tenant.
+	/// </summary>
+	public string FullyQualifiedEventsTableName => $"[{SchemaName}].[{EventsTableName}]";
 }

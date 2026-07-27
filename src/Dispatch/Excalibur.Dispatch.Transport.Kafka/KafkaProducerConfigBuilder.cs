@@ -10,8 +10,7 @@ internal static class KafkaProducerConfigBuilder
 {
 	public static ProducerConfig Build(
 			KafkaOptions options,
-			KafkaCloudEventOptions? cloudEventOptions = null,
-			KafkaMessageBusOptions? messageBusOptions = null)
+			KafkaCloudEventOptions? cloudEventOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
@@ -20,13 +19,11 @@ internal static class KafkaProducerConfigBuilder
 			BootstrapServers = options.BootstrapServers,
 		};
 
-		var ackLevel = messageBusOptions?.AckLevel
-					   ?? cloudEventOptions?.Producer.AcknowledgmentLevel
+		var ackLevel = cloudEventOptions?.Producer.AcknowledgmentLevel
 					   ?? KafkaAckLevel.All;
 		config.Acks = MapAcks(ackLevel);
 
-		var compressionType = messageBusOptions?.CompressionType
-							  ?? cloudEventOptions?.Producer.CompressionType
+		var compressionType = cloudEventOptions?.Producer.CompressionType
 							  ?? KafkaCompressionType.None;
 		var enableCompression = cloudEventOptions?.Producer.EnableCompression ?? false;
 		config.CompressionType = enableCompression
@@ -47,8 +44,7 @@ internal static class KafkaProducerConfigBuilder
 							.ToString());
 		}
 
-		var enableTransactions = cloudEventOptions?.Producer.EnableTransactions == true
-								 || messageBusOptions?.EnableTransactions == true;
+		var enableTransactions = cloudEventOptions?.Producer.EnableTransactions == true;
 		var enableIdempotence = cloudEventOptions?.Producer.EnableIdempotentProducer == true || enableTransactions;
 
 		if (enableIdempotence)
@@ -59,11 +55,7 @@ internal static class KafkaProducerConfigBuilder
 
 		if (enableTransactions)
 		{
-			var transactionalId = messageBusOptions?.TransactionalId;
-			if (string.IsNullOrWhiteSpace(transactionalId))
-			{
-				transactionalId = cloudEventOptions?.Producer.TransactionalId;
-			}
+			var transactionalId = cloudEventOptions?.Producer.TransactionalId;
 
 			config.TransactionalId = string.IsNullOrWhiteSpace(transactionalId)
 					? $"dispatch-{Guid.NewGuid():N}"

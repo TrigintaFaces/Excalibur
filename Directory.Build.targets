@@ -170,6 +170,36 @@
   </Target>
 
   <!-- ============================================================================================
+       Sprint 877: PublicAPI baseline files required at BUILD time for shipping packages
+       ============================================================================================
+       Closes the RS0016-dormant trap: a new shipping package with NO PublicAPI.Shipped.txt /
+       PublicAPI.Unshipped.txt leaves the Roslyn public-API analyzer DORMANT — the package builds
+       0 warnings / 0 errors in a per-lane build, silently hiding its undeclared public surface.
+       Previously this was caught only by the full-CI contract test (and only for the src/Dispatch
+       tree), so a new src/Excalibur package could ship with its public surface untracked.
+
+       This target fails the per-lane BUILD (BeforeTargets=CoreCompile) the instant a shipping
+       package is scaffolded without BOTH baseline files, across BOTH the Dispatch and Excalibur
+       trees — the earliest, cheapest point to catch it.
+
+       Toggle: -p:ValidatePublicApiFiles=false to skip.
+       ============================================================================================ -->
+  <PropertyGroup>
+    <ValidatePublicApiFiles Condition="'$(ValidatePublicApiFiles)' == ''">true</ValidatePublicApiFiles>
+  </PropertyGroup>
+
+  <Target Name="ValidateShippingPublicApiFiles"
+          BeforeTargets="CoreCompile"
+          Condition="'$(IsShippingProject)' == 'true' And '$(IsPackable)' != 'false' And '$(ValidatePublicApiFiles)' == 'true' And '$(DesignTimeBuild)' != 'true'">
+
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/PublicAPI.Shipped.txt')"
+           Text="GOVERNANCE ERROR: Shipping package '$(MSBuildProjectName)' is missing PublicAPI.Shipped.txt. Every shipping package MUST ship both PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt (each starting with '#nullable enable') so the RS0016 public-API analyzer is active — without them it is dormant and the package's public surface goes untracked." />
+
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/PublicAPI.Unshipped.txt')"
+           Text="GOVERNANCE ERROR: Shipping package '$(MSBuildProjectName)' is missing PublicAPI.Unshipped.txt. Every shipping package MUST ship both PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt (each starting with '#nullable enable') so the RS0016 public-API analyzer is active — without them it is dormant and the package's public surface goes untracked." />
+  </Target>
+
+  <!-- ============================================================================================
        Sprint 325 T0.2: Project Classification Audit Target (AD-325-2)
        ============================================================================================
        Reports project classification for CI audit purposes.

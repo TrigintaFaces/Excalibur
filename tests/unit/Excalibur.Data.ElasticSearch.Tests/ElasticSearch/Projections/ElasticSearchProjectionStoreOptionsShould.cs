@@ -16,13 +16,13 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		var sut = new ElasticSearchProjectionStoreOptions();
 
 		sut.NodeUri.ShouldBe("http://localhost:9200");
-		sut.IndexPrefix.ShouldBe("projections");
+		sut.Index.IndexPrefix.ShouldBe("projections");
 		sut.RequestTimeoutSeconds.ShouldBe(30);
-		sut.NumberOfShards.ShouldBe(1);
-		sut.NumberOfReplicas.ShouldBe(0);
-		sut.CreateIndexOnInitialize.ShouldBeTrue();
-		sut.RefreshInterval.ShouldBe("1s");
-		sut.IndexName.ShouldBeNull();
+		sut.Index.NumberOfShards.ShouldBe(1);
+		sut.Index.NumberOfReplicas.ShouldBe(0);
+		sut.Index.CreateIndexOnInitialize.ShouldBeTrue();
+		sut.Index.RefreshInterval.ShouldBe("1s");
+		sut.Index.IndexName.ShouldBeNull();
 		sut.NodeUris.ShouldBeNull();
 		sut.ConnectionPoolType.ShouldBe(ConnectionPoolType.Static);
 		sut.Auth.Username.ShouldBeNull();
@@ -37,12 +37,15 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		var sut = new ElasticSearchProjectionStoreOptions
 		{
 			NodeUri = "http://custom:9200",
-			IndexPrefix = "my-projections",
 			RequestTimeoutSeconds = 60,
-			NumberOfShards = 3,
-			NumberOfReplicas = 2,
-			CreateIndexOnInitialize = false,
-			RefreshInterval = "5s",
+			Index =
+			{
+				IndexPrefix = "my-projections",
+				NumberOfShards = 3,
+				NumberOfReplicas = 2,
+				CreateIndexOnInitialize = false,
+				RefreshInterval = "5s",
+			},
 			Auth =
 			{
 				Username = "admin",
@@ -53,12 +56,12 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		};
 
 		sut.NodeUri.ShouldBe("http://custom:9200");
-		sut.IndexPrefix.ShouldBe("my-projections");
+		sut.Index.IndexPrefix.ShouldBe("my-projections");
 		sut.RequestTimeoutSeconds.ShouldBe(60);
-		sut.NumberOfShards.ShouldBe(3);
-		sut.NumberOfReplicas.ShouldBe(2);
-		sut.CreateIndexOnInitialize.ShouldBeFalse();
-		sut.RefreshInterval.ShouldBe("5s");
+		sut.Index.NumberOfShards.ShouldBe(3);
+		sut.Index.NumberOfReplicas.ShouldBe(2);
+		sut.Index.CreateIndexOnInitialize.ShouldBeFalse();
+		sut.Index.RefreshInterval.ShouldBe("5s");
 		sut.Auth.Username.ShouldBe("admin");
 		sut.Auth.Password.ShouldBe("secret");
 		sut.Auth.ApiKey.ShouldBe("key123");
@@ -108,7 +111,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	public void NotThrowWhenIndexPrefixIsEmpty()
 	{
 		// IndexPrefix is optional -- empty/whitespace prefix is valid (index name uses just the type name)
-		var sut = new ElasticSearchProjectionStoreOptions { IndexPrefix = "" };
+		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = "" } };
 		Should.NotThrow(() => sut.Validate());
 	}
 
@@ -116,7 +119,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	public void NotThrowWhenIndexPrefixIsWhitespace()
 	{
 		// IndexPrefix is optional -- whitespace prefix is valid (index name uses just the type name)
-		var sut = new ElasticSearchProjectionStoreOptions { IndexPrefix = "   " };
+		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = "   " } };
 		Should.NotThrow(() => sut.Validate());
 	}
 
@@ -125,16 +128,16 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	[Fact]
 	public void AllowSettingIndexName()
 	{
-		var sut = new ElasticSearchProjectionStoreOptions { IndexName = "custom-index" };
-		sut.IndexName.ShouldBe("custom-index");
+		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexName = "custom-index" } };
+		sut.Index.IndexName.ShouldBe("custom-index");
 		Should.NotThrow(() => sut.Validate());
 	}
 
 	[Fact]
 	public void AllowNullIndexName()
 	{
-		var sut = new ElasticSearchProjectionStoreOptions { IndexName = null };
-		sut.IndexName.ShouldBeNull();
+		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexName = null } };
+		sut.Index.IndexName.ShouldBeNull();
 		Should.NotThrow(() => sut.Validate());
 	}
 

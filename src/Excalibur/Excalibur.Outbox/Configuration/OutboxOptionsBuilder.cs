@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox;
@@ -13,9 +13,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 	private TimeSpan _pollingInterval;
 	private int _maxRetryCount;
 	private TimeSpan _retryDelay;
-	private TimeSpan _messageRetentionPeriod;
-	private bool _enableAutomaticCleanup;
-	private TimeSpan _cleanupInterval;
 	private bool _enableBackgroundProcessing;
 	private string? _processorId;
 	private bool _enableParallelProcessing;
@@ -102,39 +99,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 	}
 
 	/// <inheritdoc/>
-	public IOutboxOptionsBuilder WithRetentionPeriod(TimeSpan period)
-	{
-		if (period <= TimeSpan.Zero)
-		{
-			throw new ArgumentOutOfRangeException(nameof(period), period,
-				"RetentionPeriod must be positive.");
-		}
-
-		_messageRetentionPeriod = period;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IOutboxOptionsBuilder WithCleanupInterval(TimeSpan interval)
-	{
-		if (interval <= TimeSpan.Zero)
-		{
-			throw new ArgumentOutOfRangeException(nameof(interval), interval,
-				"CleanupInterval must be positive.");
-		}
-
-		_cleanupInterval = interval;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IOutboxOptionsBuilder DisableAutomaticCleanup()
-	{
-		_enableAutomaticCleanup = false;
-		return this;
-	}
-
-	/// <inheritdoc/>
 	public OutboxOptions Build()
 	{
 		Validate();
@@ -145,9 +109,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 			_pollingInterval,
 			_maxRetryCount,
 			_retryDelay,
-			_messageRetentionPeriod,
-			_enableAutomaticCleanup,
-			_cleanupInterval,
 			_enableBackgroundProcessing,
 			_processorId,
 			_enableParallelProcessing,
@@ -157,7 +118,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 	private void ApplyPreset(OutboxPreset preset)
 	{
 		// Set common defaults
-		_enableAutomaticCleanup = true;
 		_enableBackgroundProcessing = true;
 
 		switch (preset)
@@ -169,8 +129,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 				_retryDelay = TimeSpan.FromMinutes(1);
 				_enableParallelProcessing = true;
 				_maxDegreeOfParallelism = 8;
-				_messageRetentionPeriod = TimeSpan.FromDays(1);
-				_cleanupInterval = TimeSpan.FromMinutes(15);
 				break;
 
 			case OutboxPreset.Balanced:
@@ -180,8 +138,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 				_retryDelay = TimeSpan.FromMinutes(5);
 				_enableParallelProcessing = true;
 				_maxDegreeOfParallelism = 4;
-				_messageRetentionPeriod = TimeSpan.FromDays(7);
-				_cleanupInterval = TimeSpan.FromHours(1);
 				break;
 
 			case OutboxPreset.HighReliability:
@@ -191,8 +147,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 				_retryDelay = TimeSpan.FromMinutes(15);
 				_enableParallelProcessing = false;
 				_maxDegreeOfParallelism = 1;
-				_messageRetentionPeriod = TimeSpan.FromDays(30);
-				_cleanupInterval = TimeSpan.FromHours(6);
 				break;
 
 			case OutboxPreset.Custom:
@@ -204,8 +158,6 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 				_retryDelay = TimeSpan.FromMinutes(5);
 				_enableParallelProcessing = false;
 				_maxDegreeOfParallelism = 4;
-				_messageRetentionPeriod = TimeSpan.FromDays(7);
-				_cleanupInterval = TimeSpan.FromHours(1);
 				break;
 		}
 	}
@@ -237,25 +189,9 @@ internal sealed class OutboxOptionsBuilder : IOutboxOptionsBuilder
 			throw new InvalidOperationException("MaxDegreeOfParallelism must be at least 1.");
 		}
 
-		if (_enableAutomaticCleanup && _messageRetentionPeriod < _cleanupInterval)
-		{
-			throw new InvalidOperationException(
-				"RetentionPeriod must be greater than or equal to CleanupInterval when automatic cleanup is enabled.");
-		}
-
 		if (_retryDelay <= TimeSpan.Zero)
 		{
 			throw new InvalidOperationException("RetryDelay must be positive.");
-		}
-
-		if (_messageRetentionPeriod <= TimeSpan.Zero)
-		{
-			throw new InvalidOperationException("RetentionPeriod must be positive.");
-		}
-
-		if (_enableAutomaticCleanup && _cleanupInterval <= TimeSpan.Zero)
-		{
-			throw new InvalidOperationException("CleanupInterval must be positive when automatic cleanup is enabled.");
 		}
 	}
 }

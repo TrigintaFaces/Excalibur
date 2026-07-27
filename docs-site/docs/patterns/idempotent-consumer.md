@@ -485,7 +485,8 @@ services.AddInboxHostedService();
 
 ```csharp
 // --- Producer: Create Order handler ---
-// Uses Outbox to guarantee OrderCreated is published exactly once
+// Uses Outbox so OrderCreated cannot be lost if the broker is down.
+// Delivery is at-least-once - the consumer below is what makes reprocessing safe.
 
 public class CreateOrderHandler : IActionHandler<CreateOrderAction, IMessageContext>
 {
@@ -556,7 +557,7 @@ public class UpdateOrderProjectionHandler : IEventHandler<OrderCreatedEvent>
 
 The result:
 
-- **Producer side**: `CreateOrderHandler` uses the Outbox, so `OrderCreatedEvent` is published exactly once even if the handler is retried or the process crashes.
+- **Producer side**: `CreateOrderHandler` uses the Outbox, so `OrderCreatedEvent` cannot be lost if the handler is retried or the process crashes. It can still be published **more than once** — delivery is at-least-once, which is exactly why the receiver side below exists.
 - **Consumer side**: `ReserveInventoryHandler` and `ChargePaymentHandler` use `[Idempotent]` with persistent storage, so they process each event at most once. `UpdateOrderProjectionHandler` is naturally idempotent and needs no protection.
 - **External calls**: `ChargePaymentHandler` passes an idempotency key to the payment gateway as defense-in-depth on top of the inbox check.
 

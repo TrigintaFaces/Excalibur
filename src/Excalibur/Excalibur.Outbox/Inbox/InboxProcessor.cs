@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
@@ -29,7 +29,8 @@ using DeliveryMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
 namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>
-/// Provides the core implementation of the inbox pattern for reliable message processing with exactly-once delivery guarantees. This
+/// Provides the core implementation of the inbox pattern for reliable message processing with effectively-once processing. Delivery
+/// remains at-least-once and handlers must be idempotent. This
 /// processor coordinates between message storage, deduplication tracking, and the message dispatching infrastructure.
 /// </summary>
 /// <remarks>
@@ -63,6 +64,14 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private readonly InboxOptions _options;
 	private readonly Channel<IInboxMessage> _inboxMessages;
 	private readonly int _queueCapacity;
+
+	// Constant metric tag set — hoisted to avoid allocating a new dictionary on every batch completion.
+	private static readonly Dictionary<string, object?> ProcessorTypeTags =
+		new(StringComparer.Ordinal) { ["ProcessorType"] = "Inbox" };
+
+	// Per-instance metric tag set (option-derived, stable for the processor's lifetime), built once in the
+	// constructor rather than per batch. Treated as read-only by the metrics recorder.
+	private readonly Dictionary<string, object?> _batchCompletionTags;
 	private readonly IInboxStore _inboxStore;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly DispatchJsonSerializer _serializer;
@@ -137,6 +146,13 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 		_options = options.Value;
 
+		_batchCompletionTags = new Dictionary<string, object?>(StringComparer.Ordinal)
+		{
+			["ProcessorType"] = "Inbox",
+			["ParallelDegree"] = _options.Capacity.ParallelProcessingDegree,
+			["BatchOperationsEnabled"] = _options.BatchTuning.EnableBatchDatabaseOperations,
+		};
+
 		if (_options.Capacity.QueueCapacity < _options.Capacity.ProducerBatchSize)
 		{
 			throw new InvalidOperationException(
@@ -206,8 +222,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	}
 
 	/// <summary>
-	/// Asynchronously processes all pending messages in the inbox using a producer-consumer pattern, ensuring exactly-once delivery
-	/// semantics and proper error handling throughout the operation.
+	/// Asynchronously processes all pending messages in the inbox using a producer-consumer pattern, ensuring effectively-once
+	/// processing (a redelivered message is skipped, not reprocessed) and proper error handling throughout the operation.
 	/// </summary>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests during processing. </param>
 	/// <returns>
@@ -302,6 +318,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			MessageBody = bodyString,
 			ReceivedAt = entry.ReceivedAt,
 			Attempts = entry.RetryCount,
+			TenantId = entry.TenantId,
 		};
 	}
 
@@ -356,6 +373,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					MessageBody = bodyString,
 					ReceivedAt = envelope.Timestamp,
 					Attempts = entry.RetryCount,
+					TenantId = entry.TenantId,
 				};
 			}
 		}
@@ -541,6 +559,12 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					// Sequential processing (backward compatibility)
 					foreach (var record in batch)
 					{
+						// Re-establish the entry's tenant scope for the whole process-and-mark unit so a
+						// re-admitted entry is dispatched and deduplicated under its OWN tenant, never
+						// tenant-blind (mirrors OutboxProcessor's per-message BeginScope). Null tenant → the
+						// untenanted scope.
+						using var tenantScope = TenantContextHolder.BeginScope(record.TenantId);
+
 						if (await IsDuplicateAsync(record.ExternalMessageId, cancellationToken).ConfigureAwait(false))
 						{
 							continue;
@@ -559,7 +583,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					batch.Length, // Will be updated with actual success/failure counts
 					0,
 					duration,
-					new Dictionary<string, object?>(StringComparer.Ordinal) { ["ProcessorType"] = "Inbox" });
+					ProcessorTypeTags);
 
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Inbox, BackgroundServiceOperations.Dispatch, totalProcessedCount);
 			}
@@ -652,6 +676,12 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			batch,
 			async (message, ct) =>
 			{
+				// Re-establish this entry's tenant scope for the whole process-and-mark unit (dedup check,
+				// dispatch, mark-processed) so a re-admitted entry is never processed tenant-blind under
+				// another tenant's context (mirrors OutboxProcessor's per-message BeginScope). Each parallel
+				// invocation carries its own async-flow scope. Null tenant → the untenanted scope.
+				using var tenantScope = TenantContextHolder.BeginScope(message.TenantId);
+
 				// Check deduplication before processing
 				if (await IsDuplicateAsync(message.ExternalMessageId, ct).ConfigureAwait(false))
 				{
@@ -784,13 +814,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 			successful.Count,
 			failed.Count,
 			stopwatch.Elapsed,
-			new Dictionary<string, object?>
-				(StringComparer.Ordinal)
-			{
-				["ProcessorType"] = "Inbox",
-				["ParallelDegree"] = _options.Capacity.ParallelProcessingDegree,
-				["BatchOperationsEnabled"] = _options.BatchTuning.EnableBatchDatabaseOperations,
-			});
+			_batchCompletionTags);
 
 		return successful.Count;
 	}
@@ -885,22 +909,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				$"{ErrorConstants.FailedToDeserializeMessageMetadata}: {storedMessage.ExternalMessageId}");
 		}
 
-		var metaDict = new Dictionary<string, string?>
-			(StringComparer.Ordinal)
-		{
-			["CorrelationId"] = meta.CorrelationId,
-			["CausationId"] = meta.CausationId,
-			["TraceParent"] = meta.TraceParent,
-			["TenantId"] = meta.TenantId,
-			["UserId"] = meta.UserId,
-			["ContentType"] = meta.ContentType,
-			["SerializerVersion"] = meta.SerializerVersion,
-			["MessageVersion"] = meta.MessageVersion,
-			["ContractVersion"] = meta.ContractVersion,
-		};
-
 		await using var scope = _serviceProvider.CreateAsyncScope();
-		var context = DispatchContextInitializer.CreateFromMetadata(metaDict);
+		// Seed the context directly from the strongly-typed metadata — no per-message dictionary alloc.
+		var context = DispatchContextInitializer.CreateFromMetadata(meta);
 		context.MessageId = storedMessage.ExternalMessageId;
 		context.GetOrCreateIdentityFeature().ExternalId = storedMessage.ExternalMessageId;
 

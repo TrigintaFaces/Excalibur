@@ -103,7 +103,7 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 	public ISqlServerOutboxBuilder SchemaName(string schema)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(schema);
-		_options.SchemaName = schema;
+		_options.Tables.SchemaName = schema;
 		return this;
 	}
 
@@ -111,7 +111,7 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 	public ISqlServerOutboxBuilder TableName(string tableName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-		_options.OutboxTableName = tableName;
+		_options.Tables.OutboxTableName = tableName;
 		return this;
 	}
 
@@ -119,7 +119,7 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 	public ISqlServerOutboxBuilder TransportsTableName(string tableName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-		_options.TransportsTableName = tableName;
+		_options.Tables.TransportsTableName = tableName;
 		return this;
 	}
 
@@ -127,7 +127,7 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 	public ISqlServerOutboxBuilder DeadLetterTableName(string tableName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-		_options.DeadLetterTableName = tableName;
+		_options.Tables.DeadLetterTableName = tableName;
 		return this;
 	}
 
@@ -139,14 +139,14 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 			throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Command timeout must be positive.");
 		}
 
-		_options.CommandTimeoutSeconds = (int)timeout.TotalSeconds;
+		_options.Processing.CommandTimeoutSeconds = (int)timeout.TotalSeconds;
 		return this;
 	}
 
 	/// <summary>Enables or disables row-level locking for concurrent access.</summary>
 	public ISqlServerOutboxBuilder UseRowLocking(bool enable = true)
 	{
-		_options.UseRowLocking = enable;
+		_options.Processing.UseRowLocking = enable;
 		return this;
 	}
 
@@ -154,7 +154,7 @@ internal sealed class SqlServerOutboxBuilder : ISqlServerOutboxBuilder
 	public ISqlServerOutboxBuilder DefaultBatchSize(int size)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(size, 0);
-		_options.DefaultBatchSize = size;
+		_options.Processing.DefaultBatchSize = size;
 		return this;
 	}
 

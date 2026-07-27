@@ -103,7 +103,7 @@ public sealed class CachingDispatchBuilderExtensionsAdditionalShould : UnitTestB
 	}
 
 	[Fact]
-	public void WithCachingOptions_WithoutGlobalPolicyOrKeyBuilder_DoesNotRegisterSingletons()
+	public void WithCachingOptions_WithoutGlobalPolicyOrKeyBuilder_RegistersDefaultSingletons()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -117,9 +117,10 @@ public sealed class CachingDispatchBuilderExtensionsAdditionalShould : UnitTestB
 			options.CacheMode = CacheMode.Memory;
 		});
 
-		// Assert -- should not have IResultCachePolicy or ICacheKeyBuilder singletons
-		services.ShouldNotContain(sd => sd.ServiceType == typeof(IResultCachePolicy));
-		services.ShouldNotContain(sd => sd.ServiceType == typeof(ICacheKeyBuilder));
+		// Assert -- configuring caching ALSO enables it (fh3bzk default-on), so the default IResultCachePolicy
+		// and ICacheKeyBuilder are registered even without a user-supplied GlobalPolicy/CacheKeyBuilder.
+		services.ShouldContain(sd => sd.ServiceType == typeof(IResultCachePolicy));
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICacheKeyBuilder));
 	}
 
 	[Fact]

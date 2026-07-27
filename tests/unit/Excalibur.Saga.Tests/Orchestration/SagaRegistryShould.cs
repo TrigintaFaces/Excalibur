@@ -46,6 +46,44 @@ public sealed class SagaRegistryShould : UnitTestBase
 		continuationSagaType.ShouldBe(typeof(TestRegistrySaga));
 	}
 
+	/// <summary>
+	/// bzweu7 (correctness): the event→saga ROUTING table must register every declared mapping — it is
+	/// NOT a recomputable cache. The pre-fix code gated registration behind <c>Count &lt; 1024</c>
+	/// (a skip-when-full cache idiom), silently dropping every route past the 1024th so
+	/// <see cref="SagaRegistry.GetSagaTypeForEvent"/> returned null and those events never routed.
+	/// Non-vacuous: registers 2000 distinct event types and asserts ALL resolve — RED on the cap
+	/// (the entries past 1024 were dropped), GREEN once the cap is removed. Baseline-independent
+	/// (the process-global map may already hold real registrations; 2000 &gt; 1024 crosses it regardless).
+	/// </summary>
+	[Fact]
+	public void RegisterMoreThan1024EventMappingsWithoutDroppingRoutes()
+	{
+		// Arrange — build 2000 DISTINCT closed generic event types (Marker<object>, Marker<Marker<object>>, …).
+		const int count = 2000;
+		var markerTypes = new Type[count];
+		var current = typeof(object);
+		for (var i = 0; i < count; i++)
+		{
+			current = typeof(Marker<>).MakeGenericType(current);
+			markerTypes[i] = current;
+		}
+
+		var handles = typeof(SagaInfo).GetMethod(nameof(SagaInfo.Handles))!;
+
+		// Act — register all 2000 as handled events on one saga (via the real Handles<TEvent> API).
+		SagaRegistry.Register<CapTestSaga, CapTestSagaState>(info =>
+		{
+			foreach (var t in markerTypes)
+			{
+				_ = handles.MakeGenericMethod(t).Invoke(info, null);
+			}
+		});
+
+		// Assert — every one of the 2000 routes (RED on the pre-fix Count<1024 silent-drop cap).
+		var resolved = markerTypes.Count(t => SagaRegistry.GetSagaTypeForEvent(t) == typeof(CapTestSaga));
+		resolved.ShouldBe(count, "every declared saga-event route must register (no 1024 cap)");
+	}
+
 	#endregion
 
 	#region GetSagaTypeForEvent Tests
@@ -116,6 +154,24 @@ public sealed class SagaRegistryShould : UnitTestBase
 	private sealed class TestRegistrySagaState : SagaState { }
 	private sealed class TestRegistrySagaState2 : SagaState { }
 	private sealed class TestRegistrySagaState3 : SagaState { }
+	private sealed class CapTestSagaState : SagaState { }
+
+	// Generic marker event used to synthesize many DISTINCT closed types for the >1024 route test.
+	private sealed class Marker<T> : ISagaEvent
+	{
+		public string SagaId { get; init; } = Guid.NewGuid().ToString();
+		public string? StepId { get; init; }
+	}
+
+	private sealed class CapTestSaga(
+		CapTestSagaState initialState,
+		IDispatcher dispatcher,
+		ILogger<CapTestSaga> logger)
+		: SagaBase<CapTestSagaState>(initialState, dispatcher, logger)
+	{
+		public override bool HandlesEvent(object eventMessage) => true;
+		public override Task HandleAsync(object eventMessage, CancellationToken cancellationToken) => Task.CompletedTask;
+	}
 
 	private sealed class TestRegistrySaga(
 		TestRegistrySagaState initialState,

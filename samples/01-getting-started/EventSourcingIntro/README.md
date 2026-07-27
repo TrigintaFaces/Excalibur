@@ -59,9 +59,9 @@ EventSourcingIntro/
 ### Defining Domain Events
 
 ```csharp
-// Domain events are positional records deriving from DomainEvent.
-// AggregateId and Version are assigned automatically by AggregateRoot.RaiseEvent —
-// you do not set them in the constructor.
+// Domain events are positional records deriving from DomainEvent — they carry only their payload.
+// The stream identity and version are NOT part of the event payload; they live in the persistence
+// envelope, assigned by the event store when the aggregate's events are appended.
 public sealed record OrderCreated(Guid OrderId, string ProductId, int Quantity) : DomainEvent;
 ```
 
@@ -79,13 +79,13 @@ public class OrderAggregate : AggregateRoot<Guid>
         return order;
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => ApplyOrderCreated(e),
         OrderItemAdded e => ApplyOrderItemAdded(e),
         OrderConfirmed e => ApplyOrderConfirmed(e),
         OrderShipped e => ApplyOrderShipped(e),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool ApplyOrderCreated(OrderCreated e)

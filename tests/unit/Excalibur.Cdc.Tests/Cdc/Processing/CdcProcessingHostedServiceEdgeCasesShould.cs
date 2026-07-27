@@ -41,7 +41,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 			UnhealthyThreshold = 2
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -88,7 +88,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 			UnhealthyThreshold = 3
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -124,7 +124,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 			UnhealthyThreshold = 3
 		});
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -166,7 +166,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
@@ -204,7 +204,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		});
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
@@ -261,7 +261,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -306,7 +306,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act - Should not throw
 		await service.StartAsync(cts.Token);
@@ -340,7 +340,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -379,7 +379,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
@@ -422,7 +422,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -460,7 +460,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 
 		using var cts = new CancellationTokenSource();
 
@@ -497,7 +497,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		// processing works (duration emission is an implementation detail of LoggerMessage).
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act -- verify processing completes without error
@@ -539,7 +539,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		// FakeItEasy can't proxy ILogger<InternalType>. Verify no-changes path doesn't throw.
 		var logger = NullLogger<CdcProcessingHostedService>.Instance;
 
-		var service = new CdcProcessingHostedService(processor, options, logger);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -576,6 +576,11 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	private static TaskCompletionSource<bool> CreateSignal()
 	{
 		return new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+	}
+
+	private static IServiceProvider SpWith(ICdcBackgroundProcessor processor)
+	{
+		return new ServiceCollection().AddSingleton(processor).BuildServiceProvider();
 	}
 
 	private static TimeSpan SignalWaitTimeout => global::Tests.Shared.Infrastructure.TestTimeouts.Integration;

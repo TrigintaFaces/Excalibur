@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using ApiException = Excalibur.Dispatch.ApiException;
 using ExcaliburHeaderNames = Excalibur.Application.ExcaliburHeaderNames;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
-using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using OutboxMessage = Excalibur.Outbox.OutboxMessage;
 using TenantId = Excalibur.Dispatch.TenantId;
 
 namespace Excalibur.A3.Audit;
@@ -159,12 +159,15 @@ public sealed partial class AuditMiddleware(
 			headers.Add(ExcaliburHeaderNames.TenantId, activityAudited.TenantId);
 		}
 
-		var message = new OutboxMessage(
-			Uuid7Extensions.GenerateString(),
-			nameof(ActivityAudited),
-			JsonSerializer.Serialize(headers, AuditJsonContext.Default.DictionaryStringString),
-			JsonSerializer.Serialize(activityAudited, AuditJsonContext.Default.ActivityAudited),
-			DateTimeOffset.UtcNow);
+		var message = new OutboxMessage
+		{
+			MessageId = Uuid7Extensions.GenerateString(),
+			MessageType = nameof(ActivityAudited),
+			MessageMetadata = JsonSerializer.Serialize(headers, AuditJsonContext.Default.DictionaryStringString),
+			MessageBody = JsonSerializer.SerializeToUtf8Bytes(activityAudited, AuditJsonContext.Default.ActivityAudited),
+			CreatedAt = DateTimeOffset.UtcNow,
+			TenantId = activityAudited.TenantId,
+		};
 
 		_ = await outbox.SaveMessagesAsync([message], cancellationToken).ConfigureAwait(false);
 	}

@@ -730,7 +730,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			_client = new ElasticsearchClient(settings);
 		}
 
-		if (_options.CreateIndexOnInitialize)
+		if (_options.Index.CreateIndexOnInitialize)
 		{
 			await CreateIndexIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
@@ -763,7 +763,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		// Apply convention-based customization if configured.
 		// This allows consumers to globally override mapping defaults (e.g., text + keyword
 		// multi-fields for strings) without implementing IElasticIndexConfiguration<T> per type.
-		var convention = _options.IndexMappingConvention;
+		var convention = _options.Index.IndexMappingConvention;
 		if (convention is not null)
 		{
 			properties = convention.ConfigureMappings(typeof(TProjection), properties);
@@ -772,9 +772,9 @@ public sealed partial class ElasticSearchProjectionStore<
 		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
 				.Settings(s => s
-					.NumberOfShards(_options.NumberOfShards)
-					.NumberOfReplicas(_options.NumberOfReplicas)
-					.RefreshInterval(_options.RefreshInterval))
+					.NumberOfShards(_options.Index.NumberOfShards)
+					.NumberOfReplicas(_options.Index.NumberOfReplicas)
+					.RefreshInterval(_options.Index.RefreshInterval))
 				.Mappings(m => m
 					.Properties(properties)), cancellationToken)
 			.ConfigureAwait(false);

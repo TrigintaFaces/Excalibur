@@ -149,7 +149,9 @@ public sealed class BatchProcessingMetricsShould
 		}
 
 		// Assert - Should not throw
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		Should.NotThrow(() => Task.WaitAll([.. tasks]));
+		#pragma warning restore RS0030
 	}
 
 	[Fact]
@@ -173,6 +175,8 @@ public sealed class BatchProcessingMetricsShould
 		}
 
 		// Assert - Should not throw
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		Should.NotThrow(() => Task.WaitAll([.. tasks]));
+		#pragma warning restore RS0030
 	}
 }

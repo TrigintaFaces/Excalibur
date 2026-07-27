@@ -247,8 +247,59 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 	/// <summary>
 	/// R2.15: Transport MUST support message filtering capabilities.
 	/// </summary>
-	[Fact(Skip = "Conformance harness exposes no filtering API; a real filtering assertion is not expressible here. Transports that support filtering (e.g. Azure Service Bus, AWS SQS) should override with a real assertion once the harness exposes it — tracked bd-1rbj0a (umbrella Excalibur.Dispatch-urttf7).")]
-	public virtual Task Should_Support_Message_Filtering() => Task.CompletedTask;
+	/// <remarks>
+	/// Capability-gated on <see cref="TransportCapability.Filtering" />. A transport that advertises server-side
+	/// filtering via <see cref="AdvancedCapabilities" /> is asserted to deliver ONLY the matching message; a
+	/// transport that does not advertise it no-ops (the seam design — no false conformance). The assertion is
+	/// proven RED-able against a non-filtering double in <c>HarnessCapabilityNonVacuityShould</c>.
+	/// </remarks>
+	[Fact]
+	public virtual async Task Should_Support_Message_Filtering()
+	{
+		if (!IsTransportAvailable()) { return; }
+
+		var capabilities = AdvancedCapabilities;
+		if (capabilities is null || !capabilities.Capabilities.HasFlag(TransportCapability.Filtering))
+		{
+			// Transport does not advertise server-side filtering — nothing to assert (no false conformance).
+			return;
+		}
+
+		// Arrange: a message to drop and a message to keep, tagged with distinct filter attributes. The
+		// non-matching ("drop") message is sent FIRST so a transport that ignores the filter returns it (RED).
+		var keep = new TestMessage
+		{
+			Id = Guid.NewGuid().ToString(),
+			Content = "keep",
+			Timestamp = DateTimeOffset.UtcNow
+		};
+		var drop = new TestMessage
+		{
+			Id = Guid.NewGuid().ToString(),
+			Content = "drop",
+			Timestamp = DateTimeOffset.UtcNow
+		};
+
+		using var cts = new CancellationTokenSource(ReceiveTimeout);
+		await capabilities.SendFilterableAsync(
+			drop,
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "drop" },
+			cts.Token).ConfigureAwait(false);
+		await capabilities.SendFilterableAsync(
+			keep,
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
+			cts.Token).ConfigureAwait(false);
+
+		// Act: receive only messages matching the "keep" filter.
+		var received = await capabilities.ReceiveMatchingAsync<TestMessage>(
+			new Dictionary<string, string>(StringComparer.Ordinal) { ["label"] = "keep" },
+			cts.Token).ConfigureAwait(false);
+
+		// Assert: the matching message is delivered; the non-matching one is filtered out.
+		_ = received.ShouldNotBeNull();
+		_ = received.Body.ShouldNotBeNull();
+		received.Body.Content.ShouldBe("keep");
+	}
 
 	/// <summary>
 	/// R4.5: Transport MUST route poison messages to DLQ after retry exhaustion.

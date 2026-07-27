@@ -30,7 +30,7 @@ public sealed class SqlServerEventStoreBehaviorShould : UnitTestBase
 
 		result.Success.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(5);
-		result.FirstEventPosition.ShouldBe(0);
+		result.FirstEventPosition.ShouldBeNull();
 	}
 
 	[Fact]

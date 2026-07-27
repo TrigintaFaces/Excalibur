@@ -7,6 +7,7 @@ using System.Data;
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -26,10 +27,18 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// <param name="serializer">The JSON serializer for deserializing saga state.</param>
 	/// <param name="qualifiedTableName">The fully qualified saga table name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="scope">
+	/// The tenant scope for row-level tenant scoping. When tenant-scoped, the load is restricted to the
+	/// current tenant's saga (<c>AND TenantId = @TenantId</c>) so a tenant can never load another tenant's
+	/// saga by id. When <see cref="TenantScope.None"/> (the non-multi-tenant path) no tenant predicate is
+	/// applied (byte-identical un-scoped behavior). A tenant-scoped scope cannot be constructed without a
+	/// tenant, so a predicate-less load while tenancy is active is unrepresentable.
+	/// </param>
 	public LoadSagaRequest(
 			Guid sagaId,
 			DispatchJsonSerializer serializer,
 			string qualifiedTableName,
+			TenantScope scope,
 			CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
@@ -42,14 +51,28 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// Guid, then deserialize its StateJson into the wrong TSagaState (silent data corruption). A typed
 		// LoadAsync<TSagaState>(id) must return null when no saga of that type exists at the id — the contract
 		// already enforced structurally by InMemory (`state is TSagaState`), Cosmos, Firestore, and DynamoDb.
-		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = @SagaId AND SagaType = @SagaType;";
+		// The tenant predicate is UNCONDITIONAL. It used to disappear on the unscoped path
+		// (scope.IsScoped ? " AND TenantId = @TenantId" : string.Empty), so an unscoped load matched on
+		// SagaId + SagaType alone and returned WHICHEVER tenant's saga held that id — a cross-tenant read
+		// through the ordinary load path. Resolving through KeyedTenantPartition gives a term on both paths
+		// (unscoped resolves to the reserved untenanted sentinel), so the predicate is always present and an
+		// unscoped caller reads the untenanted partition rather than everything.
+		//
+		// This is the same function of the same input the write side uses, which is what makes the two agree:
+		// a saga saved under scope S is loadable exactly under scope S.
+		var partition = KeyedTenantPartition.FromScope(scope);
+		var sql = $"SELECT StateJson, IsCompleted, Version FROM {qualifiedTableName} WHERE SagaId = @SagaId AND SagaType = @SagaType AND TenantId = @TenantId;";
 		Parameters.Add("SagaId", sagaId);
 		Parameters.Add("SagaType", typeof(TSagaState).Name);
+		Parameters.Add("TenantId", partition.TenantId);
 		Command = CreateCommand(sql, cancellationToken: cancellationToken);
 		ResolveAsync = async conn =>
 		{
-			var record = await conn.QuerySingleOrDefaultAsync<(string StateJson, bool IsCompleted, long Version)>(Command).ConfigureAwait(false);
-			if (record == default)
+			// Project into a nullable reference type so "no row" is unambiguously null. A value-tuple
+			// `== default` conflates an absent row with a legitimately-persisted row whose columns all
+			// equal their defaults — a brittle null-detect.
+			var record = await conn.QuerySingleOrDefaultAsync<SagaLoadRow>(Command).ConfigureAwait(false);
+			if (record is null)
 			{
 				return null;
 			}
@@ -64,4 +87,7 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 			return state;
 		};
 	}
+
+	/// <summary>Row projection for the saga load query. A null instance means no matching row exists.</summary>
+	private sealed record SagaLoadRow(string StateJson, bool IsCompleted, long Version);
 }

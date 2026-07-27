@@ -16,6 +16,10 @@ namespace Excalibur.Dispatch.Observability.Sanitization;
 /// When <see cref="IncludeRawPii"/> is <see langword="true"/>, all sanitization is bypassed
 /// and raw values are emitted. This should only be used in development environments.
 /// </para>
+/// <para>
+/// When <see cref="Pepper"/> is set, sensitive values are fingerprinted with keyed HMAC-SHA-256 instead of
+/// an unkeyed SHA-256 digest, protecting low-entropy identifiers against brute-force/rainbow-table attacks.
+/// </para>
 /// </remarks>
 public sealed class TelemetrySanitizerOptions
 {
@@ -24,6 +28,17 @@ public sealed class TelemetrySanitizerOptions
 	/// </summary>
 	/// <value><see langword="true"/> to bypass sanitization (development only); <see langword="false"/> by default.</value>
 	public bool IncludeRawPii { get; set; }
+
+	/// <summary>
+	/// Gets or sets an optional secret pepper (key) used to derive tag fingerprints with HMAC-SHA-256.
+	/// </summary>
+	/// <value>
+	/// A high-entropy secret key sourced from a secret manager / KMS, or <see langword="null"/> (the default)
+	/// to fall back to an unkeyed SHA-256 fingerprint. When set, low-entropy identifiers are protected against
+	/// brute-force and rainbow-table attacks; when <see langword="null"/>, fingerprints remain correlation
+	/// aids only. Fingerprinting never throws on the telemetry path regardless of this setting.
+	/// </value>
+	public byte[]? Pepper { get; set; }
 
 	/// <summary>
 	/// Gets or sets the tag names whose values should be hashed using SHA-256 before emission.

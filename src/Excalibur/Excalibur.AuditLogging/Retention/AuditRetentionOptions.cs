@@ -9,6 +9,27 @@ namespace Excalibur.AuditLogging.Retention;
 public sealed class AuditRetentionOptions
 {
 	/// <summary>
+	/// Gets or sets a value indicating whether expired audit events are actually removed.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> — the default — to enforce the retention policy by deleting expired events;
+	/// <see langword="false"/> to leave every event in place.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// The default is <see langword="true"/> deliberately: a host that has gone to the trouble of
+	/// registering retention has asked for a retention policy, and defaulting to "configured but not
+	/// enforced" would be the false-control shape this option exists to avoid. Disabling is an explicit
+	/// act.
+	/// </para>
+	/// <para>
+	/// When disabled, enforcement does not run and says so — it does not report a completed pass. Nothing
+	/// is deleted, and the absence of deletion is visible in the log rather than inferred from silence.
+	/// </para>
+	/// </remarks>
+	public bool EnableRetentionEnforcement { get; set; } = true;
+
+	/// <summary>
 	/// Gets or sets the retention period for audit events.
 	/// Events older than this are eligible for cleanup.
 	/// </summary>

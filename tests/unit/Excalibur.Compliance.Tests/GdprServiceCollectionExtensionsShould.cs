@@ -7,6 +7,7 @@ using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.Stores.MongoDb;
 using Excalibur.Compliance.Stores.Postgres;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Compliance.Tests;
@@ -336,5 +337,92 @@ public sealed class GdprServiceCollectionExtensionsShould
 			.ToList();
 		bgServiceDescriptors.Count.ShouldBe(1,
 			"Duplicate AddRetentionEnforcement calls must not double-register the background service");
+	}
+
+	// ---- REAL-CONTAINER RESOLVE LOCKS ----------------------------------------------------------
+	//
+	// Every other arm in this file asserts REGISTRATION PRESENCE -- a non-null ServiceDescriptor
+	// with the expected lifetime. A descriptor is still non-null when the registered type's
+	// constructor dependencies CANNOT BE SATISFIED, so those arms stay green over a registration
+	// that throws the first time a consumer resolves it. That is the whole defect class here: the
+	// store works when a test hands it its dependencies, and says nothing about whether the real
+	// container can supply them.
+	//
+	// These arms build a REAL ServiceProvider through the PRODUCTION registration path and resolve
+	// the service, which is the only thing that distinguishes "registered" from "usable".
+	//
+	// MongoDbComplianceStore's constructors take ITenantContext. A nullable reference annotation
+	// does NOT make a DI parameter optional -- Microsoft.Extensions.DependencyInjection has no
+	// notion of an optional dependency -- so a registration that does not also register a tenant
+	// context produces a descriptor that cannot be constructed.
+	//
+	// AddLogging() is deliberately present in each arm and is NOT part of the defect. The stores
+	// take ILogger<T>, which only a host or an explicit AddLogging() supplies, and every realistic
+	// consumer has one. Omitting it makes EVERY compliance-store registration unresolvable --
+	// including the ones that are correct -- which turns this lock into a false accusation against
+	// working code rather than a test of the registration under scrutiny. The arms assert what a
+	// consumer with a normal host gets; the tenant context is the thing the registration itself
+	// must supply.
+
+	[Fact]
+	public void ResolveMongoDbComplianceStoreFromARealContainer_ConfigureOptionsOverload()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		services.AddMongoDbComplianceStore(opts => opts.ConnectionString = "mongodb://localhost");
+
+		using var provider = services.BuildServiceProvider(validateScopes: true);
+
+		var store = Should.NotThrow(
+			() => provider.GetRequiredService<IComplianceStore>(),
+			"AddMongoDbComplianceStore must register everything MongoDbComplianceStore needs to be "
+			+ "constructed. A consumer who calls this method and nothing else must get a working "
+			+ "store, not an InvalidOperationException on first resolve.");
+
+		store.ShouldBeOfType<MongoDbComplianceStore>();
+	}
+
+	[Fact]
+	public void ResolveMongoDbComplianceStoreFromARealContainer_ConfigurationOverload()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var configuration = new ConfigurationBuilder()
+			.AddInMemoryCollection(new Dictionary<string, string?>
+			{
+				["ConnectionString"] = "mongodb://localhost"
+			})
+			.Build();
+
+		services.AddMongoDbComplianceStore(configuration);
+
+		using var provider = services.BuildServiceProvider(validateScopes: true);
+
+		var store = Should.NotThrow(
+			() => provider.GetRequiredService<IComplianceStore>(),
+			"Both AddMongoDbComplianceStore overloads must be independently resolvable. Fixing only "
+			+ "the overload a test happens to exercise leaves the other one broken for consumers.");
+
+		store.ShouldBeOfType<MongoDbComplianceStore>();
+	}
+
+	// CONTROL -- the same property on the provider that already satisfies it. If this arm ever fails
+	// alongside the Mongo arms, the fault is in this lock or in the shared registration path, not in
+	// the Mongo-specific omission. It also stops the arms above from being "fixed" by weakening the
+	// store's dependency instead of completing the registration.
+	[Fact]
+	public void ResolvePostgresComplianceStoreFromARealContainer_AsTheStructuralControl()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		services.AddPostgresComplianceStore(opts => opts.ConnectionString = "Host=localhost;Database=test");
+
+		using var provider = services.BuildServiceProvider(validateScopes: true);
+
+		var store = Should.NotThrow(() => provider.GetRequiredService<IComplianceStore>());
+
+		store.ShouldBeOfType<PostgresComplianceStore>();
 	}
 }

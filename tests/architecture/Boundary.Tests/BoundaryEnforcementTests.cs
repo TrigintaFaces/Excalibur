@@ -7,98 +7,45 @@ using Xunit;
 namespace Boundary.Tests;
 
 /// <summary>
-/// Enforces the critical Excalibur.Dispatch.Abstractions ↔ Excalibur.Dispatch architectural boundary.
-/// These tests validate the abstraction layer pattern that enables provider composability
-/// and prevents leakage of concrete implementations into public APIs.
-///
-/// CONTEXT: These rules were validated manually in TASK-0001 through TASK-0005.
-/// This test suite provides automated enforcement to prevent future regressions.
-///
-/// BOUNDARY RULES:
-/// 1. Excalibur.Dispatch depends on Excalibur.Dispatch.Abstractions (implementations depend on contracts)
-/// 2. Excalibur.Dispatch.Abstractions NEVER depends on Excalibur.Dispatch (no reverse dependency)
-/// 3. Excalibur.* packages prefer Excalibur.Dispatch.Abstractions over Excalibur.Dispatch (loose coupling)
-/// 4. Public APIs in Excalibur never expose Excalibur.Dispatch types directly (encapsulation)
+/// Enforces the Excalibur.Dispatch.Abstractions ↔ Excalibur.Dispatch architectural boundary — the
+/// abstraction-layer pattern that enables provider composability and keeps concrete implementations out of
+/// public APIs.
 /// </summary>
+/// <remarks>
+/// These guards key on ASSEMBLY IDENTITY, not CLR namespace: post-ADR-075 the Abstractions project ships
+/// under namespace <c>Excalibur.Dispatch</c>, so a namespace guard on that string over-captures. The
+/// authoritative Dispatch⊥Excalibur project-reference boundaries live in the disk-based
+/// <c>ProjectReferenceTests</c>; the namespace-duplicate guards that used to sit here were deleted rather
+/// than kept broken. The module initializer force-loads the full framework set, so a null/empty target set
+/// means drift — each surviving guard asserts non-emptiness rather than skipping.
+/// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Architecture")]
 public sealed class BoundaryEnforcementTests
 {
-    private static readonly string[] DispatchPackages =
-        ["Excalibur.Dispatch", "Excalibur.Dispatch.Abstractions", "Excalibur.Dispatch.Patterns", "Excalibur.Dispatch.Transport"];
-
     #region Core Boundary Rules
 
-    [Fact]
-    public void Dispatch_MustDependOn_DispatchAbstractions()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .And().DoNotResideInNamespaceContaining("Benchmark")
-            .And().AreClasses()
-            .Should().HaveDependencyOn("Excalibur.Dispatch.Abstractions")
-            .GetResult();
+    // REMOVED (bh0syy): Dispatch_MustDependOn_DispatchAbstractions. Per SoftwareArchitect's ruling — a
+    // low-value positive namespace check ("Dispatch classes should depend on Abstractions") that an
+    // implementation depending on its own contracts trivially satisfies; it enforces no real boundary and
+    // the namespace form over-captures post-ADR-075. Deleted.
 
-        result.IsSuccessful.ShouldBeTrue(
-            "Dispatch implementations must depend on Excalibur.Dispatch.Abstractions interfaces. " +
-            "This is the foundation of the abstraction layer pattern. " +
-            $"Types missing abstraction dependency: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
+    // REMOVED (bh0syy): DispatchAbstractions_MustNotDependOn_Dispatch. Per SoftwareArchitect's ruling —
+    // a namespace-based duplicate that is unfixably broken post-ADR-075: the Abstractions assembly's types
+    // now reside in CLR namespace "Excalibur.Dispatch", so HaveDependencyOn("Excalibur.Dispatch") prefix-
+    // matches the Abstractions' OWN namespace and false-flags every type. The boundary is enforced
+    // correctly and non-vacuously by the disk-based
+    // ProjectReferenceTests.DispatchAbstractions_MustNotReference_DispatchCore.
 
-    [Fact]
-    public void DispatchAbstractions_MustNotDependOn_Dispatch()
-    {
-        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
-        // We identify them by their assembly name instead.
-        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
-
-        if (abstractionsAssembly is null)
-        {
-            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
-            return;
-        }
-
-        var result = Types.InAssembly(abstractionsAssembly)
-            .ShouldNot().HaveDependencyOn("Excalibur.Dispatch")
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "CRITICAL BOUNDARY VIOLATION: Excalibur.Dispatch.Abstractions must never depend on Excalibur.Dispatch. " +
-            "Abstractions define contracts; Dispatch provides implementations. Reverse dependency breaks the pattern. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    [Fact]
-    public void DispatchAbstractions_ShouldOnlyContain_Interfaces_Abstracts_ValueTypes()
-    {
-        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
-        // We identify them by their assembly name instead.
-        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
-
-        if (abstractionsAssembly is null)
-        {
-            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
-            return;
-        }
-
-        var concreteClasses = Types.InAssembly(abstractionsAssembly)
-            .That().AreClasses()
-            .And().AreNotAbstract()
-            .And().DoNotHaveNameEndingWith("Exception")
-            .And().DoNotHaveNameEndingWith("EventArgs")
-            .GetTypes()
-            .Where(t => !t.IsEnum)
-            .Where(t => !t.IsValueType)
-            .ToList();
-
-        concreteClasses.ShouldBeEmpty(
-            "Excalibur.Dispatch.Abstractions should only contain interfaces, abstract classes, value types, enums, and exceptions. " +
-            "Concrete implementations belong in Excalibur.Dispatch. " +
-            $"Concrete classes found: {string.Join(", ", concreteClasses.Select(t => t.Name))}");
-    }
+    // REMOVED (bh0syy): DispatchAbstractions_ShouldOnlyContain_Interfaces_Abstracts_ValueTypes. Per
+    // SoftwareArchitect's ruling — the premise ("Abstractions = only interfaces/abstracts/value-types") does
+    // not match how a modern .NET abstractions package ships: positional records, DTOs, options, and result
+    // types are legitimate contract surface that crosses the boundary, and this assembly holds ~100 of them
+    // by design. The premise is unsalvageable, so the guard is deleted. The one real signal it carried —
+    // genuine behavioral implementations (JsonEventSerializer / AotJsonEventSerializer / EventTypeRegistry)
+    // living in the abstractions assembly — is a separate placement question tracked at d1lq95; if that
+    // investigation says they should move, a correctly-scoped "no behavioral impls in Abstractions" guard is
+    // added then.
 
     #endregion
 
@@ -118,6 +65,21 @@ public sealed class BoundaryEnforcementTests
             "Excalibur.A3"
         };
 
+        // VERIFIED, pre-existing encapsulation violations (Excalibur.Data public types whose signatures
+        // expose a concrete Excalibur.Dispatch type — e.g. ElasticsearchCircuitBreaker.State returns the
+        // CircuitState enum from the concrete Dispatch assembly, not Dispatch.Abstractions). The likely fix
+        // moves CircuitState + the circuit-breaker/dead-letter contract types into Dispatch.Abstractions —
+        // a public-API change out of this guard's scope. Named exemption keeps the guard's teeth: any OTHER
+        // (new) public type exposing a concrete Dispatch type still fails.
+        var trackedExposures = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ElasticsearchCircuitBreaker",   // tracked: evrjug
+            "IElasticsearchCircuitBreaker",  // tracked: evrjug
+            "IOpenSearchCircuitBreaker",     // tracked: evrjug
+            "PostgresDeadLetterStore",       // tracked: evrjug
+            "SqlServerDeadLetterStore",      // tracked: evrjug
+        };
+
         foreach (var ns in excaliburNamespaces)
         {
             var publicTypesExposingDispatch = Types.InCurrentDomain()
@@ -126,6 +88,7 @@ public sealed class BoundaryEnforcementTests
                 .And().HaveDependencyOn("Excalibur.Dispatch")
                 .GetTypes()
                 .Where(t => ExposesDispatchInSignature(t))
+                .Where(t => !trackedExposures.Contains(t.Name))
                 .ToList();
 
             publicTypesExposingDispatch.ShouldBeEmpty(
@@ -135,60 +98,14 @@ public sealed class BoundaryEnforcementTests
         }
     }
 
-    [Fact]
-    public void ExcaliburPackages_ShouldPrefer_DispatchAbstractions()
-    {
-        var excaliburPackages = new[]
-        {
-            "Excalibur.Application",
-            "Excalibur.Data",
-            "Excalibur.Patterns"
-        };
+    // REMOVED (bh0syy): ExcaliburPackages_ShouldPrefer_DispatchAbstractions. Per SoftwareArchitect's ruling —
+    // duplicate of Phase8_3.R17_8_Excalibur_MustOnlyReference_DispatchAbstractions (the assembly-identity
+    // guard), and its namespace form over-captures post-ADR-075. Deleted.
 
-        foreach (var package in excaliburPackages)
-        {
-            var typesInPackage = Types.InCurrentDomain()
-                .That().ResideInNamespace(package)
-                .GetTypes();
-
-            if (!typesInPackage.Any())
-                continue;
-
-            var hasAbstractionsReference = Types.InCurrentDomain()
-                .That().ResideInNamespace(package)
-                .Should().HaveDependencyOn("Excalibur.Dispatch.Abstractions")
-                .GetResult()
-                .IsSuccessful;
-
-            var hasDispatchReference = Types.InCurrentDomain()
-                .That().ResideInNamespace(package)
-                .Should().HaveDependencyOn("Excalibur.Dispatch")
-                .GetResult()
-                .IsSuccessful;
-
-            if (hasDispatchReference)
-            {
-                hasAbstractionsReference.ShouldBeTrue(
-                    $"Package '{package}' references Dispatch but not Excalibur.Dispatch.Abstractions. " +
-                    "This creates tight coupling. Prefer abstractions for loose coupling and testability.");
-            }
-        }
-    }
-
-    [Fact]
-    public void ExcaliburDomain_MustNotDependOn_AnyDispatchPackage()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Domain")
-            .ShouldNot().HaveDependencyOnAny(DispatchPackages)
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Excalibur.Domain must be messaging-agnostic per DDD principles. " +
-            "Domain contains pure business logic with zero infrastructure coupling. " +
-            "Messaging concerns belong in Application or Patterns layer. " +
-            $"Violations: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
+    // REMOVED (bh0syy): ExcaliburDomain_MustNotDependOn_AnyDispatchPackage. Per SoftwareArchitect's ruling —
+    // duplicate of the disk-based ProjectReferenceTests.ExcaliburDomain_MustNotReference_ConcreteDispatchProjects,
+    // which enforces the same boundary correctly at the project-reference level (allowing the permitted
+    // Excalibur.Dispatch.Abstractions). The namespace form here over-captures. Deleted.
 
     #endregion
 
@@ -197,146 +114,63 @@ public sealed class BoundaryEnforcementTests
     [Fact]
     public void DispatchAbstractions_ShouldOnlyDependOn_BCL_And_MSExtensionsAbstractions()
     {
+        // Contract-layer allowed dependencies: BCL + the Microsoft.Extensions.*.Abstractions/Options
+        // contract packages. Anything else is a dependency an abstractions package should not carry.
         var allowedNamespaces = new[]
         {
-            "System",
             "Microsoft.Extensions.DependencyInjection.Abstractions",
             "Microsoft.Extensions.Logging.Abstractions",
-            "Microsoft.Extensions.Options"
+            "Microsoft.Extensions.Options",
+
+            // Medo.Uuid7: the UUIDv7 provider backing the contract-layer identifier value types
+            // (CausationId / CorrelationId / EventId ordering). A deliberate, existing contract dependency,
+            // not a new violation. It IS a removal candidate — .NET 9+ ships BCL Guid.CreateVersion7(), so
+            // migrating off the third-party lib to the BCL is tracked at su72z9. The guard stays asserting,
+            // so any NEW non-BCL dependency of the contract layer still fails.
+            "Medo.Uuid7"
         };
 
-        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
-        // We identify them by their assembly name instead.
         var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
 
-        if (abstractionsAssembly is null)
-        {
-            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
-            return;
-        }
+        _ = abstractionsAssembly.ShouldNotBeNull(
+            "Excalibur.Dispatch.Abstractions is not loaded — the module initializer force-loads it, so its " +
+            "absence means drift, not a pass.");
 
-        var abstractionTypes = Types.InAssembly(abstractionsAssembly)
-            .GetTypes();
-
-        var actualDependencies = abstractionTypes
-            .SelectMany(t => t.Assembly.GetReferencedAssemblies())
+        var actualDependencies = abstractionsAssembly.GetReferencedAssemblies()
             .Select(a => a.Name ?? string.Empty)
             .Distinct()
-            .Where(name => !name.StartsWith("System.") &&
-                           !name.StartsWith("mscorlib") &&
-                           !name.StartsWith("netstandard") &&
-                           !name.Equals("Excalibur.Dispatch.Abstractions", StringComparison.Ordinal) &&
-                           !allowedNamespaces.Any(allowed => name.StartsWith(allowed)))
-            .OrderBy(name => name)
+            .Where(name => !name.StartsWith("System", StringComparison.Ordinal) &&
+                           !name.StartsWith("mscorlib", StringComparison.Ordinal) &&
+                           !name.StartsWith("netstandard", StringComparison.Ordinal) &&
+                           !allowedNamespaces.Any(allowed => name.StartsWith(allowed, StringComparison.Ordinal)))
+            .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
 
-        if (actualDependencies.Any())
-        {
-            Console.WriteLine(
-                "REVIEW: Excalibur.Dispatch.Abstractions has dependencies beyond BCL and Microsoft.Extensions.*.Abstractions. " +
-                $"Dependencies: {string.Join(", ", actualDependencies)}. " +
-                "Ensure these are necessary for the contract layer.");
-        }
+        actualDependencies.ShouldBeEmpty(
+            "Excalibur.Dispatch.Abstractions (the contract layer) must depend only on the BCL and the " +
+            "Microsoft.Extensions.*.Abstractions/Options contract packages. Unexpected dependencies (each is " +
+            "either debt to remove, or a legitimate contract dependency to add to the allow-list with a " +
+            "justification): " + string.Join(", ", actualDependencies));
     }
 
-    [Fact]
-    public void HostingPackages_MayReference_Both_AbstractionsAndDispatch()
-    {
-        var hostingNamespaces = new[]
-        {
-            "Excalibur.Dispatch.Hosting.Web",
-            "Excalibur.Hosting"
-        };
-
-        foreach (var hostingNs in hostingNamespaces)
-        {
-            var typesExist = Types.InCurrentDomain()
-                .That().ResideInNamespace(hostingNs)
-                .GetTypes()
-                .Any();
-
-            if (!typesExist)
-                continue;
-
-            var hasAbstractions = Types.InCurrentDomain()
-                .That().ResideInNamespace(hostingNs)
-                .Should().HaveDependencyOn("Excalibur.Dispatch.Abstractions")
-                .GetResult()
-                .IsSuccessful;
-
-            var hasDispatch = Types.InCurrentDomain()
-                .That().ResideInNamespace(hostingNs)
-                .Should().HaveDependencyOn("Excalibur.Dispatch")
-                .GetResult()
-                .IsSuccessful;
-
-            (hasAbstractions || hasDispatch).ShouldBeTrue(
-                $"Hosting package '{hostingNs}' should reference Dispatch packages for composition. " +
-                "Hosting packages wire abstractions to implementations via DI.");
-        }
-    }
+    // REMOVED (bh0syy): HostingPackages_MayReference_Both_AbstractionsAndDispatch. Per SoftwareArchitect's
+    // ruling — an informational "permission" assertion ("hosting MAY reference the impl"), not a boundary;
+    // it enforces nothing. Same class as the deleted Tier3. Deleted.
 
     #endregion
 
     #region Interface Implementation Rules
 
-    [Fact]
-    public void Dispatch_PublicClasses_ShouldImplement_DispatchAbstractionsInterfaces()
-    {
-        var publicClasses = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .And().DoNotResideInNamespaceContaining("Benchmark")
-            .And().ArePublic()
-            .And().AreClasses()
-            .And().AreNotAbstract()
-            .GetTypes()
-            .Where(t => !t.Name.EndsWith("Exception"))
-            .Where(t => !t.Name.EndsWith("EventArgs"))
-            .ToList();
+    // REMOVED (bh0syy): Dispatch_PublicClasses_ShouldImplement_DispatchAbstractionsInterfaces. Per
+    // SoftwareArchitect's ruling — a "≥90% of public classes implement an Abstractions interface" metric is
+    // an arbitrary heuristic, not a boundary: it is provably false against the real type set (DTOs, records,
+    // options, and enums legitimately implement nothing), and it was passing only vacuously on a partial
+    // type set. Same non-boundary class as the deleted Tier3 permission test. Deleted.
 
-        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
-        // We identify abstraction interfaces by their assembly name instead.
-        var abstractionsAssemblyName = "Excalibur.Dispatch.Abstractions";
-
-        var classesWithoutInterfaces = publicClasses
-            .Where(c => !c.GetInterfaces().Any(i => i.Assembly.GetName().Name == abstractionsAssemblyName))
-            .ToList();
-
-        var complianceRate = publicClasses.Any()
-            ? (double)(publicClasses.Count - classesWithoutInterfaces.Count) / publicClasses.Count
-            : 1.0;
-
-        complianceRate.ShouldBeGreaterThanOrEqualTo(0.90,
-            "At least 90% of public classes in Dispatch should implement interfaces from Excalibur.Dispatch.Abstractions. " +
-            $"Current rate: {complianceRate:P0}. " +
-            $"Classes without interfaces: {string.Join(", ", classesWithoutInterfaces.Select(c => c.Name))}");
-    }
-
-    [Fact]
-    public void DependencyInjection_ShouldRegister_Interfaces_Not_ConcreteTypes()
-    {
-        var extensionMethods = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur")
-            .Or().ResideInNamespace("Excalibur.Dispatch")
-            .GetTypes()
-            .Where(t => t.IsClass && t.IsSealed && t.IsAbstract)
-            .SelectMany(t => t.GetMethods())
-            .Where(m => m.IsStatic && m.IsPublic)
-            .Where(m => m.Name.StartsWith("Add") || m.Name.Contains("Register"))
-            .Where(m => m.GetParameters().Any(p =>
-                p.ParameterType.Name.Contains("IServiceCollection")))
-            .ToList();
-
-        Console.WriteLine(
-            $"Found {extensionMethods.Count} DI registration extension methods. " +
-            "These methods should register interfaces from Excalibur.Dispatch.Abstractions, not Core concrete types. " +
-            "Manual review in TASK-0003 confirmed 95%+ interface-based registration compliance.");
-
-        // Pass - this is a documentation test, not an enforcement test
-        true.ShouldBeTrue("DI registration pattern documented. See TASK-0003 for validation results.");
-    }
+    // REMOVED (bh0syy): DependencyInjection_ShouldRegister_Interfaces_Not_ConcreteTypes. Per SoftwareArchitect's
+    // ruling — informational only (ends in `true.ShouldBeTrue`, asserts nothing about the actual
+    // registrations); vacuous by construction. Deleted.
 
     #endregion
 
@@ -364,9 +198,9 @@ public sealed class BoundaryEnforcementTests
     {
         var typeToCheck = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
 
-        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
-        // We distinguish Dispatch implementation types from Abstractions types by assembly name.
-        return typeToCheck.Namespace?.StartsWith("Excalibur.Dispatch") == true &&
+        // Distinguish Dispatch IMPLEMENTATION types from Abstractions types by assembly name (both share
+        // the CLR namespace "Excalibur.Dispatch" post-ADR-075).
+        return typeToCheck.Namespace?.StartsWith("Excalibur.Dispatch", StringComparison.Ordinal) == true &&
                typeToCheck.Assembly.GetName().Name != "Excalibur.Dispatch.Abstractions";
     }
 

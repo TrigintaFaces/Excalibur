@@ -19,9 +19,10 @@ public sealed class ExcaliburContextFamilyMarker { }
 /// <summary>
 /// Regression pin for Sprint 793 Workstream A (<c>bd-sdhocq</c> P0, commit <c>93ebc772f</c>):
 /// <c>AddExcalibur(IServiceCollection, Action&lt;IExcaliburBuilder&gt;)</c> must leave the
-/// Excalibur context family (<see cref="IActivityContext"/>, <see cref="ITenantId"/>,
-/// <see cref="ICorrelationId"/>, <see cref="IETag"/>, <see cref="IClientAddress"/>)
-/// resolvable from an empty container after a bare <c>AddExcalibur(x =&gt; { })</c> invocation.
+/// Excalibur context family (<see cref="IActivityContext"/>, <see cref="ICorrelationId"/>,
+/// <see cref="IETag"/>, <see cref="IClientAddress"/>) resolvable from an empty container
+/// after a bare <c>AddExcalibur(x =&gt; { })</c> invocation. The ambient tenant is read via
+/// <see cref="ITenantContext"/> and is not a scoped DI primitive.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,7 +37,7 @@ public sealed class ExcaliburContextFamilyMarker { }
 /// <b>Ordering invariant (COMPASS msg 1449 §1):</b> the TryAdd* registrations run
 /// <b>AFTER</b> <c>configure(builder)</c>, so a consumer's explicit registration inside
 /// the builder callback wins. The Override gate validates this — pre-registering a fake
-/// <see cref="ITenantId"/> inside the builder callback must survive AddExcalibur's defaults.
+/// <see cref="ICorrelationId"/> inside the builder callback must survive AddExcalibur's defaults.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -51,7 +52,7 @@ public sealed class ExcaliburContextFamilyMinimalWiringConformanceTests
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// The five cross-cutting context primitives composed into <c>AddExcalibur</c> defaults
+	/// The cross-cutting context primitives composed into <c>AddExcalibur</c> defaults
 	/// per S793-A1. Scope-safe under default <c>ValidateScopes = true</c>: context-family
 	/// registrations are Scoped or Singleton per their canonical lifetimes; nothing captures
 	/// a narrower scope.
@@ -59,7 +60,6 @@ public sealed class ExcaliburContextFamilyMinimalWiringConformanceTests
 	protected override IReadOnlyList<Type> ExpectedResolvableServices => new[]
 	{
 		typeof(IActivityContext),
-		typeof(ITenantId),
 		typeof(ICorrelationId),
 		typeof(IETag),
 		typeof(IClientAddress),
@@ -67,7 +67,7 @@ public sealed class ExcaliburContextFamilyMinimalWiringConformanceTests
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// All five context-family members are Scoped (see <c>ServiceCollectionContextExtensions</c>
+	/// All context-family members are Scoped or Singleton (see <c>ServiceCollectionContextExtensions</c>
 	/// + <c>ExcaliburHostingServiceCollectionExtensions</c>). The harness resolves
 	/// <see cref="ExpectedResolvableServices"/> from the root provider; under default
 	/// <see cref="ValidateScopes"/>=true the CallSiteValidator rejects root resolution of
@@ -80,12 +80,12 @@ public sealed class ExcaliburContextFamilyMinimalWiringConformanceTests
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// Pre-register a fake <see cref="ITenantId"/> via the builder's underlying service
+	/// Pre-register a fake <see cref="ICorrelationId"/> via the builder's underlying service
 	/// collection; AddExcalibur's TryAdd* defaults must be a no-op, and the fake must
 	/// survive. Asserted in <see cref="AssertOverridePreserved"/>.
 	/// </remarks>
 	protected override Action<IServiceCollection>? PreRegisterOverride =>
-		static services => services.AddScoped(_ => A.Fake<ITenantId>());
+		static services => services.AddScoped(_ => A.Fake<ICorrelationId>());
 
 	/// <inheritdoc />
 	protected override void AssertOverridePreserved(IServiceProvider provider)
@@ -93,16 +93,16 @@ public sealed class ExcaliburContextFamilyMinimalWiringConformanceTests
 		ArgumentNullException.ThrowIfNull(provider);
 
 		using var scope = provider.CreateScope();
-		var tenantId = scope.ServiceProvider.GetService<ITenantId>();
-		tenantId.ShouldNotBeNull(
-			"ITenantId must be resolvable after AddExcalibur — either the fake " +
+		var correlationId = scope.ServiceProvider.GetService<ICorrelationId>();
+		correlationId.ShouldNotBeNull(
+			"ICorrelationId must be resolvable after AddExcalibur — either the fake " +
 			"(override preserved) or the framework default.");
 
 		// If AddExcalibur registered context family BEFORE configure(builder) completed,
 		// the fake supplied in PreRegisterOverride (which runs via AddRequiredFoundation
 		// path equivalent of a consumer's own services.AddScoped call) would be shadowed.
 		// We cannot distinguish "consumer fake wins" from "framework TryAdd default" in
-		// the default harness surface, because A.Fake<ITenantId>() returns a non-null
+		// the default harness surface, because A.Fake<ICorrelationId>() returns a non-null
 		// instance and the framework default also returns a non-null instance.
 		// The meaningful assertion in the Override gate for this row is: the framework
 		// didn't throw and both values resolve — the regression would be a DI activation

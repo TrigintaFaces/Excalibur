@@ -168,15 +168,15 @@ public sealed class CloudEventsIntegrationShould : IntegrationTestBase
 		// Act
 		var headers = new Dictionary<string, string>
 		{
-			["ce-id"] = Guid.NewGuid().ToString(),
-			["ce-source"] = "urn:binary:source",
-			["ce-type"] = "com.example.binary.v1",
-			["ce-specversion"] = "1.0",
+			["ce_id"] = Guid.NewGuid().ToString(),
+			["ce_source"] = "urn:binary:source",
+			["ce_type"] = "com.example.binary.v1",
+			["ce_specversion"] = "1.0",
 			["content-type"] = "application/json"
 		};
 
 		// Assert - Binary mode has headers + raw data
-		headers["ce-specversion"].ShouldBe("1.0");
+		headers["ce_specversion"].ShouldBe("1.0");
 		dataBytes.Length.ShouldBeGreaterThan(0);
 	}
 
@@ -186,10 +186,10 @@ public sealed class CloudEventsIntegrationShould : IntegrationTestBase
 		// Arrange
 		var headers = new Dictionary<string, string>
 		{
-			["ce-id"] = "binary-123",
-			["ce-source"] = "urn:binary:test",
-			["ce-type"] = "com.example.binary.v1",
-			["ce-specversion"] = "1.0"
+			["ce_id"] = "binary-123",
+			["ce_source"] = "urn:binary:test",
+			["ce_type"] = "com.example.binary.v1",
+			["ce_specversion"] = "1.0"
 		};
 		var dataBytes = JsonSerializer.SerializeToUtf8Bytes(new TestEventData("binary-data"));
 
@@ -197,7 +197,7 @@ public sealed class CloudEventsIntegrationShould : IntegrationTestBase
 		var deserializedData = JsonSerializer.Deserialize<TestEventData>(dataBytes);
 
 		// Assert
-		headers["ce-id"].ShouldBe("binary-123");
+		headers["ce_id"].ShouldBe("binary-123");
 		_ = deserializedData.ShouldNotBeNull();
 		deserializedData.Value.ShouldBe("binary-data");
 	}

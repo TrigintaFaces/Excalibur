@@ -7,7 +7,7 @@ using Excalibur.Outbox.Postgres;
 
 using Npgsql;
 
-using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using OutboxMessage = Excalibur.Outbox.OutboxMessage;
 
 namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 
@@ -38,7 +38,9 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Postgres;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class PostgresOutboxConcurrentClaimSkipLockedShould : IntegrationTestBase
 {
-	private const int ReservationTimeoutMs = 300_000;
+	// ReservationTimeout is in SECONDS (the reserve SQL casts it to a 'seconds' interval). 300 s = 5 min — a
+	// window long enough that it never expires during the test, so skip-locked concurrency is what's under test.
+	private const int ReservationTimeoutSeconds = 300;
 	private const int SqlTimeoutSeconds = 30;
 
 	private readonly PostgresFixture _pgFixture;
@@ -103,7 +105,7 @@ public sealed class PostgresOutboxConcurrentClaimSkipLockedShould : IntegrationT
 		var request = new ReserveOutboxMessages(
 			dispatcherId,
 			batchSize,
-			ReservationTimeoutMs,
+			ReservationTimeoutSeconds,
 			_tableName,
 			SqlTimeoutSeconds,
 			TestCancellationToken);
@@ -127,13 +129,24 @@ public sealed class PostgresOutboxConcurrentClaimSkipLockedShould : IntegrationT
 			    message_id VARCHAR(100) NOT NULL UNIQUE,
 			    message_type VARCHAR(500) NOT NULL,
 			    message_metadata TEXT,
-			    message_body TEXT NOT NULL,
+			    message_body BYTEA NOT NULL,
 			    tenant_id VARCHAR(255),
+			    destination VARCHAR(500),
+			    correlation_id VARCHAR(255),
+			    causation_id VARCHAR(255),
+			    priority INT NOT NULL DEFAULT 0,
+			    partition_key VARCHAR(255),
+			    group_key VARCHAR(255),
+			    sequence_number BIGINT NOT NULL DEFAULT 0,
+			    target_transports VARCHAR(500),
+			    is_multi_transport BOOLEAN NOT NULL DEFAULT FALSE,
 			    occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			    attempts INT NOT NULL DEFAULT 0,
+			    error_message TEXT,
 			    dispatcher_id VARCHAR(100),
 			    dispatcher_timeout TIMESTAMPTZ,
-			    next_attempt_at TIMESTAMPTZ
+			    next_attempt_at TIMESTAMPTZ,
+			    scheduled_at TIMESTAMPTZ
 			);
 			""";
 
@@ -146,7 +159,7 @@ public sealed class PostgresOutboxConcurrentClaimSkipLockedShould : IntegrationT
 	{
 		const string insertSql = """
 			INSERT INTO {0} (message_id, message_type, message_metadata, message_body, occurred_on, attempts)
-			VALUES (@MessageId, 'TestMessage', '{{}}', '{{"data":"x"}}', @OccurredOn, 0);
+			VALUES (@MessageId, 'TestMessage', '{{}}', convert_to('{{"data":"x"}}', 'UTF8'), @OccurredOn, 0);
 			""";
 
 		var baseTime = DateTimeOffset.UtcNow.AddMinutes(-count);

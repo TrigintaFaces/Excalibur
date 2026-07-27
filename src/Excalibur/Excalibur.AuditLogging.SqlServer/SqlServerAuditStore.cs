@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -26,10 +27,18 @@ namespace Excalibur.AuditLogging.SqlServer;
 /// - Optimized indexes for compliance queries
 /// </para>
 /// </remarks>
-public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
+internal sealed partial class SqlServerAuditStore : IAuditStore, IDurableAuditStore, IAuditPurgeCapability, IDisposable
 {
 	private readonly SqlServerAuditOptions _options;
 	private readonly IAuditIntegrityStrategy _integrity;
+
+	// Retention must delete an event's annotations in the same transaction as the event itself (see
+	// PurgeExpiredAsync). The annotation table's identity is owned by SqlServerAuditAnnotationStoreOptions
+	// and is CONSUMED here rather than re-declared: two independently-configured names for one table would let
+	// a consumer who renames it fix one site and silently leave the other pointing at nothing.
+	private readonly string _annotationsTableName;
+
+	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<SqlServerAuditStore> _logger;
 	private readonly SemaphoreSlim _hashChainLock = new(1, 1);
 	private volatile bool _disposed;
@@ -39,11 +48,15 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 	/// </summary>
 	public SqlServerAuditStore(
 		IOptions<SqlServerAuditOptions> options,
+		IOptions<SqlServerAuditAnnotationStoreOptions> annotationOptions,
 		IAuditIntegrityStrategy integrity,
+		ITenantContext? tenantContext,
 		ILogger<SqlServerAuditStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		ArgumentNullException.ThrowIfNull(annotationOptions);
 		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
+		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		if (string.IsNullOrEmpty(_options.ConnectionString))
@@ -53,6 +66,50 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 
 		ValidateSqlIdentifier(_options.SchemaName, nameof(SqlServerAuditOptions.SchemaName));
 		ValidateSqlIdentifier(_options.TableName, nameof(SqlServerAuditOptions.TableName));
+
+		// Validated on the same path as this store's own identifiers: the annotation table name is
+		// interpolated into the retention statement, so it is subject to the identical injection guard.
+		var annotations = annotationOptions.Value;
+		ValidateSqlIdentifier(annotations.SchemaName, nameof(SqlServerAuditAnnotationStoreOptions.SchemaName));
+		ValidateSqlIdentifier(annotations.TableName, nameof(SqlServerAuditAnnotationStoreOptions.TableName));
+		_annotationsTableName = annotations.FullyQualifiedTableName;
+	}
+
+	/// <summary>
+	/// Adds the tenant scope to a query being built. This is the <strong>only</strong> place the tenant
+	/// predicate is constructed: the NULL-safe form and the ambient resolution are stated once, so a second
+	/// read path cannot acquire a subtly different one.
+	/// </summary>
+	/// <param name="whereClauses">The clause list being built.</param>
+	/// <param name="parameters">The parameter set being built.</param>
+	/// <remarks>
+	/// <c>COALESCE</c> is load-bearing, not defensive: a bare <c>TenantId = @TenantId</c> never matches a row
+	/// whose tenant column is NULL, so an untenanted caller would read nothing at all rather than reading its
+	/// own rows. Every spelling of "no tenant" — a NULL column, and the reserved sentinel the scope binds —
+	/// must name the same partition, and this is where those two are reconciled.
+	/// </remarks>
+	private void AddTenantScope(List<string> whereClauses, DynamicParameters parameters)
+	{
+		whereClauses.Add("COALESCE(TenantId, @UntenantedSentinel) = @TenantId");
+		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
+		parameters.Add("@TenantId", ResolveTenantTerm());
+	}
+
+	/// <summary>
+	/// Resolves the tenant term every read is confined to. Tenancy here is a <em>scope</em> taken from
+	/// ambient context, never a filter supplied by the caller: a caller cannot widen the read by omitting a
+	/// tenant, nor redirect it by naming another one.
+	/// </summary>
+	/// <returns>The ambient tenant identifier, or the reserved untenanted sentinel.</returns>
+	/// <exception cref="TenantRequiredException">
+	/// Multi-tenancy is registered but resolves no tenant — the read fails closed rather than widening to
+	/// every tenant's audit events.
+	/// </exception>
+	private string ResolveTenantTerm()
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+
+		return scope.IsScoped ? scope.TenantId! : KeyedTenantPartition.Untenanted.TenantId;
 	}
 
 	/// <inheritdoc />
@@ -128,15 +185,24 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// A lookup by primary key is still a tenant-scoped read. The identifier alone does not authorise the
+		// row: without this predicate a caller holding an event id obtained from anywhere — a log line, an
+		// export, a correlation trail — reads another tenant's audit record verbatim. Composed from the same
+		// AddTenantScope every other read path uses, so the tenant term has exactly one definition per store.
+		var whereClauses = new List<string> { "EventId = @EventId" };
+		var parameters = new DynamicParameters();
+		parameters.Add("@EventId", eventId);
+		AddTenantScope(whereClauses, parameters);
+
 		var sql = $@"
 			SELECT EventId, EventType, [Action], Outcome, [Timestamp], ActorId, ActorType,
 				   ResourceId, ResourceType, ResourceClassification, TenantId, [ApplicationName], CorrelationId,
 				   SessionId, IpAddress, UserAgent, Reason, Metadata, PreviousEventHash, EventHash
 			FROM {_options.FullyQualifiedTableName}
-			WHERE EventId = @EventId";
+			WHERE {string.Join(" AND ", whereClauses)}";
 
 		var row = await connection.QuerySingleOrDefaultAsync<AuditEventRow>(
-				new CommandDefinition(sql, new { EventId = eventId }, commandTimeout: _options.CommandTimeoutSeconds,
+				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -307,30 +373,131 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		return results;
 	}
 
-	/// <summary>
-	/// Deletes audit events older than the retention period.
-	/// </summary>
-	/// <param name="cutoffDate">Events older than this date will be deleted.</param>
-	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	/// <returns>The number of events deleted.</returns>
-	public async Task<int> EnforceRetentionAsync(DateTimeOffset cutoffDate, CancellationToken cancellationToken)
+	/// <inheritdoc />
+	public async Task<int> PurgeExpiredAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
+		// Estate-wide: no tenant fragment. This is the ONLY way to express an unscoped purge on this store,
+		// and it is reachable only by naming this method — never by omitting or widening an argument to the
+		// tenant-scoped one. The empty fragment is supplied here, at the site whose name declares the intent.
+		await PurgeCoreAsync(cutoff, tenantPredicate: string.Empty, tenant: null, cancellationToken)
+			.ConfigureAwait(false);
+
+	/// <inheritdoc />
+	public async Task<int> PurgeTenantAsync(
+		DateTimeOffset cutoff,
+		KeyedTenantPartition tenant,
+		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
+
+		return await PurgeCoreAsync(
+				cutoff,
+				// NULL-safe by necessity: a bare [TenantId] = @TenantId never matches a row whose tenant
+				// column is NULL, so every row written before this table had a tenant column would be
+				// unpurgeable — retained past policy, invisibly. Folding NULL onto the reserved sentinel
+				// is how the keyed partition type defines a stored value that cannot name a real tenant.
+				tenantPredicate: "\n\t\t\t  AND COALESCE([TenantId], @UntenantedSentinel) = @TenantId",
+				tenant,
+				cancellationToken)
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Shared body of both purge members. The tenant fragment is supplied by the caller rather than derived
+	/// from a nullable parameter, so "estate-wide" is a decision made at a named entry point and never the
+	/// accidental result of a tenant argument that arrived null.
+	/// </summary>
+	private async Task<int> PurgeCoreAsync(
+		DateTimeOffset cutoff,
+		string tenantPredicate,
+		KeyedTenantPartition? tenant,
+		CancellationToken cancellationToken)
+	{
+		// The scope of this delete is carried by TWO arguments that must agree, and disagreement in one
+		// direction DESTROYS DATA: a tenant-scoped call whose fragment is empty silently deletes every
+		// tenant's rows. That mistake compiles, and it passes both the estate-wide arm ("everything older
+		// than the cutoff is gone") and the naive tenant arm ("the named tenant's rows are gone") — it is
+		// only visible to an arm asserting that OTHER tenants SURVIVE. Rather than rely on that arm always
+		// existing, the pairing is asserted here, so a mismatch fails loudly instead of over-deleting.
+		if ((tenant is null) != (tenantPredicate.Length == 0))
+		{
+			throw new InvalidOperationException(
+				"Purge scope is inconsistent: a tenant partition must be accompanied by a tenant predicate, "
+				+ "and an estate-wide purge must have neither. This indicates a defect in the calling member, "
+				+ "not in caller input — refusing rather than deleting a wider set than intended.");
+		}
+
+		var cutoffDate = cutoff;
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// An annotation is EXISTENTIALLY DEPENDENT on the event it annotates: its tenant is not stored on
+		// the annotation row, it is derived by joining EventId -> AuditEvents.TenantId. Deleting an event
+		// and leaving its annotations behind therefore does not merely strand rows — it produces rows whose
+		// tenant is NO LONGER DERIVABLE, and every join shape then fails in one of two ways: an INNER JOIN
+		// makes them vanish from every tenant (silent, permanent loss), and a LEFT JOIN folded to the
+		// untenanted sentinel makes them readable by an untenanted scope (a cross-tenant exposure). Neither
+		// is a case worth handling, because the orphan state itself is the invariant violation. So the
+		// annotations are deleted WITH their events, in ONE transaction and against the SAME batch, which
+		// makes the orphan state unreachable rather than survivable.
+		//
+		// THE CASCADE IS ENFORCED HERE, IN THIS STATEMENT — NOT BY THE SCHEMA. There is deliberately no
+		// FOREIGN KEY and no ON DELETE CASCADE on AuditAnnotations: this package ships no annotation DDL,
+		// so a schema-level cascade would hold only for consumers who happened to provision it and would
+		// silently not hold for everyone else. Do not delete this join on the assumption that the database
+		// is doing it.
+		//
+		// OUTPUT captures the rows the DELETE ACTUALLY removed, and the annotation delete is keyed to that
+		// capture rather than re-evaluating the cutoff predicate. Re-evaluating would race: an event
+		// inserted between the two statements could be matched by the second predicate but not the first.
 		var sql = $@"
+			SET XACT_ABORT ON;
+			BEGIN TRANSACTION;
+
+			DECLARE @ExpiredEvents TABLE ([EventId] NVARCHAR(64) NOT NULL PRIMARY KEY);
+
+			-- The tenant fragment is supplied by the calling member, not decided here. An empty fragment is
+			-- an estate-wide retention sweep (PurgeExpiredAsync); a non-empty one scopes to a single
+			-- partition (PurgeTenantAsync). Neither is reachable by omitting an argument to the other.
 			DELETE TOP (@BatchSize) FROM {_options.FullyQualifiedTableName}
-			WHERE [Timestamp] < @CutoffDate";
+			OUTPUT deleted.[EventId] INTO @ExpiredEvents
+			WHERE [Timestamp] < @CutoffDate{tenantPredicate};
+
+			-- Annotations are an optional companion feature; a host that never registered the annotation
+			-- store has no such table, and retention must not fail for it. Presence is checked rather than
+			-- assumed, so this is a no-op there instead of an error.
+			IF OBJECT_ID(N'{_annotationsTableName}', N'U') IS NOT NULL
+			BEGIN
+				DELETE a
+				FROM {_annotationsTableName} a
+				INNER JOIN @ExpiredEvents e ON a.[EventId] = e.[EventId];
+			END
+
+			COMMIT TRANSACTION;
+
+			SELECT COUNT(*) FROM @ExpiredEvents;";
 
 		var totalDeleted = 0;
 		int deleted;
 
 		do
 		{
-			deleted = await connection.ExecuteAsync(
+			// ExecuteScalar, not Execute: the batch now performs two deletes inside one transaction, so
+			// Dapper's rows-affected would report the SUM of events AND annotations. The loop's termination
+			// condition compares against CleanupBatchSize, so an inflated count would end the sweep early
+			// and leave expired events behind — the statement therefore returns the EVENT count explicitly.
+			deleted = await connection.ExecuteScalarAsync<int>(
 					new CommandDefinition(
 						sql,
-						new { BatchSize = _options.Retention.CleanupBatchSize, CutoffDate = cutoffDate },
+						new
+						{
+							BatchSize = _options.Retention.CleanupBatchSize,
+							CutoffDate = cutoffDate,
+							// Bound unconditionally. Dapper ignores parameters the statement does not
+							// reference, so the estate-wide path simply never uses these — the alternative
+							// (branching the parameter set) would give the two paths two shapes to diverge in.
+							TenantId = tenant?.TenantId,
+							UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId,
+						},
 						commandTimeout: _options.CommandTimeoutSeconds,
 						cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
@@ -360,7 +527,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		await _integrity.ComputeTagAsync(
 			AuditEventCanonicalizer.Canonicalize(auditEvent), previousHash, cancellationToken).ConfigureAwait(false);
 
-	private static (List<string> WhereClauses, DynamicParameters Parameters) BuildQueryClauses(AuditQuery query)
+	private (List<string> WhereClauses, DynamicParameters Parameters) BuildQueryClauses(AuditQuery query)
 	{
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
@@ -413,11 +580,11 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			parameters.Add("@MinClassification", (int)query.MinimumClassification.Value);
 		}
 
-		if (!string.IsNullOrEmpty(query.TenantId))
-		{
-			whereClauses.Add("TenantId = @TenantId");
-			parameters.Add("@TenantId", query.TenantId);
-		}
+		// SECURITY: the tenant term is a SCOPE, not a filter, and is therefore added UNCONDITIONALLY from
+		// ambient context. It previously sat in this list between MinimumClassification and ApplicationName
+		// — one optional predicate among many — so omitting query.TenantId returned every tenant's audit
+		// events, and naming another tenant returned theirs. query.TenantId is deliberately not consulted.
+		AddTenantScope(whereClauses, parameters);
 
 		if (!string.IsNullOrEmpty(query.ApplicationName))
 		{
@@ -511,7 +678,15 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		parameters.Add("@ResourceType", auditEvent.ResourceType);
 		parameters.Add("@ResourceClassification",
 			auditEvent.ResourceClassification.HasValue ? (int)auditEvent.ResourceClassification.Value : null);
-		parameters.Add("@TenantId", auditEvent.TenantId);
+		// The column is NOT NULL and untenanted rows carry the reserved sentinel, so the raw nullable cannot
+		// be bound directly: an event captured with no ambient tenant has a null TenantId by design (the
+		// context middleware documents that), and binding it would throw on every untenanted audit write.
+		//
+		// FromStoredValue rather than `?? sentinel` because it is total over every value that cannot name a
+		// real tenant: null, empty AND whitespace all map to the sentinel. A bare null-coalesce would let
+		// whitespace through and persist a row that no tenant-scoped predicate can ever match — unreachable
+		// audit data, which is the failure this column's NOT NULL exists to prevent.
+		parameters.Add("@TenantId", KeyedTenantPartition.FromStoredValue(auditEvent.TenantId).TenantId);
 		parameters.Add("@ApplicationName", auditEvent.ApplicationName);
 		parameters.Add("@CorrelationId", auditEvent.CorrelationId);
 		parameters.Add("@SessionId", auditEvent.SessionId);
@@ -554,11 +729,10 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
 
-		if (tenantId is not null)
-		{
-			whereClauses.Add("TenantId = @TenantId");
-			parameters.Add("@TenantId", tenantId);
-		}
+		// SECURITY: scope, not filter — bound unconditionally from ambient context. The caller-supplied
+		// tenantId argument is deliberately not consulted; passing null previously widened this read to
+		// every tenant, and passing another tenant's id redirected it to theirs.
+		AddTenantScope(whereClauses, parameters);
 
 		if (!string.IsNullOrEmpty(applicationName))
 		{

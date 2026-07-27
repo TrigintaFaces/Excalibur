@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Migration.CodeFixes;
 /// arguments (including the assembly-scan configuration lambda).
 /// </summary>
 /// <remarks>
-/// Implements FR-11 / AC-9 of EPIC w2zq7d. The rewrite is a pure method-name substitution on the
+/// The rewrite is a pure method-name substitution on the
 /// invoked simple name, so the call's arguments — including
 /// <c>cfg =&gt; cfg.RegisterServicesFromAssembly(asm)</c> — are carried over verbatim.
 /// </remarks>

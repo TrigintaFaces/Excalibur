@@ -128,13 +128,16 @@ Each span carries tags that you can filter and group by:
 
 ### Traces Connect Across the Outbox
 
-When you use the outbox pattern, the dispatch pipeline propagates the **W3C `traceparent`** end to end so
-a single trace survives the async hop:
+When you use the outbox pattern, the dispatch pipeline propagates the **W3C `traceparent`** — and, when
+present, the **`tracestate`** — end to end so a single trace (with its vendor-specific trace state) survives
+the async hop:
 
-1. **Staging** captures the ambient `Activity.Current` (the active `traceparent`) when a message is written
-   to the outbox. A `traceparent` you set yourself takes precedence; if there is no ambient activity and no
-   caller value, no header is written.
-2. **Publishing** restores that `traceparent` onto the outgoing transport context.
+1. **Staging** captures the ambient `Activity.Current` (the active `traceparent`, plus `tracestate` when the
+   context carries one) when a message is written to the outbox. A `traceparent` you set yourself takes
+   precedence; if there is no ambient activity and no caller value, no header is written. `tracestate` is
+   propagated only when a value is present — it is never fabricated.
+2. **Publishing** restores that `traceparent` (and `tracestate`, symmetrically) onto the outgoing transport
+   context.
 3. **Dispatch** re-parents the consumer span to the restored context — so the downstream
    `dispatch.{MessageType}` span is a **child** of the original producer trace (a `Consumer`-kind span)
    rather than a new disconnected root.

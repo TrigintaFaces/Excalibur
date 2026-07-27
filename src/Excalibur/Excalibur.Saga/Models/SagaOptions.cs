@@ -38,11 +38,13 @@ public sealed class SagaOptions
 	/// Gets or sets whether to enable automatic cleanup of completed sagas.
 	/// </summary>
 	/// <remarks>
-	/// Defaults to <see langword="false"/>: automatic-cleanup enforcement (a cross-provider saga-store
-	/// purge-by-age + <c>SagaState.CompletedAt</c>) is not yet wired. Setting this <see langword="true"/>
-	/// fails loud at startup rather than silently doing nothing — the option is never advertised-but-inert.
+	/// When <see langword="true"/>, a hosted background service periodically invokes the purge primitive
+	/// <see cref="Excalibur.Dispatch.Messaging.ISagaStore.PurgeCompletedBeforeAsync"/> on
+	/// <see cref="CleanupInterval"/>, deleting completed sagas older than <see cref="SagaRetentionPeriod"/>.
+	/// When <see langword="false"/> (the default) no background purge runs; the purge primitive remains
+	/// available to call from your own scheduler. The configured saga store must support purge-by-age.
 	/// </remarks>
-	/// <value><see langword="true"/> to enable automatic cleanup; default <see langword="false"/> (not yet enforced).</value>
+	/// <value><see langword="true"/> to enable automatic periodic cleanup; default <see langword="false"/>.</value>
 	public bool EnableAutomaticCleanup { get; set; }
 
 	/// <summary>

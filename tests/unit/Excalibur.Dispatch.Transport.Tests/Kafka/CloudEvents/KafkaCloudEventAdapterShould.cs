@@ -69,9 +69,9 @@ public sealed class KafkaCloudEventAdapterShould
 		var roundTrip = await _adapter.FromTransportMessageAsync(message, CancellationToken.None);
 
 		// Assert
-		message.Headers.TryGetLastBytes("ce-specversion", out _).ShouldBeTrue();
-		message.Headers.TryGetLastBytes("ce-id", out _).ShouldBeTrue();
-		message.Headers.TryGetLastBytes("ce-attempt", out var attemptBytes).ShouldBeTrue();
+		message.Headers.TryGetLastBytes("ce_specversion", out _).ShouldBeTrue();
+		message.Headers.TryGetLastBytes("ce_id", out _).ShouldBeTrue();
+		message.Headers.TryGetLastBytes("ce_attempt", out var attemptBytes).ShouldBeTrue();
 		Encoding.UTF8.GetString(attemptBytes!).ShouldBe("2");
 
 		roundTrip.Type.ShouldBe("orders.created");
@@ -144,9 +144,9 @@ public sealed class KafkaCloudEventAdapterShould
 		{
 			Headers = new Headers
 			{
-				new("ce-specversion", Encoding.UTF8.GetBytes("1.0")),
-				new("ce-type", Encoding.UTF8.GetBytes("orders.created")),
-				new("ce-source", Encoding.UTF8.GetBytes("https://source.excalibur.io")),
+				new("ce_specversion", Encoding.UTF8.GetBytes("1.0")),
+				new("ce_type", Encoding.UTF8.GetBytes("orders.created")),
+				new("ce_source", Encoding.UTF8.GetBytes("https://source.excalibur.io")),
 			},
 			Value = "not-json",
 		};
@@ -154,6 +154,29 @@ public sealed class KafkaCloudEventAdapterShould
 		// Act / Assert
 		await Should.ThrowAsync<JsonException>(() =>
 			_adapter.FromTransportMessageAsync(message, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task RejectUnsupportedSpecVersionOnBinaryDecodeInsteadOfSilentlyCoercingToV1()
+	{
+		// Regression lock (pa4e1x): the binary decode must resolve the specversion from the header via the
+		// CNCF SDK and reject an unknown one — the prior ternary returned V1_0 on BOTH branches, silently
+		// accepting any/invalid specversion. RED on that pre-fix code (it would decode "9.9" as V1_0).
+		var message = new Message<string, string>
+		{
+			Headers = new Headers
+			{
+				new("ce_specversion", Encoding.UTF8.GetBytes("9.9")),
+				new("ce_type", Encoding.UTF8.GetBytes("orders.created")),
+				new("ce_source", Encoding.UTF8.GetBytes("https://source.excalibur.io")),
+				new("ce_id", Encoding.UTF8.GetBytes("evt-1")),
+			},
+			Value = """{"value":"payload"}""",
+		};
+
+		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+			_adapter.FromTransportMessageAsync(message, CancellationToken.None));
+		ex.Message.ShouldContain("9.9");
 	}
 }
 

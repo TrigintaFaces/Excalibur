@@ -2,6 +2,7 @@ using Excalibur.A3.Authorization.Events;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.Dispatch;
 using Excalibur.Domain;
+using Excalibur.Domain.Model;
 
 namespace Excalibur.Tests.A3.Grants;
 
@@ -33,7 +34,7 @@ public sealed class GrantAggregateShould
 			DateTimeOffset.UtcNow.AddDays(30), "admin-user", grantedOn);
 
 		// Act
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Assert
 		grant.ShouldNotBeNull();
@@ -64,7 +65,7 @@ public sealed class GrantAggregateShould
 			null, "other-admin", revokedOn);
 
 		// Act
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent, revokedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0), new HistoricEvent(revokedEvent, 1)]);
 
 		// Assert
 		grant.RevokedBy.ShouldBe("other-admin");
@@ -84,7 +85,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			DateTimeOffset.UtcNow.AddDays(-1), "admin-user", DateTimeOffset.UtcNow.AddDays(-5));
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsExpired().ShouldBeTrue();
@@ -98,7 +99,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			DateTimeOffset.UtcNow.AddDays(30), "admin-user", DateTimeOffset.UtcNow.AddDays(-1));
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsExpired().ShouldBeFalse();
@@ -112,7 +113,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			null, "admin-user", DateTimeOffset.UtcNow.AddDays(-1));
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsExpired().ShouldBeFalse();
@@ -130,7 +131,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			null, "admin-user", DateTimeOffset.UtcNow);
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsRevoked().ShouldBeFalse();
@@ -148,7 +149,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			null, "other-admin", DateTimeOffset.UtcNow);
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent, revokedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0), new HistoricEvent(revokedEvent, 1)]);
 
 		// Act & Assert
 		grant.IsRevoked().ShouldBeTrue();
@@ -166,7 +167,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			DateTimeOffset.UtcNow.AddDays(30), "admin-user", DateTimeOffset.UtcNow);
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsActive().ShouldBeTrue();
@@ -180,7 +181,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			DateTimeOffset.UtcNow.AddDays(-1), "admin-user", DateTimeOffset.UtcNow.AddDays(-5));
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsActive().ShouldBeFalse();
@@ -198,7 +199,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			null, "other-admin", DateTimeOffset.UtcNow);
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent, revokedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0), new HistoricEvent(revokedEvent, 1)]);
 
 		// Act & Assert
 		grant.IsActive().ShouldBeFalse();
@@ -212,7 +213,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			null, "admin-user", DateTimeOffset.UtcNow);
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act & Assert
 		grant.IsActive().ShouldBeTrue();
@@ -236,7 +237,7 @@ public sealed class GrantAggregateShould
 			"user-1", "John Doe", "TestApp", "tenant-1", "role", "admin",
 			null, "admin-user", DateTimeOffset.UtcNow);
 
-		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [addedEvent]);
+		var grant = Grant.FromEvents("user-1:tenant-1:role:admin", [new HistoricEvent(addedEvent, 0)]);
 
 		// Act
 		grant.Revoke("revoker-user");
@@ -260,7 +261,7 @@ public sealed class GrantAggregateShould
 			null, "admin-user", DateTimeOffset.UtcNow);
 
 		// Act
-		var grant = Grant.FromEvents("initial-id", [addedEvent]);
+		var grant = Grant.FromEvents("initial-id", [new HistoricEvent(addedEvent, 0)]);
 
 		// Assert -- Id is set from event data, not the initial id
 		grant.Id.ShouldBe("user-42:tenant-99:permission:write");
@@ -282,7 +283,7 @@ public sealed class GrantAggregateShould
 			expiresOn, "superadmin", grantedOn);
 
 		// Act
-		var grant = Grant.FromEvents("some-id", [addedEvent]);
+		var grant = Grant.FromEvents("some-id", [new HistoricEvent(addedEvent, 0)]);
 
 		// Assert
 		grant.UserId.ShouldBe("user-abc");
@@ -315,7 +316,7 @@ public sealed class GrantAggregateShould
 			null, "hr-admin", revokedOn);
 
 		// Act
-		var grant = Grant.FromEvents("user-1:t1:role:admin", [addedEvent, revokedEvent]);
+		var grant = Grant.FromEvents("user-1:t1:role:admin", [new HistoricEvent(addedEvent, 0), new HistoricEvent(revokedEvent, 1)]);
 
 		// Assert
 		grant.RevokedBy.ShouldBe("hr-admin");

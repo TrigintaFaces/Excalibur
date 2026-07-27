@@ -104,40 +104,6 @@ public sealed class StreamingPullOptions
 	/// <value> The monitoring sub-options. </value>
 	public StreamingPullMonitoringOptions Monitoring { get; set; } = new();
 
-	// --- Backward-compatible shims that delegate to sub-options ---
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable stream health monitoring.
-	/// </summary>
-	/// <value>
-	/// <see langword="true" /> if health monitoring is enabled; otherwise, <see langword="false" />. The default is <see langword="true" />.
-	/// </value>
-	public bool EnableHealthMonitoring { get => Monitoring.EnableHealthMonitoring; set => Monitoring.EnableHealthMonitoring = value; }
-
-	/// <summary>
-	/// Gets or sets the health check interval.
-	/// </summary>
-	/// <value>
-	/// The health check interval. The default is 30 seconds.
-	/// </value>
-	public TimeSpan HealthCheckInterval { get => Monitoring.HealthCheckInterval; set => Monitoring.HealthCheckInterval = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable detailed stream metrics.
-	/// </summary>
-	/// <value>
-	/// <see langword="true" /> if detailed metrics are enabled; otherwise, <see langword="false" />. The default is <see langword="true" />.
-	/// </value>
-	public bool EnableDetailedMetrics { get => Monitoring.EnableDetailedMetrics; set => Monitoring.EnableDetailedMetrics = value; }
-
-	/// <summary>
-	/// Gets or sets the metrics reporting interval.
-	/// </summary>
-	/// <value>
-	/// The metrics reporting interval. The default is 60 seconds.
-	/// </value>
-	public TimeSpan MetricsReportingInterval { get => Monitoring.MetricsReportingInterval; set => Monitoring.MetricsReportingInterval = value; }
-
 	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
@@ -155,10 +121,10 @@ public sealed class StreamingPullOptions
 				$"{nameof(StreamAckDeadlineSeconds)} ({StreamAckDeadlineSeconds} seconds)");
 		}
 
-		if (HealthCheckInterval >= StreamIdleTimeout)
+		if (Monitoring.HealthCheckInterval >= StreamIdleTimeout)
 		{
 			throw new ArgumentException(
-				$"{nameof(HealthCheckInterval)} ({HealthCheckInterval}) must be less than " +
+				$"{nameof(Monitoring.HealthCheckInterval)} ({Monitoring.HealthCheckInterval}) must be less than " +
 				$"{nameof(StreamIdleTimeout)} ({StreamIdleTimeout})");
 		}
 	}

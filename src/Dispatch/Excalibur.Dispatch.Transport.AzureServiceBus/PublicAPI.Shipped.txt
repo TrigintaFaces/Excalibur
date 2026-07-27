@@ -159,6 +159,8 @@ Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.MaxAutoLockRe
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.MaxAutoLockRenewalDuration.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.MaxConcurrentCalls.get -> int
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.MaxConcurrentCalls.set -> void
+Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.MaxPayloadBytes.get -> int?
+Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.MaxPayloadBytes.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.PrefetchCount.get -> int
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.PrefetchCount.set -> void
 Excalibur.Dispatch.Transport.Azure.AzureServiceBusProcessorOptions.ReceiveMode.get -> Azure.Messaging.ServiceBus.ServiceBusReceiveMode
@@ -334,25 +336,6 @@ Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder.FullyQualifi
 Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder.MapEntity<TMessage>(string! entityName) -> Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!
 Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder.TransportType(Azure.Messaging.ServiceBus.ServiceBusTransportType transportType) -> Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!
 Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder.WithEntityPrefix(string! prefix) -> Excalibur.Dispatch.Transport.Azure.IAzureServiceBusTransportBuilder!
-Excalibur.Dispatch.Transport.Azure.ICloudEventProcessor
-Excalibur.Dispatch.Transport.Azure.ICloudEventProcessor.ConvertToDispatchEvent(CloudNative.CloudEvents.CloudEvent! cloudEvent, Azure.Storage.Queues.Models.QueueMessage! queueMessage, Excalibur.Dispatch.IMessageContext! context) -> Excalibur.Dispatch.IDispatchEvent!
-Excalibur.Dispatch.Transport.Azure.ICloudEventProcessor.TryParseCloudEvent(string! messageText, out CloudNative.CloudEvents.CloudEvent? cloudEvent) -> bool
-Excalibur.Dispatch.Transport.Azure.ICloudEventProcessor.UpdateContextFromCloudEvent(Excalibur.Dispatch.IMessageContext! context, CloudNative.CloudEvents.CloudEvent! cloudEvent) -> void
-Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler
-Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Azure.DeadLetterQueueStatistics!>!
-Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler.HandlePoisonMessageAsync(Azure.Storage.Queues.Models.QueueMessage! message, Excalibur.Dispatch.IMessageContext! context, System.Exception! exception, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler.RecoverMessagesAsync(System.Threading.CancellationToken cancellationToken, int maxMessages = 10) -> System.Threading.Tasks.Task<int>!
-Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler.SendToDeadLetterAsync(Azure.Storage.Queues.Models.QueueMessage! message, Excalibur.Dispatch.IMessageContext! context, string! reason, System.Threading.CancellationToken cancellationToken, System.Exception? exception = null) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler.ShouldDeadLetter(Azure.Storage.Queues.Models.QueueMessage! message, Excalibur.Dispatch.IMessageContext! context, System.Exception? exception = null) -> bool
-Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory
-Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory.CreateContext(Azure.Storage.Queues.Models.QueueMessage! queueMessage) -> Excalibur.Dispatch.IMessageContext!
-Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory.CreateEnvelope(object! message, Excalibur.Dispatch.IMessageContext! context) -> string!
-Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory.IsValidEnvelope(Azure.Storage.Queues.Models.QueueMessage! queueMessage) -> bool
-Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory.ParseMessage(Azure.Storage.Queues.Models.QueueMessage! queueMessage) -> Excalibur.Dispatch.Transport.Azure.ParsedMessageResult!
-Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory.TryParseMessage<T>(Azure.Storage.Queues.Models.QueueMessage! queueMessage, out T? parsedMessage, out Excalibur.Dispatch.IMessageContext? context) -> bool
-Excalibur.Dispatch.Transport.Azure.IMessageProcessor
-Excalibur.Dispatch.Transport.Azure.IMessageProcessor.HandleMessageRejectionAsync(Azure.Storage.Queues.Models.QueueMessage! queueMessage, string! reason, System.Threading.CancellationToken cancellationToken, System.Exception? exception = null) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.IMessageProcessor.ProcessMessageAsync(Azure.Storage.Queues.Models.QueueMessage! queueMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IDispatchEvent!>!
 Excalibur.Dispatch.Transport.Azure.IQueueMetricsCollector
 Excalibur.Dispatch.Transport.Azure.IQueueMetricsCollector.GetMetricsSnapshot() -> Excalibur.Dispatch.Transport.Azure.QueueMetricsSnapshot!
 Excalibur.Dispatch.Transport.Azure.IQueueMetricsCollector.RecordBatchProcessed(int batchSize, double processingTimeMs, int successCount, int errorCount) -> void
@@ -370,21 +353,6 @@ Excalibur.Dispatch.Transport.Azure.IVisibilityTimeoutManager.StartRenewalAsync(A
 Excalibur.Dispatch.Transport.Azure.IVisibilityTimeoutManager.StopAllRenewalsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Transport.Azure.IVisibilityTimeoutManager.StopRenewal(string! messageId) -> void
 Excalibur.Dispatch.Transport.Azure.IVisibilityTimeoutManager.UpdateVisibilityAsync(string! messageId, string! popReceipt, System.TimeSpan visibilityTimeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.MessageProcessor
-Excalibur.Dispatch.Transport.Azure.MessageProcessor.HandleMessageRejectionAsync(Azure.Storage.Queues.Models.QueueMessage! queueMessage, string! reason, System.Threading.CancellationToken cancellationToken, System.Exception? exception = null) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Transport.Azure.MessageProcessor.MessageProcessor(Excalibur.Dispatch.Transport.Azure.ICloudEventProcessor! cloudEventProcessor, Excalibur.Dispatch.Transport.Azure.IMessageEnvelopeFactory! messageEnvelopeFactory, Excalibur.Dispatch.Transport.Azure.IDeadLetterQueueHandler! deadLetterQueueHandler, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Azure.MessageProcessor!>! logger) -> void
-Excalibur.Dispatch.Transport.Azure.MessageProcessor.ProcessMessageAsync(Azure.Storage.Queues.Models.QueueMessage! queueMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.IDispatchEvent!>!
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.Context.get -> Excalibur.Dispatch.IMessageContext!
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.Context.init -> void
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.IsCloudEvent.get -> bool
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.IsCloudEvent.init -> void
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.Message.get -> object!
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.Message.init -> void
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.MessageType.get -> System.Type!
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.MessageType.init -> void
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
-Excalibur.Dispatch.Transport.Azure.ParsedMessageResult.Metadata.init -> void
 Excalibur.Dispatch.Transport.Azure.PartitionContext
 Excalibur.Dispatch.Transport.Azure.PartitionContext.ConsumerGroup.get -> string!
 Excalibur.Dispatch.Transport.Azure.PartitionContext.ConsumerGroup.init -> void
@@ -495,7 +463,6 @@ Excalibur.Dispatch.Transport.Azure.ServiceBusSessionState.SessionId.get -> strin
 Excalibur.Dispatch.Transport.Azure.ServiceBusSessionState.SessionId.init -> void
 Excalibur.Dispatch.Transport.Azure.ServiceBusSessionState.State.get -> byte[]?
 Excalibur.Dispatch.Transport.Azure.ServiceBusSessionState.State.init -> void
-Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging
 Excalibur.Dispatch.Transport.Azure.StorageQueuePollingOptions
 Excalibur.Dispatch.Transport.Azure.StorageQueuePollingOptions.CustomProperties.get -> System.Collections.Generic.Dictionary<string!, string!>!
 Excalibur.Dispatch.Transport.Azure.StorageQueuePollingOptions.EmptyQueueDelayMs.get -> int
@@ -556,18 +523,28 @@ Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportOptions.UseManag
 Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AzureServiceBusHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AzureServiceBusTransportServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.AzureStorageQueueConnectionOptions() -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.ConnectionString.get -> string?
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.ConnectionString.set -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.StorageAccountUri.get -> System.Uri?
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.StorageAccountUri.set -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.UseManagedIdentity.get -> bool
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions.UseManagedIdentity.set -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions.AzureStorageQueueDeadLetterOptions() -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions.MaxDequeueCount.get -> int
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions.MaxDequeueCount.set -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions.QueueName.get -> string?
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions.QueueName.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.AzureStorageQueueTransportOptions() -> void
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.ConnectionString.get -> string?
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.ConnectionString.set -> void
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.DeadLetterQueueName.get -> string?
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.DeadLetterQueueName.set -> void
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.Connection.get -> Microsoft.Extensions.DependencyInjection.AzureStorageQueueConnectionOptions!
+Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.DeadLetter.get -> Microsoft.Extensions.DependencyInjection.AzureStorageQueueDeadLetterOptions!
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.EnableEncryption.get -> bool
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.EnableEncryption.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.MaxConcurrentMessages.get -> int
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.MaxConcurrentMessages.set -> void
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.MaxDequeueCount.get -> int
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.MaxDequeueCount.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.MaxMessages.get -> int
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.MaxMessages.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.Name.get -> string?
@@ -576,10 +553,6 @@ Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.Polli
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.PollingInterval.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.QueueName.get -> string?
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.QueueName.set -> void
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.StorageAccountUri.get -> System.Uri?
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.StorageAccountUri.set -> void
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.UseManagedIdentity.get -> bool
-Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.UseManagedIdentity.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.VisibilityTimeout.get -> System.TimeSpan
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportOptions.VisibilityTimeout.set -> void
 Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportServiceCollectionExtensions
@@ -828,6 +801,7 @@ const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.Transp
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageReceived = 24980 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageRejected = 24984 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverMessageRejectedRequeue = 24985 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverPayloadTooLarge = 24989 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverReceiveError = 24981 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceiverRejectError = 24986 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportReceivingMessage = 24106 -> int
@@ -844,6 +818,7 @@ const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.Transp
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageReceived = 24991 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageRejected = 24993 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberMessageRequeued = 24994 -> int
+const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberPayloadTooLarge = 24998 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberStarted = 24990 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.TransportSubscriberStopped = 24996 -> int
 const Excalibur.Dispatch.Transport.AzureServiceBus.AzureServiceBusEventId.VisibilityModified = 24310 -> int
@@ -853,24 +828,6 @@ const Microsoft.Extensions.DependencyInjection.AzureStorageQueueTransportService
 static Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource.LogMessageAbandoned(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! exception) -> void
 static Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource.LogMessageProcessed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
 static Excalibur.Dispatch.Transport.Azure.AzureServiceBusEventSource.LogProcessingError(Microsoft.Extensions.Logging.ILogger! logger, string! entityPath, System.Exception! exception) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.BatchReceived(Microsoft.Extensions.Logging.ILogger! logger, int count, long elapsedMilliseconds) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.CloudEventParsed(Microsoft.Extensions.Logging.ILogger! logger, string! eventId, string! eventType) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.CloudEventParsingFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! ex) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.ConnectionError(Microsoft.Extensions.Logging.ILogger! logger, string! queueName, System.Exception! ex) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.DeadLetterMessage(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.EmptyPoll(Microsoft.Extensions.Logging.ILogger! logger, string! queueName) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageDeleteFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! ex) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageDeleted(Microsoft.Extensions.Logging.ILogger! logger, string! messageId) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageProcessed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, long elapsedMilliseconds) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageProcessingFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, int dequeueCount, System.Exception! ex) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageReceived(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, string! popReceipt, int dequeueCount) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageVisibilityUpdateFailed(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, System.Exception! ex) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.MessageVisibilityUpdated(Microsoft.Extensions.Logging.ILogger! logger, string! messageId, int timeoutSeconds) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.PollingCycle(Microsoft.Extensions.Logging.ILogger! logger, string! queueName, long elapsedMilliseconds) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.PollingStarted(Microsoft.Extensions.Logging.ILogger! logger, string! queueName) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.PollingStopped(Microsoft.Extensions.Logging.ILogger! logger, string! queueName) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.QueueNotFound(Microsoft.Extensions.Logging.ILogger! logger, string! queueName, System.Exception! ex) -> void
-static Excalibur.Dispatch.Transport.Azure.StorageQueueConsumerLogging.RetryDelay(Microsoft.Extensions.Logging.ILogger! logger, string! queueName, int delaySeconds, int attempt) -> void
 static Excalibur.Dispatch.Transport.AzureServiceBus.AzureEventHubsTransportBuilderExtensions.ConsumerGroup(this Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder! builder, string! consumerGroup) -> Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!
 static Excalibur.Dispatch.Transport.AzureServiceBus.AzureEventHubsTransportBuilderExtensions.MaxBatchSize(this Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder! builder, int maxBatchSize) -> Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!
 static Excalibur.Dispatch.Transport.AzureServiceBus.AzureEventHubsTransportBuilderExtensions.PrefetchCount(this Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder! builder, int prefetchCount) -> Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!
@@ -881,9 +838,9 @@ static Excalibur.Dispatch.Transport.AzureServiceBus.AzureStorageQueueTransportBu
 static Excalibur.Dispatch.Transport.AzureServiceBus.AzureStorageQueueTransportBuilderExtensions.VisibilityTimeout(this Microsoft.Extensions.DependencyInjection.IAzureStorageQueueTransportBuilder! builder, System.TimeSpan visibilityTimeout) -> Microsoft.Extensions.DependencyInjection.IAzureStorageQueueTransportBuilder!
 static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.AddAzureCloudEventTransformation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<CloudNative.CloudEvents.CloudEvent!, Excalibur.Dispatch.IDispatchEvent!, Excalibur.Dispatch.IMessageContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! transformer) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.AddAzureCloudEventValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool enableDoDCompliance = true) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.AddCloudEventsForEventHubs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureEventHubsCloudEventOptions!>? configureEventHubs = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.AddCloudEventsForServiceBus(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions!>? configureServiceBus = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.UseCloudEventsForEventHubs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureEventHubsCloudEventOptions!>? configureEventHubs = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.AzureCloudEventsServiceCollectionExtensions.UseCloudEventsForServiceBus(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Azure.AzureServiceBusCloudEventOptions!>? configureServiceBus = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.AddAzureEventHubsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureEventHubsTransportServiceCollectionExtensions.AddAzureEventHubsTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IAzureEventHubsTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.AzureServiceBusHealthChecksBuilderExtensions.AddAzureServiceBusHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "azure-servicebus", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

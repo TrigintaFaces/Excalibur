@@ -78,4 +78,16 @@ public interface IMaterializedViewBuilder<TView>
 	/// </summary>
 	/// <returns>A new view instance.</returns>
 	TView CreateNew() => new();
+
+	/// <summary>
+	/// Gets the delivery guarantee this projection requires from the view store.
+	/// </summary>
+	/// <value>
+	/// Defaults to <see cref="ViewDeliverySemantics.ExactlyOnce"/> — an accumulating projection that must not
+	/// double-count on crash and therefore requires an atomic view store. Override to
+	/// <see cref="ViewDeliverySemantics.AtLeastOnceIdempotent"/> when <see cref="Apply"/> is idempotent
+	/// (upsert-by-view-id), which tolerates at-least-once replay and permits a non-atomic store such as
+	/// Elasticsearch or OpenSearch.
+	/// </value>
+	ViewDeliverySemantics DeliverySemantics => ViewDeliverySemantics.ExactlyOnce;
 }

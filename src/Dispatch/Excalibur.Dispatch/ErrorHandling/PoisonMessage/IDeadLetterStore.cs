@@ -7,6 +7,28 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// <summary>
 /// Defines the contract for storing and retrieving messages from the dead letter queue.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <strong>Tenancy.</strong> This interface is <em>tenant-scoped</em>: every operation addresses only
+/// entries belonging to the ambient tenant, and an entry stored under a different tenant is not visible
+/// through it. That guarantee matters here specifically because the entries carry
+/// <see cref="DeadLetterMessage.MessageBody"/> — the failed message content — so an estate-wide result
+/// discloses one tenant's message content to another.
+/// </para>
+/// <para>
+/// <strong>Implementers must enforce this.</strong> The ambient tenant is supplied by the registered
+/// tenant context; a host that registers none operates entirely under the reserved untenanted partition,
+/// which is a concrete partition like any other rather than an absence of scoping. An implementation that
+/// ignores the ambient tenant satisfies the method signatures while breaking the contract, and no
+/// signature here can prevent that — which is why implementations are expected to demonstrate isolation
+/// against the provided conformance suite rather than assert it.
+/// </para>
+/// <para>
+/// The scoping applies to writes and deletes as well as reads: a caller must not be able to mark
+/// replayed, delete, or purge an entry belonging to another tenant. Scoping only the read paths turns a
+/// disclosure into silent data loss rather than removing the problem.
+/// </para>
+/// </remarks>
 public interface IDeadLetterStore
 {
 	/// <summary>

@@ -51,8 +51,8 @@ public sealed class PostgresInboxStoreConformanceShould : InboxStoreConformanceT
 
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 
-		// Bind the options-only constructor (the default surface most consumers use); the store
-		// derives its connection factory from the configured connection string.
+		// Bind the options constructor (the default surface most consumers use); the store derives its
+		// connection factory from the configured connection string.
 		var options = Options.Create(new PostgresInboxOptions
 		{
 			ConnectionString = _fixture.ConnectionString,
@@ -62,7 +62,39 @@ public sealed class PostgresInboxStoreConformanceShould : InboxStoreConformanceT
 
 		var logger = NullLogger<PostgresInboxStore>.Instance;
 
-		return new PostgresInboxStore(options, logger);
+		// An ambient tenant context is REQUIRED here, and omitting it is what broke this suite.
+		//
+		// The fixture creates the MULTI-TENANT schema -- PRIMARY KEY (message_id, handler_type, tenant_id)
+		// with tenant_id NOT NULL. Constructing the store without a context puts it in SINGLE-tenant mode,
+		// and InboxSchemaContract.Verify then correctly refuses to run: a single-tenant store against a
+		// tenanted table would ignore tenant_id entirely and read across partitions.
+		//
+		// The contract is right and must not be relaxed to make this pass. The store is brought into
+		// agreement with the table instead, which is also the configuration a multi-tenant consumer runs.
+		// BOTH arguments are required, and the second is the one that switches the mode.
+		// The store computes its deployment mode from TenantContextOptions.RequireTenant -- which
+		// AddMultiTenancy() sets -- and NOT from the presence of an ITenantContext. Its own source says so
+		// in terms. Passing only the context leaves the store single-tenant against a tenanted table, which
+		// the schema contract then correctly refuses.
+		var tenancy = Options.Create(new TenantContextOptions { RequireTenant = true });
+
+		return new PostgresInboxStore(options, logger, new ConformanceTenantContext(), tenancy);
+	}
+
+	/// <summary>
+	/// A fixed ambient tenant for the conformance run.
+	/// </summary>
+	/// <remarks>
+	/// Implements <see cref="ITenantContext"/> DIRECTLY, inheriting no first-party base, so the arms bind
+	/// the interface's own requirement rather than a shared helper's behaviour. Cross-tenant isolation is
+	/// proven by the dedicated isolation suites, which construct two of these; this conformance run
+	/// exercises one tenant's own behaviour and needs only a stable identity.
+	/// </remarks>
+	private sealed class ConformanceTenantContext : ITenantContext
+	{
+		public string? TenantId => "conformance-tenant";
+
+		public bool HasTenant => true;
 	}
 
 	/// <inheritdoc/>

@@ -12,7 +12,6 @@ namespace Excalibur.Dispatch.Delivery;
 /// specifies which message kinds should be excluded from processing, even if they would otherwise be included by the ApplicableMessageKinds
 /// property. This is useful for creating middleware that handles most message types except specific ones.
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="ExcludeKindsAttribute" /> class. </remarks>
 /// <param name="messageKinds"> The message kinds to exclude from processing. </param>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class ExcludeKindsAttribute(MessageKinds messageKinds) : Attribute

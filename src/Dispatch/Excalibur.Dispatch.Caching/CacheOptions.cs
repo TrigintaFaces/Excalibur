@@ -122,12 +122,6 @@ public sealed class CacheBehaviorOptions
 	public TimeSpan DefaultExpiration { get; set; } = TimeSpan.FromMinutes(10);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use sliding expiration. When true, the expiration time is reset each time an item is accessed.
-	/// </summary>
-	/// <value><see langword="true"/> if sliding expiration should be used; otherwise, <see langword="false"/>.</value>
-	public bool UseSlidingExpiration { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets the maximum time to wait for cache operations before timeout. Default is 200 milliseconds.
 	/// </summary>
 	/// <value>The maximum time to wait for cache operations before timeout.</value>
@@ -145,10 +139,4 @@ public sealed class CacheBehaviorOptions
 	/// </summary>
 	/// <value><see langword="true"/> if cache statistics collection should be enabled; otherwise, <see langword="false"/>.</value>
 	public bool EnableStatistics { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to compress cached values in distributed cache.
-	/// </summary>
-	/// <value><see langword="true"/> if compression should be enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnableCompression { get; set; }
 }

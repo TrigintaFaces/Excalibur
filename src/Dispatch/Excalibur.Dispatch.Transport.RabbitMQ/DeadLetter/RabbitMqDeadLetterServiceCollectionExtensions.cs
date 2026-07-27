@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Transport.RabbitMQ;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -70,14 +71,14 @@ public static class RabbitMqDeadLetterServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
+		var optionsBuilder = services.AddOptions<RabbitMqDeadLetterOptions>().ValidateOnStart();
 		if (configure is not null)
 		{
-			_ = services.Configure(configure);
+			_ = optionsBuilder.Configure(configure);
 		}
-		else
-		{
-			_ = services.Configure<RabbitMqDeadLetterOptions>(_ => { });
-		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqDeadLetterOptions>, RabbitMqDeadLetterOptionsValidator>());
 
 		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
 			(sp, _) => sp.GetRequiredService<RabbitMqDeadLetterQueueManager>());
@@ -106,7 +107,9 @@ public static class RabbitMqDeadLetterServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<RabbitMqDeadLetterOptions>().Bind(configuration);
+		_ = services.AddOptions<RabbitMqDeadLetterOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RabbitMqDeadLetterOptions>, RabbitMqDeadLetterOptionsValidator>());
 
 		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
 			(sp, _) => sp.GetRequiredService<RabbitMqDeadLetterQueueManager>());

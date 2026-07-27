@@ -35,20 +35,24 @@ public sealed partial class LegalHoldService : ILegalHoldService
 
 	private readonly ILegalHoldStore _store;
 	private readonly ILegalHoldQueryStore _queryStore;
+	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<LegalHoldService> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="LegalHoldService"/> class.
 	/// </summary>
 	/// <param name="store">The legal hold store.</param>
+	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
 	/// <param name="logger">The logger.</param>
 	public LegalHoldService(
 		ILegalHoldStore store,
+		IDataSubjectHasher dataSubjectHasher,
 		ILogger<LegalHoldService> logger)
 	{
 		_store = store ?? throw new ArgumentNullException(nameof(store));
 		_queryStore = (ILegalHoldQueryStore?)store.GetService(typeof(ILegalHoldQueryStore))
 			?? throw new InvalidOperationException("The legal hold store does not support query operations.");
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -271,8 +275,8 @@ public sealed partial class LegalHoldService : ILegalHoldService
 		}
 	}
 
-	private static string HashDataSubjectId(string dataSubjectId) =>
-		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+	private string HashDataSubjectId(string dataSubjectId) =>
+		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
 	[LoggerMessage(
 			ComplianceEventId.LegalHoldCreated,

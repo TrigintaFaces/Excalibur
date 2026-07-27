@@ -30,6 +30,11 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     /// <param name="deadLetterTableName">The fully qualified dead-letter table name.</param>
     /// <param name="commandTimeout">Command timeout in seconds.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <remarks>
+    /// The copy-to-DLQ and delete target the globally-unique outbox <c>message_id</c>, which addresses exactly
+    /// one row, so no tenant predicate is applied: the drain is cross-tenant infrastructure and must always be
+    /// able to terminate the row it claimed, regardless of any ambient tenant context.
+    /// </remarks>
     public MarkMessageDeadLetteredRequest(
         string messageId,
         string reason,

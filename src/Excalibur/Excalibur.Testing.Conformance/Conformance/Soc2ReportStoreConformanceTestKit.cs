@@ -679,11 +679,33 @@ public abstract class Soc2ReportStoreConformanceTestKit
 			var filter = new ReportFilter { TenantId = "TenantA" };
 			var results = await store.ListReportsAsync(filter, CancellationToken.None).ConfigureAwait(false);
 
-			// Assert
-			if (results.Any(r => r.TenantId != "TenantA"))
+			// SAFETY -- no other tenant's report, and no untenanted report, comes back from a
+			// read filtered to TenantA. Asserted on the reports' OWN identities rather than on the
+			// returned TenantId label: a store that leaks the row but rewrites or nulls its tenant
+			// field would evade a predicate written against that field.
+			var leaked = results
+				.Where(r => r.ReportId == tenantB.ReportId || r.ReportId == noTenant.ReportId)
+				.ToList();
+
+			if (leaked.Count > 0)
 			{
 				throw new TestFixtureAssertionException(
-					"ListReportsAsync with TenantId filter should only return reports for that tenant");
+					$"CROSS-TENANT DISCLOSURE: ListReportsAsync filtered to 'TenantA' returned {leaked.Count} "
+					+ "report(s) belonging to another tenant or to no tenant. A filtered read must never return "
+					+ "another tenant's reports. Report IDs returned: "
+					+ string.Join(", ", leaked.Select(r => r.ReportId)));
+			}
+
+			// LIVENESS -- paired with the safety arm above and NOT optional. The safety arm alone is
+			// fully satisfied by a store that returns an EMPTY set for every filtered query: it
+			// discloses nothing because it answers nothing. This arm is what distinguishes a working
+			// tenant filter from a broken one that silently returns no rows.
+			if (!results.Any(r => r.ReportId == tenantA.ReportId))
+			{
+				throw new TestFixtureAssertionException(
+					"ListReportsAsync filtered to 'TenantA' did NOT return TenantA's own report. The tenant "
+					+ "filter is over-filtering: a store that returns nothing satisfies isolation trivially "
+					+ "while being useless.");
 			}
 		}
 		finally

@@ -85,4 +85,49 @@
     <!-- Enable parallel test execution at solution level -->
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
   </PropertyGroup>
+
+  <!-- ============================================================================================
+       1b54fe: sync-over-async BLOCKING-API gate for TEST code (BannedApiAnalyzers, RS0030).
+       Bans .Result / .Wait*/ Thread.Sleep / .GetAwaiter().GetResult() in tests (dotnet-best-practices
+       async rules + testing-patterns §1). `Task.Delay` is INTENTIONALLY allowed (an awaited Delay is
+       non-blocking; the ~112 legit uses stay green). Banned set: eng/banned/BannedSymbols.Tests.txt.
+
+       Enabled by DEFAULT for EVERY test project — so NEW sync-over-async is caught everywhere. The
+       ~44 PRE-EXISTING debt sites in ~15 test projects are baselined with per-line
+       `#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt` (migration bead c36hwe removes
+       each pragma as the site is fixed to `await`) — NOT whole-project opt-out, which would ungate ~half
+       the test tree to new violations (SA ruling S887). `TestTiming.cs`'s 4 Thread.Sleep are the
+       SANCTIONED central blocking primitive → per-line pragma with a permanent-exemption comment (not
+       debt). Only BENCHMARKS are whole-project opt-out ([GlobalSetup] is legitimately synchronous).
+       ============================================================================================ -->
+  <PropertyGroup>
+    <!-- Semicolon-delimited (leading + trailing ';'). ONLY benchmarks opt out wholesale; every real
+         test project stays gated (pre-existing debt is per-line-pragma'd, tracked by bead c36hwe). -->
+    <!-- Benchmarks: [GlobalSetup] is legitimately synchronous. Integration/Functional/Conformance:
+         infra-heavy (TestContainers/Docker) — cannot be build-verified in every dev env, so opted out
+         until c36hwe migrates + gates them with a real-infra build. All UNIT test projects stay gated. -->
+    <BannedApiTestOptOut>;Excalibur.Compliance.Benchmarks;Excalibur.Dispatch.Performance.Benchmarks;Excalibur.Integration.Tests;Excalibur.Dispatch.Integration.Tests;Excalibur.Dispatch.Tests.Conformance;Excalibur.Dispatch.Tests.Functional;</BannedApiTestOptOut>
+    <!-- Master rollout switch. Set BannedApiTestsEnabled=true to arm the gate for all non-opt-out test
+         projects. Kept OFF until the per-line pragma-baseline of the ~44 pre-existing sites is COMPLETE
+         and build-verified across the whole test tree — arming it before then reddens the shared tree for
+         every agent (a partially-pragma'd baseline). Flip to true in the SAME commit as the completed
+         baseline. -->
+    <BannedApiTestsEnabled Condition="'$(BannedApiTestsEnabled)' == ''">true</BannedApiTestsEnabled>
+    <EnableBannedApiAnalyzers Condition="'$(EnableBannedApiAnalyzers)' == '' and '$(BannedApiTestsEnabled)' == 'true' and !$(BannedApiTestOptOut.Contains(';$(MSBuildProjectName);'))">true</EnableBannedApiAnalyzers>
+    <EnableBannedApiAnalyzers Condition="'$(EnableBannedApiAnalyzers)' == ''">false</EnableBannedApiAnalyzers>
+    <BannedSymbolsFile Condition="'$(BannedSymbolsFile)' == ''">$(MSBuildThisFileDirectory)..\eng\banned\BannedSymbols.Tests.txt</BannedSymbolsFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- BannedApiAnalyzers only reads an AdditionalFile LINKED as 'BannedSymbols.txt' (regardless of its
+       source name), so link the tests file under that name — mirrors src/Directory.Build.props. -->
+  <ItemGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' and Exists('$(BannedSymbolsFile)')">
+    <AdditionalFiles Include="$(BannedSymbolsFile)" Link="BannedSymbols.txt" Visible="false" />
+  </ItemGroup>
+  <!-- RS0030 severity (error in source, none in generated obj/ code) is set via tests/.editorconfig, NOT
+       here: a project-level <WarningsAsErrors>RS0030 RE-ELEVATES the diagnostic even on files an
+       editorconfig marks severity=none (overriding the generated-code exemption for the xUnit v3
+       auto-generated entry point, which necessarily uses .GetAwaiter().GetResult()). editorconfig wins. -->
 </Project>

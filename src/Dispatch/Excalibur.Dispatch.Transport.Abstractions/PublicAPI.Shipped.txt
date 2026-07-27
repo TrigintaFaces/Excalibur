@@ -23,18 +23,10 @@ Excalibur.Dispatch.Transport.BatchCollectionOptions
 Excalibur.Dispatch.Transport.BatchCollectionOptions.BatchCollectionOptions() -> void
 Excalibur.Dispatch.Transport.BatchCollectionOptions.CollectionTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.BatchCollectionOptions.CollectionTimeout.set -> void
-Excalibur.Dispatch.Transport.BatchCollectionOptions.CompletionStrategy.get -> Excalibur.Dispatch.Transport.BatchCompletionStrategy
-Excalibur.Dispatch.Transport.BatchCollectionOptions.CompletionStrategy.set -> void
 Excalibur.Dispatch.Transport.BatchCollectionOptions.MaxBatchSize.get -> int
 Excalibur.Dispatch.Transport.BatchCollectionOptions.MaxBatchSize.set -> void
 Excalibur.Dispatch.Transport.BatchCollectionOptions.MinBatchSize.get -> int
 Excalibur.Dispatch.Transport.BatchCollectionOptions.MinBatchSize.set -> void
-Excalibur.Dispatch.Transport.BatchCompletionStrategy
-Excalibur.Dispatch.Transport.BatchCompletionStrategy.ContentBased = 4 -> Excalibur.Dispatch.Transport.BatchCompletionStrategy
-Excalibur.Dispatch.Transport.BatchCompletionStrategy.Dynamic = 3 -> Excalibur.Dispatch.Transport.BatchCompletionStrategy
-Excalibur.Dispatch.Transport.BatchCompletionStrategy.Size = 0 -> Excalibur.Dispatch.Transport.BatchCompletionStrategy
-Excalibur.Dispatch.Transport.BatchCompletionStrategy.SizeOrTime = 2 -> Excalibur.Dispatch.Transport.BatchCompletionStrategy
-Excalibur.Dispatch.Transport.BatchCompletionStrategy.Time = 1 -> Excalibur.Dispatch.Transport.BatchCompletionStrategy
 Excalibur.Dispatch.Transport.BatchErrorSeverity
 Excalibur.Dispatch.Transport.BatchErrorSeverity.Critical = 3 -> Excalibur.Dispatch.Transport.BatchErrorSeverity
 Excalibur.Dispatch.Transport.BatchErrorSeverity.Error = 2 -> Excalibur.Dispatch.Transport.BatchErrorSeverity
@@ -390,11 +382,6 @@ Excalibur.Dispatch.Transport.EntityStatus.Active = 0 -> Excalibur.Dispatch.Trans
 Excalibur.Dispatch.Transport.EntityStatus.Disabled = 1 -> Excalibur.Dispatch.Transport.EntityStatus
 Excalibur.Dispatch.Transport.EntityStatus.ReceiveDisabled = 2 -> Excalibur.Dispatch.Transport.EntityStatus
 Excalibur.Dispatch.Transport.EntityStatus.SendDisabled = 3 -> Excalibur.Dispatch.Transport.EntityStatus
-Excalibur.Dispatch.Transport.ErrorHandlingStrategy
-Excalibur.Dispatch.Transport.ErrorHandlingStrategy.DeadLetter = 1 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
-Excalibur.Dispatch.Transport.ErrorHandlingStrategy.Ignore = 2 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
-Excalibur.Dispatch.Transport.ErrorHandlingStrategy.Retry = 0 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
-Excalibur.Dispatch.Transport.ErrorHandlingStrategy.Throw = 3 -> Excalibur.Dispatch.Transport.ErrorHandlingStrategy
 Excalibur.Dispatch.Transport.IAdvancedSessionLocking
 Excalibur.Dispatch.Transport.IAdvancedSessionLocking.AcquireMultipleLocksAsync(System.Collections.Generic.IEnumerable<string!>! sessionIds, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.SessionLockToken!>!>!
 Excalibur.Dispatch.Transport.IAdvancedSessionLocking.BreakLockAsync(string! sessionId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -871,6 +858,7 @@ Excalibur.Dispatch.Transport.TransportMessage.Subject.set -> void
 Excalibur.Dispatch.Transport.TransportMessage.TimeToLive.get -> System.TimeSpan?
 Excalibur.Dispatch.Transport.TransportMessage.TimeToLive.set -> void
 Excalibur.Dispatch.Transport.TransportMessage.TransportMessage() -> void
+Excalibur.Dispatch.Transport.TransportOrderingMetadata
 Excalibur.Dispatch.Transport.TransportPollingStatistics
 Excalibur.Dispatch.Transport.TransportPollingStatistics.TotalDuration.get -> System.TimeSpan
 Excalibur.Dispatch.Transport.TransportPollingStatistics.TotalDuration.set -> void
@@ -950,6 +938,7 @@ Excalibur.Dispatch.Transport.TransportSecurityOptions.RequireTls.set -> void
 Excalibur.Dispatch.Transport.TransportSecurityOptions.TransportSecurityOptions() -> void
 Excalibur.Dispatch.Transport.TransportSecurityOptions.ValidateServerCertificate.get -> bool
 Excalibur.Dispatch.Transport.TransportSecurityOptions.ValidateServerCertificate.set -> void
+Microsoft.Extensions.DependencyInjection.CloudEventMapperServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions
 abstract Excalibur.Dispatch.Transport.TransportConnectionBase.EstablishConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 abstract Excalibur.Dispatch.Transport.TransportConnectionBase.IsConnectionSecure() -> bool
@@ -1118,11 +1107,11 @@ const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.Tra
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.TransportAdapterInitialized = 20003 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.WaitingForInFlightOperations = 20116 -> int
 const Excalibur.Dispatch.Transport.Abstractions.TransportAbstractionsEventId.WatchError = 20131 -> int
+const Excalibur.Dispatch.Transport.TransportOrderingMetadata.AzureServiceBusSequenceKey = "azure.sequence_number" -> string!
+const Excalibur.Dispatch.Transport.TransportOrderingMetadata.KafkaOffsetKey = "kafka.offset" -> string!
 override Excalibur.Dispatch.Transport.DeadLetterException.StackTrace.get -> string?
-static Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilderExtensions.UseCloudEvents(this Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilder! builder, Excalibur.Dispatch.Transport.ICloudEventMapper<Excalibur.Dispatch.Transport.TransportReceivedMessage!>! mapper, System.Func<Excalibur.Dispatch.Transport.TransportReceivedMessage!, Excalibur.Dispatch.Transport.TransportReceivedMessage!>? unwrapper = null) -> Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilderExtensions.UseDeadLetterQueue(this Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilder! builder, string! transportName, System.Func<Excalibur.Dispatch.Transport.TransportReceivedMessage!, string?, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! deadLetterHandler, System.Diagnostics.Metrics.Meter? meter = null) -> Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilderExtensions.UseTelemetry(this Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilder! builder, string! transportName, System.Diagnostics.Metrics.Meter! meter, System.Diagnostics.ActivitySource! activitySource) -> Excalibur.Dispatch.Transport.Builders.TransportReceiverBuilder!
-static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.UseCloudEvents(this Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder! builder, Excalibur.Dispatch.Transport.ICloudEventMapper<Excalibur.Dispatch.Transport.TransportMessage!>! mapper, System.Func<Excalibur.Dispatch.Transport.TransportMessage!, CloudNative.CloudEvents.CloudEvent!>! cloudEventFactory) -> Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.UseDeduplication(this Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder! builder, System.Func<Excalibur.Dispatch.Transport.TransportMessage!, string?>! idSelector) -> Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.UseOrdering(this Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder! builder, System.Func<Excalibur.Dispatch.Transport.TransportMessage!, string?>! keySelector) -> Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder!
 static Excalibur.Dispatch.Transport.Builders.TransportSenderBuilderExtensions.UseScheduling(this Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder! builder, System.Func<Excalibur.Dispatch.Transport.TransportMessage!, System.DateTimeOffset?>! timeSelector) -> Excalibur.Dispatch.Transport.Builders.TransportSenderBuilder!
@@ -1144,6 +1133,9 @@ static Excalibur.Dispatch.Transport.SendResult.Failure(Excalibur.Dispatch.Transp
 static Excalibur.Dispatch.Transport.SendResult.Success(string! messageId) -> Excalibur.Dispatch.Transport.SendResult!
 static Excalibur.Dispatch.Transport.TransportMessage.FromBytes(byte[]! body) -> Excalibur.Dispatch.Transport.TransportMessage!
 static Excalibur.Dispatch.Transport.TransportMessage.FromString(string! body) -> Excalibur.Dispatch.Transport.TransportMessage!
+static Excalibur.Dispatch.Transport.TransportOrderingMetadata.TryStampOrdering(Excalibur.Dispatch.Transport.TransportReceivedMessage! received, Excalibur.Dispatch.IMessageContext! context) -> bool
+static Microsoft.Extensions.DependencyInjection.CloudEventMapperServiceCollectionExtensions.AddCloudEventMapper<TTransportMessage, TMapper>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CloudEventMapperServiceCollectionExtensions.AddCloudEventMapper<TTransportMessage>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Transport.ICloudEventMapper<TTransportMessage>!>! factory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAllCloudProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAwsProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.CloudProviderServiceCollectionExtensions.AddAzureProviders(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!

@@ -85,41 +85,32 @@ Define events as immutable records extending `DomainEvent`:
 ```csharp
 using Excalibur.Dispatch;
 
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent;
 
-public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent;
 
-public record OrderSubmitted(Guid OrderId) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderSubmitted(Guid OrderId) : DomainEvent;
 ```
 
 The `DomainEvent` abstract record automatically provides:
 - `EventId` - UUID v7 for time-ordered uniqueness
-- `AggregateId` - String identifier of the owning aggregate
-- `Version` - Aggregate version for ordering
 - `OccurredAt` - UTC timestamp (auto-generated)
 - `EventType` - Type name for serialization
 - `Metadata` - Dictionary for cross-cutting concerns
+
+A domain event carries only its own business data. The aggregate id is supplied to the event store when appending or loading events; the stream version is assigned by the store (`StoredEvent.Version` / `HistoricEvent`), never on the event payload.
 
 ## Event Application
 
 Excalibur uses the **RaiseEvent/Apply** pattern with pattern matching for event application, providing near-zero overhead (under 10ns per event). For a detailed explanation of why this pattern was chosen over alternatives like `When/Apply`, see the [Event Application Pattern](../event-sourcing/event-application-pattern.md) guide.
 
 ```csharp
-protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 {
     OrderCreated e => Apply(e),
     OrderLineAdded e => Apply(e),
     OrderSubmitted e => Apply(e),
-    _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+    _ => false
 };
 
 private bool Apply(OrderCreated e)
@@ -236,18 +227,18 @@ public class OrderAggregate : AggregateRoot<OrderAggregate, Guid>
     // Static factory methods satisfy IAggregateRoot<TAggregate, TKey>
     public static OrderAggregate Create(Guid id) => new() { Id = id };
 
-    public static OrderAggregate FromEvents(Guid id, IEnumerable<IDomainEvent> events)
+    public static OrderAggregate FromEvents(Guid id, IEnumerable<HistoricEvent> events)
     {
         var aggregate = Create(id);
         aggregate.LoadFromHistory(events);
         return aggregate;
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => Apply(e),
         OrderShipped e => Apply(e),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool Apply(OrderCreated e) { Id = e.OrderId; CustomerId = e.CustomerId; Status = OrderStatus.Draft; return true; }

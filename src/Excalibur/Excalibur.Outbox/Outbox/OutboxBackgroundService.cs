@@ -192,7 +192,10 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 		{
 			try
 			{
-				// Check processing gate (e.g., leader election)
+				// Check processing gate (e.g., leader election). When the gate is an
+				// ILeaderProcessingGate backed by ILeaderElection, ShouldProcess is false
+				// whenever CurrentLeadership is null — a null leadership snapshot always
+				// fail-closes this protected cycle (never gated on the advisory IsLeader bool).
 				if (_gate is not null && !_gate.ShouldProcess)
 				{
 					LogSkippedNotLeader();
@@ -252,6 +255,8 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 			{
 				try
 				{
+					// Fail-closed: a null leadership snapshot (ILeaderProcessingGate) skips this
+					// protected partition cycle.
 					if (_gate is not null && !_gate.ShouldProcess)
 					{
 						await Task.Delay(pollingInterval, stoppingToken).ConfigureAwait(false);

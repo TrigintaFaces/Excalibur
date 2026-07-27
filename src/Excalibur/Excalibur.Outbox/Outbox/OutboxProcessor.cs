@@ -18,6 +18,7 @@ using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Queues;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Outbox;
 using Excalibur.Outbox.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -74,6 +75,86 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private readonly IBackoffCalculator _backoffCalculator;
 	private readonly DeliveryGuaranteeOptions _deliveryGuaranteeOptions;
 
+	// Optional leader-election gate (Excalibur.Dispatch.ILeaderProcessingGate). When registered,
+	// its FencingToken is read once per claim/mark call and threaded through to the store so a superseded
+	// leader's claim/mark is rejected by the store's server-side compare-and-swap rather than silently
+	// racing a newer leader. Null when no leader election is configured (plain, unfenced claim).
+	private readonly Excalibur.Dispatch.ILeaderProcessingGate? _leaderGate;
+
+	// Fencing is DEFAULT-ON for a framework-protected outbox: true exactly when a leader gate is present AND
+	// the consumer has NOT asserted single-active-writer ownership (OutboxDeliveryOptions.SingleActiveWriter).
+	// Registering a leader election is the multi-instance signal, so its presence fences the drain by default;
+	// AsSingleWriter() is the explicit, logged opt-out for a genuinely single-writer topology. When false, the
+	// drain runs unfenced (either no leader election, or an explicit single-writer opt-out).
+	private readonly bool _fencingActive;
+
+	private long? CurrentFencingToken => _leaderGate?.FencingToken;
+
+	/// <summary>
+	/// The store's fencing capability. Non-null exactly when the configured store -- or any store it is
+	/// decorated by -- can enforce a leadership high-water mark. Resolved through the capability seam rather
+	/// than by casting, because a cast sees only the outermost decorator and would silently report the
+	/// capability absent, disabling the split-brain guard on every decorated deployment.
+	/// </summary>
+	private IFencedOutboxStore? FencedStore => _outboxStore.GetService(typeof(IFencedOutboxStore)) as IFencedOutboxStore;
+
+	/// <summary>
+	/// Claims a batch, presenting the leadership token when both a tenure and a fencing-capable store exist.
+	/// </summary>
+	private ValueTask<IEnumerable<OutboundMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken)
+	{
+		if (_fencingActive && FencedStore is { } fenced && CurrentFencingToken is { } token)
+		{
+			return fenced.GetUnsentMessagesAsync(batchSize, token, cancellationToken);
+		}
+
+		GuardActiveGateHasFencingToken();
+		return _outboxStore.GetUnsentMessagesAsync(batchSize, cancellationToken);
+	}
+
+	/// <summary>
+	/// Marks a message sent, presenting the leadership token when both a tenure and a fencing-capable store
+	/// exist.
+	/// </summary>
+	private ValueTask MarkSentFencedAsync(string messageId, CancellationToken cancellationToken)
+	{
+		if (_fencingActive && FencedStore is { } fenced && CurrentFencingToken is { } token)
+		{
+			return fenced.MarkSentAsync(messageId, token, cancellationToken);
+		}
+
+		GuardActiveGateHasFencingToken();
+		return _outboxStore.MarkSentAsync(messageId, cancellationToken);
+	}
+
+	/// <summary>
+	/// Composition guard: a leader gate that is <em>present</em> but yields no fencing token MUST fail closed
+	/// on the fenced write path — it must never fall through to the unfenced drain. Draining without a fence
+	/// under an active gate is the "looks fenced but isn't" split-brain window a superseded leader exploits.
+	/// With a required fencing-token provider a leader always mints a token (<c>&gt;= 1</c>), so reaching this
+	/// state under an active gate is a defect; refuse to drain rather than drain unfenced. When no gate is
+	/// configured (<c>_leaderGate is null</c>) a null token is the legitimate unfenced path and drains normally.
+	/// </summary>
+	private void GuardActiveGateHasFencingToken()
+	{
+		if (_fencingActive && CurrentFencingToken is null)
+		{
+			throw new InvalidOperationException(
+				"The outbox leader gate is active but no fencing token is available for the current tenure; " +
+				"refusing to drain unfenced. A fenced leader election must present a monotonic fencing token " +
+				"(a fencing-token provider is a required dependency). Draining without one would let a " +
+				"superseded leader claim and complete messages it no longer owns.");
+		}
+	}
+
+	// Constant metric tag set — hoisted to avoid allocating a new dictionary on every batch completion.
+	private static readonly Dictionary<string, object?> ProcessorTypeTags =
+		new(StringComparer.Ordinal) { ["ProcessorType"] = "Outbox" };
+
+	// Per-instance metric tag set (values derive from options; stable for the processor's lifetime), built
+	// once in the constructor rather than per batch. Treated as read-only by the metrics recorder.
+	private readonly Dictionary<string, object?> _batchCompletionTags;
+
 	private int _disposedFlag;
 
 	private Task? _producerTask;
@@ -105,6 +186,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// Optional backoff calculator for retry delays. Uses ExponentialBackoffCalculator.Default if not provided.
 	/// </param>
 	/// <param name="deliveryGuaranteeOptions"> Optional delivery guarantee options. Uses default at-least-once semantics if not provided. </param>
+	/// <param name="leaderGate">
+	/// Optional leader-election processing gate. When provided, its fencing token is stamped on every
+	/// claim/mark-sent call so a superseded leader's mutations are rejected by the store. Null when no
+	/// leader election is configured (plain, unfenced claim).
+	/// </param>
 	/// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when configuration validation fails. </exception>
 	public OutboxProcessor(
@@ -117,7 +203,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
-		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null)
+		IOptions<DeliveryGuaranteeOptions>? deliveryGuaranteeOptions = null,
+		Excalibur.Dispatch.ILeaderProcessingGate? leaderGate = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(outboxStore);
@@ -125,6 +212,13 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
+
+		_batchCompletionTags = new Dictionary<string, object?>(StringComparer.Ordinal)
+		{
+			["ProcessorType"] = "Outbox",
+			["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
+			["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
+		};
 
 		if (_options.QueueCapacity < _options.ProducerBatchSize)
 		{
@@ -162,6 +256,34 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
+		_leaderGate = leaderGate;
+
+		// Default-ON fencing for a framework-protected outbox: a registered leader election is the
+		// multi-instance signal, so the drain is fenced unless the consumer explicitly asserts single-active-
+		// writer ownership via AsSingleWriter(). Either unfenced path is logged at startup so the downgrade is
+		// observable, never silent.
+		_fencingActive = leaderGate is not null && !_options.SingleActiveWriter;
+
+		if (leaderGate is not null && _options.SingleActiveWriter)
+		{
+			LogOutboxUnfencedBySingleWriterOptOut();
+		}
+		else if (leaderGate is null)
+		{
+			LogOutboxRunningUnfenced();
+		}
+
+		// Fail closed, never silently at drain time. When fencing is active the consumer expects
+		// split-brain protection; a store that cannot enforce a fencing high-water mark cannot provide it. The
+		// old contract let such a store accept a token and discard it, so the deployment looked fenced and was
+		// not. Refuse to start instead. (Skipped under an explicit single-active-writer opt-out, which the
+		// consumer has taken responsibility for and which is logged above.)
+		//
+		// This is the defense-in-depth check for the partitioned / directly-constructed drain. The DEFAULT
+		// drain (OutboxBackgroundService -> IOutboxPublisher) never constructs an OutboxProcessor, so the
+		// same invariant is ALSO enforced at host startup by OutboxPrerequisiteValidator via the shared
+		// OutboxFencingStartupInvariant helper -- covering every drain path. Both call one source of truth.
+		OutboxFencingStartupInvariant.EnsureFencingCapableStore(leaderGate, _options.SingleActiveWriter, outboxStore);
 
 		if (_options.BatchProcessing.EnableDynamicBatchSizing)
 		{
@@ -284,7 +406,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					messageId: envelope.MessageId.ToString(),
 					messageType: envelope.MessageType ?? outboundMessage.MessageType,
 					messageMetadata: headersJson,
-					messageBody: envelope.Payload is not null ? Encoding.UTF8.GetString(envelope.Payload) : string.Empty,
+					messageBody: envelope.Payload ?? [],
 					createdAt: envelope.Timestamp,
 					expiresAt: outboundMessage.ScheduledAt)
 				{
@@ -310,7 +432,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			messageId: outboundMessage.Id,
 			messageType: outboundMessage.MessageType,
 			messageMetadata: JsonSerializer.Serialize(outboundMessage.Headers, CoreMessageJsonContext.Default.DictionaryStringObject),
-			messageBody: Encoding.UTF8.GetString(outboundMessage.Payload),
+			messageBody: outboundMessage.Payload,
 			createdAt: outboundMessage.CreatedAt,
 			expiresAt: outboundMessage.ScheduledAt)
 		{
@@ -508,7 +630,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					batch.Length, // Will be updated with actual success/failure counts
 					0,
 					duration,
-					new Dictionary<string, object?>(StringComparer.Ordinal) { ["ProcessorType"] = "Outbox" });
+					ProcessorTypeTags);
 
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, totalProcessedCount);
 			}
@@ -537,12 +659,18 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		Justification = "Outbox batch reservation converts outbound records using runtime serialization.")]
 	private async Task<IReadOnlyCollection<IOutboxMessage>> ReserveBatchRecordsAsync(int batchSize, CancellationToken cancellationToken)
 	{
-		var records = await _outboxStore
-			.GetUnsentMessagesAsync(batchSize, cancellationToken)
-			.ConfigureAwait(false);
+		var records = await ClaimBatchAsync(batchSize, cancellationToken).ConfigureAwait(false);
 
-		// Convert OutboundMessage to IOutboxMessage with envelope format support (ADR-058)
-		var outboxMessages = records.Select(ConvertToOutboxMessageWithEnvelopeSupport).ToList().AsReadOnly();
+		// Convert OutboundMessage to IOutboxMessage with envelope format support. Pre-size and foreach-add
+		// instead of Select().ToList().AsReadOnly() to avoid the per-batch Select-iterator +
+		// ReadOnlyCollection-wrapper allocations; the List is returned as the read-only interface.
+		var capacity = records.TryGetNonEnumeratedCount(out var count) ? count : batchSize;
+		var outboxMessages = new List<IOutboxMessage>(capacity);
+		foreach (var record in records)
+		{
+			outboxMessages.Add(ConvertToOutboxMessageWithEnvelopeSupport(record));
+		}
+
 		return outboxMessages;
 	}
 
@@ -556,6 +684,12 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private async Task DispatchReservedRecordAsync(IOutboxMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+
+		// Re-establish this message's originating tenant as ambient for the whole per-message body so the
+		// handler dispatch AND every tenant-aware store mark (sent/failed/dead-lettered) run under the right
+		// tenant, scoping the store's composite (TenantId, Id) key correctly. Null-safe: BeginScope(null)
+		// establishes "no tenant" -> byte-identical to prior behavior for non-tenant deployments.
+		using var tenantScope = TenantContextHolder.BeginScope(message.TenantId);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var attempt = message.Attempts + 1;
@@ -596,7 +730,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
 
-			await _outboxStore.MarkSentAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
+			await MarkSentFencedAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
 
 			LogMarkedOutboxRecordSent(message.MessageId);
 		}
@@ -728,7 +862,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		int attempt,
 		CancellationToken cancellationToken)
 	{
-		if (_outboxStore is IBackoffSchedulableOutboxStore schedulable)
+		if (_outboxStore.GetService(typeof(IBackoffSchedulableOutboxStore)) is IBackoffSchedulableOutboxStore schedulable)
 		{
 			var nextAttemptAt = DateTimeOffset.UtcNow + _backoffCalculator.CalculateDelay(attempt);
 			return schedulable.MarkFailedWithBackoffAsync(messageId, errorMessage, attempt, nextAttemptAt, cancellationToken);
@@ -752,6 +886,12 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			batch,
 			async (message, ct) =>
 			{
+				// Per-iteration tenant scope: re-establish this message's originating tenant as ambient so the
+				// handler dispatch runs under the right tenant, and (MinimizedWindow) the immediate MarkSentAsync
+				// scopes the store's composite (TenantId, Id) key. Wraps the single iteration only — each message
+				// may carry a different tenant. Null-safe: BeginScope(null) == prior non-tenant behavior.
+				using var tenantScope = TenantContextHolder.BeginScope(message.TenantId);
+
 				var attempt = message.Attempts + 1;
 
 				// Get circuit breaker for the transport
@@ -784,11 +924,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// AD-222-1: For MinimizedWindow, mark sent immediately after dispatch
 					if (_options.DeliveryGuarantee == OutboxDeliveryGuarantee.MinimizedWindow)
 					{
-						await _outboxStore.MarkSentAsync(message.MessageId, ct).ConfigureAwait(false);
+						await MarkSentFencedAsync(message.MessageId, ct).ConfigureAwait(false);
 					}
 					else
 					{
-						// For AtLeastOnce and TransactionalWhenApplicable, collect for batch completion
+						// For AtLeastOnce, collect for batch completion
 						successfulIds.Add(message.MessageId);
 					}
 				}
@@ -841,12 +981,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// For MinimizedWindow, messages were already marked individually in the dispatch loop
 		if (_options.DeliveryGuarantee != OutboxDeliveryGuarantee.MinimizedWindow && successfulIdsOnly.Count > 0)
 		{
-			// AD-222-3: TransactionalWhenApplicable - check store capability and use transaction if supported
-			if (_options.DeliveryGuarantee == OutboxDeliveryGuarantee.TransactionalWhenApplicable)
-			{
-				await MarkWithTransactionOrFallbackAsync(successfulIdsOnly, cancellationToken).ConfigureAwait(false);
-			}
-			else if (_options.EnableBatchDatabaseOperations)
+			// AtLeastOnce: complete the successfully-published batch.
+			if (_options.EnableBatchDatabaseOperations)
 			{
 				// AtLeastOnce with batch operations
 				await PerformBatchDatabaseOperationsAsync(successfulIdsOnly, failedToRetry.ToList(), new List<(string, int)>(), cancellationToken)
@@ -857,7 +993,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				// AtLeastOnce without batch operations - fall back to individual operations
 				foreach (var id in successfulIdsOnly)
 				{
-					await _outboxStore.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
+					await MarkSentFencedAsync(id, cancellationToken).ConfigureAwait(false);
 				}
 			}
 		}
@@ -892,13 +1028,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			successful.Count,
 			failed.Count,
 			stopwatch.Elapsed,
-			new Dictionary<string, object?>
-				(StringComparer.Ordinal)
-			{
-				["ProcessorType"] = "Outbox",
-				["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
-				["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
-			});
+			_batchCompletionTags);
 
 		return successful.Count;
 	}
@@ -921,7 +1051,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				{
 					try
 					{
-						await _outboxStore.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
+						await MarkSentFencedAsync(id, cancellationToken).ConfigureAwait(false);
 					}
 					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 					{
@@ -999,43 +1129,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 	}
 
-	/// <summary>
-	/// Marks messages as sent using transactional operations if supported, otherwise falls back to MinimizedWindow behavior.
-	/// </summary>
-	/// <param name="messageIds"> The IDs of messages to mark as sent. </param>
-	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> A task representing the asynchronous operation. </returns>
-	/// <remarks>
-	/// <para>
-	/// Implements fallback behavior for TransactionalWhenApplicable.
-	/// </para>
-	/// <para>
-	/// When the store supports transactions (implements <see cref="ITransactionalOutboxStore" /> with <c> SupportsTransactions = true
-	/// </c>), all messages are marked atomically within a single transaction for exactly-once semantics.
-	/// </para>
-	/// <para> When transactions are not supported, falls back to individual message completion (MinimizedWindow behavior) and logs a warning. </para>
-	/// </remarks>
-	private async Task MarkWithTransactionOrFallbackAsync(
-		List<string> messageIds,
-		CancellationToken cancellationToken)
-	{
-		// Check if store supports transactions
-		if (_outboxStore is ITransactionalOutboxStore txStore && txStore.SupportsTransactions)
-		{
-			// Use transactional completion (exactly-once)
-			await txStore.MarkSentTransactionalAsync(messageIds, cancellationToken).ConfigureAwait(false);
-		}
-		else
-		{
-			// Fall back to MinimizedWindow behavior (individual completion)
-			foreach (var id in messageIds)
-			{
-				await _outboxStore.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
-			}
-
-			LogTransactionalFallback(messageIds.Count);
-		}
-	}
 
 	[UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:RequiresUnreferencedCode",
 		Justification =
@@ -1064,8 +1157,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	[RequiresDynamicCode("Calls Excalibur.Dispatch.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task DispatchAsync(IOutboxMessage outboxMessage, CancellationToken cancellationToken)
 	{
-		if (await _serializer.DeserializeAsync(outboxMessage.MessageBody, typeof(OutboxMessage)).ConfigureAwait(false) is not OutboxMessage
-			message)
+		if (outboxMessage.MessageBody.Length == 0
+			|| _serializer.DeserializeFromUtf8<OutboxMessage>(outboxMessage.MessageBody) is not { } message)
 		{
 			BackgroundServiceMetrics.RecordProcessingError(BackgroundServiceTypes.Outbox, "empty_message");
 			return;
@@ -1076,7 +1169,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			var type = MessageTypeRegistry.GetType(message.MessageType)
 					   ?? throw new TypeLoadException($"{ErrorConstants.TypeNotFoundInRegistry}: {message.MessageType}");
 
-			if (await _serializer.DeserializeAsync(message.MessageBody, type).ConfigureAwait(false) is not IDispatchMessage
+			if (_serializer.DeserializeFromUtf8(message.MessageBody, type) is not IDispatchMessage
 				dispatchMessage)
 			{
 				throw new InvalidOperationException(
@@ -1093,21 +1186,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 			await using var scope = _serviceProvider.CreateAsyncScope();
 
-			var metaDictionary = new Dictionary<string, string?>
-				(StringComparer.Ordinal)
-			{
-				["CorrelationId"] = deliveryMetadata.CorrelationId,
-				["CausationId"] = deliveryMetadata.CausationId,
-				["TraceParent"] = deliveryMetadata.TraceParent,
-				["TenantId"] = deliveryMetadata.TenantId,
-				["UserId"] = deliveryMetadata.UserId,
-				["ContentType"] = deliveryMetadata.ContentType,
-				["SerializerVersion"] = deliveryMetadata.SerializerVersion,
-				["MessageVersion"] = deliveryMetadata.MessageVersion,
-				["ContractVersion"] = deliveryMetadata.ContractVersion,
-			};
-
-			var messageContext = DispatchContextInitializer.CreateFromMetadata(metaDictionary);
+			// Seed the context directly from the strongly-typed metadata — no per-message dictionary alloc.
+			var messageContext = DispatchContextInitializer.CreateFromMetadata(deliveryMetadata);
 			messageContext.MessageId = message.MessageId;
 
 			var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
@@ -1207,10 +1287,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		"Message {MessageId} retry attempt {Attempt}, backoff delay {DelayMs}ms")]
 	private partial void LogRetryWithBackoff(string messageId, int attempt, double delayMs);
 
-	[LoggerMessage(OutboxEventId.OutboxTransactionalFallback, LogLevel.Warning,
-		"TransactionalWhenApplicable requested but store does not support transactions. Falling back to MinimizedWindow behavior for {MessageCount} messages.")]
-	private partial void LogTransactionalFallback(int messageCount);
-
 	[LoggerMessage(OutboxEventId.OutboxErrorMarkingMessage, LogLevel.Error,
 		"Error marking outbox message {MessageId} as {TargetStatus} during batch completion")]
 	private partial void LogErrorMarkingOutboxMessage(string messageId, string targetStatus, Exception ex);
@@ -1226,4 +1302,12 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	[LoggerMessage(OutboxEventId.OutboxMessageDiscardedNoDlq, LogLevel.Error,
 		"OUTBOX MESSAGE LOST: Message {MessageId} failed ({Reason}) but no dead letter queue is configured. Message has been discarded permanently. Register an IDeadLetterQueue to prevent message loss.")]
 	private partial void LogMessageDiscardedNoDlq(string messageId, string reason);
+
+	[LoggerMessage(OutboxEventId.OutboxUnfencedBySingleWriterOptOut, LogLevel.Warning,
+		"Outbox drain is running UNFENCED by an explicit single-active-writer opt-out (AsSingleWriter), even though a leader election is registered. This is safe only if exactly one process drains this outbox; a genuinely multi-writer deployment reopens the split-brain window.")]
+	private partial void LogOutboxUnfencedBySingleWriterOptOut();
+
+	[LoggerMessage(OutboxEventId.OutboxRunningUnfenced, LogLevel.Information,
+		"Outbox drain is running UNFENCED because no leader election is registered. This is safe only when exactly one process drains this outbox. Register a leader election for multi-instance deployments to fence the drain against a superseded leader.")]
+	private partial void LogOutboxRunningUnfenced();
 }

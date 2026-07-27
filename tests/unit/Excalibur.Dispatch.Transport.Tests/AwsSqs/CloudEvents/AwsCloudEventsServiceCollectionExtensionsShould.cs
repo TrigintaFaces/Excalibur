@@ -56,7 +56,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 	public void ThrowWhenServicesIsNullForUseCloudEventsForSqs()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			AwsCloudEventsServiceCollectionExtensions.UseCloudEventsForSqs(null!));
+			AwsCloudEventsServiceCollectionExtensions.AddCloudEventsForSqs(null!));
 	}
 
 	[Fact]
@@ -66,7 +66,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.UseCloudEventsForSqs(
+		services.AddCloudEventsForSqs(
 			configureSqs: opts => opts.MaxBatchSize = 5);
 
 		// Assert
@@ -77,7 +77,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 	public void ThrowWhenServicesIsNullForUseCloudEventsForSns()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			AwsCloudEventsServiceCollectionExtensions.UseCloudEventsForSns(null!));
+			AwsCloudEventsServiceCollectionExtensions.AddCloudEventsForSns(null!));
 	}
 
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.UseCloudEventsForSns(
+		services.AddCloudEventsForSns(
 			configureSns: opts => opts.DefaultSubject = "test-subject");
 
 		// Assert
@@ -98,7 +98,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 	public void ThrowWhenServicesIsNullForUseCloudEventsForEventBridge()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			AwsCloudEventsServiceCollectionExtensions.UseCloudEventsForEventBridge(null!));
+			AwsCloudEventsServiceCollectionExtensions.AddCloudEventsForEventBridge(null!));
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class AwsCloudEventsServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.UseCloudEventsForEventBridge(
+		services.AddCloudEventsForEventBridge(
 			configureEventBridge: opts => opts.EventBusName = "test-bus");
 
 		// Assert

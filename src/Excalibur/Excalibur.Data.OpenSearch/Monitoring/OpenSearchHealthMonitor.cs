@@ -242,6 +242,8 @@ internal sealed class OpenSearchHealthMonitor(
 				return;
 			}
 
+			var currentNodeIds = new HashSet<string>(nodesResponse.Nodes.Keys, StringComparer.Ordinal);
+
 			var nodeHealthTasks = nodesResponse.Nodes.Select(async kvp =>
 			{
 				var nodeId = kvp.Key;
@@ -269,6 +271,13 @@ internal sealed class OpenSearchHealthMonitor(
 				}
 			});
 			_ = await Task.WhenAll(nodeHealthTasks).ConfigureAwait(false);
+
+			// Evict cache entries for nodes that have departed the cluster (no longer reported by
+			// Nodes.Info), so the cache tracks only current members and cannot grow unbounded.
+			foreach (var staleNodeId in _nodeHealthCache.Keys.Where(id => !currentNodeIds.Contains(id)).ToList())
+			{
+				_ = _nodeHealthCache.TryRemove(staleNodeId, out _);
+			}
 		}
 		catch (Exception ex)
 		{

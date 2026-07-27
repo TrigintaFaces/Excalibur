@@ -473,6 +473,10 @@ public class EndToEndScenarioBenchmarks
 	private sealed class BenchmarkSnapshot : ISnapshot
 	{
 		public required string SnapshotId { get; init; }
+
+		// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+		// that this double is unscoped instead of assuming it.
+		public string? TenantId { get; init; }
 		public required string AggregateId { get; init; }
 		public required long Version { get; init; }
 		public required DateTimeOffset CreatedAt { get; init; }

@@ -62,7 +62,7 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 				ControlId = ControlSec004,
 				Name = "Audit Logging",
 				Description = "Security-relevant events are logged with tamper-evident hash chains",
-				Implementation = "ADR-052 Tamper-evident audit logging with IAuditLogger",
+				Implementation = "Tamper-evident audit logging with IAuditLogger",
 				Type = ControlType.Detective,
 				Frequency = ControlFrequency.Continuous
 			},
@@ -71,7 +71,7 @@ public sealed class AuditLogControlValidator : BaseControlValidator
 				ControlId = ControlSec005,
 				Name = "Security Monitoring",
 				Description = "Security events are monitored and alerts are generated for anomalies",
-				Implementation = "ADR-052 Audit log integrity verification",
+				Implementation = "Audit log integrity verification",
 				Type = ControlType.Detective,
 				Frequency = ControlFrequency.Continuous
 			},

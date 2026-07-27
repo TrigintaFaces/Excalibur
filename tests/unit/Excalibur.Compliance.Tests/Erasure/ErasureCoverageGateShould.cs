@@ -49,7 +49,7 @@ public sealed class ErasureCoverageGateShould
         var requestId = Guid.NewGuid();
         SetupScheduledRequest(requestId);
         A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(true));
+            .Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
         var inventory = new DataInventory
         {
@@ -94,7 +94,7 @@ public sealed class ErasureCoverageGateShould
         var requestId = Guid.NewGuid();
         SetupScheduledRequest(requestId);
         A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(true));
+            .Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
         var inventory = new DataInventory
         {
@@ -137,7 +137,7 @@ public sealed class ErasureCoverageGateShould
         var requestId = Guid.NewGuid();
         SetupScheduledRequest(requestId);
         A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(true));
+            .Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
         var inventory = new DataInventory
         {
@@ -183,7 +183,7 @@ public sealed class ErasureCoverageGateShould
         var requestId = Guid.NewGuid();
         SetupScheduledRequest(requestId);
         A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(true));
+            .Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
         var inventory = new DataInventory
         {
@@ -234,6 +234,7 @@ public sealed class ErasureCoverageGateShould
         return new ErasureService(
             _store, _keyAdmin, options,
             NullLogger<ErasureService>.Instance,
+            TestDataSubjectHasher.Instance,
             _legalHoldService, _dataInventoryService,
             annotations, contributors);
     }
@@ -257,6 +258,7 @@ public sealed class ErasureCoverageGateShould
         return new ErasureService(
             _store, _keyAdmin, options,
             NullLogger<ErasureService>.Instance,
+            TestDataSubjectHasher.Instance,
             _legalHoldService, _dataInventoryService,
             contributors);
     }

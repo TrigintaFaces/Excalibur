@@ -14,6 +14,11 @@ namespace Excalibur.Dispatch.Serialization;
 /// This context includes all core message types used throughout the Excalibur framework. For cloud provider-specific types, use the
 /// respective provider contexts.
 /// </remarks>
+// AOT source-gen MIRROR of the canonical event wire-shape (EventSerializationDefaults.Canonical): the three
+// options below — CamelCase + WhenWritingNull + UseStringEnumConverter — reproduce the reflection default's
+// wire format so a Native-AOT host (this source-gen path) and a JIT host (the reflection Canonical) serialize
+// events byte-for-byte identically. Keep these in lockstep with EventSerializationDefaults if the canonical
+// contract ever changes.
 [JsonSourceGenerationOptions(
 	PropertyNameCaseInsensitive = true,
 	WriteIndented = false,

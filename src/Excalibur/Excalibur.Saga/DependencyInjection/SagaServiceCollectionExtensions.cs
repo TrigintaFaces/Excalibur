@@ -55,11 +55,23 @@ public static class SagaServiceCollectionExtensions
 		// iuv3s1: do NOT silently bind an in-memory saga store. Saga state is as stateful as the outbox /
 		// event store (it is lost on restart/scale-out), so saga registration adopts the same fail-fast
 		// posture: a "default" ISagaStore is a required deployment decision. The in-memory store is
-		// available only via an explicit opt-in (AddInMemorySagaStore() / ISagaBuilder.UseInMemoryStore()),
+		// available only via an explicit opt-in (AddInMemorySagaStore() / ISagaBuilder.WithInMemoryStore()),
 		// and SagaPrerequisiteValidator fails loud at host startup if neither a persistent provider nor the
 		// explicit opt-in registered one. Mirrors EventSourcingPrerequisiteValidator / the signing-key guard.
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, SagaPrerequisiteValidator>());
+
+		// The cleanup background service resolves TimeProvider from the container; register the system
+		// provider if the consumer has not supplied one (TryAddSingleton keeps a consumer-provided or
+		// test FakeTimeProvider registration winning).
+		services.TryAddSingleton(static _ => TimeProvider.System);
+
+		// Automatic saga cleanup: registered unconditionally and self-gates on
+		// SagaOptions.EnableAutomaticCleanup (a no-op when disabled), so the option is now a real,
+		// wired driver of periodic ISagaStore.PurgeCompletedBeforeAsync rather than advertised-but-inert.
+		// The service resolves ISagaStore lazily per cycle, so it constructs even before a store is registered.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, Excalibur.Saga.Services.SagaCleanupBackgroundService>());
 
 		return services;
 	}
@@ -90,6 +102,10 @@ public static class SagaServiceCollectionExtensions
 		// SagaCoordinator constructor) can inject ISagaStore directly without [FromKeyedServices("default")].
 		services.TryAddSingleton<Excalibur.Dispatch.Messaging.ISagaStore>(sp =>
 			sp.GetRequiredKeyedService<Excalibur.Dispatch.Messaging.ISagaStore>("default"));
+
+		// Admin/query surface for operational tooling and the dashboard — the same store instance.
+		services.TryAddSingleton<Excalibur.Dispatch.Messaging.ISagaStoreAdmin>(
+			static sp => sp.GetRequiredService<Excalibur.Saga.Orchestration.InMemorySagaStore>());
 
 		return services;
 	}

@@ -100,13 +100,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = true,
-			ValidateMultiTenancy = true,
-			ValidateAuthentication = true,
-			ValidateTracing = true,
-			ValidateVersioning = true,
-			ValidateCollections = true,
-			ValidateCorrelationChain = true,
+			Checks =
+			{
+				ValidateRequiredFields = true,
+				ValidateMultiTenancy = true,
+				ValidateAuthentication = true,
+				ValidateTracing = true,
+				ValidateVersioning = true,
+				ValidateCollections = true,
+				ValidateCorrelationChain = true,
+			},
 			MaxMessageAge = TimeSpan.FromHours(4),
 		};
 
@@ -130,13 +133,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = ["MessageId", "MessageType", "RouteKey"],
-			ValidateRequiredFields = true,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = true,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 		};
 
@@ -162,13 +168,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = true,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = true,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 		};
 
@@ -190,13 +199,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = true,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = true,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 		};
 
@@ -218,13 +230,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = true,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = true,
-			ValidateTracing = true,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = true,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = true,
+				ValidateTracing = true,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 		};
 
@@ -261,13 +276,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = true,
-			ValidateCollections = false,
-			ValidateCorrelationChain = true,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = true,
+				ValidateCollections = false,
+				ValidateCorrelationChain = true,
+			},
 			MaxMessageAge = null,
 		};
 
@@ -298,13 +316,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = TimeSpan.FromHours(1),
 		};
 
@@ -328,13 +349,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 			FieldValidationRules = new Dictionary<string, FieldValidationRule>(StringComparer.Ordinal)
 			{
@@ -377,13 +401,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 			FieldValidationRules = new Dictionary<string, FieldValidationRule>(StringComparer.Ordinal)
 			{
@@ -406,13 +433,16 @@ public sealed class DefaultContextValidatorShould
 		var options = new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = true,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = true,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 		};
 
@@ -433,13 +463,16 @@ public sealed class DefaultContextValidatorShould
 		options ??= new ContextValidationOptions
 		{
 			RequiredFields = [],
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
-			ValidateCorrelationChain = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			MaxMessageAge = null,
 		};
 

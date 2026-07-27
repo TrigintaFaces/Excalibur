@@ -179,11 +179,13 @@ public static class DispatchBuilderResilienceExtensions
 					BackoffStrategy.Fixed => DelayBackoffType.Constant,
 					BackoffStrategy.Linear => DelayBackoffType.Linear,
 					BackoffStrategy.Exponential => DelayBackoffType.Exponential,
+					// FullJitter → Polly exponential with jitter forced on (no distinct Polly FullJitter member).
+					BackoffStrategy.FullJitter => DelayBackoffType.Exponential,
 					_ => DelayBackoffType.Exponential,
 				},
 				retryOpts.BaseDelay,
 				options.MaxBackoffDelay,
-				retryOpts.UseJitter);
+				retryOpts.UseJitter || retryOpts.BackoffStrategy == BackoffStrategy.FullJitter);
 		});
 
 		_ = services.RemoveAll<ITransportCircuitBreakerRegistry>();

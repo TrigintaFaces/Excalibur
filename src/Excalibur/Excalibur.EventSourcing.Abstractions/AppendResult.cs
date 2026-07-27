@@ -14,7 +14,7 @@ public sealed class AppendResult
 	private AppendResult(
 		bool success,
 		long nextExpectedVersion,
-		long firstEventPosition,
+		long? firstEventPosition,
 		string? errorMessage = null,
 		bool isConcurrencyConflict = false)
 	{
@@ -36,9 +36,20 @@ public sealed class AppendResult
 	public long NextExpectedVersion { get; }
 
 	/// <summary>
-	/// Gets the global position of the first event that was appended.
+	/// Gets the global stream position of the first event that was appended, or <see langword="null"/>
+	/// when the store does not support a global ordering.
 	/// </summary>
-	public long FirstEventPosition { get; }
+	/// <remarks>
+	/// A store that maintains a monotonic, store-wide sequence across all streams returns a real position
+	/// here. Stores that only track per-stream versions (or track no global ordering at all) return
+	/// <see langword="null"/> rather than fabricating a value. The property is also <see langword="null"/>
+	/// for failed appends and for successful appends that contained no events.
+	/// </remarks>
+	/// <value>
+	/// The monotonic global position of the first appended event, or <see langword="null"/> when global
+	/// ordering is unsupported for the originating provider.
+	/// </value>
+	public long? FirstEventPosition { get; }
 
 	/// <summary>
 	/// Gets the error message if the operation failed.
@@ -50,13 +61,17 @@ public sealed class AppendResult
 	/// </summary>
 	public bool IsConcurrencyConflict => _isConcurrencyConflict;
 
+
 	/// <summary>
 	/// Creates a successful append result.
 	/// </summary>
 	/// <param name="nextExpectedVersion">The next expected version.</param>
-	/// <param name="firstEventPosition">The position of the first appended event.</param>
+	/// <param name="firstEventPosition">
+	/// The global stream position of the first appended event, or <see langword="null"/> when the store
+	/// does not support a global ordering.
+	/// </param>
 	/// <returns>A successful append result.</returns>
-	public static AppendResult CreateSuccess(long nextExpectedVersion, long firstEventPosition) =>
+	public static AppendResult CreateSuccess(long nextExpectedVersion, long? firstEventPosition) =>
 		new(success: true, nextExpectedVersion, firstEventPosition);
 
 	/// <summary>
@@ -69,7 +84,7 @@ public sealed class AppendResult
 		new(
 			success: false,
 			actualVersion,
-			-1,
+			firstEventPosition: null,
 			string.Format(
 				CultureInfo.InvariantCulture,
 				"Concurrency conflict: expected version {0} but current version is {1}",
@@ -83,5 +98,5 @@ public sealed class AppendResult
 	/// <param name="errorMessage">The error message.</param>
 	/// <returns>A failed append result.</returns>
 	public static AppendResult CreateFailure(string errorMessage) =>
-		new(success: false, -1, -1, errorMessage);
+		new(success: false, -1, firstEventPosition: null, errorMessage);
 }

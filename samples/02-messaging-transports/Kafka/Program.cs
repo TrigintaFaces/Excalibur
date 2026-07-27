@@ -95,7 +95,7 @@ builder.Services.AddKafkaTransport("kafka", kafka =>
 });
 
 // Add CloudEvents support for Kafka (separate from transport builder)
-builder.Services.UseCloudEventsForKafka();
+builder.Services.AddCloudEventsForKafka();
 
 // ============================================================
 // Build and start the host

@@ -13,14 +13,14 @@
 // This sample wires all three cloud providers so you can compare the
 // configuration surface side-by-side:
 //
-//   * AWS S3          (Excalibur.EventSourcing.AwsS3)
-//   * Azure Blob      (Excalibur.EventSourcing.AzureBlob)
-//   * Google Cloud    (Excalibur.EventSourcing.Gcs)
+// * AWS S3 (Excalibur.EventSourcing.AwsS3)
+// * Azure Blob (Excalibur.EventSourcing.AzureBlob)
+// * Google Cloud (Excalibur.EventSourcing.Gcs)
 //
 // Pick one at runtime via the PROVIDER environment variable:
-//   PROVIDER=aws     dotnet run
-//   PROVIDER=azure   dotnet run
-//   PROVIDER=gcs     dotnet run
+// PROVIDER=aws dotnet run
+// PROVIDER=azure dotnet run
+// PROVIDER=gcs dotnet run
 //
 // ============================================================================
 
@@ -34,10 +34,12 @@ using Excalibur.Application;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Domain;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 var provider = Environment.GetEnvironmentVariable("PROVIDER") ?? "aws";
 
@@ -49,11 +51,21 @@ var eventStoreCs = builder.Configuration.GetConnectionString("EventStore")
 // Dispatch pipeline + handlers from this assembly (CreateOrderHandler, AppendOrderNotesHandler).
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
-// c6wd6f: register event types for secure-by-default resolution
+// register event types for secure-by-default resolution
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // On-demand archive runner so the hot→cold boundary is exercisable via HTTP.
-builder.Services.AddSingleton<ManualArchiveRunner>();
+// ITenantContext is resolved with GetService, not GetRequiredService: this sample is a
+// single-tenant host and registers none, which yields the explicit untenanted partition.
+// Constructing the runner directly would fail here, because the container cannot supply an
+// unregistered dependency even where the parameter is nullable.
+builder.Services.AddSingleton(sp => new ManualArchiveRunner(
+	sp.GetRequiredService<IEventStoreArchive>(),
+	sp.GetRequiredService<IEventStore>(),
+	sp.GetRequiredService<IColdEventStore>(),
+	sp.GetRequiredService<IOptionsMonitor<ArchivePolicy>>(),
+	sp.GetService<ITenantContext>(),
+	sp.GetRequiredService<ILogger<ManualArchiveRunner>>()));
 
 // Audit pipeline — IAmAuditable commands emit ActivityAudited records via
 // AuditMiddleware into the in-memory store (swap for production publisher).
@@ -77,8 +89,8 @@ builder.Services.AddExcalibur(excalibur =>
 		// 30-90 day range.
 		es.UseTieredStorage(policy =>
 		{
-			policy.MaxAge            = TimeSpan.FromMinutes(1);
-			policy.MaxPosition       = 10_000_000;
+			policy.MaxAge = TimeSpan.FromMinutes(1);
+			policy.MaxPosition = 10_000_000;
 			policy.RetainRecentCount = 5;
 		});
 
@@ -89,8 +101,8 @@ builder.Services.AddExcalibur(excalibur =>
 				es.UseAwsS3ColdEventStore(s3 =>
 				{
 					s3.BucketName(builder.Configuration["AwsS3:BucketName"] ?? "excalibur-cold-events")
-					  .KeyPrefix(builder.Configuration["AwsS3:KeyPrefix"] ?? "events/")
-					  .Region(builder.Configuration["AwsS3:Region"] ?? "us-east-1");
+	.KeyPrefix(builder.Configuration["AwsS3:KeyPrefix"] ?? "events/")
+	.Region(builder.Configuration["AwsS3:Region"] ?? "us-east-1");
 				});
 				break;
 
@@ -98,9 +110,9 @@ builder.Services.AddExcalibur(excalibur =>
 				es.UseAzureBlobColdEventStore(blob =>
 				{
 					blob.ConnectionString(builder.Configuration.GetConnectionString("AzureBlob")
-						?? "UseDevelopmentStorage=true")
-					   .ContainerName(builder.Configuration["AzureBlob:ContainerName"] ?? "cold-events")
-					   .CreateContainerIfNotExists();
+	 ?? "UseDevelopmentStorage=true")
+	.ContainerName(builder.Configuration["AzureBlob:ContainerName"] ?? "cold-events")
+	.CreateContainerIfNotExists();
 				});
 				break;
 
@@ -108,8 +120,8 @@ builder.Services.AddExcalibur(excalibur =>
 				es.UseGcsColdEventStore(gcs =>
 				{
 					gcs.ProjectId(builder.Configuration["Gcs:ProjectId"] ?? "my-gcp-project")
-					   .BucketName(builder.Configuration["Gcs:BucketName"] ?? "excalibur-cold-events")
-					   .ObjectPrefix(builder.Configuration["Gcs:ObjectPrefix"] ?? "events/");
+	.BucketName(builder.Configuration["Gcs:BucketName"] ?? "excalibur-cold-events")
+	.ObjectPrefix(builder.Configuration["Gcs:ObjectPrefix"] ?? "events/");
 
 					var credsPath = builder.Configuration["Gcs:CredentialsPath"];
 					if (!string.IsNullOrEmpty(credsPath))
@@ -121,7 +133,7 @@ builder.Services.AddExcalibur(excalibur =>
 
 			default:
 				throw new InvalidOperationException(
-					$"Unknown PROVIDER='{provider}'. Use aws, azure, or gcs.");
+				$"Unknown PROVIDER='{provider}'. Use aws, azure, or gcs.");
 		}
 	});
 });
@@ -135,23 +147,23 @@ app.MapGet("/", () => Results.Text(
 	Current provider: {{provider.ToUpperInvariant()}}
 
 	Switch provider:
-	  PROVIDER=aws   dotnet run
-	  PROVIDER=azure dotnet run
-	  PROVIDER=gcs   dotnet run
+	PROVIDER=aws dotnet run
+	PROVIDER=azure dotnet run
+	PROVIDER=gcs dotnet run
 
 	Hot/cold flow (tiered storage):
-	  POST /orders                            create an order (returns id)
-	  POST /orders/{id}/events?count=N        append N note events to the order
-	  POST /archive-cycle?batchSize=10        force one archive cycle (hot -> cold)
-	  GET  /orders/{id}                       rehydrate the order (stitches hot+cold)
+	POST /orders create an order (returns id)
+	POST /orders/{id}/events?count=N append N note events to the order
+	POST /archive-cycle?batchSize=10 force one archive cycle (hot -> cold)
+	GET /orders/{id} rehydrate the order (stitches hot+cold)
 
 	Try:
-	  curl -X POST http://localhost:5000/orders
-	  curl -X POST http://localhost:5000/orders/<id>/events?count=20
-	  curl -X POST http://localhost:5000/archive-cycle?batchSize=10
-	  curl http://localhost:5000/orders/<id>
+	curl -X POST http://localhost:5000/orders
+	curl -X POST http://localhost:5000/orders/<id>/events?count=20
+	curl -X POST http://localhost:5000/archive-cycle?batchSize=10
+	curl http://localhost:5000/orders/<id>
 
-	  GET /health
+	GET /health
 	"""));
 
 app.MapGet("/health", () => Results.Ok(new { status = "running", provider }));
@@ -163,11 +175,11 @@ app.MapPost("/orders", async (IDispatcher dispatcher, CancellationToken ct) =>
 {
 	var command = new CreateOrderCommand(Guid.NewGuid());
 	var result = await dispatcher
-		.DispatchAsync<CreateOrderCommand, Guid>(command, ct)
-		.ConfigureAwait(false);
+.DispatchAsync<CreateOrderCommand, Guid>(command, ct)
+.ConfigureAwait(false);
 	return result.Succeeded
-		? Results.Created($"/orders/{result.ReturnValue}", new { OrderId = result.ReturnValue })
-		: Results.Problem(detail: result.ErrorMessage, statusCode: 500);
+ ? Results.Created($"/orders/{result.ReturnValue}", new { OrderId = result.ReturnValue })
+: Results.Problem(detail: result.ErrorMessage, statusCode: 500);
 });
 
 // ----------------------------------------------------------------------------
@@ -186,11 +198,11 @@ app.MapPost("/orders/{id:guid}/events", async (
 		Count = effectiveCount,
 	};
 	var result = await dispatcher
-		.DispatchAsync<AppendOrderNotesCommand, int>(command, ct)
-		.ConfigureAwait(false);
+.DispatchAsync<AppendOrderNotesCommand, int>(command, ct)
+.ConfigureAwait(false);
 	return result.Succeeded
-		? Results.Ok(new { OrderId = id, AppendedCount = effectiveCount, TotalNotes = result.ReturnValue })
-		: Results.Problem(detail: result.ErrorMessage, statusCode: 500);
+ ? Results.Ok(new { OrderId = id, AppendedCount = effectiveCount, TotalNotes = result.ReturnValue })
+: Results.Problem(detail: result.ErrorMessage, statusCode: 500);
 });
 
 // ----------------------------------------------------------------------------
@@ -216,8 +228,8 @@ app.MapGet("/orders/{id:guid}", async (
 {
 	var order = await repository.GetByIdAsync(id, ct).ConfigureAwait(false);
 	return order is null
-		? Results.NotFound()
-		: Results.Ok(new { order.Id, NoteCount = order.Notes.Count, Notes = order.Notes });
+ ? Results.NotFound()
+: Results.Ok(new { order.Id, NoteCount = order.Notes.Count, Notes = order.Notes });
 });
 
 // Audit trail — one record per IAmAuditable dispatch through IDispatcher.

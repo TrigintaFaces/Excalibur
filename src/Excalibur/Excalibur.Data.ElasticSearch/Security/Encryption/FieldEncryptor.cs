@@ -234,7 +234,8 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			var encryptedData = await PerformEncryptionAsync(
 				plaintextBytes,
 				keyData ?? throw new InvalidOperationException($"Key provider returned null for encryption key '{keyName}'."),
-				algorithm).ConfigureAwait(false);
+				algorithm,
+				BuildFieldAssociatedData(fieldName, keyVersion, algorithm, classification)).ConfigureAwait(false);
 
 			var result = new EncryptedFieldResult(
 				Convert.ToBase64String(encryptedData.EncryptedBytes),
@@ -313,7 +314,13 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			var iv = Convert.FromBase64String(encryptedField.InitializationVector!);
 			var authTag = Convert.FromBase64String(encryptedField.AuthenticationTag!);
 
-			var decryptedBytes = await PerformDecryptionAsync(encryptedBytes, keyData, iv, authTag, encryptedField.Algorithm)
+			var decryptedBytes = await PerformDecryptionAsync(
+					encryptedBytes,
+					keyData,
+					iv,
+					authTag,
+					encryptedField.Algorithm,
+					BuildFieldAssociatedData(fieldName, encryptedField.KeyVersion, encryptedField.Algorithm, encryptedField.Classification))
 				.ConfigureAwait(false);
 			var decryptedJson = Encoding.UTF8.GetString(decryptedBytes);
 			var decryptedValue = JsonSerializer.Deserialize<object>(decryptedJson);
@@ -511,13 +518,13 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <exception cref="NotSupportedException"></exception>
 	/// <exception cref="SecurityException"></exception>
 	private static async Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> PerformEncryptionAsync(
-		byte[] plaintext, string keyData, string algorithm)
+		byte[] plaintext, string keyData, string algorithm, byte[] associatedData)
 	{
 		var key = Convert.FromBase64String(keyData);
 
 		return algorithm.ToUpperInvariant() switch
 		{
-			"AES-256-GCM" or "AES-192-GCM" or "AES-128-GCM" => await EncryptAesGcmAsync(plaintext, key).ConfigureAwait(false),
+			"AES-256-GCM" or "AES-192-GCM" or "AES-128-GCM" => await EncryptAesGcmAsync(plaintext, key, associatedData).ConfigureAwait(false),
 			_ => throw new SecurityException($"Unsupported encryption algorithm: {algorithm}"),
 		};
 	}
@@ -525,7 +532,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Performs AES-GCM encryption with authenticated encryption.
 	/// </summary>
-	private static Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> EncryptAesGcmAsync(byte[] plaintext, byte[] key)
+	private static Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> EncryptAesGcmAsync(byte[] plaintext, byte[] key, byte[] associatedData)
 	{
 		using var aes = new AesGcm(key, 16); // 128-bit tag size
 		var iv = new byte[12]; // 96-bit IV for GCM
@@ -534,10 +541,29 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 		RandomNumberGenerator.Fill(iv);
 
-		aes.Encrypt(iv, plaintext, ciphertext, authTag);
+		// Bind the field's crypto context (fieldName|keyVersion|algorithm|classification) as AES-GCM Associated
+		// Authenticated Data. The AAD is authenticated but not encrypted; decryption with a different context
+		// fails the auth tag — preventing ciphertext-swapping between fields (e.g. moving an encrypted salary
+		// blob into a notes field and decrypting it).
+		aes.Encrypt(iv, plaintext, ciphertext, authTag, associatedData);
 
 		return Task.FromResult((ciphertext, iv, authTag));
 	}
+
+	/// <summary>
+	/// Builds the canonical AES-GCM Associated Authenticated Data for a field, byte-identical on encrypt and
+	/// decrypt. The unit-separator (0x1F) delimiter cannot collide with any UTF-8 field name, key version, or
+	/// algorithm string, so the four-component context is unambiguously encoded.
+	/// </summary>
+	private static byte[] BuildFieldAssociatedData(
+		string fieldName,
+		string keyVersion,
+		string algorithm,
+		ElasticSearchDataClassification classification) =>
+		Encoding.UTF8.GetBytes(
+			string.Create(
+				System.Globalization.CultureInfo.InvariantCulture,
+				$"{fieldName}{keyVersion}{algorithm}{(int)classification}"));
 
 	/// <summary>
 	/// Performs the actual decryption operation using the specified algorithm.
@@ -545,13 +571,13 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <exception cref="NotSupportedException"></exception>
 	/// <exception cref="SecurityException"></exception>
 	private static async Task<byte[]> PerformDecryptionAsync(
-		byte[] ciphertext, string keyData, byte[] iv, byte[] authTag, string algorithm)
+		byte[] ciphertext, string keyData, byte[] iv, byte[] authTag, string algorithm, byte[] associatedData)
 	{
 		var key = Convert.FromBase64String(keyData);
 
 		return algorithm.ToUpperInvariant() switch
 		{
-			"AES-256-GCM" or "AES-192-GCM" or "AES-128-GCM" => await DecryptAesGcmAsync(ciphertext, key, iv, authTag).ConfigureAwait(false),
+			"AES-256-GCM" or "AES-192-GCM" or "AES-128-GCM" => await DecryptAesGcmAsync(ciphertext, key, iv, authTag, associatedData).ConfigureAwait(false),
 			_ => throw new SecurityException($"Unsupported encryption algorithm: {algorithm}"),
 		};
 	}
@@ -559,12 +585,14 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Performs AES-GCM decryption with authentication verification.
 	/// </summary>
-	private static Task<byte[]> DecryptAesGcmAsync(byte[] ciphertext, byte[] key, byte[] iv, byte[] authTag)
+	private static Task<byte[]> DecryptAesGcmAsync(byte[] ciphertext, byte[] key, byte[] iv, byte[] authTag, byte[] associatedData)
 	{
 		using var aes = new AesGcm(key, 16); // 128-bit tag size
 		var plaintext = new byte[ciphertext.Length];
 
-		aes.Decrypt(iv, ciphertext, authTag, plaintext);
+		// The AAD must be byte-identical to the value bound at encryption; a mismatch (tampered key
+		// version/classification, or a field-swapped ciphertext) fails the auth tag and throws.
+		aes.Decrypt(iv, ciphertext, authTag, plaintext, associatedData);
 
 		return Task.FromResult(plaintext);
 	}
@@ -710,13 +738,13 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 		return patterns;
 	}
 
-	/// <summary>
-	/// Performs scheduled key rotation for all data classification levels.
-	/// </summary>
 	/// <summary>Clamps a timer interval to <see cref="System.Threading.Timer"/>'s maximum dueTime to avoid overflow.</summary>
 	private static TimeSpan ClampToTimerMax(TimeSpan interval) =>
 		interval > MaxTimerInterval ? MaxTimerInterval : interval;
 
+	/// <summary>
+	/// Performs scheduled key rotation for all data classification levels.
+	/// </summary>
 	private void PerformScheduledKeyRotation(object? state)
 	{
 		if (_disposed)

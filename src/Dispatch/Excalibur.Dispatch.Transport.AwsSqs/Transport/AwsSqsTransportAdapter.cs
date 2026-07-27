@@ -533,6 +533,20 @@ internal sealed class AwsSqsTransportAdapterOptions
 	/// </summary>
 	/// <value>The provisioning options. Provisioning is disabled by default.</value>
 	public AwsSqsProvisioningOptions Provisioning { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at both SQS ingress surfaces
+	/// (receiver and subscriber) before the body is materialized/deserialized.
+	/// </summary>
+	/// <value>
+	/// The maximum inbound-payload length in bytes, or <see langword="null"/> to opt out (unbounded).
+	/// Defaults to the SQS provider ceiling of 256 KiB.
+	/// </value>
+	[System.ComponentModel.DataAnnotations.Range(1, int.MaxValue)]
+	public int? MaxPayloadBytes { get; set; } = SqsMaxPayloadBytes;
+
+	/// <summary>The SQS provider message-size ceiling (256 KiB), used as the default ingress payload limit.</summary>
+	internal const int SqsMaxPayloadBytes = 256 * 1024;
 }
 
 /// <summary>

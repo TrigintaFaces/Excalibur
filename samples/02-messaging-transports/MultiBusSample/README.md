@@ -84,10 +84,34 @@ The sample uses the outbox and inbox patterns for reliable messaging:
 
 ```csharp
 builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 ```
+
+### Per-Transport Keyed Seam (advanced)
+
+Most messages flow through the routing rules above. When you need low-level access to one specific
+transport — a custom relay, a health probe, or a one-off publish outside the routing rules — resolve
+that transport's `ITransportSender` directly, keyed by the name you registered it under:
+
+```csharp
+using Excalibur.Dispatch.Transport;
+using Microsoft.Extensions.DependencyInjection;
+
+// "rabbitmq" is the name passed to AddRabbitMQTransport("rabbitmq", …).
+var rabbitSender = host.Services.GetRequiredKeyedService<ITransportSender>("rabbitmq");
+
+var healthPing = TransportMessage.FromString("health-ping");
+healthPing.Subject = "multibus.health";
+
+var result = await rabbitSender.SendAsync(healthPing, cancellationToken: default);
+await rabbitSender.FlushAsync(cancellationToken: default);
+```
+
+Every transport package registers a keyed `ITransportSender` (and `ITransportReceiver`) under its name.
+See [Per-Transport Extension Point](../../../docs-site/docs/transports/keyed-transport-seam.md) for the
+full contract and when to reach for it.
 
 ## Project Structure
 

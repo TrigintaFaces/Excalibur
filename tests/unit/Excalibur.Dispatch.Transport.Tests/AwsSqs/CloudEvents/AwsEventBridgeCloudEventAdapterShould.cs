@@ -33,15 +33,30 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 
 		_adapter = new AwsEventBridgeCloudEventAdapter(
 			options,
+			EventBridgeOptions(),
 			NullLogger<AwsEventBridgeCloudEventAdapter>.Instance);
 	}
+
+	private static IOptions<AwsEventBridgeCloudEventOptions> EventBridgeOptions(
+		AwsEventBridgeCloudEventOptions? value = null) =>
+		Microsoft.Extensions.Options.Options.Create(value ?? new AwsEventBridgeCloudEventOptions());
 
 	[Fact]
 	public void ThrowWhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new AwsEventBridgeCloudEventAdapter(
-				null!, NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
+				null!, EventBridgeOptions(), NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
+	}
+
+	[Fact]
+	public void ThrowWhenEventBridgeOptionsIsNull()
+	{
+		var options = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
+
+		Should.Throw<ArgumentNullException>(() =>
+			new AwsEventBridgeCloudEventAdapter(
+				options, null!, NullLogger<AwsEventBridgeCloudEventAdapter>.Instance));
 	}
 
 	[Fact]
@@ -50,7 +65,48 @@ public sealed class AwsEventBridgeCloudEventAdapterShould
 		var options = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
 
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsEventBridgeCloudEventAdapter(options, null!));
+			new AwsEventBridgeCloudEventAdapter(options, EventBridgeOptions(), null!));
+	}
+
+	[Fact]
+	public async Task HonorConfiguredEventBusName_OnSend()
+	{
+		var adapter = new AwsEventBridgeCloudEventAdapter(
+			Microsoft.Extensions.Options.Options.Create(new CloudEventOptions
+			{
+				DefaultSource = new Uri("https://test.excalibur.io"),
+			}),
+			EventBridgeOptions(new AwsEventBridgeCloudEventOptions { EventBusName = "orders-bus" }),
+			NullLogger<AwsEventBridgeCloudEventAdapter>.Instance);
+
+		var cloudEvent = new CloudEvent
+		{
+			Type = "order.created",
+			Source = new Uri("https://test.excalibur.io"),
+			Id = "evt-1",
+		};
+
+		var entry = await adapter.ToTransportMessageAsync(cloudEvent, CloudEventMode.Structured, TestContext.Current.CancellationToken);
+
+		entry.EventBusName.ShouldBe("orders-bus");
+	}
+
+	[Fact]
+	public async Task PreserveCustomExtensionAttributes_AcrossRoundTrip()
+	{
+		var cloudEvent = new CloudEvent
+		{
+			Type = "order.created",
+			Source = new Uri("https://test.excalibur.io"),
+			Id = "evt-2",
+		};
+		cloudEvent["tenantid"] = "acme";
+
+		var ct = TestContext.Current.CancellationToken;
+		var entry = await _adapter.ToTransportMessageAsync(cloudEvent, CloudEventMode.Structured, ct);
+		var restored = await _adapter.FromTransportMessageAsync(entry, ct);
+
+		restored["tenantid"].ShouldBe("acme");
 	}
 
 	[Fact]

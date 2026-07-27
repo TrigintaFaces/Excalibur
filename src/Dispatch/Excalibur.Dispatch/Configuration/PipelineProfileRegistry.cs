@@ -16,6 +16,7 @@ namespace Excalibur.Dispatch.Configuration;
 internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 {
 	private readonly ConcurrentDictionary<string, IPipelineProfile> _profiles = new(StringComparer.Ordinal);
+	private volatile string? _defaultProfileName;
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
 
 	/// <summary>
@@ -197,7 +198,15 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		{
 			throw new InvalidOperationException($"Profile '{profileName}' is not registered");
 		}
+
+		_defaultProfileName = profileName;
 	}
+
+	/// <inheritdoc />
+	public string? GetDefaultProfileName() =>
+		_defaultProfileName ?? (_profiles.ContainsKey(DefaultPipelineProfiles.Default)
+			? DefaultPipelineProfiles.Default
+			: null);
 
 	private void RegisterDefaultProfiles()
 	{

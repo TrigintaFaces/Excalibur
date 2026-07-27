@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.Postgres;
@@ -61,10 +62,10 @@ public sealed class PostgresSagaRequestSqlInjectionGuardShould
 		var options = OptionsWith(schema, tableName);
 
 		_ = Should.Throw<ArgumentException>(() =>
-			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, CancellationToken.None));
+			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, TenantScope.None, CancellationToken.None));
 
 		_ = Should.Throw<ArgumentException>(() =>
-			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, CancellationToken.None));
+			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, TenantScope.None, CancellationToken.None));
 	}
 
 	[Theory]
@@ -75,10 +76,10 @@ public sealed class PostgresSagaRequestSqlInjectionGuardShould
 		var options = OptionsWith(schema, tableName);
 
 		Should.NotThrow(() =>
-			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, CancellationToken.None));
+			new LoadSagaRequest<TestSagaState>(Guid.NewGuid(), options, Serializer, TenantScope.None, CancellationToken.None));
 
 		Should.NotThrow(() =>
-			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, CancellationToken.None));
+			new SaveSagaRequest<TestSagaState>(CreateTestState(), options, Serializer, TenantScope.None, CancellationToken.None));
 	}
 
 	private static TestSagaState CreateTestState() => new()

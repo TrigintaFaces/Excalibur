@@ -173,9 +173,10 @@ public sealed class IAggregateQueryShould
 		{
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
-			// No-op for test purposes
+			// Recognizes no events (totality: unhandled event => false).
+			return false;
 		}
 	}
 

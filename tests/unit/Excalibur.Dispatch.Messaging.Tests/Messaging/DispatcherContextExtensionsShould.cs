@@ -73,10 +73,11 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 	}
 
 	/// <summary>
-	/// Verifies that DispatchAsync reuses the current ambient context when one exists.
+	/// Verifies that a context-free DispatchAsync issued under an ambient context auto-childs:
+	/// a distinct context whose CausationId links to the parent, with correlation propagated.
 	/// </summary>
 	[Fact]
-	public async Task DispatchAsync_Should_Reuse_Ambient_Context_When_Available()
+	public async Task DispatchAsync_Should_AutoChild_Under_Ambient_Context()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
@@ -96,8 +97,10 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Act — call extension method explicitly to avoid interface method shadowing
 		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None);
 
-		// Assert
-		capturedContext.ShouldBe(ambientContext);
+		// Assert — a child, NOT the ambient instance: causation linked to the parent, correlation propagated.
+		_ = capturedContext.ShouldNotBeNull();
+		capturedContext.ShouldNotBeSameAs(ambientContext);
+		capturedContext.CausationId.ShouldBe(ambientContext.MessageId);
 		capturedContext.CorrelationId.ShouldBe("ambient-correlation-123");
 	}
 
@@ -134,10 +137,11 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 	}
 
 	/// <summary>
-	/// Verifies that DispatchAsync with response reuses ambient context when available.
+	/// Verifies that a context-free DispatchAsync-with-response issued under an ambient context auto-childs:
+	/// a distinct context whose CausationId links to the parent, with correlation propagated.
 	/// </summary>
 	[Fact]
-	public async Task DispatchAsync_With_Response_Should_Reuse_Ambient_Context()
+	public async Task DispatchAsync_With_Response_Should_AutoChild_Under_Ambient_Context()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchAction<int>>();
@@ -157,8 +161,11 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Act
 		var result = await _dispatcher.DispatchAsync<IDispatchAction<int>, int>(message, CancellationToken.None);
 
-		// Assert
-		capturedContext.ShouldBe(ambientContext);
+		// Assert — a child, NOT the ambient instance: causation linked to the parent, correlation propagated.
+		_ = capturedContext.ShouldNotBeNull();
+		capturedContext.ShouldNotBeSameAs(ambientContext);
+		capturedContext.CausationId.ShouldBe(ambientContext.MessageId);
+		capturedContext.CorrelationId.ShouldBe("ambient-456");
 		result.ReturnValue.ShouldBe(42);
 	}
 
@@ -245,13 +252,13 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 	#endregion
 
-	#region Sprint 70 - DispatchChildAsync Tests
+	#region Context-free auto-child dispatch tests
 
 	/// <summary>
-	/// Verifies that DispatchChildAsync creates a child context from the ambient context.
+	/// Verifies that a context-free DispatchAsync auto-childs from the ambient context.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_Should_Create_Child_Context_From_Ambient()
+	public async Task DispatchAsync_ContextFree_AutoChilds_From_Ambient()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
@@ -277,7 +284,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = parentContext;
 
 		// Act
-		_ = await _dispatcher.DispatchChildAsync(message, CancellationToken.None);
+		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None);
 
 		// Assert - Child context should be different but with propagated identifiers
 		_ = capturedContext.ShouldNotBeNull();
@@ -289,44 +296,70 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 	}
 
 	/// <summary>
-	/// Verifies that DispatchChildAsync throws InvalidOperationException when no ambient context exists.
+	/// Verifies that a context-free DispatchAsync starts a fresh root (does NOT throw) when no ambient context exists.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_Should_Throw_When_No_Ambient_Context()
+	public async Task DispatchAsync_ContextFree_CreatesFreshRoot_When_No_Ambient_Context()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
+		IMessageContext? capturedContext = null;
+
+		// Configure dispatcher to return null ServiceProvider so fallback path is used
+		_ = A.CallTo(() => _dispatcher.ServiceProvider).Returns(null);
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync(
+				message,
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Invokes((IDispatchMessage _, IMessageContext ctx, CancellationToken _) => capturedContext = ctx)
+			.Returns(MessageResult.Success());
+
 		MessageContextHolder.Current = null;
 
-		// Act & Assert
-		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await _dispatcher.DispatchChildAsync(message, CancellationToken.None));
+		// Act & Assert — no ambient context starts a fresh root; must NOT throw.
+		await Should.NotThrowAsync(
+			() => DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None));
 
-		exception.Message.ShouldContain("Cannot dispatch child message without an active context");
+		_ = capturedContext.ShouldNotBeNull();
 	}
 
 	/// <summary>
-	/// Verifies that DispatchChildAsync with response throws when no ambient context.
+	/// Verifies that a context-free DispatchAsync-with-response starts a fresh root (does NOT throw) when no ambient context.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_With_Response_Should_Throw_When_No_Ambient_Context()
+	public async Task DispatchAsync_ContextFree_WithResponse_CreatesFreshRoot_When_No_Ambient_Context()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchAction<string>>();
+		IMessageContext? capturedContext = null;
+
+		// Configure dispatcher to return null ServiceProvider so fallback path is used
+		_ = A.CallTo(() => _dispatcher.ServiceProvider).Returns(null);
+
+		_ = A.CallTo(() => _dispatcher.DispatchAsync<IDispatchAction<string>, string>(
+				message,
+				A<IMessageContext>._,
+				A<CancellationToken>._))
+			.Invokes((IDispatchAction<string> _, IMessageContext ctx, CancellationToken _) => capturedContext = ctx)
+			.Returns(MessageResult.Success("root-result"));
+
 		MessageContextHolder.Current = null;
 
-		// Act & Assert
-		var exception = await Should.ThrowAsync<InvalidOperationException>(
-			async () => await _dispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None));
+		// Act — no ambient context starts a fresh root; a direct call must NOT throw (an unexpected
+		// throw fails the test), unlike the retired DispatchChildAsync which threw here.
+		var result = await _dispatcher.DispatchAsync<IDispatchAction<string>, string>(message, CancellationToken.None);
 
-		exception.Message.ShouldContain("Cannot dispatch child action without an active context");
+		// Assert
+		_ = capturedContext.ShouldNotBeNull();
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	/// <summary>
-	/// Verifies that DispatchChildAsync with response creates proper child context.
+	/// Verifies that a context-free DispatchAsync-with-response auto-childs from the ambient context.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_With_Response_Should_Create_Child_Context()
+	public async Task DispatchAsync_ContextFree_WithResponse_AutoChilds()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchAction<string>>();
@@ -352,7 +385,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = parentContext;
 
 		// Act
-		var result = await _dispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None);
+		var result = await _dispatcher.DispatchAsync<IDispatchAction<string>, string>(message, CancellationToken.None);
 
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
@@ -363,10 +396,10 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 	}
 
 	/// <summary>
-	/// Verifies that DispatchChildAsync preserves parent identifiers and creates the expected causation chain.
+	/// Verifies that a context-free auto-child DispatchAsync preserves parent identifiers and creates the expected causation chain.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_Should_Preserve_Parent_And_Set_Expected_Causation_Chain()
+	public async Task DispatchAsync_ContextFree_AutoChild_Preserves_Parent_And_Sets_Causation_Chain()
 	{
 		// Arrange.
 		var message = A.Fake<IDispatchMessage>();
@@ -391,7 +424,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		MessageContextHolder.Current = parentContext;
 
 		// Act.
-		_ = await _dispatcher.DispatchChildAsync(message, CancellationToken.None);
+		_ = await DispatcherContextExtensions.DispatchAsync(_dispatcher, message, CancellationToken.None);
 
 		// Assert.
 		_ = capturedContext.ShouldNotBeNull();
@@ -514,10 +547,10 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 	}
 
 	/// <summary>
-	/// Verifies that DispatchChildAsync throws ArgumentNullException when dispatcher is null.
+	/// Verifies that the context-free DispatchAsync throws ArgumentNullException when dispatcher is null.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_Should_Throw_When_Dispatcher_Is_Null()
+	public async Task DispatchAsync_ContextFree_Should_Throw_When_Dispatcher_Is_Null()
 	{
 		// Arrange
 		IDispatcher? nullDispatcher = null;
@@ -526,25 +559,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await nullDispatcher.DispatchChildAsync(message, CancellationToken.None));
-
-		exception.ParamName.ShouldBe("dispatcher");
-	}
-
-	/// <summary>
-	/// Verifies that DispatchChildAsync with response throws ArgumentNullException when dispatcher is null.
-	/// </summary>
-	[Fact]
-	public async Task DispatchChildAsync_With_Response_Should_Throw_When_Dispatcher_Is_Null()
-	{
-		// Arrange
-		IDispatcher? nullDispatcher = null;
-		var message = A.Fake<IDispatchAction<string>>();
-		MessageContextHolder.Current = new MessageContext();
-
-		// Act & Assert
-		var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await nullDispatcher.DispatchChildAsync<IDispatchAction<string>, string>(message, CancellationToken.None));
+			async () => await DispatcherContextExtensions.DispatchAsync(nullDispatcher!, message, CancellationToken.None));
 
 		exception.ParamName.ShouldBe("dispatcher");
 	}
@@ -636,10 +651,10 @@ IDispatchAction<Guid> action = message;
 	}
 
 	/// <summary>
-	/// Verifies that the TResponse-inferring DispatchChildAsync convenience overload works correctly.
+	/// Verifies that the TResponse-inferring context-free DispatchAsync auto-childs correctly under an ambient parent.
 	/// </summary>
 	[Fact]
-	public async Task DispatchChildAsync_InferredTResponse_Should_Dispatch_Correctly()
+	public async Task DispatchAsync_ContextFree_InferredTResponse_AutoChilds_Correctly()
 	{
 		// Arrange
 		var message = new TestCreateOrderCommand { OrderName = "Child" };
@@ -660,7 +675,7 @@ IDispatchAction<Guid> action = message;
 
 		// Act
 IDispatchAction<Guid> action = message;
-		var result = await DispatcherContextExtensions.DispatchChildAsync(_dispatcher, action, CancellationToken.None);
+		var result = await DispatcherContextExtensions.DispatchAsync(_dispatcher, action, CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(expectedResult);
@@ -694,22 +709,6 @@ var exception = await Should.ThrowAsync<ArgumentNullException>(
 				_dispatcher, message, (IMessageContext)null!, CancellationToken.None));
 
 		exception.ParamName.ShouldBe("context");
-	}
-
-	/// <summary>
-	/// Verifies that DispatchChildAsync with inferred TResponse throws when dispatcher is null.
-	/// </summary>
-	[Fact]
-	public async Task DispatchChildAsync_InferredTResponse_Should_Throw_When_Dispatcher_Is_Null()
-	{
-		IDispatcher? nullDispatcher = null;
-		IDispatchAction<Guid> message = new TestCreateOrderCommand();
-		MessageContextHolder.Current = new MessageContext();
-
-var exception = await Should.ThrowAsync<ArgumentNullException>(
-			async () => await DispatcherContextExtensions.DispatchChildAsync(nullDispatcher!, message, CancellationToken.None));
-
-		exception.ParamName.ShouldBe("dispatcher");
 	}
 
 	/// <summary>

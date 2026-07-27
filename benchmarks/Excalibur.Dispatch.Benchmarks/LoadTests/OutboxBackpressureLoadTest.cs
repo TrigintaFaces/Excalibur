@@ -59,9 +59,12 @@ public class OutboxBackpressureLoadTest
 		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerOutboxOptions
 		{
 			ConnectionString = _connectionString,
-			SchemaName = "dbo",
-			OutboxTableName = "OutboxMessages",
-			TransportsTableName = "OutboxMessageTransports",
+			Tables =
+			{
+				SchemaName = "dbo",
+				OutboxTableName = "OutboxMessages",
+				TransportsTableName = "OutboxMessageTransports",
+			},
 		});
 		var logger = NullLoggerFactory.Instance.CreateLogger<SqlServerOutboxStore>();
 		_outboxStore = new SqlServerOutboxStore(options, logger);
@@ -183,6 +186,7 @@ public class OutboxBackpressureLoadTest
 					[ErrorMessage] NVARCHAR(MAX) NULL,
 					[RetryCount] INT NOT NULL DEFAULT 0,
 					[NextRetryAt] DATETIMEOFFSET NULL,
+					[TenantId] NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
 					[Status] INT NOT NULL DEFAULT 0,
 					[ScheduledAt] DATETIMEOFFSET NULL,
 					[AggregateId] NVARCHAR(200) NULL,

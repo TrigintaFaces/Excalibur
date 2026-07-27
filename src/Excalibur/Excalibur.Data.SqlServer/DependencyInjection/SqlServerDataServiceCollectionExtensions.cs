@@ -7,10 +7,12 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.SqlServer.ErrorHandling;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -71,7 +73,15 @@ public static class SqlServerDataServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterOptions>, SqlServerDeadLetterOptionsValidator>());
 
 		// Register dead letter store (uses IOptions pattern via DI)
-		services.TryAddSingleton<SqlServerDeadLetterStore>();
+		// Built by an explicit factory rather than by type activation: the store's ITenantContext is
+		// OPTIONAL, and type activation demands every constructor parameter be resolvable, so a
+		// single-tenant host that registers no tenant context would fail at resolve time for a supported
+		// registration shape. GetService yields null there, which the store reads as the untenanted
+		// partition — a concrete tenant term, not an absent one.
+		services.TryAddSingleton(sp => new SqlServerDeadLetterStore(
+			sp.GetRequiredService<IOptions<SqlServerDeadLetterOptions>>(),
+			sp.GetService<ITenantContext>(),
+			sp.GetRequiredService<ILogger<SqlServerDeadLetterStore>>()));
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
 		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
 
@@ -104,7 +114,15 @@ public static class SqlServerDataServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerDeadLetterOptions>, SqlServerDeadLetterOptionsValidator>());
 
 		// Register dead letter store (uses IOptions pattern via DI)
-		services.TryAddSingleton<SqlServerDeadLetterStore>();
+		// Built by an explicit factory rather than by type activation: the store's ITenantContext is
+		// OPTIONAL, and type activation demands every constructor parameter be resolvable, so a
+		// single-tenant host that registers no tenant context would fail at resolve time for a supported
+		// registration shape. GetService yields null there, which the store reads as the untenanted
+		// partition — a concrete tenant term, not an absent one.
+		services.TryAddSingleton(sp => new SqlServerDeadLetterStore(
+			sp.GetRequiredService<IOptions<SqlServerDeadLetterOptions>>(),
+			sp.GetService<ITenantContext>(),
+			sp.GetRequiredService<ILogger<SqlServerDeadLetterStore>>()));
 		services.TryAddSingleton<IDeadLetterStore>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
 		services.TryAddSingleton<IDeadLetterStoreAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterStore>());
 

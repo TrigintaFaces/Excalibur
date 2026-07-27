@@ -164,9 +164,8 @@ public sealed class TransactionalOutboxWriterShould : UnitTestBase
 		// Act
 		await _sut.WriteAsync(message, "orders-topic", CancellationToken.None);
 
-		// Assert -- destination must be set in context before EnqueueAsync
-		_messageContext.Items.ShouldContainKey("OutboxDestination");
-		_messageContext.Items["OutboxDestination"].ShouldBe("orders-topic");
+		// Assert -- destination must be set in context (canonical slot) before EnqueueAsync
+		_messageContext.GetDestination().ShouldBe("orders-topic");
 	}
 
 	[Fact]
@@ -180,7 +179,7 @@ public sealed class TransactionalOutboxWriterShould : UnitTestBase
 		await _sut.WriteAsync(message, null, CancellationToken.None);
 
 		// Assert -- null destination should not be stored
-		_messageContext.Items.ShouldNotContainKey("OutboxDestination");
+		_messageContext.GetDestination().ShouldBeNull();
 	}
 
 	[Fact]
@@ -199,9 +198,7 @@ public sealed class TransactionalOutboxWriterShould : UnitTestBase
 			.Invokes(call =>
 			{
 				var ctx = call.GetArgument<IMessageContext>(1)!;
-				capturedDestination = ctx.Items.TryGetValue("OutboxDestination", out var val)
-					? val as string
-					: null;
+				capturedDestination = ctx.GetDestination();
 			});
 
 		// Act

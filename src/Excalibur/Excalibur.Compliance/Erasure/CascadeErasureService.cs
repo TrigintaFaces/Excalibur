@@ -65,13 +65,22 @@ public sealed partial class CascadeErasureService : ICascadeErasureService
 				{
 					Success = true,
 					PrimarySubjectId = subjectId,
-					SubjectsErased = allSubjects.Count,
+					// A dry run performs no erasure; report the planned subjects as scheduled.
+					SubjectsScheduled = allSubjects.Count,
 					RelatedSubjectsErased = allSubjects.Where(s => !string.Equals(s, subjectId, StringComparison.OrdinalIgnoreCase)).ToList(),
 					IsDryRun = true
 				};
 			}
 
-			// Erase each subject
+			// Erase each subject, inspecting the per-subject outcome rather than assuming success.
+			// RequestErasureAsync schedules execution (it does not erase synchronously) and can report
+			// Scheduled / BlockedByLegalHold / Failed — a blocked or failed subject must NOT be counted
+			// as erased, and must surface so callers do not act on a false completion.
+			var scheduledCount = 0;
+			var erasedCount = 0;
+			var blocked = new List<string>();
+			var failed = new List<string>();
+
 			foreach (var subject in allSubjects)
 			{
 				var request = new ErasureRequest
@@ -84,12 +93,44 @@ public sealed partial class CascadeErasureService : ICascadeErasureService
 					LegalBasis = ErasureLegalBasis.DataSubjectRequest
 				};
 
-				await _erasureService.RequestErasureAsync(request, cancellationToken)
+				var outcome = await _erasureService.RequestErasureAsync(request, cancellationToken)
 					.ConfigureAwait(false);
 
-				if (!string.Equals(subject, subjectId, StringComparison.OrdinalIgnoreCase))
+				var isPrimary = string.Equals(subject, subjectId, StringComparison.OrdinalIgnoreCase);
+
+				switch (outcome.Status)
 				{
-					erasedRelated.Add(subject);
+					case ErasureRequestStatus.Completed:
+					case ErasureRequestStatus.PartiallyCompleted:
+						erasedCount++;
+						if (!isPrimary)
+						{
+							erasedRelated.Add(subject);
+						}
+
+						break;
+
+					case ErasureRequestStatus.Pending:
+					case ErasureRequestStatus.Scheduled:
+					case ErasureRequestStatus.InProgress:
+						scheduledCount++;
+						if (!isPrimary)
+						{
+							erasedRelated.Add(subject);
+						}
+
+						break;
+
+					case ErasureRequestStatus.BlockedByLegalHold:
+						blocked.Add(subject);
+						LogCascadeErasureSubjectBlocked(subjectId, subject);
+						break;
+
+					default:
+						// Failed, Cancelled, or any other non-accepting status: not erased.
+						failed.Add(subject);
+						LogCascadeErasureSubjectFailed(subjectId, subject, outcome.Status.ToString());
+						break;
 				}
 			}
 
@@ -97,10 +138,14 @@ public sealed partial class CascadeErasureService : ICascadeErasureService
 
 			return new CascadeErasureResult
 			{
-				Success = true,
+				// Success only when no subject was blocked or failed — never mask an incomplete cascade.
+				Success = blocked.Count == 0 && failed.Count == 0,
 				PrimarySubjectId = subjectId,
-				SubjectsErased = allSubjects.Count,
-				RelatedSubjectsErased = erasedRelated
+				SubjectsErased = erasedCount,
+				SubjectsScheduled = scheduledCount,
+				RelatedSubjectsErased = erasedRelated,
+				BlockedSubjects = blocked,
+				FailedSubjects = failed
 			};
 		}
 		catch (Exception ex)
@@ -169,4 +214,16 @@ public sealed partial class CascadeErasureService : ICascadeErasureService
 		LogLevel.Debug,
 		"Discovered related subject {RelatedSubjectId} from {ParentSubjectId}")]
 	private partial void LogCascadeErasureRelatedSubjectDiscovered(string parentSubjectId, string relatedSubjectId);
+
+	[LoggerMessage(
+		ComplianceEventId.CascadeErasureSubjectBlocked,
+		LogLevel.Warning,
+		"Cascade erasure for {PrimarySubjectId} was blocked for subject {SubjectId} (e.g. legal hold); not erased")]
+	private partial void LogCascadeErasureSubjectBlocked(string primarySubjectId, string subjectId);
+
+	[LoggerMessage(
+		ComplianceEventId.CascadeErasureSubjectFailed,
+		LogLevel.Error,
+		"Cascade erasure for {PrimarySubjectId} did not erase subject {SubjectId} (status {Status})")]
+	private partial void LogCascadeErasureSubjectFailed(string primarySubjectId, string subjectId, string status);
 }

@@ -18,7 +18,7 @@ public sealed class StoreInterfaceContractShould
 	private const int MaxMethodCount = 6; // 5 domain methods + GetService
 
 	[Theory]
-	[InlineData(typeof(IGrantStore), 6)]          // 5 CRUD + GetService (GetAllGrantsAsync filtered/opt-in overloads = 1 logical op)
+	[InlineData(typeof(IGrantStore), 5)]          // 5 CRUD (GetAllGrantsAsync filtered/opt-in overloads = 1 logical op); GetService is now INHERITED from IServiceProvider (Microsoft-idiomatic), not a declared member
 	[InlineData(typeof(IGrantQueryStore), 2)]      // 2 query methods
 	[InlineData(typeof(IActivityGroupStore), 5)]   // 4 CRUD + GetService
 	[InlineData(typeof(IActivityGroupGrantStore), 4)] // 4 bridging methods
@@ -54,11 +54,15 @@ public sealed class StoreInterfaceContractShould
 	[Fact]
 	public void HaveGetServiceEscapeHatch_OnIGrantStore()
 	{
-		// Verify IGrantStore has the GetService pattern
-		var method = typeof(IGrantStore).GetMethod("GetService",
-			BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+		// IGrantStore's capability escape hatch is now the framework contract: it extends IServiceProvider,
+		// so GetService(Type) is inherited (Microsoft-idiomatic) rather than hand-declared. A default
+		// interface method supplies IsInstanceOfType resolution; durable implementors answer for
+		// IDurableGrantStore through it. Assert the inheritance — the strengthened, more robust contract.
+		typeof(IServiceProvider).IsAssignableFrom(typeof(IGrantStore))
+			.ShouldBeTrue("IGrantStore must extend IServiceProvider to expose the GetService(Type) escape hatch");
 
-		method.ShouldNotBeNull("IGrantStore must have a GetService(Type) method");
+		var method = typeof(IServiceProvider).GetMethod("GetService", BindingFlags.Public | BindingFlags.Instance);
+		method.ShouldNotBeNull("IServiceProvider must expose GetService(Type)");
 		method.ReturnType.ShouldBe(typeof(object));
 		method.GetParameters().Length.ShouldBe(1);
 		method.GetParameters()[0].ParameterType.ShouldBe(typeof(Type));

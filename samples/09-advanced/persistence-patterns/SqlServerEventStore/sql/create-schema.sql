@@ -16,8 +16,8 @@
 -- Event Store Table
 -- =====================================================
 -- Stores all domain events for event-sourced aggregates.
--- The combination of AggregateId + AggregateType + Version
--- ensures optimistic concurrency control.
+-- The combination of AggregateId + AggregateType + Version + TenantId
+-- ensures optimistic concurrency control, scoped per tenant.
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
 BEGIN
@@ -27,13 +27,24 @@ BEGIN
         [AggregateId]    NVARCHAR(256)         NOT NULL,
         [AggregateType]  NVARCHAR(256)         NOT NULL,
         [EventType]      NVARCHAR(256)         NOT NULL,
-        [EventData]      VARBINARY(MAX)        NOT NULL,
+        -- MUST be nullable. GDPR erasure tombstones an event by setting EventData to
+        -- NULL while preserving its position in the stream. A NOT NULL column makes
+        -- every erasure fail.
+        [EventData]      VARBINARY(MAX)        NULL,
         [Metadata]       VARBINARY(MAX)        NULL,
         [Version]        BIGINT                NOT NULL,
         [Timestamp]      DATETIMEOFFSET        NOT NULL,
+        -- Tenant discriminator: a component of the stream uniqueness key, so two tenants holding the same
+        -- aggregate identifier occupy separate rows instead of colliding. NOT NULL and no default — the store
+        -- writes a concrete term on every insert (the resolved tenant, or the '__untenanted__' sentinel when
+        -- no tenant context is established), so an untenanted event is a named partition, never a NULL. The
+        -- event store's read/erase paths bind this column unconditionally, so a range operation is never
+        -- un-tenant-bound. Migrating an existing table: backfill absent/NULL rows to '__untenanted__' BEFORE
+        -- the NOT NULL alter, or those rows become unreadable (tenant-bound reads match the sentinel, not NULL).
+        [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2         NOT NULL,
 
         CONSTRAINT [PK_EventStoreEvents] PRIMARY KEY CLUSTERED ([Position]),
-        CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version])
+        CONSTRAINT [UQ_EventStoreEvents_Stream] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
     );
 
     -- Index for loading events by aggregate stream
@@ -62,17 +73,28 @@ BEGIN
         [Data]           VARBINARY(MAX)        NOT NULL,
         [CreatedAt]      DATETIMEOFFSET        NOT NULL,
         [Metadata]       VARBINARY(MAX)        NULL,
+        -- Part of the primary key so two tenants holding the same aggregate identifier occupy
+        -- separate rows instead of overwriting one another. NOT NULL and no default:
+        -- SQL Server forbids a nullable column in a PRIMARY KEY, and the reserved '__untenanted__'
+        -- sentinel is the single-tenant value the store writes explicitly — never NULL, never an empty
+        -- string — so omitting it must fail the INSERT, not silently land in that partition.
+        [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2         NOT NULL,
 
-        CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType])
+        CONSTRAINT [PK_EventStoreSnapshots] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
     );
 
     PRINT 'Created dbo.EventStoreSnapshots table'
 END
 GO
 
--- Outbox table: The unified outbox (dbo.OutboxMessages) is managed by
--- Excalibur.Outbox.SqlServer and is created separately via services.AddExcalibur(x => x.AddOutbox(...)).
--- It is NOT part of the event store schema.
+-- Outbox table: dbo.OutboxMessages is NOT part of the event store schema, and it is
+-- NOT created for you. AddOutbox(...) registers services only -- it runs no DDL. You
+-- must create the table yourself before the first send, or dispatch fails with
+-- "Invalid object name 'dbo.OutboxMessages'".
+--
+-- The outbox DDL is published at docs/patterns/outbox.md. (The reference
+-- script under Excalibur.Outbox.SqlServer/Scripts is a repository artifact -- it is
+-- not included in the NuGet package, so it is not on disk for package consumers.)
 
 -- =====================================================
 -- Sample Queries

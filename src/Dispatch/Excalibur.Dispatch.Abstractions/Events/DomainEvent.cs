@@ -20,41 +20,19 @@ namespace Excalibur.Dispatch;
 ///     .WithCorrelationId(correlationId);
 /// </code>
 /// <para>
-/// <c>AggregateId</c> and <c>Version</c> are set automatically by the framework
-/// in <c>AggregateRoot.RaiseEvent</c>. Consumers should not set these values.
-/// </para>
-/// <para>
 /// Default behavior:
 /// <list type="bullet">
 /// <item><description><see cref="EventId"/>: Auto-generated UUID v7 string for time-ordered uniqueness</description></item>
-/// <item><description><see cref="AggregateId"/>: Empty string (set automatically by <c>AggregateRoot.RaiseEvent</c>)</description></item>
-/// <item><description><see cref="Version"/>: 0 (set automatically by <c>AggregateRoot.RaiseEvent</c>)</description></item>
 /// <item><description><see cref="OccurredAt"/>: UTC timestamp at construction time</description></item>
 /// <item><description><see cref="EventType"/>: Derived type name</description></item>
 /// <item><description><see cref="Metadata"/>: Null (attach via fluent API or infrastructure)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
-public abstract record DomainEvent : IDomainEvent, IEventMetadataWriter
+public abstract record DomainEvent : IDomainEvent
 {
 	/// <inheritdoc/>
 	public virtual string EventId { get; init; } = Uuid7Extensions.GenerateGuid().ToString();
-
-	private string _aggregateId = string.Empty;
-	private long _version;
-
-	/// <inheritdoc/>
-	public virtual string AggregateId { get => _aggregateId; init => _aggregateId = value; }
-
-	/// <inheritdoc/>
-	public virtual long Version { get => _version; init => _version = value; }
-
-	/// <inheritdoc/>
-	void IEventMetadataWriter.SetAggregateMetadata(string aggregateId, long version)
-	{
-		_aggregateId = aggregateId;
-		_version = version;
-	}
 
 	/// <inheritdoc/>
 	public virtual DateTimeOffset OccurredAt { get; init; } = TimeProvider.System.GetUtcNow();

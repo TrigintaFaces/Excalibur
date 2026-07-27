@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Encryption;
 using Excalibur.Compliance.Erasure;
+using Excalibur.Compliance.Erasure.DependencyInjection;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -79,6 +80,7 @@ public static class ErasureServiceCollectionExtensions
 	/// <remarks> This store is NOT suitable for production use. Use AddSqlServerErasureStore for production deployments. </remarks>
 	public static IServiceCollection AddInMemoryErasureStore(this IServiceCollection services)
 	{
+		_ = services.AddDataSubjectHashing();
 		services.TryAddSingleton<InMemoryErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<InMemoryErasureStore>());
@@ -94,6 +96,7 @@ public static class ErasureServiceCollectionExtensions
 	/// <remarks> Legal holds support GDPR Article 17(3) exceptions that block erasure when data must be retained for legal reasons. </remarks>
 	public static IServiceCollection AddLegalHoldService(this IServiceCollection services)
 	{
+		_ = services.AddDataSubjectHashing(); // LegalHoldService requires IDataSubjectHasher (B3 — standalone path).
 		services.TryAddScoped<ILegalHoldService, LegalHoldService>();
 		return services;
 	}
@@ -120,6 +123,7 @@ public static class ErasureServiceCollectionExtensions
 	/// <remarks> Data inventory supports automatic discovery from [PersonalData] attributes and manual registration for GDPR RoPA compliance. </remarks>
 	public static IServiceCollection AddDataInventoryService(this IServiceCollection services)
 	{
+		_ = services.AddDataSubjectHashing(); // DataInventoryService requires IDataSubjectHasher (B3 — standalone path).
 		services.TryAddScoped<IDataInventoryService, DataInventoryService>();
 		return services;
 	}
@@ -229,7 +233,9 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<ErasureSchedulerOptions>().Bind(configuration);
+		_ = services.AddOptions<ErasureSchedulerOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ErasureSchedulerOptions>, ErasureSchedulerOptionsValidator>());
 
 		if (!services.Any(sd => sd.ServiceType == typeof(ErasureSchedulerBackgroundService)))
 		{
@@ -288,7 +294,9 @@ public static class ErasureServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<LegalHoldExpirationOptions>().Bind(configuration);
+		_ = services.AddOptions<LegalHoldExpirationOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LegalHoldExpirationOptions>, LegalHoldExpirationOptionsValidator>());
 
 		if (!services.Any(sd => sd.ServiceType == typeof(LegalHoldExpirationService)))
 		{
@@ -327,16 +335,45 @@ public static class ErasureServiceCollectionExtensions
 		return services;
 	}
 
+	// Keyed data-subject pseudonymization (wrht38). The pepper is validated fail-closed on start so a
+	// misconfigured deployment cannot silently pseudonymize identifiers with an unkeyed hash. Registered as a
+	// singleton so every erasure/legal-hold/data-inventory consumer hashes a given identifier to the same
+	// token. Consumers supply the pepper via Configure<DataSubjectHashingOptions> from a secret manager.
+	/// <summary>
+	/// Registers the keyed data-subject hasher (<see cref="IDataSubjectHasher"/>) and its fail-closed options
+	/// validation. Idempotent (<c>TryAdd</c>) — safe to call from every registration path that resolves a
+	/// service or store which pseudonymizes data-subject identifiers (erasure, legal hold, data inventory), so
+	/// a standalone legal-hold-only or inventory-only wiring still resolves the hasher.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for chaining. </returns>
+	/// <remarks>
+	/// Consumers supply the secret pepper via <c>Configure&lt;DataSubjectHashingOptions&gt;</c> from a secret
+	/// manager / KMS; a missing/weak pepper fails closed at startup.
+	/// </remarks>
+	public static IServiceCollection AddDataSubjectHashing(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddOptions<DataSubjectHashingOptions>().ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DataSubjectHashingOptions>, DataSubjectHashingOptionsValidator>());
+		services.TryAddSingleton<IDataSubjectHasher, HmacDataSubjectHasher>();
+		return services;
+	}
+
 	private static void RegisterGdprErasureCore(IServiceCollection services)
 	{
 		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, ErasureOptionsValidator>());
+
+		_ = services.AddDataSubjectHashing();
 
 		// TryAdd default IKeyManagementAdmin so AddGdprErasure works against an
 		// otherwise-empty IServiceCollection. The in-memory provider is suitable
 		// for development and tests; production deployments register a durable
 		// provider (Azure Key Vault, AWS KMS, etc.) which wins via TryAdd
 		// precedence. [bd-20ft0e FIX 2]
+		// See ComplianceEncryptionBuilder: volatile keys must be an explicit choice, never a silent default.
 		services.TryAddSingleton<InMemoryKeyManagementProvider>();
 		services.TryAddSingleton<IKeyManagementAdmin>(static sp =>
 			sp.GetRequiredService<InMemoryKeyManagementProvider>());
@@ -349,11 +386,26 @@ public static class ErasureServiceCollectionExtensions
 			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
 			sp.GetRequiredService<ILogger<ErasureService>>(),
+			sp.GetRequiredService<IDataSubjectHasher>(),
 			sp.GetService<ILegalHoldService>(),
 			sp.GetService<IDataInventoryService>(),
 			sp.GetServices<IErasureContributor>()));
 
 		services.TryAddScoped<IErasureService>(static sp => sp.GetRequiredService<ErasureService>());
 		services.TryAddScoped<IErasureExecutor>(static sp => sp.GetRequiredService<ErasureService>());
+
+		// 88xrgq — startup fail-fast: reject an erasure registration that has no data-inventory discovery
+		// source AND no key-shred-only opt-in, so a completion certificate is never issued over unverified
+		// coverage (marker-inseparable-from-wiring). Defense-in-depth with the runtime affirmative-coverage
+		// gate in ErasureService.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, ErasureDiscoverySourceValidator>());
+
+		// GDPR crypto-shred is a key-durability-REQUIRING composition: erasure works by destroying the
+		// encryption key, so a volatile key provider makes the guarantee meaningless (the keys are gone on
+		// restart regardless, and a "shred" over lost keys cannot be attested). Install the startup gate so
+		// a volatile provider FAILS CLOSED unless the host opted in (AllowVolatileKeyProvider = true) — the
+		// gate resolves the provider that actually won the TryAdd above (a registered durable provider wins).
+		services.AddKeyDurabilityGate();
 	}
 }

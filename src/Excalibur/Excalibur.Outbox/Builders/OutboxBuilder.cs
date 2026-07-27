@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Outbox.Outbox;
@@ -39,17 +39,6 @@ internal sealed class OutboxBuilder : IOutboxBuilder
 		ArgumentNullException.ThrowIfNull(configure);
 
 		var builder = new OutboxProcessingBuilder(_config);
-		configure(builder);
-
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IOutboxBuilder WithCleanup(Action<IOutboxCleanupBuilder> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-
-		var builder = new OutboxCleanupBuilder(_config);
 		configure(builder);
 
 		return this;

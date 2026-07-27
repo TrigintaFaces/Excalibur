@@ -41,7 +41,7 @@ public sealed partial class AwsS3ClaimCheckStore : IClaimCheckProvider, IDisposa
 		_claimCheckOptions = claimCheckOptions?.Value ?? throw new ArgumentNullException(nameof(claimCheckOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_s3Client = CreateClient();
+		_s3Client = CreateClient(_options);
 		_ownsClient = true;
 	}
 
@@ -201,23 +201,34 @@ public sealed partial class AwsS3ClaimCheckStore : IClaimCheckProvider, IDisposa
 		return $"{_options.Prefix}{date:yyyy/MM/dd}/{claimCheckId}";
 	}
 
-	private IAmazonS3 CreateClient()
+	/// <summary>
+	/// Builds an <see cref="IAmazonS3"/> client from the configured options. Exposed to the provider's DI
+	/// registration so the container owns a single <see cref="IAmazonS3"/> that the store depends on through
+	/// the abstraction (rather than each store constructing its own), while a consumer that pre-registers
+	/// their own <see cref="IAmazonS3"/> (e.g. via the AWS SDK's <c>AddAWSService&lt;IAmazonS3&gt;()</c>)
+	/// takes precedence.
+	/// </summary>
+	/// <param name="options">The S3 options to build the client from.</param>
+	/// <returns>A configured S3 client.</returns>
+	internal static IAmazonS3 CreateClient(AwsS3ClaimCheckOptions options)
 	{
+		ArgumentNullException.ThrowIfNull(options);
+
 		var config = new AmazonS3Config();
 
-		if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
+		if (!string.IsNullOrWhiteSpace(options.ServiceUrl))
 		{
-			config.ServiceURL = _options.ServiceUrl;
+			config.ServiceURL = options.ServiceUrl;
 			config.ForcePathStyle = true;
 		}
-		else if (!string.IsNullOrWhiteSpace(_options.Region))
+		else if (!string.IsNullOrWhiteSpace(options.Region))
 		{
-			config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(_options.Region);
+			config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(options.Region);
 		}
 
-		if (!string.IsNullOrWhiteSpace(_options.AccessKey) && !string.IsNullOrWhiteSpace(_options.SecretKey))
+		if (!string.IsNullOrWhiteSpace(options.AccessKey) && !string.IsNullOrWhiteSpace(options.SecretKey))
 		{
-			return new AmazonS3Client(_options.AccessKey, _options.SecretKey, config);
+			return new AmazonS3Client(options.AccessKey, options.SecretKey, config);
 		}
 
 		return new AmazonS3Client(config);

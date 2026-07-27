@@ -81,17 +81,42 @@ internal sealed class MongoDbSnapshotDocument
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <returns>The composite ID string.</returns>
 	public static string CreateId(string aggregateId, string aggregateType) =>
-		$"{aggregateId}:{aggregateType}";
+		CreateId(aggregateId, aggregateType, null);
+
+	/// <summary>
+	/// Creates the document identifier, including the tenant when the host is multi-tenant.
+	/// </summary>
+	/// <remarks>
+	/// The tenant segment is added only when a tenant is present, so a single-tenant host's documents
+	/// keep their existing identifiers rather than being orphaned under a new shape. The tenant leads
+	/// the composite, matching the convention the grant stores already use across the document providers.
+	/// </remarks>
+	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="aggregateType">The aggregate type name.</param>
+	/// <param name="tenantId">The owning tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <returns>The document identifier.</returns>
+	public static string CreateId(string aggregateId, string aggregateType, string? tenantId) =>
+		string.IsNullOrEmpty(tenantId)
+			? $"{aggregateId}:{aggregateType}"
+			: $"t:{tenantId}:{aggregateId}:{aggregateType}";
 
 	/// <summary>
 	/// Creates a document from a snapshot.
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
+	/// <param name="tenantId">The ambient tenant, or <see langword="null"/> in a single-tenant host.</param>
 	/// <returns>The MongoDB document representation.</returns>
-	public static MongoDbSnapshotDocument FromSnapshot(ISnapshot snapshot) =>
+	/// <remarks>
+	/// The identifier's tenant comes from <paramref name="tenantId"/> — the store's ambient tenant —
+	/// NOT from <c>snapshot.TenantId</c>. The two can disagree: a caller may build a snapshot without
+	/// setting its tenant while the host is tenant-scoped. Keying the save on the snapshot and the read
+	/// on the ambient context would then write one identifier and look up another, so every read would
+	/// miss and silently rebuild from the event stream. One authority for the key, on every path.
+	/// </remarks>
+	public static MongoDbSnapshotDocument FromSnapshot(ISnapshot snapshot, string? tenantId = null) =>
 		new()
 		{
-			Id = CreateId(snapshot.AggregateId, snapshot.AggregateType),
+			Id = CreateId(snapshot.AggregateId, snapshot.AggregateType, tenantId),
 			SnapshotId = snapshot.SnapshotId,
 			AggregateId = snapshot.AggregateId,
 			AggregateType = snapshot.AggregateType,

@@ -57,7 +57,7 @@ public static class ExcaliburHostingServiceCollectionExtensions
 	/// services.AddDispatch(dispatch =>
 	/// {
 	///     dispatch.UseRabbitMQ(rmq => rmq.HostName("localhost"));
-	///     dispatch.AddObservability(obs => obs.Enabled = true);
+	///     dispatch.UseObservability(obs => obs.Enabled = true);
 	///     dispatch.ConfigurePipeline("default", p => p.UseValidation());
 	/// });
 	///
@@ -101,7 +101,13 @@ public static class ExcaliburHostingServiceCollectionExtensions
 		//     already present, TryAdd is the no-op, and their impl wins.
 		// [S793 bd-sdhocq P0 / COMPASS msg 1449 §1]
 		_ = services.AddExcaliburContextServices();
-		services.TryAddScoped<IActivityContext, ActivityContext>();
+		services.TryAddScoped<IActivityContext>(static sp => new ActivityContext(
+			sp.GetService<Excalibur.Dispatch.ITenantContext>()?.TenantId ?? Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
+			sp.GetRequiredService<Excalibur.Dispatch.ICorrelationId>(),
+			sp.GetRequiredService<Excalibur.Domain.Concurrency.IETag>(),
+			sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>(),
+			sp.GetRequiredService<Excalibur.Domain.IClientAddress>(),
+			sp));
 
 		return services;
 	}

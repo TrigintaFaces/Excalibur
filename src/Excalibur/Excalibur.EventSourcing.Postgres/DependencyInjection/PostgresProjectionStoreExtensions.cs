@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
@@ -39,7 +40,10 @@ public static class PostgresProjectionStoreExtensions
 
 		_ = services.Configure(configureOptions);
 
-		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
+		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA where a null
+		// context threw on every operation) AND emits the projection-family capability marker inseparably
+		// from the tenant wiring it attests.
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
 		{
 			var options = sp.GetRequiredService<IOptions<PostgresProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresProjectionStore<TProjection>>>();
@@ -50,7 +54,8 @@ public static class PostgresProjectionStoreExtensions
 				options.Value.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				options.Value.TableName,
-				options.Value.JsonSerializerOptions);
+				options.Value.JsonSerializerOptions,
+				tenantContext);
 		});
 
 		return services;
@@ -82,7 +87,9 @@ public static class PostgresProjectionStoreExtensions
 			_ = services.Configure(configureOptions);
 		}
 
-		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
+		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
+		// projection-family capability marker inseparably.
+		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, IProjectionStore<object>>((sp, tenantContext) =>
 		{
 			var dataSource = dataSourceFactory(sp);
 			var logger = sp.GetRequiredService<ILogger<PostgresProjectionStore<TProjection>>>();
@@ -93,7 +100,8 @@ public static class PostgresProjectionStoreExtensions
 				dataSource,
 				logger,
 				options?.TableName,
-				options?.JsonSerializerOptions);
+				options?.JsonSerializerOptions,
+				tenantContext);
 		});
 
 		return services;

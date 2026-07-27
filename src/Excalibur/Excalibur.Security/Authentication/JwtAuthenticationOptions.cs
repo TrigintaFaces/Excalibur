@@ -26,31 +26,6 @@ public sealed class JwtAuthenticationOptions
 	public bool RequireAuthentication { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets the context key where the token is stored.
-	/// </summary>
-	/// <value> The context key used to store the authentication token. The default is "AuthToken". </value>
-	[Required]
-	public string TokenContextKey { get; set; } = "AuthToken";
-
-	/// <summary>
-	/// Gets or sets the header name where the token is expected.
-	/// </summary>
-	/// <value> The header name where the authentication token is expected. The default is "Authorization". </value>
-	public string TokenHeaderName { get; set; } = "Authorization";
-
-	/// <summary>
-	/// Gets or sets the property name to extract token from message.
-	/// </summary>
-	/// <value> The property name used to extract the authentication token from the message. The default is "AuthToken". </value>
-	public string TokenPropertyName { get; set; } = "AuthToken";
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable property extraction.
-	/// </summary>
-	/// <value> <see langword="true" /> if property extraction is enabled; otherwise, <see langword="false" />. The default is <see langword="false" />. </value>
-	public bool EnablePropertyExtraction { get; set; }
-
-	/// <summary>
 	/// Gets or initializes message types that don't require authentication.
 	/// </summary>
 	/// <value> A set of message type names that are allowed to bypass authentication. The default is an empty set. </value>
@@ -88,6 +63,43 @@ public sealed class JwtAuthenticationOptions
 	/// </summary>
 	/// <value> The token credential sub-options. </value>
 	public JwtTokenCredentialOptions Credentials { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets token extraction options (context key, header name, message property extraction).
+	/// </summary>
+	/// <value> The token extraction sub-options. </value>
+	public JwtTokenExtractionOptions TokenExtraction { get; set; } = new();
+}
+
+/// <summary>
+/// Token extraction options for JWT authentication (where the token is read from).
+/// </summary>
+public sealed class JwtTokenExtractionOptions
+{
+	/// <summary>
+	/// Gets or sets the context key where the token is stored.
+	/// </summary>
+	/// <value> The context key used to store the authentication token. The default is "AuthToken". </value>
+	[Required]
+	public string TokenContextKey { get; set; } = "AuthToken";
+
+	/// <summary>
+	/// Gets or sets the header name where the token is expected.
+	/// </summary>
+	/// <value> The header name where the authentication token is expected. The default is "Authorization". </value>
+	public string TokenHeaderName { get; set; } = "Authorization";
+
+	/// <summary>
+	/// Gets or sets the property name to extract token from message.
+	/// </summary>
+	/// <value> The property name used to extract the authentication token from the message. The default is "AuthToken". </value>
+	public string TokenPropertyName { get; set; } = "AuthToken";
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable property extraction.
+	/// </summary>
+	/// <value> <see langword="true" /> if property extraction is enabled; otherwise, <see langword="false" />. The default is <see langword="false" />. </value>
+	public bool EnablePropertyExtraction { get; set; }
 }
 
 /// <summary>

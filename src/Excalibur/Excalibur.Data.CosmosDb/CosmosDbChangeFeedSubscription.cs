@@ -27,7 +27,12 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 	private readonly ILogger _logger;
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 	private readonly string _checkpointKey;
-	private readonly CancellationTokenSource _cts = new();
+
+	// Guards _cts so a stop/start cycle can atomically retire the canceled source and install a fresh one
+	// (o9y64z): StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
+	// ReadChangesAsync would link a permanently-canceled token and yield-break immediately.
+	private readonly System.Threading.Lock _ctsLock = new();
+	private CancellationTokenSource _cts = new();
 
 	private bool _isActive;
 	private volatile bool _disposed;
@@ -79,6 +84,17 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 		}
 
 		LogStarting(SubscriptionId);
+
+		// Recreate the CTS if a prior StopAsync canceled it, so stop→start actually resumes (o9y64z).
+		lock (_ctsLock)
+		{
+			if (_cts.IsCancellationRequested)
+			{
+				_cts.Dispose();
+				_cts = new CancellationTokenSource();
+			}
+		}
+
 		_isActive = true;
 		return Task.CompletedTask;
 	}
@@ -93,7 +109,14 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 
 		LogStopping(SubscriptionId);
 		_isActive = false;
-		await _cts.CancelAsync().ConfigureAwait(false);
+
+		CancellationTokenSource cts;
+		lock (_ctsLock)
+		{
+			cts = _cts;
+		}
+
+		await cts.CancelAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -105,7 +128,13 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 			throw new ObjectDisposedException(nameof(CosmosDbChangeFeedSubscription<>));
 		}
 
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
+		CancellationTokenSource currentCts;
+		lock (_ctsLock)
+		{
+			currentCts = _cts;
+		}
+
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, currentCts.Token);
 		var linkedToken = linkedCts.Token;
 
 		// Resume from the durable checkpoint (if a store is configured) before the first iterator, so a
@@ -211,8 +240,15 @@ public sealed partial class CosmosDbChangeFeedSubscription<
 
 		_disposed = true;
 		_isActive = false;
-		await _cts.CancelAsync().ConfigureAwait(false);
-		_cts.Dispose();
+
+		CancellationTokenSource cts;
+		lock (_ctsLock)
+		{
+			cts = _cts;
+		}
+
+		await cts.CancelAsync().ConfigureAwait(false);
+		cts.Dispose();
 	}
 
 	private static string GetDocumentId(TDocument document)

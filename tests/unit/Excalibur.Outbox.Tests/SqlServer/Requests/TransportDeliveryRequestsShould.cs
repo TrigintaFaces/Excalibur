@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Dapper;
+
 using Excalibur.Dispatch;
 
 using Excalibur.Outbox.SqlServer.Requests;
@@ -37,7 +39,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new InsertTransportDeliveryRequest(null!, delivery, null, 30, CancellationToken.None));
+			new InsertTransportDeliveryRequest(null!, delivery, "tenant-a", null, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -48,7 +50,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new InsertTransportDeliveryRequest("", delivery, null, 30, CancellationToken.None));
+			new InsertTransportDeliveryRequest("", delivery, "tenant-a", null, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -59,7 +61,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			new InsertTransportDeliveryRequest("   ", delivery, null, 30, CancellationToken.None));
+			new InsertTransportDeliveryRequest("   ", delivery, "tenant-a", null, 30, CancellationToken.None));
 	}
 
 	[Fact]
@@ -67,7 +69,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new InsertTransportDeliveryRequest(TestTableName, null!, null, 30, CancellationToken.None));
+			new InsertTransportDeliveryRequest(TestTableName, null!, "tenant-a", null, 30, CancellationToken.None));
 	}
 
 	#endregion
@@ -81,12 +83,72 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		var delivery = CreateTestDelivery();
 
 		// Act
-		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, 30, CancellationToken.None);
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
 		request.Command.CommandText.ShouldContain("INSERT INTO");
 		request.Command.CommandText.ShouldContain(TestTableName);
+	}
+
+	/// <summary>
+	/// The INSERT must name the tenant column and bind a value for it.
+	/// </summary>
+	/// <remarks>
+	/// The shipped schema declares <c>TenantId NOT NULL DEFAULT '__untenanted__'</c>. A writer that omits
+	/// the column therefore does not fail — SQL Server silently applies the default, and every delivery row
+	/// claims the untenanted partition regardless of which tenant its parent message belongs to. That is
+	/// wrong data written without an error, and it is exactly what shipped when the schema landed ahead of
+	/// this code.
+	/// <para>
+	/// Passing a tenant to the constructor does not prove any of this: the argument can be accepted and
+	/// discarded, and every other test here would still pass. These assertions bind the emitted SQL —
+	/// the column named, the parameter bound — so dropping the term is RED rather than silent.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void NameAndBindTheTenantColumnInTheInsert()
+	{
+		// Arrange
+		var delivery = CreateTestDelivery();
+
+		// Act
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, 30, CancellationToken.None);
+
+		// Assert — the column is in the INSERT list, and a parameter is bound for it.
+		request.Command.CommandText.ShouldContain(
+			"TenantId",
+			Case.Sensitive,
+			"the INSERT must name TenantId; omitting it lets the column DEFAULT strand every row in the untenanted partition.");
+		request.Command.CommandText.ShouldContain(
+			"@TenantId",
+			Case.Sensitive,
+			"the INSERT must bind a TenantId parameter, not rely on the schema default.");
+		((DynamicParameters)request.Command.Parameters).ParameterNames.ShouldContain(
+			"TenantId",
+			"the tenant term must actually be supplied by the request, not merely mentioned in the SQL text.");
+	}
+
+	/// <summary>
+	/// An unscoped caller writes the reserved sentinel, never <see langword="null"/> and never empty.
+	/// </summary>
+	/// <remarks>
+	/// LIVENESS beside the safety arm above: asserting only that the column is named would also pass for a
+	/// request that bound <c>NULL</c>, which the NOT NULL column would then reject at runtime. Untenanted is
+	/// a named partition, not an absent tenant.
+	/// </remarks>
+	[Fact]
+	public void BindTheReservedSentinelWhenTheCallerSuppliesNoTenant()
+	{
+		// Arrange
+		var delivery = CreateTestDelivery();
+
+		// Act
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, null, 30, CancellationToken.None);
+
+		// Assert
+		((DynamicParameters)request.Command.Parameters).Get<string>("TenantId")
+			.ShouldBe("__untenanted__", "an unscoped write must bind the reserved sentinel, never NULL or empty.");
 	}
 
 	[Fact]
@@ -97,7 +159,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		const int timeout = 60;
 
 		// Act
-		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, timeout, CancellationToken.None);
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, timeout, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(timeout);
@@ -110,7 +172,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		var delivery = CreateTestDelivery();
 
 		// Act
-		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, 30, CancellationToken.None);
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(30);
@@ -123,7 +185,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		var delivery = CreateTestDelivery();
 
 		// Act
-		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, 30, CancellationToken.None);
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, 30, CancellationToken.None);
 
 		// Assert
 		_ = request.ResolveAsync.ShouldNotBeNull();
@@ -141,7 +203,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		delivery.TransportMetadata = """{"partition":3,"key":"order-123"}""";
 
 		// Act
-		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, 30, CancellationToken.None);
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -155,7 +217,7 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		delivery.TransportMetadata = null;
 
 		// Act
-		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, 30, CancellationToken.None);
+		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, "tenant-a", null, 30, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();

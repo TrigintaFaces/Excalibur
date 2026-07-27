@@ -462,7 +462,7 @@ public sealed class MessageOutboxShould : IDisposable
 		{
 			MessageId = messageId,
 			MessageType = "TestType",
-			MessageBody = "{}",
+			MessageBody = Encoding.UTF8.GetBytes("{}"),
 			MessageMetadata = "{}",
 			CreatedAt = DateTimeOffset.UtcNow
 		};
@@ -481,7 +481,7 @@ public sealed class MessageOutboxShould : IDisposable
 	{
 		public required string MessageId { get; init; }
 		public required string MessageType { get; init; }
-		public required string MessageBody { get; init; }
+		public required byte[] MessageBody { get; init; }
 		public required string MessageMetadata { get; init; }
 		public required DateTimeOffset CreatedAt { get; init; }
 		public DateTimeOffset? ExpiresAt { get; set; }

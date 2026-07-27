@@ -18,7 +18,7 @@ namespace Excalibur.Data.MongoDB;
 /// </para>
 /// <para>
 /// Documents are stored as flat BSON documents. The MongoDB driver's
-/// <see cref="IgnoreExtraElementsConvention"/> is registered globally so that consumer
+/// <c>IgnoreExtraElementsConvention</c> is registered globally so that consumer
 /// document types silently ignore metadata fields during deserialization.
 /// </para>
 /// <para>

@@ -91,7 +91,7 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 		var options = new DynamoDbEventStoreOptions();
 
 		// Assert
-		options.ReadCapacityUnits.ShouldBe(5);
+		options.Throughput.ReadCapacityUnits.ShouldBe(5);
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 		var options = new DynamoDbEventStoreOptions();
 
 		// Assert
-		options.WriteCapacityUnits.ShouldBe(5);
+		options.Throughput.WriteCapacityUnits.ShouldBe(5);
 	}
 
 	[Fact]
@@ -111,7 +111,7 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 		var options = new DynamoDbEventStoreOptions();
 
 		// Assert
-		options.UseOnDemandCapacity.ShouldBeTrue();
+		options.Throughput.UseOnDemandCapacity.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -225,11 +225,11 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new DynamoDbEventStoreOptions
 		{
-			ReadCapacityUnits = 10
+			Throughput = { ReadCapacityUnits = 10 }
 		};
 
 		// Assert
-		options.ReadCapacityUnits.ShouldBe(10);
+		options.Throughput.ReadCapacityUnits.ShouldBe(10);
 	}
 
 	[Fact]
@@ -238,11 +238,11 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new DynamoDbEventStoreOptions
 		{
-			WriteCapacityUnits = 10
+			Throughput = { WriteCapacityUnits = 10 }
 		};
 
 		// Assert
-		options.WriteCapacityUnits.ShouldBe(10);
+		options.Throughput.WriteCapacityUnits.ShouldBe(10);
 	}
 
 	[Fact]
@@ -251,11 +251,11 @@ public sealed class DynamoDbEventStoreOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new DynamoDbEventStoreOptions
 		{
-			UseOnDemandCapacity = false
+			Throughput = { UseOnDemandCapacity = false }
 		};
 
 		// Assert
-		options.UseOnDemandCapacity.ShouldBeFalse();
+		options.Throughput.UseOnDemandCapacity.ShouldBeFalse();
 	}
 
 	[Fact]

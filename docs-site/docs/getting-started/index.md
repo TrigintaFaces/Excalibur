@@ -150,11 +150,16 @@ public class OrderController : ControllerBase
 
 ## Complete Example
 
-Here's a complete minimal example:
+Here's a complete minimal example. The one-line `DispatchPostAction` maps your action straight to an HTTP endpoint and converts the `IMessageResult` to the correct HTTP status for you — **200** on success, **400/403/500** on failure — so there is no manual `IsSuccess` branching:
+
+```bash
+dotnet add package Excalibur.Dispatch.Hosting.AspNetCore
+```
 
 ```csharp title="Program.cs"
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Hosting.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -162,18 +167,11 @@ builder.Services.AddDispatch();
 
 var app = builder.Build();
 
-app.MapPost("/greet", async (
-    GreetRequest request,
-    IDispatcher dispatcher,
-    CancellationToken ct) =>
-{
-    var action = new GreetAction(request.Name);
-
-    // Simple dispatch - no context or type parameters needed!
-    var result = await dispatcher.DispatchAsync(action, ct);
-
-    return result.IsSuccess ? Results.Ok(result.ReturnValue) : Results.BadRequest();
-});
+// Bind the request, dispatch the action, and map the result to the
+// right HTTP status — all in one line. No manual result handling.
+app.DispatchPostAction<GreetRequest, GreetAction, string>(
+    "/greet",
+    (request, _) => new GreetAction(request.Name));
 
 app.Run();
 
@@ -192,6 +190,8 @@ public class GreetHandler : IActionHandler<GreetAction, string>
 // Request DTO
 public record GreetRequest(string Name);
 ```
+
+This is the differentiator over the hand-rolled `MapPost` + `DispatchAsync` + manual `Results.Ok/BadRequest` branch shown in Step 4 — same behavior, one line, correct HTTP contract by default.
 
 :::tip You Have a Working App — Stop Here Unless You Need More
 
@@ -226,16 +226,16 @@ The example above is a complete, production-ready Dispatch application. **You do
 
 Excalibur.Dispatch automatically manages message context for you:
 
-- **Top-level dispatch**: A new context is created with a unique `CorrelationId`
-- **Nested dispatch**: Use `DispatchChildAsync` to propagate context in handlers
+- **Top-level dispatch**: A new root context is created with a unique `CorrelationId`
+- **Nested dispatch**: Call `DispatchAsync` from within a handler — it automatically propagates context by dispatching a child message
 - **Ambient context**: The current context is available via `IMessageContextAccessor`
 
 ```csharp
-// From a controller (top-level) - context created automatically
+// From a controller (top-level) - fresh root context created automatically
 await _dispatcher.DispatchAsync(action, cancellationToken);
 
-// From within a handler (nested) - use child context for proper tracing
-await _dispatcher.DispatchChildAsync(action, cancellationToken);
+// From within a handler (nested) - automatically childs for proper tracing
+await _dispatcher.DispatchAsync(action, cancellationToken);
 ```
 
 See [Handlers](../handlers.md#context-propagation) for more details on nested dispatch patterns.

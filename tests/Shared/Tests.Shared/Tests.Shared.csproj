@@ -62,6 +62,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga\Excalibur.Saga.csproj" />
     <!-- Leader Election (for conformance tests) -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
     <!-- Transport Abstractions (for streaming conformance tests) -->

@@ -48,6 +48,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService);
 	}
@@ -63,6 +64,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null,
 			null));
 	}
@@ -77,6 +79,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			null!,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null,
 			null));
 	}
@@ -90,6 +93,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			_options,
 			null!,
+			TestDataSubjectHasher.Instance,
 			null,
 			null));
 	}
@@ -103,6 +107,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
 
@@ -118,6 +123,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
 
@@ -324,6 +330,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			_options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			legalHoldService: null,
 			dataInventoryService: null);
 
@@ -396,6 +403,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null,
 			null);
 
@@ -447,6 +455,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null,
 			null);
 
@@ -478,6 +487,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null,
 			null);
 

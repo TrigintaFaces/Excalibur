@@ -76,10 +76,15 @@ public static class IdentityMapServiceCollectionExtensions
 		_ = services.AddOptions<IdentityMapOptions>()
 			.ValidateOnStart();
 
-		_ = services.AddOptions<IdentityMapCacheOptions>();
+		_ = services.AddOptions<IdentityMapCacheOptions>()
+			.ValidateOnStart();
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IConfigureOptions<IdentityMapOptions>, DefaultIdentityMapOptionsSetup>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<IdentityMapOptions>, IdentityMapOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<IdentityMapCacheOptions>, IdentityMapCacheOptionsValidator>());
 	}
 
 	private static void WrapWithDecorators(IServiceCollection services)

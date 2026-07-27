@@ -167,7 +167,6 @@ builder.Services.AddDispatch(dispatch =>
 
 - [04-reliability/](../04-reliability/) - Sagas and distributed transactions
 - [09-advanced/CdcAntiCorruption/](../09-advanced/CdcAntiCorruption/) - CDC anti-corruption integration
-- [09-advanced/SessionManagement/](../09-advanced/SessionManagement/) - AWS SQS FIFO session patterns
 
 ---
 

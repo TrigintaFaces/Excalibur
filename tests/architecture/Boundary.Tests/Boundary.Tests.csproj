@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -15,6 +15,30 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+  <!--
+    Boundary-guard dependency closure. The architecture guards enumerate the loaded framework assemblies
+    (AppDomain.CurrentDomain.GetAssemblies() / NetArchTest Types.InCurrentDomain()) and reflect over their
+    types, which forces resolution of every TRANSITIVE dependency of the framework assemblies under test.
+
+    Rather than hand-maintain a package list that silently rots when the framework gains a transitive
+    dependency, we ProjectReference every framework project and let MSBuild compute the complete transitive
+    closure into this test's output directory. BoundaryTestsModuleInitializer then force-loads the framework
+    assemblies from that output so the enumeration is complete and order-independent, and every transitive
+    dependency resolves naturally from the same directory. This is enforcing (it reveals the true type set,
+    never masks a boundary violation — a forbidden reference is visible in GetReferencedAssemblies metadata)
+    and self-maintaining (a new project or dependency flows in without editing this file).
+
+    Source-generator / analyzer projects are excluded — they are Roslyn analyzers, not runtime assemblies
+    under boundary test, and must never be referenced as normal runtime dependencies.
+
+    The Microsoft.AspNetCore.App FrameworkReference supplies the ASP.NET Core / shared-framework assemblies
+    (e.g. Mvc.Core, ObjectPool) that are not copied into a library project's output.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\..\src\**\*.csproj"
+                      Exclude="..\..\..\src\**\*SourceGenerators*.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="System" />

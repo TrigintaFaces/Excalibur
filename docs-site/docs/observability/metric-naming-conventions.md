@@ -43,8 +43,8 @@ Where:
 | `Excalibur.Dispatch.BatchProcessor` | `Excalibur.Dispatch` | `DispatchTelemetryConstants.Meters.BatchProcessor` |
 | `Excalibur.Dispatch.Streaming` | `Excalibur.Dispatch` | `StreamingHandlerTelemetryConstants.MeterName` |
 | `Excalibur.Dispatch.Transport` | `Excalibur.Dispatch.Transport.Abstractions` | `TransportMeter.MeterName` |
-| `Excalibur.Dispatch.DeadLetterQueue` | `Excalibur.Dispatch.Observability` | `DeadLetterQueueMetrics.MeterName` |
-| `Excalibur.Dispatch.CircuitBreaker` | `Excalibur.Dispatch.Observability` | `CircuitBreakerMetrics.MeterName` |
+| `Excalibur.Dispatch.PoisonMessage.Middleware` | `Excalibur.Dispatch` | `DispatchTelemetryConstants.Meters.PoisonMessage` |
+| `Excalibur.Dispatch.CircuitBreakerMiddleware` | `Excalibur.Dispatch` | `DispatchTelemetryConstants.Meters.CircuitBreakerMiddleware` |
 | `Excalibur.Dispatch.Observability.Context` | `Excalibur.Dispatch.Observability` | `ContextObservabilityTelemetryConstants.MeterName` |
 | `Excalibur.Compliance` | `Excalibur.Compliance` | `ComplianceMetrics.MeterName` |
 | `Excalibur.Compliance.Erasure` | `Excalibur.Compliance` | `ErasureTelemetryConstants.MeterName` |

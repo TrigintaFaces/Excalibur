@@ -39,6 +39,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	private readonly ILogger<DynamoDbEventStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 
+	// The single canonical event contract (camelCase + string-enum + null-ignore) shared by every event
+	// store. Using the default serializer here would write PascalCase / enum-as-number bodies that mis-read
+	// when loaded through the canonical read path (the i2eabb cross-path fault).
+	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
+
 	private bool _initialized;
 	private volatile bool _disposed;
 
@@ -95,6 +100,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -136,7 +144,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 			return new CloudEventLoadResult(events, totalCapacity);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			activity.RecordException(ex);
@@ -163,6 +171,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -208,7 +219,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 			return new CloudEventLoadResult(events, totalCapacity);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			activity.RecordException(ex);
@@ -235,6 +246,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
+		ArgumentNullException.ThrowIfNull(events);
 		var stopwatch = ValueStopwatch.StartNew();
 		var operationResult = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -262,9 +277,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		// the per-item PutItem path, so >100 is its accepted (documented non-atomic) behavior.
 		if (_options.UseTransactionalWrite && eventsList.Count > DynamoTransactItemLimit)
 		{
-			throw new ArgumentOutOfRangeException(
+			throw new EventBatchTooLargeException(
 				nameof(events),
 				eventsList.Count,
+				DynamoTransactItemLimit,
 				$"DynamoDB atomic append is limited to {DynamoTransactItemLimit} events per call; split the batch into appends of at most {DynamoTransactItemLimit} events, or set UseTransactionalWrite=false to opt into the non-atomic per-item path.");
 		}
 
@@ -277,6 +293,22 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		try
 		{
+			// Contiguity + concurrency pre-check — match the SQL/InMemory contract (currentVersion must equal
+			// expectedVersion). The attribute_not_exists(#pk) condition rejects a STALE expectedVersion
+			// (collision on an existing (pk,version)) but NOT a GAP: an expectedVersion beyond the stream tail
+			// targets an unused key, so the conditional write would silently succeed and leave a hole in the
+			// stream. Re-read the tail (-1 for an empty stream) and reject a non-contiguous expectedVersion
+			// before writing. The concurrent-writer race is still caught by the ConditionalCheckFailed paths.
+			var precheckVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
+				.ConfigureAwait(false);
+			if (precheckVersion != expectedVersion)
+			{
+				operationResult = WriteStoreTelemetry.Results.Conflict;
+				LogConcurrencyConflict(streamId, expectedVersion);
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+				return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, precheckVersion, 0);
+			}
+
 			// Transactional path is guaranteed ≤100 by the guard above, so a single atomic TransactWriteItems
 			// covers it. The opt-out path handles any count via the per-item PutItem loop (non-atomic).
 			CloudAppendResult appendResult;
@@ -315,7 +347,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 			return appendResult;
 		}
-		catch (Exception ex)
+		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
+		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is
+		// wrong. Neither is a store outcome, and neither should be retried by a resilience pipeline.
+		catch (AmazonDynamoDBException ex)
 		{
 			operationResult = WriteStoreTelemetry.Results.Failure;
 			using var scope = WriteStoreTelemetry.BeginLogScope(
@@ -328,7 +363,12 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			_logger.LogError(ex, "Failed to append events to {AggregateType}/{AggregateId}", aggregateType, aggregateId);
 			activity.RecordException(ex);
 			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			throw;
+
+			// Liskov (MS-01): report a transient store fault as a failed result — never propagate a raw
+			// AWS SDK exception (a leaked provider exception is the substitutability violation). Version
+			// conflicts are already returned above; every other fault returns a failure handled uniformly
+			// across providers.
+			return CloudAppendResult.CreateFailure(ex.Message, requestCharge: 0d);
 		}
 		finally
 		{
@@ -364,6 +404,9 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		IPartitionKey partitionKey,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var streamId = BuildStreamId(aggregateType, aggregateId);
@@ -398,6 +441,8 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var partitionKey = new PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadAsync(aggregateId, aggregateType, partitionKey, null, cancellationToken)
 			.ConfigureAwait(false);
@@ -411,6 +456,8 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var partitionKey = new PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadFromVersionAsync(aggregateId, aggregateType, partitionKey, fromVersion, null, cancellationToken)
 			.ConfigureAwait(false);
@@ -425,13 +472,18 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		var partitionKey = new PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await AppendAsync(aggregateId, aggregateType, partitionKey, events, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (result.Success)
 		{
-			return AppendResult.CreateSuccess(result.NextExpectedVersion, 0);
+			// DynamoDB has no store-wide global sequence across items/streams; global ordering is
+			// unsupported for this provider, so no global first-event position is reported.
+			return AppendResult.CreateSuccess(result.NextExpectedVersion, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)
@@ -492,10 +544,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		return null;
 	}
 
-	private static byte[] SerializeEvent(IDomainEvent evt)
+	private byte[] SerializeEvent(IDomainEvent evt)
 	{
 #pragma warning disable IL2026
-		return JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType());
+		return JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions);
 #pragma warning restore IL2026
 	}
 
@@ -633,7 +685,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt)) },
 #pragma warning disable IL2026
 			["metadata"] = evt.Metadata != null
-				? new AttributeValue { S = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata)) }
+				? new AttributeValue { S = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata, _jsonOptions)) }
 				: new AttributeValue { NULL = true }
 #pragma warning restore IL2026
 		};
@@ -710,7 +762,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 				]
 			};
 
-			if (_options.UseOnDemandCapacity)
+			if (_options.Throughput.UseOnDemandCapacity)
 			{
 				createRequest.BillingMode = BillingMode.PAY_PER_REQUEST;
 			}
@@ -718,8 +770,8 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			{
 				createRequest.BillingMode = BillingMode.PROVISIONED;
 				createRequest.ProvisionedThroughput = new ProvisionedThroughput(
-					_options.ReadCapacityUnits,
-					_options.WriteCapacityUnits);
+					_options.Throughput.ReadCapacityUnits,
+					_options.Throughput.WriteCapacityUnits);
 			}
 
 			if (_options.EnableStreams)
@@ -731,7 +783,15 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 				};
 			}
 
-			_ = await _client.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _client.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			}
+			catch (ResourceInUseException)
+			{
+				// Multi-instance cold-start race: another instance created (or is creating) the table
+				// between our DescribeTable and CreateTable. Benign — fall through to wait-for-active.
+			}
 
 			// Wait for table to become active
 			var describeRequest = new DescribeTableRequest { TableName = _options.EventsTableName };

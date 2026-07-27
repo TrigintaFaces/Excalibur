@@ -54,18 +54,18 @@ public sealed class AggregateRootShould
 
 		public void DoSomething(string value)
 		{
-			RaiseEvent(new SomethingHappened { AggregateId = Id, Version = Version, Value = value });
+			RaiseEvent(new SomethingHappened { Value = value });
 		}
 
 		public void DoSomethingElse(int number)
 		{
-			RaiseEvent(new SomethingElseHappened { AggregateId = Id, Version = Version, Number = number });
+			RaiseEvent(new SomethingElseHappened { Number = number });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			ApplyCount++;
-			_ = @event switch
+			return @event switch
 			{
 				SomethingHappened e => Apply(e),
 				SomethingElseHappened e => Apply(e),
@@ -103,7 +103,7 @@ public sealed class AggregateRootShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new SomethingHappened { AggregateId = Id, Version = Version, Value = state });
+			RaiseEvent(new SomethingHappened { Value = state });
 		}
 
 		public override ISnapshot CreateSnapshot()
@@ -117,10 +117,11 @@ public sealed class AggregateRootShould
 			};
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is SomethingHappened e)
 				State = e.Value;
+					return true;
 		}
 
 		protected override void ApplySnapshot(ISnapshot snapshot)
@@ -133,6 +134,10 @@ public sealed class AggregateRootShould
 	internal sealed record TestSnapshot : ISnapshot
 	{
 		public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+		// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+		// that this double is unscoped instead of assuming it.
+		public string? TenantId { get; init; }
 		public string AggregateId { get; init; } = string.Empty;
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }
@@ -176,17 +181,19 @@ public sealed class AggregateRootShould
 	[Fact]
 	public void LoadFromHistory_ShouldIncrementVersionPerEvent()
 	{
-		// Arrange
+		// Arrange -- the envelope versions are written out to match the Version this test asserts (3, one
+		// past the last index). The payloads carry no version at all: replay reads the envelope, never the
+		// payload, so an event that cannot report its own position still replays correctly.
 		var aggregate = new TestAggregate("test-1");
-		var events = new List<IDomainEvent>
+		var history = new HistoricEvent[]
 		{
-			new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "first" },
-			new SomethingElseHappened { AggregateId = "test-1", Version = 1, Number = 100 },
-			new SomethingHappened { AggregateId = "test-1", Version = 2, Value = "third" }
+			new(new SomethingHappened { Value = "first" }, 0),
+			new(new SomethingElseHappened { Number = 100 }, 1),
+			new(new SomethingHappened { Value = "third" }, 2)
 		};
 
 		// Act
-		aggregate.LoadFromHistory(events);
+		aggregate.LoadFromHistory(history);
 
 		// Assert
 		aggregate.Version.ShouldBe(3);
@@ -223,15 +230,15 @@ public sealed class AggregateRootShould
 	[Fact]
 	public void LoadFromHistory_ShouldNotAddToUncommittedEvents()
 	{
-		// Arrange
+		// Arrange -- a single replayed event at stream position 0.
 		var aggregate = new TestAggregate("test-1");
-		var events = new List<IDomainEvent>
+		var history = new HistoricEvent[]
 		{
-			new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "value" }
+			new(new SomethingHappened { Value = "value" }, 0)
 		};
 
 		// Act
-		aggregate.LoadFromHistory(events);
+		aggregate.LoadFromHistory(history);
 
 		// Assert
 		aggregate.GetUncommittedEvents().ShouldBeEmpty();
@@ -294,17 +301,18 @@ public sealed class AggregateRootShould
 	[Fact]
 	public void LoadFromHistory_ShouldApplyAllEvents()
 	{
-		// Arrange
+		// Arrange -- three contiguous stream positions; every arm below asserts the effect of applying all
+		// three in order.
 		var aggregate = new TestAggregate("test-1");
-		var events = new List<IDomainEvent>
+		var history = new HistoricEvent[]
 		{
-			new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "initial" },
-			new SomethingElseHappened { AggregateId = "test-1", Version = 1, Number = 42 },
-			new SomethingHappened { AggregateId = "test-1", Version = 2, Value = "final" }
+			new(new SomethingHappened { Value = "initial" }, 0),
+			new(new SomethingElseHappened { Number = 42 }, 1),
+			new(new SomethingHappened { Value = "final" }, 2)
 		};
 
 		// Act
-		aggregate.LoadFromHistory(events);
+		aggregate.LoadFromHistory(history);
 
 		// Assert
 		aggregate.CurrentValue.ShouldBe("final");
@@ -317,7 +325,7 @@ public sealed class AggregateRootShould
 	{
 		// Arrange
 		var aggregate = new TestAggregate("test-1");
-		var @event = new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "applied" };
+		var @event = new SomethingHappened { Value = "applied" };
 
 		// Act
 		aggregate.ApplyEvent(@event);

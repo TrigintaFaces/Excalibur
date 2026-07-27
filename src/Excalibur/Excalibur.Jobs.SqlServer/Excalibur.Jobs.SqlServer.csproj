@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -27,6 +27,13 @@
     <ProjectReference Include="..\Excalibur.Jobs\Excalibur.Jobs.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Sql\*.sql" />
+    <!-- Shipped schema: a consumer cannot obtain this DDL unless it is packed, and the
+         framework does not auto-create tables. Glob matches where the .sql actually lives.
+         This package deliberately embeds NOTHING: an EmbeddedResource copy would be a second,
+         invisible copy of the schema that no code in this assembly reads, so it could only
+         drift from the packed one while reading as deliberate provisioning. The packed script
+         under scripts/ is the single obtainable copy. -->
+
+    <None Include="Sql\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
 </Project>

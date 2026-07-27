@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Microsoft.Extensions.DependencyInjection;
@@ -72,51 +72,6 @@ public sealed class OutboxConfigurationShould : UnitTestBase
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
-	}
-
-	[Fact]
-	public void ToOptions_HasDefaultMessageRetentionPeriod()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(_ => { });
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
-	}
-
-	[Fact]
-	public void ToOptions_HasDefaultEnableAutomaticCleanup()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(_ => { });
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void ToOptions_HasDefaultCleanupInterval()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddExcaliburOutbox(_ => { });
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var options = provider.GetRequiredService<OutboxOptions>();
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
 	}
 
 	[Fact]
@@ -221,11 +176,7 @@ public sealed class OutboxConfigurationShould : UnitTestBase
 					.MaxRetryCount(10)
 					.RetryDelay(TimeSpan.FromMinutes(15))
 					.ProcessorId("custom-processor")
-					.EnableParallelProcessing(16))
-				.WithCleanup(c => c
-					.EnableAutoCleanup(false)
-					.RetentionPeriod(TimeSpan.FromDays(30))
-					.CleanupInterval(TimeSpan.FromHours(12)));
+					.EnableParallelProcessing(16));
 		});
 		var provider = services.BuildServiceProvider();
 
@@ -238,9 +189,6 @@ public sealed class OutboxConfigurationShould : UnitTestBase
 		options.ProcessorId.ShouldBe("custom-processor");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(16);
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(12));
 	}
 
 	#endregion

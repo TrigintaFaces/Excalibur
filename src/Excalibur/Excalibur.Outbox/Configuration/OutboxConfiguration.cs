@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox;
@@ -18,9 +18,6 @@ internal sealed class OutboxConfiguration
 	public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(5);
 	public int MaxRetryCount { get; set; } = 3;
 	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMinutes(5);
-	public TimeSpan MessageRetentionPeriod { get; set; } = TimeSpan.FromDays(7);
-	public bool EnableAutomaticCleanup { get; set; } = true;
-	public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
 	public bool EnableBackgroundProcessing { get; set; } = true;
 	public string? ProcessorId { get; set; }
 	public bool EnableParallelProcessing { get; set; }
@@ -42,9 +39,6 @@ internal sealed class OutboxConfiguration
 			PollingInterval,
 			MaxRetryCount,
 			RetryDelay,
-			MessageRetentionPeriod,
-			EnableAutomaticCleanup,
-			CleanupInterval,
 			EnableBackgroundProcessing,
 			ProcessorId,
 			EnableParallelProcessing,

@@ -80,12 +80,6 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
                   .RetryDelay(TimeSpan.FromMinutes(1))
                   .EnableParallelProcessing(4);
     })
-    .WithCleanup(cleanup =>
-    {
-        cleanup.EnableAutoCleanup(true)
-               .RetentionPeriod(TimeSpan.FromDays(14))
-               .CleanupInterval(TimeSpan.FromHours(6));
-    })
     .EnableBackgroundProcessing();
 }));
 ```
@@ -221,7 +215,7 @@ Key `ElasticsearchOutboxOptions` properties:
 | `IndexName` | `string` | `"excalibur-outbox"` | Elasticsearch index name |
 | `DefaultBatchSize` | `int` | `100` | Default batch size for operations |
 | `RefreshPolicy` | `string` | `"wait_for"` | Index refresh policy |
-| `SentMessageRetentionDays` | `int` | `7` | Retention period for sent messages |
+| `SentMessageRetentionDays` | `int` | `7` | **Not currently applied.** The value is validated and carried, but no code path removes entries based on it — sent messages are not expired. Use the cleanup operation (see [Retention and cleanup](#retention-and-cleanup)) until this is wired. |
 
 ### Firestore
 
@@ -343,28 +337,38 @@ Configure retry behavior for failed messages:
 })
 ```
 
-## Cleanup Configuration
+## Retention and cleanup
 
-### Automatic Cleanup
+Whether stored entries are removed automatically depends on the store.
 
-Remove processed messages automatically:
+**The in-memory inbox and the in-memory deduplicator** run a periodic cleanup pass on a configurable interval, enabled by default; their entries do not accumulate without bound.
 
-```csharp
-.WithCleanup(cleanup =>
-{
-    cleanup.EnableAutoCleanup(true)
-           .RetentionPeriod(TimeSpan.FromDays(7))
-           .CleanupInterval(TimeSpan.FromHours(1));
-})
-```
+**Two separate properties decide what happens to a sent message.** Read them independently — a provider can have one, both, or one-with-conditions.
 
-### Disable Auto-Cleanup
+- **Expires on its own** — the datastore removes sent entries with **no host action**.
+- **Cleanup you can call** — the store exposes a cleanup operation your host can invoke. **The framework schedules nothing**; calling it is your job.
 
-Disable automatic cleanup if you manage message retention externally (e.g., database maintenance jobs):
+| Provider | Expires on its own | Cleanup you can call |
+|---|---|---|
+| SQL Server, PostgreSQL, Oracle | No | Yes |
+| Marten, in-memory | No | Yes |
+| Redis, MongoDB | **Yes** — native expiry, on by default (7 days) | Yes |
+| Cosmos DB | **Yes** — container and per-document TTL, on by default (7 days) | Yes |
+| DynamoDB | **Yes, on the default path.** When `CreateTableIfNotExists` is `true` (the default) the store creates the table **and enables TTL on it**. If you manage the table yourself, enable TTL on the expiry attribute or nothing is deleted | Yes |
+| Firestore | **No, until you act.** The store writes an `expireAt` field but never creates a TTL policy — Firestore deletes nothing until you configure that policy on the field yourself | Yes |
+| Elasticsearch | No — its retention **setting is not currently applied** | Yes |
 
-```csharp
-.WithCleanup(c => c.EnableAutoCleanup(false))
-```
+**Every provider gives you a callable cleanup operation.** What differs is whether anything happens if you never call it: on the relational stores, Marten and in-memory, nothing does — entries accumulate until you remove them.
+
+### What this means for erasure
+
+An erasure request is **not** satisfied by waiting for a retention window to expire — and on the relational stores there is no window at all. Any personal data in a message payload remains readable in the outbox until that entry is removed. The framework provides no mechanism for rendering an existing outbox payload unreadable in place; the available paths today are explicit deletion of the affected entries, or a cleanup pass that covers them.
+
+Do **not** treat a provider's native TTL as an erasure control. It is time-based, not subject-based: it cannot target one data subject, its default window is long, and on DynamoDB and Firestore it deletes nothing at all unless the store's TTL feature has been enabled.
+
+### Scheduling your own cleanup
+
+On a provider with no native expiry, run the cleanup operation from your own host — a background service, a cron job, or your database's own maintenance tooling — because nothing schedules it for you. Size the interval against your outbox volume and whatever retention your compliance obligations require.
 
 ## Background Processing
 
@@ -455,7 +459,7 @@ Outbox operations are logged automatically. Configure log levels:
 |----------|--------|
 | Use presets | Tested configurations for common scenarios |
 | Set processor ID | Prevent duplicate processing in multi-instance |
-| Enable cleanup | Prevent unbounded table growth |
+| Plan sent-message removal | Prevent unbounded table growth — see [Retention and cleanup](#retention-and-cleanup) for which providers expire rows themselves |
 | Monitor pending count | Detect processing bottlenecks |
 | Use appropriate batch size | Balance throughput vs. latency |
 

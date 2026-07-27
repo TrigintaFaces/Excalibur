@@ -79,7 +79,7 @@ public static class Soc2ServiceCollectionExtensions
 	/// </remarks>
 	public static IServiceCollection AddInMemorySoc2ReportStore(this IServiceCollection services)
 	{
-		_ = services.AddSingleton<ISoc2ReportStore, InMemorySoc2ReportStore>();
+		services.TryAddSingleton<ISoc2ReportStore, InMemorySoc2ReportStore>();
 		return services;
 	}
 

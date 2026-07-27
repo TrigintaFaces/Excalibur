@@ -7,6 +7,7 @@ using System.Data;
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 
 namespace Excalibur.EventSourcing.Postgres.Requests;
 
@@ -22,12 +23,19 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="fromVersion">Load events after this version (-1 for all events).</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="scope">
+	/// The tenant scope. The event store is a <strong>keyed</strong> tenant table, so the query is always
+	/// partitioned by a non-null tenant term: the resolved tenant when scoped, or the reserved
+	/// <c>__untenanted__</c> sentinel when unscoped — routed through <see cref="KeyedTenantPartition"/>,
+	/// which has no empty inhabitant. A predicate-less all-tenants query is therefore unrepresentable.
+	/// </param>
 	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
 	/// <param name="table">The event store table name. Default: "events".</param>
 	public LoadEventsRequest(
 		string aggregateId,
 		string aggregateType,
 		long fromVersion,
+		TenantScope scope,
 		CancellationToken cancellationToken,
 		string schema = "public",
 		string table = "events")
@@ -36,6 +44,13 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
 		var qualifiedTable = PgTableName.Format(schema, table);
+		// The event store is a KEYED tenant table: the read is ALWAYS partitioned by a non-null tenant term.
+		// Routing through KeyedTenantPartition binds the resolved tenant when scoped, or the reserved
+		// __untenanted__ sentinel when unscoped — so an un-partitioned (all-tenants) read is unconstructable.
+		// COALESCE folds a legacy NULL tenant (a pre-migration untenanted row not yet backfilled) to the
+		// sentinel, matching the erase/IsErased siblings; a bare `= @TenantId` would miss those rows.
+		var partition = KeyedTenantPartition.FromScope(scope);
+		const string tenantPredicate = " AND COALESCE(tenant_id, @UntenantedSentinel) = @TenantId";
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
 		var sql = $"""
@@ -43,7 +58,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 			       event_type AS EventType, event_data AS EventData, metadata AS Metadata,
 			       version AS Version, timestamp AS Timestamp
 			FROM {qualifiedTable}
-			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion
+			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion{tenantPredicate}
 			ORDER BY version ASC
 			""";
 #pragma warning restore CA2100
@@ -52,6 +67,8 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@FromVersion", fromVersion);
+		parameters.Add("@TenantId", partition.TenantId);
+		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 

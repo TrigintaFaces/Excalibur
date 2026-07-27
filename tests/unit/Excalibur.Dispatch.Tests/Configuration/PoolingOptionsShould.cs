@@ -143,7 +143,6 @@ public sealed class PoolingOptionsShould
 		options.AggressivePooling.ShouldBeTrue();
 		options.TypeConfigurations.ShouldNotBeNull();
 		options.TypeConfigurations.ShouldBeEmpty();
-		options.DefaultResetStrategy.ShouldBe(ResetStrategy.Auto);
 		options.TrimBehavior.ShouldBe(TrimBehavior.Adaptive);
 		options.MaxTrackedTypes.ShouldBe(100);
 	}
@@ -157,7 +156,6 @@ public sealed class PoolingOptionsShould
 			Enabled = false,
 			MaxPoolSizePerType = 32,
 			AggressivePooling = false,
-			DefaultResetStrategy = ResetStrategy.Interface,
 			TrimBehavior = TrimBehavior.Fixed,
 			MaxTrackedTypes = 50,
 		};
@@ -166,7 +164,6 @@ public sealed class PoolingOptionsShould
 		options.Enabled.ShouldBeFalse();
 		options.MaxPoolSizePerType.ShouldBe(32);
 		options.AggressivePooling.ShouldBeFalse();
-		options.DefaultResetStrategy.ShouldBe(ResetStrategy.Interface);
 		options.TrimBehavior.ShouldBe(TrimBehavior.Fixed);
 		options.MaxTrackedTypes.ShouldBe(50);
 	}
@@ -196,7 +193,6 @@ public sealed class PoolingOptionsShould
 		// Assert
 		options.MaxPoolSize.ShouldBe(0);
 		options.Enabled.ShouldBeTrue();
-		options.ResetStrategy.ShouldBe(ResetStrategy.Auto);
 		options.PreWarm.ShouldBeFalse();
 		options.PreWarmCount.ShouldBe(0);
 	}
@@ -209,7 +205,6 @@ public sealed class PoolingOptionsShould
 		{
 			MaxPoolSize = 100,
 			Enabled = false,
-			ResetStrategy = ResetStrategy.SourceGenerated,
 			PreWarm = true,
 			PreWarmCount = 10,
 		};
@@ -217,7 +212,6 @@ public sealed class PoolingOptionsShould
 		// Assert
 		options.MaxPoolSize.ShouldBe(100);
 		options.Enabled.ShouldBeFalse();
-		options.ResetStrategy.ShouldBe(ResetStrategy.SourceGenerated);
 		options.PreWarm.ShouldBeTrue();
 		options.PreWarmCount.ShouldBe(10);
 	}
@@ -287,26 +281,4 @@ public sealed class PoolingOptionsShould
 		values.Length.ShouldBe(4);
 	}
 
-	// --- ResetStrategy ---
-
-	[Fact]
-	public void ResetStrategy_HaveExpectedValues()
-	{
-		// Assert
-		ResetStrategy.Auto.ShouldBe((ResetStrategy)0);
-		ResetStrategy.SourceGenerated.ShouldBe((ResetStrategy)1);
-		ResetStrategy.Interface.ShouldBe((ResetStrategy)2);
-		ResetStrategy.None.ShouldBe((ResetStrategy)3);
-		ResetStrategy.Disabled.ShouldBe((ResetStrategy)4);
-	}
-
-	[Fact]
-	public void ResetStrategy_HaveFiveValues()
-	{
-		// Act
-		var values = Enum.GetValues<ResetStrategy>();
-
-		// Assert
-		values.Length.ShouldBe(5);
-	}
 }

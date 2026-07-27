@@ -193,7 +193,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
             order.TotalAmount,
             order.CreatedAt);
 
-        await _dispatcher.DispatchChildAsync(@event, cancellationToken);
+        await _dispatcher.DispatchAsync(@event, cancellationToken);
 
         return order.Id;
     }
@@ -262,7 +262,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
         // In real app: save to database here
 
         // Dispatch event to all handlers
-        await _dispatcher.DispatchChildAsync(
+        await _dispatcher.DispatchAsync(
             new OrderCreatedEvent(orderId, action.CustomerId, total, DateTime.UtcNow),
             ct);
 
@@ -377,9 +377,9 @@ public class ResilientEventHandler : IEventHandler<OrderCreatedEvent>
 
 ## Gotchas and Common Mistakes
 
-### Dispatching from inside a handler? Use `DispatchChildAsync`
+### Dispatching from inside a handler? Just call `DispatchAsync`
 
-When you dispatch a new message from within an existing handler, use `DispatchChildAsync` instead of `DispatchAsync`. This creates a child context that propagates correlation IDs, causation chains, and tenant information:
+When you dispatch a new message from within an existing handler, `DispatchAsync` automatically creates a child context that propagates correlation IDs, causation chains, and tenant information — there is nothing extra to call:
 
 ```csharp
 public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
@@ -390,19 +390,21 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
     {
         var orderId = Guid.NewGuid();
 
-        // Wrong: DispatchAsync reuses the parent context without causation tracking
-        // await _dispatcher.DispatchAsync(new OrderCreatedEvent(orderId), ct);
-
-        // Correct: DispatchChildAsync creates a child context with proper lineage
-        await _dispatcher.DispatchChildAsync(
+        // Called from within a handler, DispatchAsync automatically creates a
+        // child context with proper lineage (fresh MessageId, CausationId set to
+        // the parent's MessageId, propagating correlation/tenant/identity).
+        await _dispatcher.DispatchAsync(
             new OrderCreatedEvent(orderId, action.CustomerId, 0m, DateTime.UtcNow), ct);
+
+        // To deliberately reuse the parent context instead of childing, pass it
+        // explicitly: DispatchAsync(message, context, ct).
 
         return orderId;
     }
 }
 ```
 
-Without `DispatchChildAsync`, you lose the causal chain between parent and child messages, making distributed tracing and debugging significantly harder.
+Because `DispatchAsync` auto-childs when invoked from within a handler, the causal chain between parent and child messages is preserved automatically, keeping distributed tracing and debugging straightforward.
 
 ### Context is scoped per dispatch call
 
@@ -417,7 +419,7 @@ context.SetItem("ProcessedBy", "HandlerA");
 await _dispatcher.DispatchAsync(new AnotherAction(), ct);
 ```
 
-If you need to pass data between related dispatches, use `DispatchChildAsync` which copies correlation metadata, or pass data explicitly through the message itself.
+If you need to pass data between related dispatches, rely on `DispatchAsync`'s auto-child behavior (which copies correlation metadata when called from within a handler), or pass data explicitly through the message itself.
 
 ## What's Next
 

@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Diagnostics;
@@ -48,14 +49,18 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
-		services.TryAddSingleton(sp =>
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
+		// ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull).
+		services.AddTenantScopedStore<IEventStore, SqlServerEventStore>((sp, tenantContext) =>
 			new SqlServerEventStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>(),
 				schema,
-				table));
+				table,
+				tenantContext));
 
 		RegisterEventStoreTelemetryWrapper(services);
 
@@ -518,14 +523,18 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		services.TryAddSingleton(sp =>
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
+		// ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull).
+		services.AddTenantScopedStore<IEventStore, SqlServerEventStore>((sp, tenantContext) =>
 			new SqlServerEventStore(
 				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>(),
 				schema,
-				table));
+				table,
+				tenantContext));
 
 		RegisterEventStoreTelemetryWrapper(services);
 
@@ -598,6 +607,9 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 
 	internal static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
+		// NOTE: the ITenantScopingCapability<IEventStore> marker is emitted by AddTenantScopedStore at each
+		// concrete SqlServerEventStore registration, inseparably from the store wiring (S886 rw2ull) — not
+		// here, where it was decoupled from the store that must honor the tenant.
 		services.AddKeyedSingleton<IEventStore>("sqlserver", (sp, _) =>
 		{
 			var meterFactory = sp.GetService<IMeterFactory>();
@@ -610,6 +622,11 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		});
 		services.TryAddKeyedSingleton<IEventStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IEventStore>("sqlserver"));
+
+		// Attest the transactional-append capability (SqlServerEventStore : ITransactionalEventStore) at wire
+		// time so the outbox-staging validator can probe registration without resolving the store (it is
+		// wrapped in a TelemetryEventStore decorator here, which would defeat an instance check).
+		services.TryAddSingleton<TransactionalEventStoreMarker>();
 	}
 
 	internal static void RegisterSnapshotStoreTelemetryWrapper(IServiceCollection services)

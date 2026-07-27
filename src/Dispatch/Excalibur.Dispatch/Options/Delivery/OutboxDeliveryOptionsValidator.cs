@@ -43,6 +43,15 @@ internal sealed class OutboxDeliveryOptionsValidator : IValidateOptions<OutboxDe
 			failures.Add($"{nameof(OutboxDeliveryOptions.MaxAttempts)} must be >= 1 (was {options.MaxAttempts}).");
 		}
 
+		// MaxPayloadBytes is null = opt-out (unbounded). When set it must be >= 1: a non-positive maximum
+		// makes the ingress guard reject EVERY payload (length > 0 > max), silently bricking all delivery (887vwl).
+		if (options.MaxPayloadBytes is int maxPayloadBytes && maxPayloadBytes < 1)
+		{
+			failures.Add(
+				$"{nameof(OutboxDeliveryOptions.MaxPayloadBytes)} must be >= 1 when set (or null to opt out) "
+				+ $"(was {maxPayloadBytes}); a non-positive limit rejects every payload.");
+		}
+
 		if (options.BatchProcessing.ParallelProcessingDegree < 1)
 		{
 			failures.Add($"BatchProcessing.{nameof(OutboxBatchProcessingOptions.ParallelProcessingDegree)} must be >= 1 (was {options.BatchProcessing.ParallelProcessingDegree}).");

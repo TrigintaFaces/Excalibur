@@ -29,7 +29,6 @@ namespace Excalibur.Dispatch.Transport;
 /// for proper resource cleanup in hosting scenarios.
 /// </para>
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="MessageBufferPool" /> class. </remarks>
 /// <param name="maxBufferSize"> Maximum buffer size to pool. </param>
 internal sealed class MessageBufferPool(int maxBufferSize = 65536) : IDisposable
 {

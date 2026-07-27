@@ -9,6 +9,7 @@ using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.EventSourcing.Tests.Core.Projections;
@@ -26,42 +27,79 @@ public sealed class GlobalStreamProjectionHostShould
 	private readonly IGlobalStreamProjection<GlobalStreamTestState> _projection = A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
 	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
-	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
+	private readonly IServiceProvider _serviceProvider;
+	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
+
+	public GlobalStreamProjectionHostShould()
+	{
+		// The host resolves the (scoped) query/projection/checkpoint store from a scope per cycle (l55sbl).
+		// Back the scope with a REAL provider registering the fakes so GetRequiredService reliably returns
+		// them, and hand that provider back from the faked scope factory.
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(_globalStreamQuery);
+		_ = services.AddSingleton(_projection);
+		_ = services.AddSingleton(_checkpointStore);
+		_serviceProvider = services.BuildServiceProvider();
+
+		var scope = A.Fake<IServiceScope>();
+		A.CallTo(() => scope.ServiceProvider).Returns(_serviceProvider);
+		A.CallTo(() => _scopeFactory.CreateScope()).Returns(scope);
+	}
 
 	[Fact]
-	public void ThrowWhenGlobalStreamQueryIsNull()
+	public void Not_capture_scoped_dependencies_under_scope_validation()
+	{
+		// l55sbl: this singleton BackgroundService must NOT capture the (scoped) query/projection/checkpoint
+		// stores directly — it resolves them from a scope per cycle. Registering them as Scoped and building
+		// with scope validation proves it: pre-fix the host captured them, so building/resolving this
+		// singleton threw "Cannot consume scoped service ... from a singleton".
+		var services = new ServiceCollection();
+		_ = services.AddScoped(_ => A.Fake<IGlobalStreamQuery>());
+		_ = services.AddScoped(_ => A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>());
+		_ = services.AddScoped(_ => A.Fake<ISubscriptionCheckpointStore>());
+		_ = services.AddScoped(_ => A.Fake<ICursorMapStore>());
+		_ = services.AddSingleton(_ => A.Fake<IEventSerializer>());
+		_ = services.AddSingleton<Microsoft.Extensions.Options.IOptions<GlobalStreamProjectionOptions>>(
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()));
+		_ = services.AddLogging();
+		_ = services.AddSingleton<GlobalStreamProjectionHost<GlobalStreamTestState>>();
+
+		Should.NotThrow(() =>
+		{
+			using var provider = services.BuildServiceProvider(
+				new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+			_ = provider.GetRequiredService<GlobalStreamProjectionHost<GlobalStreamTestState>>();
+		});
+	}
+
+	[Fact]
+	public void ThrowWhenScopeFactoryIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
 			null!,
-			_projection,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
 			_serviceProvider));
 	}
 
 	[Fact]
-	public void ThrowWhenProjectionIsNull()
+	public void ThrowWhenServiceProviderIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			null!,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
-			_serviceProvider));
+			null!));
 	}
 
 	[Fact]
 	public void ThrowWhenEventSerializerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			null!,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
 			_serviceProvider));
@@ -71,10 +109,8 @@ public sealed class GlobalStreamProjectionHostShould
 	public void ThrowWhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			null!,
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
 			_serviceProvider));
@@ -84,10 +120,8 @@ public sealed class GlobalStreamProjectionHostShould
 	public void ThrowWhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
 			null!,
 			_serviceProvider));
@@ -101,10 +135,8 @@ public sealed class GlobalStreamProjectionHostShould
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -152,10 +184,8 @@ public sealed class GlobalStreamProjectionHostShould
 			});
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -190,10 +220,8 @@ public sealed class GlobalStreamProjectionHostShould
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -205,13 +233,10 @@ public sealed class GlobalStreamProjectionHostShould
 
 		// Act
 		await host.StartAsync(cts.Token);
-		// Wait for at least one poll cycle
-		var deadline = DateTime.UtcNow.AddSeconds(2);
-		while (!Fake.GetCalls(_checkpointStore)
-			.Any(c => c.Method.Name == "GetCheckpointAsync") && DateTime.UtcNow < deadline)
-		{
-			await Task.Delay(10).ConfigureAwait(false);
-		}
+		// Wait for at least one poll cycle (poll the real condition, not a fixed sleep)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Fake.GetCalls(_checkpointStore).Any(c => c.Method.Name == "GetCheckpointAsync"),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await host.StopAsync(CancellationToken.None);
 
@@ -262,10 +287,8 @@ public sealed class GlobalStreamProjectionHostShould
 			});
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -318,10 +341,8 @@ public sealed class GlobalStreamProjectionHostShould
 			});
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
@@ -343,20 +364,6 @@ public sealed class GlobalStreamProjectionHostShould
 		// Assert — the checkpoint must NEVER be persisted past the unapplied poison event.
 		A.CallTo(() => _checkpointStore.StoreCheckpointAsync(A<string>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
-	}
-
-	[Fact]
-	public void ThrowWhenCheckpointStoreIsNull()
-	{
-		// Arrange & Act & Assert - T.8 regression: checkpoint store is required
-		Should.Throw<ArgumentNullException>(() => new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
-			_eventSerializer,
-			null!,
-			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions()),
-			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
-			_serviceProvider));
 	}
 
 	private static Task AwaitApplyObservedAsync(Task signal)

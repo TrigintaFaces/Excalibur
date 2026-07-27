@@ -6,7 +6,7 @@
 >
 > ```
 > POST /orders  (X-Tenant-Id: tenant-acme)
->   -> scoped ITenantId resolver reads the header
+>   -> BeginScope middleware establishes the ambient ITenantContext from the header
 >   -> IDispatcher.DispatchAsync(CreateTenantOrderCommand)
 >   -> CreateTenantOrderHandler
 >        -> IEventSourcedRepository<TenantScopedOrder, Guid>.SaveAsync(...)
@@ -26,7 +26,8 @@ Demonstrates tenant-aware event sourcing using Excalibur's sharding primitives:
 - `.EnableTenantSharding(opts => ...)` -- scoped decorator for `IEventStore`
 - `.UseSqlServerTenantEventStore()` -- SQL Server resolver that materializes
   a shard-specific event store per tenant
-- `TryAddTenantId(sp => ...)` -- resolves the per-request tenant from the
+- `AddTenantContext()` + `TenantContextHolder.BeginScope(...)` middleware --
+  establishes the per-request ambient tenant (read via `ITenantContext`) from the
   `X-Tenant-Id` HTTP header (plug in a JWT claim / subdomain / gRPC metadata
   resolver in production)
 - `CreateTenantOrderCommand` + `CreateTenantOrderHandler` — the canonical
@@ -60,7 +61,7 @@ The sample uses **database per tenant** via the shard map: `shard-eu-1` and
   HTTP request
       |
       v
-  ITenantId (resolved from JWT / header / subdomain)
+  ITenantContext (established per request from JWT / header / subdomain via BeginScope)
       |
       v
   TenantRoutingEventStore (scoped IEventStore decorator)

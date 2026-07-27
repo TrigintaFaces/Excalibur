@@ -61,7 +61,9 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 	{
 		if (disposing)
 		{
+			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			_sut.DisposeAsync().AsTask().GetAwaiter().GetResult();
+			#pragma warning restore RS0030
 			_meterListener.Dispose();
 			_meter.Dispose();
 			_activitySource.Dispose();

@@ -435,6 +435,8 @@ services.Configure<RetryOptions>(options =>
     options.BaseDelay = TimeSpan.FromMilliseconds(100);
     options.MaxDelay = TimeSpan.FromSeconds(30);
     options.BackoffMultiplier = 2.0;
+    // Fixed, Linear, Exponential, ExponentialWithJitter, Fibonacci, or FullJitter
+    // (AWS-style full jitter — maximally decorrelates concurrent retries).
     options.BackoffStrategy = BackoffStrategy.Exponential;
 
     // Configure retryable exceptions

@@ -63,6 +63,26 @@ install_hook() {
 
 install_hook pre-commit
 install_hook pre-push
+install_hook post-merge
+install_hook post-checkout
+install_hook prepare-commit-msg
+
+# ── core.hooksPath: make the TRACKED eng/hooks the executed set ───────────────────────────────
+# Without this, git executes .git/hooks — an UNTRACKED copy that can silently drift from the
+# canonical one (the tracked-vs-executed divergence class). Pointing hooksPath at eng/hooks makes
+# the file git runs the same file code review sees.
+#
+# The .git/hooks copies above are a RESTORE POINT, not a fallback. MEASURED, one variable, with a
+# positive control: core.hooksPath REPLACES .git/hooks -- git does NOT try one and fall back to the
+# other. With hooksPath set, a hook sitting in .git/hooks does NOT fire.
+#   hooksPath unset, hook in .git/hooks  -> FIRED
+#   hooksPath set elsewhere (empty dir)  -> did NOT fire   <- no fallback
+#   hooksPath set, hook in that dir      -> FIRED          <- control
+# So the copies matter in exactly one case: someone explicitly UNSETS core.hooksPath, at which point
+# git uses .git/hooks and they must not be stale. verify-hooks-current.sh --check is what keeps them
+# current. Cloning WITHOUT running this script gives no hooks at all -- neither directory is wired.
+git config core.hooksPath eng/hooks
+echo -e "${GREEN}  ✓ core.hooksPath -> eng/hooks (tracked hooks are now the executed ones)${NC}"
 
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

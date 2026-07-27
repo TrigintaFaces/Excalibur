@@ -9,14 +9,16 @@ Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder.Namespace(s
 Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder.RenewDeadline(int milliseconds) -> Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder!
 Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder.RetryPeriod(int milliseconds) -> Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection
+Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.CandidateId.get -> string!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.Dispose() -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>!
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.IsLeader.get -> bool
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.KubernetesLeaderElection(k8s.IKubernetes! kubernetesClient, string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions!>? options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection!>? logger) -> void
+Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.KubernetesLeaderElection(k8s.IKubernetes! kubernetesClient, string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions!>? options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection!>? logger, System.TimeProvider? timeProvider = null) -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -29,31 +31,19 @@ Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionFactory.KubernetesLe
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateId.get -> string?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateId.set -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.CandidateMetadata.get -> System.Collections.Generic.IDictionary<string!, string!>!
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.GracePeriodSeconds.get -> int
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.GracePeriodSeconds.set -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.KubernetesLeaderElectionOptions() -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.LeaseDurationSeconds.get -> int
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.LeaseDurationSeconds.set -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.LeaseName.get -> string?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.LeaseName.set -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.MaxRetries.get -> int
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.MaxRetries.set -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.MaxRetryDelayMilliseconds.get -> int
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.MaxRetryDelayMilliseconds.set -> void
+Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.MaxRetryDelay.get -> System.TimeSpan
+Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.MaxRetryDelay.set -> void
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.Namespace.get -> string?
 Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.Namespace.set -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.RenewIntervalMilliseconds.get -> int
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.RenewIntervalMilliseconds.set -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.RetryIntervalMilliseconds.get -> int
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.RetryIntervalMilliseconds.set -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.StepDownWhenUnhealthy.get -> bool
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions.StepDownWhenUnhealthy.set -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptionsValidator
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptionsValidator.KubernetesLeaderElectionOptionsValidator() -> void
-Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptionsValidator.Validate(string? name, Excalibur.LeaderElection.Kubernetes.KubernetesLeaderElectionOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Microsoft.Extensions.DependencyInjection.KubernetesFencingTokenServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.KubernetesLeaderElectionBuilderExtensions
 Microsoft.Extensions.DependencyInjection.KubernetesLeaderElectionExtensions
+static Microsoft.Extensions.DependencyInjection.KubernetesFencingTokenServiceCollectionExtensions.AddKubernetesFencingTokenProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KubernetesLeaderElectionBuilderExtensions.UseKubernetes(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.KubernetesLeaderElectionExtensions.AddExcaliburKubernetesLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.KubernetesLeaderElectionExtensions.AddExcaliburKubernetesLeaderElectionHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, System.Action<Excalibur.LeaderElection.Kubernetes.ILeaderElectionKubernetesBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

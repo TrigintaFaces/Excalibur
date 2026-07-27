@@ -67,8 +67,8 @@ public static class PubSubStreamingPullServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		// Configure options
-		_ = services.Configure(configureOptions);
+		// Configure options with fail-fast startup validation, matching the IConfiguration overload.
+		_ = services.AddOptions<StreamingPullOptions>().Configure(configureOptions).ValidateOnStart();
 
 		// Register cross-property validator
 		services.TryAddEnumerable(

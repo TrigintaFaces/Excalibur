@@ -32,12 +32,41 @@ namespace Excalibur.Dispatch;
 /// For admin/query operations, implement <see cref="IOutboxStoreAdmin"/>.
 /// </para>
 /// <para>
+/// <strong>Optional capabilities are discovered through <see cref="IServiceProvider.GetService(Type)"/>,
+/// never by casting the store.</strong> A store answers for the capability interfaces it implements and
+/// returns <see langword="null"/> for the rest. A decorator answers for what it adds and defers everything
+/// else to the store it wraps, so decoration cannot silently drop a capability the underlying store has.
+/// Casting (<c>store is IOutboxStoreAdmin</c>) sees only the outermost type and is therefore lossy through
+/// any decorator; it must not be used.
+/// </para>
+/// <para>
 /// Interface uses ValueTask for synchronous completion optimization.
 /// In-memory implementations complete synchronously without allocation overhead.
 /// </para>
 /// </remarks>
-public interface IOutboxStore
+public interface IOutboxStore : IServiceProvider
 {
+	/// <summary>
+	/// Resolves an optional outbox capability, or <see langword="null"/> when it is unavailable.
+	/// </summary>
+	/// <param name="serviceType"> The capability interface to resolve, for example <see cref="IOutboxStoreAdmin"/>. </param>
+	/// <returns>
+	/// An instance assignable to <paramref name="serviceType"/> when this store provides the capability;
+	/// otherwise <see langword="null"/>.
+	/// </returns>
+	/// <remarks>
+	/// The default implementation answers for any capability this instance itself implements. Leaf stores
+	/// need not override it. Decorators must override it to defer unknown capabilities to the store they
+	/// wrap; deriving from <c>OutboxStoreDecorator</c> does so automatically.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="serviceType"/> is null. </exception>
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
 	/// <summary>
 	/// Stages a message in the outbox for later delivery.
 	/// </summary>
@@ -64,6 +93,11 @@ public interface IOutboxStore
 	/// <param name="batchSize"> Maximum number of messages to retrieve. </param>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> Collection of unsent messages ready for delivery. </returns>
+	/// <remarks>
+	/// This claim is unfenced. A store that can enforce leadership fencing implements
+	/// <see cref="IFencedOutboxStore"/>, whose overloads take the leadership token; a store that
+	/// cannot is never handed one.
+	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when batchSize is less than 1. </exception>
 	ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
 		int batchSize,
@@ -75,6 +109,10 @@ public interface IOutboxStore
 	/// <param name="messageId"> The unique identifier of the message to mark as sent. </param>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
 	/// <returns> A task representing the asynchronous mark-sent operation. </returns>
+	/// <remarks>
+	/// This mutation is unfenced. A store that can enforce leadership fencing implements
+	/// <see cref="IFencedOutboxStore"/>.
+	/// </remarks>
 	/// <exception cref="ArgumentException"> Thrown when messageId is null or empty. </exception>
 	/// <exception cref="InvalidOperationException"> Thrown when the message does not exist or is already marked as sent. </exception>
 	ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken);
@@ -137,13 +175,25 @@ public interface IOutboxStoreAdmin
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Cleans up sent messages older than the specified age.
+	/// Removes sent messages older than the specified age across <b>every</b> tenant.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is an estate-wide retention sweep and is deliberately unscoped: it matches rows by age, not by
+	/// tenant, so it removes the qualifying messages of every tenant in the store. The name declares that
+	/// scope so it cannot be reached by a caller who meant a single tenant.
+	/// </para>
+	/// <para>
+	/// An outbox store reads no ambient tenant context, so it cannot honor a tenant it never sees. Should
+	/// tenant-scoped retention ever be required, it arrives as an explicit parameter — never by inferring a
+	/// scope from ambient state.
+	/// </para>
+	/// </remarks>
 	/// <param name="olderThan"> Remove messages sent before this timestamp. </param>
 	/// <param name="batchSize"> Maximum number of messages to remove in one operation. </param>
 	/// <param name="cancellationToken"> Token to monitor for cancellation requests. </param>
-	/// <returns> The number of messages removed. </returns>
-	ValueTask<int> CleanupSentMessagesAsync(
+	/// <returns> The number of messages removed, across all tenants. </returns>
+	ValueTask<int> CleanupAllTenantsSentMessagesAsync(
 		DateTimeOffset olderThan,
 		int batchSize,
 		CancellationToken cancellationToken);

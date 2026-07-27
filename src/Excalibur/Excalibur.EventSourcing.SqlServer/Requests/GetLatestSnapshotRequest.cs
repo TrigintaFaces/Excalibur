@@ -8,6 +8,7 @@ using System.Text.Json;
 using Dapper;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.EventSourcing.SqlServer.Requests;
@@ -23,11 +24,19 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="scope">
+	/// The tenant scope. When <see cref="TenantScope.None"/> (the non-multi-tenant default), no tenant
+	/// predicate or parameter is emitted; when tenant-scoped, the query is restricted to the tenant's rows
+	/// (<c>AND TenantId = @TenantId</c>) in the same atomic statement. A tenant-scoped read cannot be
+	/// constructed without a tenant, so a predicate-less all-tenants query while tenancy is active is
+	/// unrepresentable.
+	/// </param>
 	/// <param name="schema">The schema name for the snapshot store table. Default: "dbo".</param>
 	/// <param name="table">The snapshot store table name. Default: "EventStoreSnapshots".</param>
 	public GetLatestSnapshotRequest(
 		string aggregateId,
 		string aggregateType,
+		TenantScope scope,
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreSnapshots")
@@ -36,19 +45,41 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
 		var qualifiedTable = SqlTableName.Format(schema, table);
+		// UNCONDITIONAL: the DDL keys on (AggregateId, AggregateType, TenantId), so a statement with no
+		// tenant filter matches only a SUBSET of the key and can reach another tenant's row. The
+		// predicate is therefore always present — there is no unscoped form of this read.
+		//
+		// Two layers, and they are easy to conflate:
+		//   * TYPE layer — KeyedTenantPartition has no empty inhabitant. An untenanted read binds the
+		//     reserved untenanted partition, never an empty tenant term, so the predicate always names
+		//     a concrete partition. An empty term is not constructable here.
+		//   * STORAGE layer — that reserved partition is ENCODED as '' in this provider's column. The
+		//     encoding is an implementation detail of the column, not a scope value callers can pass.
+		//
+		// The COALESCE that used to manufacture '' at query time is gone: the partition type now supplies
+		// a concrete term on every path, so there is nothing left to default. Note '' is not a portable
+		// encoding (Oracle folds it to NULL), which is why the shared representation lives in the type
+		// and each provider encodes it, rather than the SQL agreeing on a literal.
+		const string tenantPredicate = " AND TenantId = @TenantId";
+
+		// Selected unconditionally, like the predicate above. The earlier conditional projected a literal
+		// NULL for unscoped reads to avoid naming a column an unmigrated table lacked -- but the statement
+		// now FILTERS on that column in every case, so a table without it cannot be read at all and the
+		// NULL projection would only misreport a single-tenant row's actual '' tenant as null.
+		const string tenantColumn = "TenantId";
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
-			SELECT SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata
+			SELECT SnapshotId, AggregateId, AggregateType, Version, Data, CreatedAt, Metadata, {tenantColumn}
 			FROM {qualifiedTable}
-			WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType
+			WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType{tenantPredicate}
 			""";
 #pragma warning restore CA2100
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
-
+		parameters.Add("@TenantId", KeyedTenantPartition.FromScope(scope).TenantId);
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
@@ -68,6 +99,7 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 				Data = result.Data,
 				CreatedAt = new DateTimeOffset(DateTime.SpecifyKind(result.CreatedAt, DateTimeKind.Utc), TimeSpan.Zero),
 				Metadata = DeserializeMetadata(result.Metadata),
+				TenantId = result.TenantId,
 			};
 		};
 	}
@@ -146,5 +178,6 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		long Version,
 		byte[] Data,
 		DateTime CreatedAt,
-		byte[]? Metadata);
+		byte[]? Metadata,
+		string? TenantId);
 }

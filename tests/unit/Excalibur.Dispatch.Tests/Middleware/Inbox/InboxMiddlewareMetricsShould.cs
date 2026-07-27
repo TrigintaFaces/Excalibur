@@ -34,6 +34,7 @@ namespace Excalibur.Dispatch.Tests.Middleware.Inbox;
 /// calls ⇒ every deduplicated fact RED. b5lr6q is a DISTINCT counter from processed, so dedup-rate
 /// (<c>deduplicated{duplicate} / processed</c>) is independently computable.
 /// </remarks>
+[Collection("Meter Isolation")] // 2ivlcy: process-global MeterListener contention — never run concurrently.
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class InboxMiddlewareMetricsShould
@@ -157,9 +158,11 @@ public sealed class InboxMiddlewareMetricsShould
 
 	private static InboxMiddleware CreateLightMiddleware(bool isDuplicate)
 	{
-		var deduplicator = A.Fake<IInMemoryDeduplicator>();
-		_ = A.CallTo(() => deduplicator.IsDuplicateAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(isDuplicate);
+		// Atomic-claim seam (2wiylb): light mode claims via IClaimableDeduplicator.TryClaimAsync —
+		// the claim SUCCEEDS (true) when the message is new, FAILS (false) when it is a duplicate.
+		var deduplicator = A.Fake<IInMemoryDeduplicator>(o => o.Implements<IClaimableDeduplicator>());
+		_ = A.CallTo(() => ((IClaimableDeduplicator)deduplicator).TryClaimAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(!isDuplicate);
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
 		return new InboxMiddleware(options, inboxStore: null, deduplicator, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);

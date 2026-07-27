@@ -284,60 +284,62 @@ internal sealed partial class LocalMessageBus(
 			return;
 		}
 
-		var hasFirstPending = false;
-		ValueTask firstPending = default;
-		ValueTask[]? pendingInvocations = null;
-		var pendingCount = 0;
-		for (var i = 0; i < plans.Length; i++)
-		{
-			var plan = plans[i];
-			var invocation = plan.Invoke(
-				this,
-				evt,
-				plan.RequiresContext ? context : null,
-				cancellationToken);
-			if (invocation.IsCompletedSuccessfully)
-			{
-				continue;
-			}
-
-			if (!hasFirstPending)
-			{
-				firstPending = invocation;
-				hasFirstPending = true;
-				continue;
-			}
-
-			pendingInvocations ??= ArrayPool<ValueTask>.Shared.Rent(plans.Length - 1);
-			pendingInvocations[pendingCount++] = invocation;
-		}
-
-		if (!hasFirstPending)
-		{
-			return;
-		}
-
+		// Fan-out with fault isolation: start EVERY handler, await ALL of them, and aggregate faults.
+		// One handler's failure must not abandon the others -- IEventHandler fault-independence is part of
+		// the IMessageBus event contract. Collected faults surface together as an AggregateException.
+		// (Contrast the single-plan fast path above, which throws its sole handler's exception directly:
+		// a single-handler event is not wrapped in an AggregateException.)
+		var invocations = ArrayPool<ValueTask>.Shared.Rent(plans.Length);
+		List<Exception>? faults = null;
 		try
 		{
-			await firstPending.ConfigureAwait(false);
-
-			if (pendingInvocations is null || pendingCount == 0)
+			for (var i = 0; i < plans.Length; i++)
 			{
-				return;
+				var plan = plans[i];
+				try
+				{
+					var invocation = plan.Invoke(
+						this,
+						evt,
+						plan.RequiresContext ? context : null,
+						cancellationToken);
+					invocations[i] = invocation;
+				}
+#pragma warning disable CA1031 // Fault-independence: isolate a synchronously-throwing handler; rethrown aggregated below.
+				catch (Exception ex)
+				{
+					// A handler that throws synchronously must not prevent the remaining handlers from running.
+					invocations[i] = ValueTask.CompletedTask;
+					(faults ??= []).Add(ex);
+				}
+#pragma warning restore CA1031
 			}
 
-			for (var i = 0; i < pendingCount; i++)
+			for (var i = 0; i < plans.Length; i++)
 			{
-				await pendingInvocations[i].ConfigureAwait(false);
+				try
+				{
+					await invocations[i].ConfigureAwait(false);
+				}
+#pragma warning disable CA1031 // Fault-independence: collect each handler fault; rethrown aggregated below.
+				catch (Exception ex)
+				{
+					(faults ??= []).Add(ex);
+				}
+#pragma warning restore CA1031
 			}
 		}
 		finally
 		{
-			if (pendingInvocations is not null)
-			{
-				Array.Clear(pendingInvocations, 0, pendingCount);
-				ArrayPool<ValueTask>.Shared.Return(pendingInvocations, clearArray: false);
-			}
+			Array.Clear(invocations, 0, plans.Length);
+			ArrayPool<ValueTask>.Shared.Return(invocations, clearArray: false);
+		}
+
+		if (faults is not null)
+		{
+			throw new AggregateException(
+				$"One or more handlers failed while publishing event '{messageType.Name}'.",
+				faults);
 		}
 	}
 

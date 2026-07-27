@@ -116,9 +116,10 @@ public sealed class EventSourcedRepositoryBoundedTrackingShould
 		{
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No state transitions needed: this lock never replays events.
+					return true;
 		}
 	}
 }

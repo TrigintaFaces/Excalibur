@@ -38,6 +38,7 @@ public static class PostgresErasureStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresErasureStoreOptions>,
 				PostgresErasureStoreOptionsValidator>());
 
+		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
 		services.TryAddSingleton<PostgresErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<PostgresErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<PostgresErasureStore>());

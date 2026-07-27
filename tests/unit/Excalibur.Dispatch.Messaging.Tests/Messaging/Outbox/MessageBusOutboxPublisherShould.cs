@@ -21,7 +21,7 @@ public sealed class MessageBusOutboxPublisherShould
 
 	public MessageBusOutboxPublisherShould()
 	{
-		_outboxStore = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		_outboxStore = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
 		_serializer = A.Fake<IPayloadSerializer>();
 		_messageBus = A.Fake<IMessageBusAdapter>();
 		_serviceProvider = A.Fake<IServiceProvider>();
@@ -245,7 +245,7 @@ public sealed class MessageBusOutboxPublisherShould
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
-		});
+		}).WithHonestCapabilities();
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
@@ -254,7 +254,7 @@ public sealed class MessageBusOutboxPublisherShould
 			.Returns(Task.CompletedTask);
 
 		var transportRegistry = new TransportRegistry();
-		transportRegistry.RegisterTransport("kafka", adapter, "Kafka");
+		transportRegistry.RegisterTransport("kafka", adapter, "Kafka", TransportLocality.Remote);
 
 		var publisher = new MessageBusOutboxPublisher(
 			multiStoreBase,
@@ -292,7 +292,7 @@ public sealed class MessageBusOutboxPublisherShould
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
-		});
+		}).WithHonestCapabilities();
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
@@ -301,7 +301,7 @@ public sealed class MessageBusOutboxPublisherShould
 			.ThrowsAsync(new InvalidOperationException("transport unavailable"));
 
 		var transportRegistry = new TransportRegistry();
-		transportRegistry.RegisterTransport("kafka", adapter, "Kafka");
+		transportRegistry.RegisterTransport("kafka", adapter, "Kafka", TransportLocality.Remote);
 
 		var publisher = new MessageBusOutboxPublisher(
 			multiStoreBase,
@@ -338,7 +338,7 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishMultiTransportAsync_Should_SetTargetTransportsCsvInInputOrder()
 	{
 		// Arrange
-		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>()).WithHonestCapabilities();
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
 		var serializer = A.Fake<IPayloadSerializer>();
 		var messageBus = A.Fake<IMessageBusAdapter>();

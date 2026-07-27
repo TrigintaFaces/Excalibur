@@ -61,9 +61,10 @@ public sealed class ErasedEventReplayShould
 		public ErasedReplayAggregate() { }
 		public ErasedReplayAggregate(string id) : base(id) { }
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No-op: this lock asserts load-time recognition, not applied state.
+					return true;
 		}
 	}
 

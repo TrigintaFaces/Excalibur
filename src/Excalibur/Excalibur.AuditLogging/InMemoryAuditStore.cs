@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 namespace Excalibur.AuditLogging;
 
@@ -26,16 +27,48 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 	private readonly ConcurrentDictionary<string, List<AuditEvent>> _eventsByTenant = new(StringComparer.Ordinal);
 	private readonly SemaphoreSlim _sequenceSemaphore = new(1, 1);
 	private readonly IAuditIntegrityStrategy _integrity;
+	private readonly ITenantContext? _tenantContext;
 	private long _sequenceNumber;
 	private volatile bool _disposed;
+
+	/// <summary>
+	/// The partition key for events carrying no tenant. This is the store's own internal partition label,
+	/// deliberately distinct from a real tenant identifier so an untenanted event can never share a
+	/// partition with one.
+	/// </summary>
+	private const string UntenantedPartitionKey = "_default_";
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryAuditStore"/> class.
 	/// </summary>
 	/// <param name="integrity">The shared audit-integrity strategy (keyed-MAC + hash-chain).</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Reads are
+	/// scoped to the tenant this resolves — never to a tenant named by the caller's query.
+	/// </param>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="integrity"/> is null.</exception>
-	public InMemoryAuditStore(IAuditIntegrityStrategy integrity) =>
+	public InMemoryAuditStore(IAuditIntegrityStrategy integrity, ITenantContext? tenantContext = null)
+	{
 		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
+		_tenantContext = tenantContext;
+	}
+
+	/// <summary>
+	/// Resolves the partition every read is confined to. The tenant is a <em>scope</em> taken from ambient
+	/// context, not a filter supplied by the caller: a caller cannot widen it by omitting
+	/// <see cref="AuditQuery.TenantId"/>, nor redirect it by naming another tenant.
+	/// </summary>
+	/// <returns>The tenant partition key for the ambient tenant, or the untenanted partition.</returns>
+	/// <exception cref="TenantRequiredException">
+	/// Multi-tenancy is registered but resolves no tenant — the read fails closed rather than widening to
+	/// every partition.
+	/// </exception>
+	private string ResolveTenantKey()
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+
+		return scope.IsScoped ? scope.TenantId! : UntenantedPartitionKey;
+	}
 
 	/// <inheritdoc />
 	public async Task<AuditEventId> StoreAsync(AuditEvent auditEvent, CancellationToken cancellationToken)
@@ -43,7 +76,7 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 		ArgumentNullException.ThrowIfNull(auditEvent);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var tenantKey = auditEvent.TenantId ?? "_default_";
+		var tenantKey = auditEvent.TenantId ?? UntenantedPartitionKey;
 
 		// Async-safe critical section: the keyed-MAC tag computation is async, so the chain-ordering
 		// invariant (read prior tag -> compute this tag -> append) is held under a SemaphoreSlim, not a
@@ -97,8 +130,20 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		_ = _eventsById.TryGetValue(eventId, out var auditEvent);
-		return Task.FromResult(auditEvent);
+		// A lookup by primary key is still a tenant-scoped read. The identifier alone does not authorise the
+		// row: without this check a caller holding an event id obtained from anywhere — a log line, an export,
+		// a correlation trail — reads another tenant's audit record verbatim. The by-id index is deliberately
+		// flat (ids are unique across tenants and StoreAsync relies on that to reject duplicates), so the
+		// scope is applied on the way out, against the same partition key the query paths resolve.
+		if (!_eventsById.TryGetValue(eventId, out var auditEvent))
+		{
+			return Task.FromResult<AuditEvent?>(null);
+		}
+
+		var partitionKey = auditEvent.TenantId ?? UntenantedPartitionKey;
+
+		return Task.FromResult(
+			string.Equals(partitionKey, ResolveTenantKey(), StringComparison.Ordinal) ? auditEvent : null);
 	}
 
 	/// <inheritdoc />
@@ -107,23 +152,19 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 		ArgumentNullException.ThrowIfNull(query);
 		cancellationToken.ThrowIfCancellationRequested();
 
+		// SECURITY: the partition is resolved from AMBIENT context, never from query.TenantId. Reading the
+		// caller's field made tenancy opt-in — omitting it returned every tenant's events, and naming
+		// another tenant returned theirs. Both are closed by never consulting it here.
 		IEnumerable<AuditEvent> events;
 
-		if (!string.IsNullOrEmpty(query.TenantId))
+		if (!_eventsByTenant.TryGetValue(ResolveTenantKey(), out var tenantEvents))
 		{
-			if (!_eventsByTenant.TryGetValue(query.TenantId, out var tenantEvents))
-			{
-				return Task.FromResult<IReadOnlyList<AuditEvent>>([]);
-			}
-
-			lock (tenantEvents)
-			{
-				events = tenantEvents.ToList();
-			}
+			return Task.FromResult<IReadOnlyList<AuditEvent>>([]);
 		}
-		else
+
+		lock (tenantEvents)
 		{
-			events = _eventsById.Values;
+			events = tenantEvents.ToList();
 		}
 
 		events = ApplyFilters(events, query);
@@ -148,23 +189,18 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 		ArgumentNullException.ThrowIfNull(query);
 		cancellationToken.ThrowIfCancellationRequested();
 
+		// SECURITY: a count is a disclosure — an estate-wide count tells one tenant how much audit activity
+		// every other tenant has. Scoped from ambient context exactly as the read is, and for the same reason.
 		IEnumerable<AuditEvent> events;
 
-		if (!string.IsNullOrEmpty(query.TenantId))
+		if (!_eventsByTenant.TryGetValue(ResolveTenantKey(), out var tenantEvents))
 		{
-			if (!_eventsByTenant.TryGetValue(query.TenantId, out var tenantEvents))
-			{
-				return Task.FromResult(0L);
-			}
-
-			lock (tenantEvents)
-			{
-				events = tenantEvents.ToList();
-			}
+			return Task.FromResult(0L);
 		}
-		else
+
+		lock (tenantEvents)
 		{
-			events = _eventsById.Values;
+			events = tenantEvents.ToList();
 		}
 
 		events = ApplyFilters(events, query);
@@ -179,8 +215,24 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
+		// Chain verification is a tenant-scoped read like every other read path. The flat by-id index spans
+		// all tenants, so reading it here would report another tenant's event count and leak the identifier
+		// of their first violating event through firstViolationEventId. Scope against the same partition,
+		// resolved by the same ResolveTenantKey() the query and count paths already use.
+		List<AuditEvent> tenantSnapshot;
+
+		if (!_eventsByTenant.TryGetValue(ResolveTenantKey(), out var tenantEvents))
+		{
+			return AuditIntegrityResult.Valid(0, startDate, endDate);
+		}
+
+		lock (tenantEvents)
+		{
+			tenantSnapshot = tenantEvents.ToList();
+		}
+
 		// Get all events in the date range, ordered by timestamp
-		var events = _eventsById.Values
+		var events = tenantSnapshot
 			.Where(e => e.Timestamp >= startDate && e.Timestamp <= endDate)
 			.OrderBy(e => e.Timestamp)
 			.ThenBy(e => e.EventId, StringComparer.Ordinal)
@@ -232,7 +284,7 @@ internal sealed class InMemoryAuditStore : IAuditStore, IDisposable
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var tenantKey = tenantId ?? "_default_";
+		var tenantKey = tenantId ?? UntenantedPartitionKey;
 
 		if (!_eventsByTenant.TryGetValue(tenantKey, out var tenantEvents))
 		{

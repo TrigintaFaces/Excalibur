@@ -97,6 +97,8 @@ public static class CronTimerTransportServiceCollectionExtensions
 			TimeZone = consumerOptions.TimeZone,
 			RunOnStartup = consumerOptions.RunOnStartup,
 			PreventOverlap = consumerOptions.PreventOverlap,
+			CatchUpPolicy = consumerOptions.CatchUpPolicy,
+			MaxCatchUpOccurrences = consumerOptions.MaxCatchUpOccurrences,
 			MessageFactory = (name, cron, triggerTime, timeZoneId) => new CronTimerTriggerMessage<TTimer>
 			{
 				TimerName = name,
@@ -162,6 +164,8 @@ public static class CronTimerTransportServiceCollectionExtensions
 			TimeZone = consumerOptions.TimeZone,
 			RunOnStartup = consumerOptions.RunOnStartup,
 			PreventOverlap = consumerOptions.PreventOverlap,
+			CatchUpPolicy = consumerOptions.CatchUpPolicy,
+			MaxCatchUpOccurrences = consumerOptions.MaxCatchUpOccurrences,
 		};
 
 		return RegisterCronTimerTransport(services, name, adapterOptions);
@@ -200,6 +204,7 @@ public static class CronTimerTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			CronTimerTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Local,
 			sp => sp.GetRequiredKeyedService<CronTimerTransportAdapter>(name));
 
 		// Register named options + validator for ValidateOnStart
@@ -211,6 +216,8 @@ public static class CronTimerTransportServiceCollectionExtensions
 				o.TimeZone = adapterOptions.TimeZone;
 				o.RunOnStartup = adapterOptions.RunOnStartup;
 				o.PreventOverlap = adapterOptions.PreventOverlap;
+				o.CatchUpPolicy = adapterOptions.CatchUpPolicy;
+				o.MaxCatchUpOccurrences = adapterOptions.MaxCatchUpOccurrences;
 			})
 			.ValidateOnStart();
 

@@ -232,6 +232,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
+				TenantId NVARCHAR(255) NULL,
 				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
 			)
 			""";
@@ -283,9 +284,23 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 		public IEventStore Resolve(string tenantId)
 		{
 			var shard = _shardMap.GetShardInfo(tenantId);
+			// fdepwq: the event-store request DTOs now require a non-null tenantId, so the resolved store MUST
+			// carry an ITenantContext (mirrors the production SqlServerTenantEventStoreResolver). Each shard in
+			// these tests is resolved by a single tenant, so a fixed per-tenant context is sufficient.
 			return _cache.GetOrAdd(shard.ShardId, _ =>
-				new SqlServerEventStore(shard.ConnectionString, NullLogger<SqlServerEventStore>.Instance));
+				new SqlServerEventStore(
+					() => new SqlConnection(shard.ConnectionString),
+					NullLogger<SqlServerEventStore>.Instance,
+					tenantContext: new FixedTenantContext(tenantId)));
 		}
+	}
+
+	/// <summary>A fixed single-tenant context so the shard store threads a non-null tenantId (fdepwq).</summary>
+	internal sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 	}
 
 	#endregion

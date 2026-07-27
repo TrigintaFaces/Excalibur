@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Vault;
 /// </list>
 /// </para>
 /// <para>
-/// Detailed configuration is grouped into focused sub-options (<see cref="Transit"/>, <see cref="Auth"/>,
+/// Detailed configuration is grouped into focused sub-options (<c>Transit</c>, <see cref="Auth"/>,
 /// <see cref="Keys"/>, <see cref="Retry"/>, <see cref="Suspension"/>) so this root type stays within the
 /// Microsoft-first ≤10-property interface-segregation budget.
 /// </para>
@@ -219,6 +219,13 @@ public sealed class VaultSuspensionOptions
 	/// Gets or sets the Vault KV v2 mount path used to durably persist key-suspension markers.
 	/// Default is "secret".
 	/// </summary>
+	/// <remarks>
+	/// This mount is a hard prerequisite for key suspension: the marker is written and read back here, so an
+	/// absent or unreachable mount makes suspension silently inert — a suspended key could appear active
+	/// (fail-open). Reachability is validated at host start and startup fails fast (fail-closed) when the
+	/// mount is not reachable. A KV v2 secrets engine must be mounted at this path and the provider's token
+	/// must have create/read access to it.
+	/// </remarks>
 	public string MountPath { get; set; } = "secret";
 
 	/// <summary>

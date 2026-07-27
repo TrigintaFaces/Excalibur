@@ -54,13 +54,11 @@ public sealed class ContentHashDeduplicationStrategy(IDeduplicationStore store, 
 
 	/// <inheritdoc />
 	public async Task MarkAsProcessedAsync(string deduplicationId, TimeSpan? expiration,
-		CancellationToken cancellationToken)
-	{
-		var context = new DeduplicationContext { ProcessorId = Environment.MachineName, Source = "ContentHash", MessageType = "Generic" };
-
-		// Note: expiration is handled internally by the store based on options
-		_ = await _store.CheckAndMarkAsync(deduplicationId, context, cancellationToken).ConfigureAwait(false);
-	}
+		CancellationToken cancellationToken) =>
+		// Honor the caller-supplied expiration: AddAsync persists the mark with the given TTL (a null
+		// expiration lets the store fall back to its configured default). The prior CheckAndMarkAsync
+		// path silently dropped the expiration argument.
+		await _store.AddAsync(deduplicationId, expiration, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc />
 	public async Task<bool> RemoveAsync(string deduplicationId, CancellationToken cancellationToken) =>

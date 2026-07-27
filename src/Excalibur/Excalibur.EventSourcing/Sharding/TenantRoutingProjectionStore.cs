@@ -8,24 +8,24 @@ namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
 /// Decorator that routes <see cref="IProjectionStore{TProjection}"/> operations
-/// to the correct tenant's shard based on the current <see cref="ITenantId"/>.
+/// to the correct tenant's shard based on the current <see cref="ITenantContext"/>.
 /// </summary>
 /// <typeparam name="TProjection">The projection type.</typeparam>
 internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionStore<TProjection>
 	where TProjection : class
 {
 	private readonly ITenantStoreResolver<IProjectionStore<TProjection>> _resolver;
-	private readonly ITenantId _tenantId;
+	private readonly ITenantContext _tenantContext;
 
 	internal TenantRoutingProjectionStore(
 		ITenantStoreResolver<IProjectionStore<TProjection>> resolver,
-		ITenantId tenantId)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(resolver);
-		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_resolver = resolver;
-		_tenantId = tenantId;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc />
@@ -70,11 +70,11 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 
 	private IProjectionStore<TProjection> ResolveStore()
 	{
-		var tenantId = _tenantId.Value;
+		var tenantId = _tenantContext.TenantId;
 		if (string.IsNullOrEmpty(tenantId))
 		{
 			throw new InvalidOperationException(
-				"Tenant ID is not set. Ensure ITenantId is populated before accessing the projection store.");
+				"No ambient tenant is resolved. Ensure the tenant is established (TenantContextHolder.BeginScope) before accessing the projection store.");
 		}
 
 		return _resolver.Resolve(tenantId);

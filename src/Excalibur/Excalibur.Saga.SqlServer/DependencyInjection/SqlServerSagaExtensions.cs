@@ -3,6 +3,7 @@
 
 
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
@@ -36,16 +37,26 @@ public static class SqlServerSagaExtensions
 
 		RegisterSagaStoreOptions(services, configure);
 
-		services.TryAddSingleton(sp =>
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
+		// multi-tenant context still wins regardless of composition order.
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
+		// ITenantScopingCapability<ISagaStore> marker inseparably (S886 rw2ull — the marker moved off the
+		// shared options helper and onto the store registration so it cannot exist without the store).
+		services.AddTenantScopedStore<ISagaStore, SqlServerSagaStore>((sp, tenantContext) =>
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new SqlServerSagaStore(options.Value.ConnectionString!, options, logger, serializer);
+			return new SqlServerSagaStore(options.Value.ConnectionString!, options, logger, serializer, tenantContext);
 		});
 		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("sqlserver"));
+
+		// Admin/query surface (dashboard + operational tooling) — the same store instance.
+		services.TryAddSingleton<ISagaStoreAdmin>(static sp => sp.GetRequiredService<SqlServerSagaStore>());
 
 		return services;
 	}
@@ -78,17 +89,26 @@ public static class SqlServerSagaExtensions
 
 		RegisterSagaStoreOptions(services, configure);
 
-		services.TryAddSingleton(sp =>
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves
+		// ITenantContext. AddMultiTenancy REPLACES this registration (never TryAdd), so an ambient
+		// multi-tenant context still wins regardless of composition order.
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
+		// ITenantScopingCapability<ISagaStore> marker inseparably (S886 rw2ull).
+		services.AddTenantScopedStore<ISagaStore, SqlServerSagaStore>((sp, tenantContext) =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
-			return new SqlServerSagaStore(connectionFactory, options, logger, serializer);
+			return new SqlServerSagaStore(connectionFactory, options, logger, serializer, tenantContext);
 		});
 		services.AddKeyedSingleton<ISagaStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());
 		services.TryAddKeyedSingleton<ISagaStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ISagaStore>("sqlserver"));
+
+		// Admin/query surface (dashboard + operational tooling) — the same store instance.
+		services.TryAddSingleton<ISagaStoreAdmin>(static sp => sp.GetRequiredService<SqlServerSagaStore>());
 
 		return services;
 	}
@@ -287,6 +307,11 @@ public static class SqlServerSagaExtensions
 		}
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerSagaStoreOptions>, SqlServerSagaStoreOptionsValidator>());
+
+		// NOTE: the ITenantScopingCapability<ISagaStore> marker is intentionally NOT registered here. It is
+		// emitted by AddTenantScopedStore at each store registration site so the marker is inseparable from
+		// the store wiring (S886 rw2ull) — registering it from this shared options helper decoupled the
+		// capability attestation from the store that must honor it.
 	}
 
 	private static void RegisterSagaTimeoutStoreOptions(

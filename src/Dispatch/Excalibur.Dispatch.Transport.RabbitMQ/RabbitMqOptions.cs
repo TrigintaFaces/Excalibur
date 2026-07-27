@@ -209,4 +209,16 @@ public sealed class RabbitMqConsumptionOptions
 	/// </summary>
 	/// <value>The consumer tag. Default is "dispatch-consumer".</value>
 	public string ConsumerTag { get; set; } = "dispatch-consumer";
+
+	/// <summary>
+	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at receive ingress before
+	/// the body is materialized (defense-in-depth DoS hardening; the RabbitMQ analogue of Kestrel's
+	/// <c>MaxRequestBodySize</c>). An over-limit message is rejected before deserialization.
+	/// </summary>
+	/// <value>
+	/// The maximum payload length in bytes. Default is 4 MiB (bounded by default so the guard is never
+	/// inert). Set to <see langword="null"/> to opt out (unbounded) for larger legitimate payloads.
+	/// </value>
+	[Range(1, int.MaxValue)]
+	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
 }

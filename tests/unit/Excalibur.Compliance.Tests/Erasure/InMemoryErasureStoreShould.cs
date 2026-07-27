@@ -6,7 +6,7 @@ using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
 [Trait("Component", "Compliance")]
 public sealed class InMemoryErasureStoreShould
 {
-    private readonly InMemoryErasureStore _sut = new();
+    private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance);
 
     private static ErasureRequest CreateRequest(Guid? requestId = null) => new()
     {

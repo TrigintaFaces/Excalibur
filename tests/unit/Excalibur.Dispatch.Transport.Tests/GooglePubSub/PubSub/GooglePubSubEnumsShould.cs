@@ -58,20 +58,4 @@ public sealed class GooglePubSubEnumsShould
 	{
 		Enum.GetValues<RecommendedAction>().Length.ShouldBe(4);
 	}
-
-	[Theory]
-	[InlineData(BatchAckStrategy.OnSuccess, 0)]
-	[InlineData(BatchAckStrategy.BatchComplete, 1)]
-	[InlineData(BatchAckStrategy.Individual, 2)]
-	[InlineData(BatchAckStrategy.Manual, 3)]
-	public void HaveCorrectBatchAckStrategyValues(BatchAckStrategy strategy, int expected)
-	{
-		((int)strategy).ShouldBe(expected);
-	}
-
-	[Fact]
-	public void HaveAllBatchAckStrategyMembers()
-	{
-		Enum.GetValues<BatchAckStrategy>().Length.ShouldBe(4);
-	}
 }

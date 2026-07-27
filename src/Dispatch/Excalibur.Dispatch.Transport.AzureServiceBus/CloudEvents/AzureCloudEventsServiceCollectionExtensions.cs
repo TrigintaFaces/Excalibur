@@ -48,10 +48,17 @@ public static class AzureCloudEventsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
+		_ = services.AddCloudEventOptionsValidation();
 		_ = services.AddOptions<AzureServiceBusCloudEventOptions>()
 			.ValidateOnStart();
 		_ = services.AddOptions<AzureEventHubsCloudEventOptions>()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureServiceBusCloudEventOptions>, AzureServiceBusCloudEventOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureEventHubsCloudEventOptions>, AzureEventHubsCloudEventOptionsValidator>());
+
 		if (configureOptions is not null)
 		{
 			_ = services.Configure(configureOptions);
@@ -64,8 +71,8 @@ public static class AzureCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<CloudEventOptions>>().Value);
 
 		// Register Azure-specific CloudEvent adapters
-		services.TryAddSingleton<ICloudEventMapper<ServiceBusMessage>, AzureServiceBusCloudEventAdapter>();
-		services.TryAddSingleton<ICloudEventMapper<EventData>, AzureEventHubsCloudEventAdapter>();
+		services.AddCloudEventMapper<ServiceBusMessage, AzureServiceBusCloudEventAdapter>();
+		services.AddCloudEventMapper<EventData, AzureEventHubsCloudEventAdapter>();
 		services.TryAddSingleton<IAzureEventHubsCloudEventAdapter, AzureEventHubsCloudEventAdapter>();
 
 		return services;
@@ -78,7 +85,7 @@ public static class AzureCloudEventsServiceCollectionExtensions
 	/// <param name="configureServiceBus"> Action to configure Service Bus-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForServiceBus(
+	public static IServiceCollection AddCloudEventsForServiceBus(
 		this IServiceCollection services,
 		Action<AzureServiceBusCloudEventOptions>? configureServiceBus = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -107,7 +114,7 @@ public static class AzureCloudEventsServiceCollectionExtensions
 	/// <param name="configureEventHubs"> Action to configure Event Hubs-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForEventHubs(
+	public static IServiceCollection AddCloudEventsForEventHubs(
 		this IServiceCollection services,
 		Action<AzureEventHubsCloudEventOptions>? configureEventHubs = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -150,8 +157,8 @@ public static class AzureCloudEventsServiceCollectionExtensions
 					var hasTraceParent = cloudEvent.GetAttribute("traceparent") != null;
 					var hasTimestamp = cloudEvent.Time.HasValue;
 
-					// At minimum require tracing for audit compliance
-					return await Task.FromResult(hasTraceParent || hasCorrelationId).ConfigureAwait(false);
+					// DoD compliance requires correlationId, userId, and traceParent — all mandatory.
+					return await Task.FromResult(hasCorrelationId && hasUserId && hasTraceParent).ConfigureAwait(false);
 				});
 		}
 

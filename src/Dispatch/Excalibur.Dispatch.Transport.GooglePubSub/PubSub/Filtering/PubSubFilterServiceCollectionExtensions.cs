@@ -7,6 +7,9 @@ using Excalibur.Dispatch.Transport.Google;
 
 using Microsoft.Extensions.Configuration;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -60,6 +63,8 @@ public static class PubSubFilterServiceCollectionExtensions
 		_ = services.AddOptions<PubSubFilterOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PubSubFilterOptions>, PubSubFilterOptionsValidator>());
 
 		return services;
 	}
@@ -87,6 +92,8 @@ public static class PubSubFilterServiceCollectionExtensions
 		_ = services.AddOptions<PubSubFilterOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PubSubFilterOptions>, PubSubFilterOptionsValidator>());
 
 		return services;
 	}

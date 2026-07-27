@@ -1,1 +1,3 @@
 #nullable enable
+Excalibur.EventSourcing.SqlServer.SqlServerCursorMapStore.SqlServerCursorMapStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerCursorMapStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerCursorMapStore.SqlServerCursorMapStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerCursorMapStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext) -> void

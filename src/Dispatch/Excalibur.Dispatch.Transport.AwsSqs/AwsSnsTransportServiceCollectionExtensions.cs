@@ -235,6 +235,7 @@ public static class AwsSnsTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			AwsSnsTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<AwsSnsTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)

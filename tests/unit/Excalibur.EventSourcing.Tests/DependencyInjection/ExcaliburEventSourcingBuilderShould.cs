@@ -42,16 +42,19 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 		public void PlaceOrder(string customerName, decimal amount)
 		{
-			RaiseEvent(new OrderPlacedEvent { AggregateId = Id, Version = Version, CustomerName = customerName, Amount = amount });
+			RaiseEvent(new OrderPlacedEvent { CustomerName = customerName, Amount = amount });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is OrderPlacedEvent e)
 			{
 				CustomerName = e.CustomerName;
 				TotalAmount = e.Amount;
+				return true;
 			}
+
+			return false;
 		}
 	}
 
@@ -71,15 +74,18 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 		public void Register(string name)
 		{
-			RaiseEvent(new CustomerRegisteredEvent { AggregateId = Id.ToString(), Version = Version, Name = name });
+			RaiseEvent(new CustomerRegisteredEvent { Name = name });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is CustomerRegisteredEvent e)
 			{
 				Name = e.Name;
+				return true;
 			}
+
+			return false;
 		}
 	}
 
@@ -99,16 +105,17 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 		public static ProductAggregate Create(Guid id) => new(id);
 
-		public static ProductAggregate FromEvents(Guid id, IEnumerable<IDomainEvent> events)
+		public static ProductAggregate FromEvents(Guid id, IEnumerable<HistoricEvent> events)
 		{
 			var aggregate = new ProductAggregate(id);
 			aggregate.LoadFromHistory(events);
 			return aggregate;
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No-op for test
+					return true;
 		}
 	}
 

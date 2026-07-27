@@ -12,7 +12,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// <para>
 /// Provides the canonical 4 connection overloads plus subsystem-specific configuration
 /// for outbox table names, schema, and operational settings. Follows the builder pattern
-/// established by <see cref="Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder"/>.
+/// established by <c>ISqlServerCdcConnectionBuilder</c>.
 /// </para>
 /// <para>
 /// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection

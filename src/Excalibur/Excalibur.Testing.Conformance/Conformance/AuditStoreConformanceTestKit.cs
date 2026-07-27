@@ -287,6 +287,241 @@ public abstract class AuditStoreConformanceTestKit
 	}
 
 	/// <summary>
+	/// Verifies that QueryAsync confines results to one tenant when the query does not name one.
+	/// </summary>
+	/// <remarks>
+	/// THE QUERY PATH IS THE GAP. This kit's only tenant-aware arms are on GetLastEventAsync, so a
+	/// green conformance run has never demonstrated tenant scoping on QueryAsync for any provider.
+	///
+	/// The defect this arm exists to catch is caller-remembers-or-leaks: a store that applies the
+	/// tenant predicate ONLY when the caller-supplied query happens to carry a TenantId. Every code
+	/// path that builds an AuditQuery without setting one then receives every tenant's audit events,
+	/// including their resource identifiers and actor identities.
+	///
+	/// Scoping must be a property of the STORE, not a field the caller is trusted to remember. An
+	/// arm that always sets TenantId on the query can never observe the difference between the two,
+	/// which is precisely why this one deliberately omits it.
+	/// </remarks>
+	public virtual async Task QueryAsync_WithoutAnExplicitTenant_ShouldNotReturnAnotherTenantsEvents()
+	{
+		var store = CreateStore();
+
+		var tenantAEvent = CreateAuditEvent(tenantId: $"tenant-a-{GenerateEventId()}");
+		var tenantBEvent = CreateAuditEvent(tenantId: $"tenant-b-{GenerateEventId()}");
+
+		// The caller's OWN event, in the partition an ambient-less caller resolves to. Without it the
+		// liveness arm below is unsatisfiable under ambient scoping: a correctly-scoped store would
+		// return neither seeded tenant's events and the arm would fail for the RIGHT behaviour.
+		var ownEvent = CreateAuditEvent(tenantId: null);
+
+		_ = await store.StoreAsync(tenantAEvent, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(tenantBEvent, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(ownEvent, CancellationToken.None).ConfigureAwait(false);
+
+		// Deliberately carries NO TenantId. This is the shape a caller produces by omission, and the
+		// shape under which the leak occurs.
+		var query = new AuditQuery();
+
+		var results = await store.QueryAsync(query, CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY -- the events returned must belong to a single tenant. Asserted on the events' OWN
+		// identities rather than on a returned TenantId field: a store that leaks the row but
+		// rewrites or drops its tenant label would evade a predicate written against that field.
+		var distinctTenants = results
+			.Where(e => e.EventId == tenantAEvent.EventId || e.EventId == tenantBEvent.EventId)
+			.Select(e => e.EventId == tenantAEvent.EventId ? "A" : "B")
+			.Distinct()
+			.ToList();
+
+		if (distinctTenants.Count > 1)
+		{
+			throw new TestFixtureAssertionException(
+				"CROSS-TENANT DISCLOSURE ON THE QUERY PATH: QueryAsync with no TenantId on the query "
+				+ "returned audit events belonging to BOTH tenants. Tenant scoping is being applied "
+				+ "only when the caller remembers to name a tenant, so every AuditQuery built without "
+				+ "one discloses the whole estate's audit trail -- resource identifiers and actor "
+				+ "identities included. Scoping must be enforced by the store, not supplied by the caller.");
+		}
+
+		// LIVENESS -- paired with the safety arm and NOT optional. A store that returns an empty set
+		// for every unscoped query satisfies the safety arm perfectly while being useless: it
+		// discloses nothing because it answers nothing. An unscoped caller must still receive its
+		// OWN tenant's events.
+		if (results.Count == 0)
+		{
+			throw new TestFixtureAssertionException(
+				"QueryAsync with no explicit TenantId returned NOTHING. Suppressing the disclosure by "
+				+ "returning an empty set is not isolation -- an unscoped caller must still receive "
+				+ "the events belonging to its own ambient tenant.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that GetByIdAsync does not return an event belonging to another tenant.
+	/// </summary>
+	/// <remarks>
+	/// THE FOURTH READ PATH. The query, count and last-event paths resolve the tenant from the store's
+	/// ambient scope; this one did not, and the difference is invisible to every other arm in this kit
+	/// because they all read through predicate builders that GetByIdAsync bypasses.
+	///
+	/// The predicate is the whole story: a lookup keyed on the event identifier ALONE returns whichever
+	/// tenant's row carries that identifier. An identifier is not a secret — it appears in correlation
+	/// headers, logs, links between records and anything a consumer chooses to surface — so a caller who
+	/// obtains one from any source reads the corresponding audit record, actor identity and resource
+	/// identifier included, with no boundary consulted.
+	///
+	/// A single-tenant fixture cannot observe this. The arm seeds another tenant's event and asks for it
+	/// BY ITS OWN IDENTIFIER: the request is well-formed and specific, and the correct answer is still
+	/// nothing.
+	/// </remarks>
+	public virtual async Task GetByIdAsync_ForAnotherTenantsEvent_ShouldNotReturnIt()
+	{
+		var store = CreateStore();
+
+		var otherTenantEvent = CreateAuditEvent(tenantId: $"tenant-other-{GenerateEventId()}");
+
+		// The caller's OWN event, in the partition an ambient-less caller resolves to. It carries the
+		// liveness arm below; without it a store that returned null for EVERY identifier would pass the
+		// safety half perfectly while being incapable of reading anything at all.
+		var ownEvent = CreateAuditEvent(tenantId: null);
+
+		_ = await store.StoreAsync(otherTenantEvent, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(ownEvent, CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY -- the other tenant's event, requested by its exact identifier, must not come back.
+		var leaked = await store.GetByIdAsync(otherTenantEvent.EventId, CancellationToken.None).ConfigureAwait(false);
+
+		if (leaked is not null)
+		{
+			throw new TestFixtureAssertionException(
+				"CROSS-TENANT DISCLOSURE ON THE GET-BY-ID PATH: GetByIdAsync returned an audit event "
+				+ "belonging to another tenant. The lookup is keyed on the event identifier alone, so "
+				+ "anyone holding an identifier -- from a correlation header, a log line or a linked "
+				+ "record -- reads that tenant's audit record, actor identity and resource identifier "
+				+ "included. The other read paths scope to the ambient tenant; this one must too.");
+		}
+
+		// LIVENESS -- paired with the safety arm and NOT optional. Returning null for every identifier
+		// would satisfy the safety half and leave the store unable to read its own events.
+		var own = await store.GetByIdAsync(ownEvent.EventId, CancellationToken.None).ConfigureAwait(false);
+
+		if (own is null)
+		{
+			throw new TestFixtureAssertionException(
+				"GetByIdAsync returned NOTHING for the caller's OWN event. Refusing every lookup is not "
+				+ "isolation -- a caller must still read the events belonging to its own ambient tenant.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that naming another tenant on the query does not return that tenant's events.
+	/// </summary>
+	/// <remarks>
+	/// THE AUTHORISATION HALF, and it is a different defect from the omission arm above.
+	///
+	/// Omitting the tenant is a caller who FORGETS — a missing filter. Supplying another tenant's
+	/// identifier is a caller who ASKS FOR SOMEONE ELSE'S DATA, and the defect is that it was obeyed:
+	/// the tenant was read from the caller's own argument with nothing to check it against. That is an
+	/// absent authorisation boundary, not a missing predicate, and it is reachable by any code path
+	/// that can construct an <see cref="AuditQuery"/>.
+	///
+	/// THE CONTRACT: there is no admin or estate-wide audit interface in this framework, so there is no
+	/// contract under which an unchecked caller-supplied tenant is legitimate. The store resolves the
+	/// tenant from its ambient scope and does not consult the query's field at all. This arm holds that
+	/// property directly: the field may be set to anything and must change nothing.
+	/// </remarks>
+	public virtual async Task QueryAsync_NamingAnotherTenant_ShouldNotReturnThatTenantsEvents()
+	{
+		var store = CreateStore();
+
+		var foreignTenant = $"tenant-foreign-{GenerateEventId()}";
+		var foreignEvent = CreateAuditEvent(tenantId: foreignTenant);
+		var ownEvent = CreateAuditEvent(tenantId: null);
+
+		_ = await store.StoreAsync(foreignEvent, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(ownEvent, CancellationToken.None).ConfigureAwait(false);
+
+		// The caller names a tenant that is not its own. Under the ruled contract this field is not
+		// consulted; under the defect it was obeyed.
+		var results = await store.QueryAsync(
+			new AuditQuery { TenantId = foreignTenant },
+			CancellationToken.None).ConfigureAwait(false);
+
+		// SAFETY -- asking for another tenant's events must not produce them.
+		if (results.Any(e => e.EventId == foreignEvent.EventId))
+		{
+			throw new TestFixtureAssertionException(
+				$"CROSS-TENANT DISCLOSURE BY REQUEST: a caller set AuditQuery.TenantId to '{foreignTenant}' "
+				+ "and received that tenant's audit events. The tenant is being read from the caller's own "
+				+ "argument with nothing to check it against, so any caller that can construct an "
+				+ "AuditQuery can read any tenant's audit trail. Scope must come from the ambient context; "
+				+ "the query's tenant field must not be consulted.");
+		}
+
+		// LIVENESS -- and the caller still gets its OWN events. Ignoring the field must not degrade into
+		// ignoring the query: a store that returned nothing here would satisfy the safety arm while
+		// being useless.
+		if (!results.Any(e => e.EventId == ownEvent.EventId))
+		{
+			throw new TestFixtureAssertionException(
+				"A caller that named a foreign tenant did not receive its OWN events either. Ignoring the "
+				+ "query's tenant field must not turn into ignoring the caller: the ambient scope still "
+				+ "applies and must still answer.");
+		}
+	}
+
+	/// <summary>
+	/// Verifies that a tenant-scoped query still returns that tenant's own events.
+	/// </summary>
+	/// <remarks>
+	/// THE LIVENESS HALF OF TENANT SCOPING, and it is deliberately a SEPARATE arm.
+	///
+	/// Every other tenant assertion on the query path is a safety assertion — it says which events must
+	/// NOT come back. A store that returns an empty set for every query satisfies all of them, forever.
+	/// This arm is the one that fails for such a store, so it is what distinguishes "scoping works" from
+	/// "the read is broken and nobody noticed".
+	///
+	/// It asserts the caller's OWN partition, whatever that partition is. The tenant is resolved by the
+	/// store from its ambient scope — never from a field on the query — so this arm deliberately sets no
+	/// TenantId and seeds an event in the partition an ambient-less store resolves to. That keeps it
+	/// honest under the scoping contract rather than the retired opt-in one, and lets it run without the
+	/// kit's construction seam having to supply a context first.
+	/// </remarks>
+	public virtual async Task QueryAsync_ScopedToATenant_ShouldStillReturnThatTenantsOwnEvents()
+	{
+		var store = CreateStore();
+
+		// The caller's OWN event: written with no tenant, so it lands in the same partition an
+		// ambient-less caller reads from.
+		var ownEvent = CreateAuditEvent(tenantId: null);
+		var otherEvent = CreateAuditEvent(tenantId: $"tenant-other-{GenerateEventId()}");
+
+		_ = await store.StoreAsync(ownEvent, CancellationToken.None).ConfigureAwait(false);
+		_ = await store.StoreAsync(otherEvent, CancellationToken.None).ConfigureAwait(false);
+
+		// No TenantId. The store resolves the partition itself; a caller cannot name one.
+		var results = await store.QueryAsync(new AuditQuery(), CancellationToken.None).ConfigureAwait(false);
+
+		// LIVENESS -- the caller's own event must come back. A store that answers every read with an
+		// empty set is perfectly isolated and completely useless, and it would satisfy every safety arm
+		// in this kit. This is the arm that fails for it.
+		if (!results.Any(e => e.EventId == ownEvent.EventId))
+		{
+			throw new TestFixtureAssertionException(
+				"A scoped read did NOT return the caller's OWN audit event. Tenant scoping is "
+				+ "over-filtering: the caller is isolated from its own data. Returning nothing is not "
+				+ "isolation — an isolated caller must still receive the events that belong to it.");
+		}
+
+		// SAFETY -- paired, so this arm cannot be satisfied by a store that returns everything either.
+		if (results.Any(e => e.EventId == otherEvent.EventId))
+		{
+			throw new TestFixtureAssertionException(
+				"A scoped read returned an audit event belonging to a different tenant.");
+		}
+	}
+
+	/// <summary>
 	/// Verifies that QueryAsync filters by event type correctly.
 	/// </summary>
 	public virtual async Task QueryAsync_ByEventType_ShouldFilter()

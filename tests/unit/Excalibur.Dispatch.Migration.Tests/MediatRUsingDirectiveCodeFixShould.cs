@@ -77,4 +77,35 @@ public sealed class MediatRUsingDirectiveCodeFixShould
 
         await test.RunAsync();
     }
+
+    [Fact] // EC-7: mixed incumbent + compat usings -> ONLY 'using MediatR;' is dropped, others preserved; idempotent.
+    public async Task RemoveOnlyMediatRUsing_WhenMixedWithIncumbentAndCompatUsings()
+    {
+        // A realistic file: an incumbent framework using (System), the redundant MediatR using, and the
+        // already-present compat using. The fix must remove only the MediatR directive and leave the
+        // others (order preserved). The code-fix harness re-applies until no diagnostic remains, so the
+        // FixedState (no EXMIG0003) also proves the fix reaches a fixed point (idempotent).
+        const string source = """
+            using System;
+            {|#0:using MediatR;|}
+            using Excalibur.Dispatch.Compat.MediatR;
+            """;
+
+        const string fixedSource = """
+            using System;
+            using Excalibur.Dispatch.Compat.MediatR;
+            """;
+
+        var test = new CSharpCodeFixTest<MediatRUsingDirectiveAnalyzer, MediatRUsingDirectiveCodeFixProvider, DefaultVerifier>
+        {
+            TestState = { Sources = { NamespaceStubs, source } },
+            FixedState = { Sources = { NamespaceStubs, fixedSource } },
+        };
+        test.ExpectedDiagnostics.Add(
+            new DiagnosticResult("EXMIG0003", DiagnosticSeverity.Info)
+                .WithLocation(0)
+                .WithArguments("MediatR"));
+
+        await test.RunAsync();
+    }
 }

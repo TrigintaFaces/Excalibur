@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Threading.Channels;
 using System.Diagnostics.Metrics;
 
 using Elastic.Clients.Elasticsearch;
@@ -53,8 +54,14 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	private readonly SemaphoreSlim _auditSemaphore;
 	private readonly Timer? _complianceReportTimer;
 	private readonly Dictionary<ComplianceFramework, ComplianceReporter> _complianceReporters;
-	private readonly ConcurrentQueue<SecurityAuditEvent> _normalEventQueue = new();
-	private readonly ConcurrentQueue<SecurityAuditEvent> _priorityEventQueue = new();
+	// vbv0at-B: bounded in-memory audit buffers. FullMode.Wait applies producer backpressure (callers
+	// await when full) so a slow/failed audit sink throttles rather than dropping. The drain NEVER writes
+	// back into these channels (that would deadlock against its own full channel — SA ruling); flush-failed
+	// events are held in _retryBuffer and re-attempted on the next drain tick.
+	private readonly Channel<SecurityAuditEvent> _normalEventChannel;
+	private readonly Channel<SecurityAuditEvent> _priorityEventChannel;
+	private readonly List<SecurityAuditEvent> _retryBuffer = [];
+	private volatile bool _hasPendingRetry;
 	private readonly Timer _auditEventProcessor;
 	private ConcurrentBag<Task> _trackedTasks = [];
 
@@ -65,6 +72,10 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	// (DateTimeOffset.UtcNow.UtcTicks; Environment.TickCount64 is banned project-wide).
 	private const int FlushBackoffBaseMs = 1_000;
 	private const int FlushBackoffMaxMs = 30_000;
+
+	// vbv0at-B: consecutive flush failures at/above this mark the audit flush degraded (observable to a
+	// health check) — a sustained sink outage while the retry buffer accumulates and producers backpressure.
+	private const int AuditFlushDegradedThreshold = 3;
 	private long _flushBackoffUntilUtcTicks;
 	private int _consecutiveFlushFailures;
 	private volatile bool _disposed;
@@ -80,6 +91,15 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 	/// <inheritdoc />
 	public bool IntegrityProtectionEnabled => Configuration.EnsureLogIntegrity;
+
+	/// <summary>
+	/// Gets a value indicating whether the audit flush is currently degraded — i.e. the sink has failed
+	/// repeatedly and events are accumulating in the in-memory retry buffer while producers apply
+	/// backpressure. Exposed so a health check can surface a sustained audit-sink outage (vbv0at-B); the
+	/// pipeline never silently drops audit events, it throttles callers instead.
+	/// </summary>
+	/// <value><see langword="true"/> when consecutive flush failures indicate a sustained outage.</value>
+	internal bool IsAuditFlushDegraded => Volatile.Read(ref _consecutiveFlushFailures) >= AuditFlushDegradedThreshold;
 
 	/// <inheritdoc />
 	public IReadOnlyCollection<ComplianceFramework> SupportedComplianceFrameworks { get; }
@@ -201,9 +221,19 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		_complianceReporters = InitializeComplianceReporters();
 		SupportedComplianceFrameworks = [.. Configuration.ComplianceFrameworks];
 
+		// vbv0at-B: bounded channels sized from options; producers wait (never drop) when full.
+		var channelCapacity = Configuration.MaxPendingAuditEvents > 0 ? Configuration.MaxPendingAuditEvents : 10_000;
+		var channelOptions = new BoundedChannelOptions(channelCapacity)
+		{
+			FullMode = BoundedChannelFullMode.Wait,
+			SingleReader = true,
+		};
+		_normalEventChannel = Channel.CreateBounded<SecurityAuditEvent>(channelOptions);
+		_priorityEventChannel = Channel.CreateBounded<SecurityAuditEvent>(channelOptions);
+
 		// Initialize focused service delegates
 		_writer = new SecurityAuditWriter(
-			Configuration, _auditSemaphore, _normalEventQueue, _priorityEventQueue, _complianceReporters, sanitizer, _logger);
+			Configuration, _auditSemaphore, _normalEventChannel.Writer, _priorityEventChannel.Writer, _complianceReporters, sanitizer, _logger);
 		_queryService = new SecurityAuditQueryService(
 			_elasticsearchClient, Configuration, _complianceReporters, _logger);
 		_maintenanceService = new SecurityAuditMaintenanceService(
@@ -381,6 +411,8 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 		_auditSemaphore?.Dispose();
 		_complianceReportTimer?.Dispose();
+		_ = _normalEventChannel.Writer.TryComplete();
+		_ = _priorityEventChannel.Writer.TryComplete();
 		_auditEventProcessor?.Dispose();
 
 		// Best-effort drain of tracked tasks with timeout to prevent abandonment
@@ -425,6 +457,8 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			await _complianceReportTimer.DisposeAsync().ConfigureAwait(false);
 		}
 
+		_ = _normalEventChannel.Writer.TryComplete();
+		_ = _priorityEventChannel.Writer.TryComplete();
 		await _auditEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		// Wait for tracked tasks to complete
@@ -484,7 +518,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// </summary>
 	private void ProcessAuditEventQueue(object? state)
 	{
-		if (_disposed || (_priorityEventQueue.IsEmpty && _normalEventQueue.IsEmpty))
+		if (_disposed || (_priorityEventChannel.Reader.Count == 0 && _normalEventChannel.Reader.Count == 0 && !_hasPendingRetry))
 		{
 			return;
 		}
@@ -508,7 +542,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 	private async Task ProcessAuditEventQueueCoreAsync()
 	{
-		if (_priorityEventQueue.IsEmpty && _normalEventQueue.IsEmpty)
+		if (_priorityEventChannel.Reader.Count == 0 && _normalEventChannel.Reader.Count == 0 && !_hasPendingRetry)
 		{
 			return;
 		}
@@ -522,13 +556,23 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 
 		var eventsToProcess = new List<SecurityAuditEvent>();
 
-		// Drain priority queue first (incidents), then normal events
-		while (eventsToProcess.Count < 100 && _priorityEventQueue.TryDequeue(out var priorityEvent))
+		// Re-attempt events that failed to flush on a prior tick first (held locally, never re-written to
+		// the bounded channel — that would deadlock the single-reader drain against a full channel).
+		if (_retryBuffer.Count > 0)
+		{
+			var take = System.Math.Min(_retryBuffer.Count, 100);
+			eventsToProcess.AddRange(_retryBuffer.GetRange(0, take));
+			_retryBuffer.RemoveRange(0, take);
+			_hasPendingRetry = _retryBuffer.Count > 0;
+		}
+
+		// Drain priority channel first (incidents), then normal events
+		while (eventsToProcess.Count < 100 && _priorityEventChannel.Reader.TryRead(out var priorityEvent))
 		{
 			eventsToProcess.Add(priorityEvent);
 		}
 
-		while (eventsToProcess.Count < 100 && _normalEventQueue.TryDequeue(out var normalEvent))
+		while (eventsToProcess.Count < 100 && _normalEventChannel.Reader.TryRead(out var normalEvent))
 		{
 			eventsToProcess.Add(normalEvent);
 		}
@@ -578,11 +622,11 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		{
 			_logger.LogError(ex, "Error processing audit event queue");
 
-			// Re-queue events for retry (into normal queue)
-			foreach (var evt in eventsToProcess)
-			{
-				_normalEventQueue.Enqueue(evt);
-			}
+			// vbv0at-B: hold un-flushed events in the LOCAL retry buffer (never write back into the bounded
+			// channel — the single-reader drain would deadlock against its own full channel). They are
+			// re-attempted on the next drain tick; producers keep applying backpressure so nothing is lost.
+			_retryBuffer.AddRange(eventsToProcess);
+			_hasPendingRetry = true;
 
 			// d0f69o: space out retries with a capped exponential backoff so a persistent failure
 			// (e.g. EnsureLogIntegrity=true with no signing key) does not hot-loop. The events remain

@@ -416,12 +416,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 	#region Event Stores Event ID Tests (70700-70799)
 
 	[Fact]
-	public void HaveSqlSecurityEventStoreCreatedInEventStoreRange()
-	{
-		SecurityEventId.SqlSecurityEventStoreCreated.ShouldBe(70700);
-	}
-
-	[Fact]
 	public void HaveFileSecurityEventStoreCreatedInEventStoreRange()
 	{
 		SecurityEventId.FileSecurityEventStoreCreated.ShouldBe(70701);
@@ -448,7 +442,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 	[Fact]
 	public void HaveAllEventStoreEventIdsInExpectedRange()
 	{
-		SecurityEventId.SqlSecurityEventStoreCreated.ShouldBeInRange(70700, 70799);
 		SecurityEventId.FileSecurityEventStoreCreated.ShouldBeInRange(70700, 70799);
 		SecurityEventId.ElasticsearchSecurityEventStoreCreated.ShouldBeInRange(70700, 70799);
 		SecurityEventId.SecurityEventStored.ShouldBeInRange(70700, 70799);
@@ -719,7 +712,6 @@ public sealed class SecurityEventIdShould : UnitTestBase
 			SecurityEventId.SecurityEventLoggedWithDetails,
 
 			// Event Stores (70700-70799)
-			SecurityEventId.SqlSecurityEventStoreCreated,
 			SecurityEventId.FileSecurityEventStoreCreated,
 			SecurityEventId.ElasticsearchSecurityEventStoreCreated,
 			SecurityEventId.SecurityEventStored,

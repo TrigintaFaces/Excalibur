@@ -117,5 +117,11 @@ public sealed class OpenSearchMaterializedViewStoreOptions
 		{
 			throw new InvalidOperationException("PositionsIndexName is required.");
 		}
+
+		if (RefreshPolicy is not ("wait_for" or "true" or "false"))
+		{
+			throw new InvalidOperationException(
+				$"RefreshPolicy '{RefreshPolicy}' is invalid. Valid values are 'wait_for', 'true', or 'false'.");
+		}
 	}
 }

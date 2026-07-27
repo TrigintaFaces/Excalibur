@@ -3,6 +3,8 @@
 
 using System.Collections.Frozen;
 
+using Excalibur.Dispatch.Messaging;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Delivery;

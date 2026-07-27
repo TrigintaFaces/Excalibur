@@ -243,7 +243,9 @@ public sealed class DynamicBatchSizeCalculatorShould
 		}
 
 		// Wait for all tasks to complete
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		Task.WaitAll([.. tasks]);
+		#pragma warning restore RS0030
 
 		// Assert - Should not throw and should have valid batch sizes
 		retrievedBatchSizes.Count.ShouldBe(1000);

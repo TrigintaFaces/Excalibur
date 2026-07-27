@@ -24,6 +24,12 @@ internal sealed class KafkaOptionsValidator : IValidateOptions<KafkaOptions>
 				"Kafka BootstrapServers is required. Set KafkaOptions.BootstrapServers to a comma-separated list of broker addresses.");
 		}
 
+		if (options.Consumer is { MaxPayloadBytes: < 1 })
+		{
+			return ValidateOptionsResult.Fail(
+				"KafkaOptions.Consumer.MaxPayloadBytes must be at least 1 byte when specified. Set it to null to opt out of the payload-size limit.");
+		}
+
 		return ValidateOptionsResult.Success;
 	}
 }

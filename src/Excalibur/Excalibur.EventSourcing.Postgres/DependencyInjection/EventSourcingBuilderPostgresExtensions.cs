@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
@@ -182,7 +183,12 @@ public static class EventSourcingBuilderPostgresExtensions
 		string schema,
 		string table)
 	{
-		services.TryAddSingleton(sp =>
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext for the row-level tenant predicate)
+		// AND emits the ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull — the marker
+		// moved off the separate telemetry-wrapper helper onto the store registration so it cannot exist
+		// without the store that must honor the tenant).
+		services.AddTenantScopedStore<IEventStore, PostgresEventStore>((sp, tenantContext) =>
 		{
 			var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
 			return new PostgresEventStore(
@@ -191,7 +197,8 @@ public static class EventSourcingBuilderPostgresExtensions
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>(),
 				schema,
-				table);
+				table,
+				tenantContext);
 		});
 
 		PostgresEventSourcingServiceCollectionExtensions.RegisterEventStoreTelemetryWrapper(services);
@@ -202,14 +209,21 @@ public static class EventSourcingBuilderPostgresExtensions
 		string schema,
 		string table)
 	{
-		services.TryAddSingleton(sp =>
+		services.AddDefaultTenantContext();
+		// Mirror RegisterEventStore: AddTenantScopedStore injects ITenantContext (for the row-level tenant
+		// predicate) AND emits the ITenantScopingCapability<ISnapshotStore> marker inseparably (S886 rw2ull)
+		// — the snapshot store cannot be registered without the tenant context it must honor. The prior
+		// TryAddSingleton constructed the store WITHOUT a context, so it silently served every tenant one
+		// partition (TenantScope.FromContext(null) = None) and carried no tenant-scoping attestation.
+		services.AddTenantScopedStore<ISnapshotStore, PostgresSnapshotStore>((sp, tenantContext) =>
 		{
 			var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
 			return new PostgresSnapshotStore(
 				dataSource,
 				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>(),
 				schema,
-				table);
+				table,
+				tenantContext);
 		});
 
 		PostgresEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);

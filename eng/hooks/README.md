@@ -6,24 +6,25 @@ This directory contains canonical versions of Git hooks used for automated gover
 ## Available Hooks
 
 ### pre-commit
-Enforces ADR-050 namespace depth requirements **and** flushes the Beads tracker before commits are accepted.
+Enforces namespace depth requirements **and** flushes the Beads tracker before commits are accepted.
 
-**Beads tracker flush guard (bd-xlnd5e / S849 I1):**
-- When `.beads/issues.jsonl` is staged (integration/close commits), the hook runs `eng/ci/bd-flush-guard.sh`
-  to make the tracked tracker reflect the Beads DB **before** git snapshots it, then re-stages it.
-- This closes the recurring daemon-mtime race (`bd sync --flush-only` refusing with *"JSONL is newer than
-  database"* or silently writing nothing) that left fresh closes un-persisted in committed HEAD across
-  S842–S848. See `.claude/rules/process/bd-flush-then-commit.md` (clause 6).
-- The helper is **data-loss-safe**: it uses `bd export --no-auto-import` (never a blind `import`, which would
-  revert fresh closes), guards against an on-disk `.jsonl` that is *ahead* of the DB (foreign change →
-  aborts the commit LOUD, exit 2), bounded-retries transient contention, and fails LOUD (exit 1) on a
-  genuine failure rather than shipping a desynced tracker. It never pipes the flush through an exit-masking
-  `head`/`tail` (`no-pipe-masked-commit.md`).
-- Runs **before** the C#-only early-exit so a tracker-only commit is still flushed.
-- The helper is standalone and reusable: the integrator may run `bash eng/ci/bd-flush-guard.sh` directly.
-  Knobs: `BD_FLUSH_ATTEMPTS` (3), `BD_FLUSH_BACKOFF` (2s), `BD_JSONL_PATH`, `BD_BIN`, `PYTHON_BIN`.
+> **RETIRED — the `bd-flush-guard` tracker backstop no longer exists.**
+>
+> `eng/ci/bd-flush-guard.sh` was removed with the daemon-era durability guards during the bd 1.1.0 (Dolt)
+> migration. **Do not run it and do not rely on it** — the command fails, and the `bd export --no-auto-import`
+> flag it used was also removed (`Error: unknown flag: --no-auto-import`).
+>
+> **There is currently no automatic check that a staged tracker reflects the Beads DB.** Verify closes
+> reached committed HEAD yourself:
+>
+> ```bash
+> git show HEAD:.beads/issues.jsonl | grep '<issue-id>'
+> ```
+>
+> Read the **committed** blob, not `bd show` — the DB and the tracked file are separate surfaces and the
+> export between them can fail without failing your command.
 
-**Namespace depth (ADR-050) — what it does:**
+**Namespace depth — what it does:**
 - Analyzes staged C# files for namespace depth violations
 - Applies path-based depth limits (NS-001 and NS-001a):
 
@@ -36,7 +37,7 @@ Enforces ADR-050 namespace depth requirements **and** flushes the Beads tracker 
 - Warns about namespaces at acceptable maximum
 - Passes silently for optimal depths (≤4 for src/, ≤5 for tests/)
 
-**See**: `.git/hooks/README.md` for detailed documentation
+**See**: the header comment in `eng/hooks/pre-commit` for the per-gate detail.
 
 ### pre-push
 Enforces `CHANGELOG.md [Unreleased]` update when pushing significant changes.
@@ -58,56 +59,59 @@ Enforces `CHANGELOG.md [Unreleased]` update when pushing significant changes.
 - Add `[skip changelog]` to any commit message in the push range
 - `git push --no-verify`
 
-**Why this exists:** Pre-S811 we accumulated 4 sprints (S808–S811) of shipping changes, 36 dep bumps, 60 public-API promotions, and multiple source fixes without a single CHANGELOG entry. This hook enforces the update at push time so drift is caught before it compounds.
+**Why this exists:** We once accumulated four sprints of shipping changes, 36 dep bumps, 60 public-API promotions, and multiple source fixes without a single CHANGELOG entry. This hook enforces the update at push time so drift is caught before it compounds.
 
 ## Installation
 
-### Manual Installation
-
-Copy the hook to your local `.git/hooks/` directory:
-
-```bash
-# From repository root
-cp eng/hooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-```
-
-### Automated Installation (Windows PowerShell)
-
-Run the installation script:
-
-```powershell
-# From repository root
-.\eng\hooks\install-hooks.ps1
-```
-
-### Automated Installation (Bash/Git Bash)
+Run the installer. **Do not copy hooks by hand** — see the warning below.
 
 ```bash
 # From repository root
 bash eng/hooks/install-hooks.sh
 ```
 
+```powershell
+# From repository root
+.\eng\hooks\install-hooks.ps1
+```
+
+The installer does two things: it sets `core.hooksPath` to `eng/hooks`, and it copies the hooks into `.git/hooks` as a restore point.
+
+:::warning Do not `cp` hooks into `.git/hooks` yourself
+
+`core.hooksPath` **replaces** `.git/hooks` — git does not try one and fall back to the other. Measured, one variable, with a positive control:
+
+```
+hooksPath unset, hook in .git/hooks     -> FIRED
+hooksPath set elsewhere (empty dir)     -> did NOT fire     <- no fallback
+hook placed in the hooksPath dir        -> FIRED            <- control
+```
+
+So with `core.hooksPath = eng/hooks` in effect, **a hook copied into `.git/hooks` never runs.** Copying by hand leaves you believing you are protected while nothing executes.
+
+:::
+
 ## Verification
 
-Test the hook installation:
-
 ```bash
-# Should display namespace validation output
-bash .git/hooks/pre-commit
+# what git will actually execute
+git config core.hooksPath          # expect: eng/hooks
+bash "$(git config core.hooksPath)/pre-commit"
 ```
+
+Verify against `core.hooksPath`, not against a fixed directory — the two are only the same when `hooksPath` is unset.
 
 ## Important Notes
 
-⚠️ **Hooks in `.git/hooks/` are NOT version controlled** - Each developer must install them locally.
+✅ **`eng/hooks/` is version controlled and is what git executes** once the installer has set `core.hooksPath`. The file you review is the file that runs.
 
-✅ **Canonical versions in `eng/hooks/` ARE version controlled** - Updates to hooks can be tracked and distributed.
+⚠️ **`core.hooksPath` is LOCAL git config.** It is not cloned. **A fresh clone has no `core.hooksPath` and an empty `.git/hooks`, so it runs no hooks at all** until someone runs the installer. Nothing invokes the installer automatically.
 
-📋 **Installation is recommended but not mandatory** - CI gates will catch violations even if pre-commit is bypassed.
+⚠️ **Do not assume CI is a backstop for a skipped hook.** Whether a given gate also runs in CI must be checked per gate — several run only from the pre-commit hook. **"CI will catch it" is a claim to verify, not a default.** Check the workflow that hosts the gate you care about, and check what it triggers on: a gate declared in a workflow that never fires on your integration path has not run.
 
 ## Defense-in-Depth Enforcement
 
-ADR-050 namespace depth is enforced at multiple layers:
+Namespace depth is enforced at multiple layers:
 
 | Layer | Enforcement | When | Bypass Possible? |
 |-------|------------|------|------------------|
@@ -119,37 +123,43 @@ This layered approach ensures violations cannot reach the main branch.
 
 ## Updating Hooks
 
-To update hooks for all developers:
+1. Modify `eng/hooks/pre-commit` — it is the executed file, not a template
+2. Test it: `bash eng/hooks/pre-commit`
+3. Commit
 
-1. Modify the canonical version in `eng/hooks/pre-commit`
-2. Test thoroughly: `bash eng/hooks/pre-commit`
-3. Commit the changes
-4. Notify team to reinstall: `cp eng/hooks/pre-commit .git/hooks/pre-commit`
-5. Consider updating `install-hooks.*` scripts if behavior changes
+**No reinstall step is needed for developers who already have `core.hooksPath` set** — they execute the tracked file, so your commit reaches them with the next pull. Re-run the installer only to refresh the `.git/hooks` restore point or to set `core.hooksPath` on a machine that lacks it.
 
 ## Troubleshooting
 
 ### Hook not running
-```bash
-# Check if hook exists and is executable
-ls -la .git/hooks/pre-commit
 
-# If not executable:
-chmod +x .git/hooks/pre-commit
+```bash
+# 1. Is core.hooksPath set? A fresh clone has none, and then NO hooks run.
+git config core.hooksPath              # expect: eng/hooks
+
+# 2. Is the hook present and executable AT THAT PATH?
+ls -la "$(git config core.hooksPath)/pre-commit"
+chmod +x "$(git config core.hooksPath)/pre-commit"
 ```
+
+**Check `core.hooksPath` first.** The most common cause is not a missing file but an unset config — the hook exists, is executable, and is in a directory git is not reading.
 
 ### Hook runs but always passes
+
 ```bash
-# Verify hook logic is correct
-bash -x .git/hooks/pre-commit 2>&1 | less
+bash -x "$(git config core.hooksPath)/pre-commit" 2>&1 | less
 ```
 
-### Need to bypass hook temporarily
+A gate can also run and legitimately enforce nothing — read its output rather than its exit code. A gate that prints something like `INERT — nothing was enforced` is telling you it was evaluated against an empty set, which is not the same as passing.
+
+### Need to bypass a hook temporarily
+
 ```bash
-# NOT RECOMMENDED - CI will still enforce
-git commit --no-verify -m "Emergency commit"
+git commit --no-verify -m "…"
 ```
+
+**Do not assume CI re-checks what you skipped.** Verify per gate; several exist only in the hook.
 
 ## Related Documentation
 
-- Hook Usage: `.git/hooks/README.md` (after installation)
+- Installer behaviour and the `core.hooksPath` rationale: `eng/hooks/install-hooks.sh` (header comment, carries the measurement)

@@ -12,7 +12,7 @@ namespace Excalibur.LeaderElection.SqlServer;
 /// <para>
 /// Provides the canonical 4 connection overloads plus <see cref="LockResource"/>
 /// configuration. Follows the builder pattern established by
-/// <see cref="Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder"/>.
+/// <c>ISqlServerCdcConnectionBuilder</c>.
 /// </para>
 /// <para>
 /// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection

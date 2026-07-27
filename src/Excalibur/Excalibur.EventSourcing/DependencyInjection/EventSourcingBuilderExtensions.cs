@@ -6,12 +6,14 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Projections;
+using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Snapshots;
 using Excalibur.EventSourcing.Subscriptions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.DependencyInjection;
 
@@ -227,6 +229,18 @@ public static class EventSourcingBuilderExtensions
 
 		builder.Services.TryAddSingleton<Erasure.IAggregateDataSubjectMapping, TMapping>();
 
+		// Declare that event-store erasure honors the ambient tenant: the erasure contributor scopes the
+		// tombstone to the data subject's tenant (BeginScope) and the erase/is-erased requests fail closed
+		// on a null discriminator. Paired with the IAggregateDataSubjectMapping opt-in the gate keys on, so
+		// a multi-tenant host that opts into erasure passes the tenant-scoping requirement instead of
+		// failing closed at startup.
+		//
+		// Emitted here through the canonical internal seam (EventSourcing is an InternalsVisibleTo friend of
+		// Excalibur.Dispatch.Abstractions), co-located with the erasure wiring it attests, so the sole
+		// ITenantScopingCapability implementation is the one internal marker — no provider clone.
+		Microsoft.Extensions.DependencyInjection.TenantScopedStoreServiceCollectionExtensions
+			.AddTenantScopingCapability<IEventStoreErasure>(builder.Services);
+
 		_ = builder.Services.AddSingleton<global::Excalibur.Compliance.IErasureContributor>(sp =>
 		{
 			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
@@ -241,6 +255,16 @@ public static class EventSourcingBuilderExtensions
 				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
 				sp.GetKeyedService<ISnapshotStore>("default"));
 		});
+
+		// Fail-closed startup gate: GDPR event-store erasure composed with tenant-sharding is not yet
+		// supported — the tenant-routing store does not route erasure to per-tenant shards, so an erase would
+		// not reach the subject's shard. Rather than let the erasure contributor resolve into an unroutable
+		// state, fail fast at startup when both are composed. The sharding marker is registered by the routing
+		// wiring (both EnableTenantSharding and AddMultiTenancy's sharding strategy), so this covers every
+		// sharding entry point regardless of registration order; a non-sharding host has no marker and passes.
+		builder.Services.AddOptions<ShardingErasureGuardOptions>().ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ShardingErasureGuardOptions>, ShardingErasureGuard>());
 
 		return builder;
 	}
@@ -301,9 +325,20 @@ public static class EventSourcingBuilderExtensions
 
 		_ = optionsBuilder.ValidateOnStart();
 
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GlobalStreamProjectionOptions>, GlobalStreamProjectionOptionsValidator>());
+
 		// Register in-memory checkpoint store as fallback (providers like SqlServer
 		// can register a durable implementation that takes precedence via TryAdd).
 		builder.Services.TryAddSingleton<ISubscriptionCheckpointStore, InMemorySubscriptionCheckpointStore>();
+
+		// Projection-lag read model: pairs each subscription checkpoint with the global-stream head.
+		// Requires an IGlobalStreamQuery (registered by a provider such as SqlServer); consumers that
+		// resolve it without a provider configured should probe via GetService and fail open.
+		builder.Services.TryAddSingleton<IProjectionLagReadModel>(static sp =>
+			new ProjectionLagReadModel(
+				sp.GetRequiredService<ISubscriptionCheckpointStore>(),
+				sp.GetService<IGlobalStreamQuery>()));
 
 		// Register the background service
 		builder.Services.TryAddEnumerable(

@@ -1,4 +1,9 @@
 #nullable enable
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.IndexName(string! indexPrefix) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.NodeUri(System.Uri! nodeUri) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
+Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! nodeUris) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
 Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter
 Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExporterHealthResult!>!
 Excalibur.AuditLogging.OpenSearch.OpenSearchAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
@@ -62,10 +67,5 @@ const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkHttpEr
 const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkRetried = 93545 -> int
 const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkTimeout = 93544 -> int
 const Excalibur.AuditLogging.OpenSearch.OpenSearchAuditLoggingEventId.SinkWriteFailed = 93542 -> int
-Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder
-Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
-Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.IndexName(string! indexPrefix) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
-Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.NodeUri(System.Uri! nodeUri) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
-Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder.NodeUris(System.Collections.Generic.IEnumerable<System.Uri!>! nodeUris) -> Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExtensions.AddOpenSearchAuditSink(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.OpenSearch.IAuditLoggingOpenSearchBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

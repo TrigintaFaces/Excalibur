@@ -323,24 +323,21 @@ public sealed class CloudEventVersionShould
 	}
 
 	[Fact]
-	public void UseSchemaRegistryWhenProvided()
+	public void UseCanonicalSemverEvenWhenRegistryProvided()
 	{
-		// Arrange
+		// The schema registry no longer participates in version compatibility (that semver logic was
+		// deduplicated to the single canonical CloudEventVersion implementation). A provided registry must
+		// not override it: same-major Full compatibility is decided by semver alone.
 		var cloudEvent = CreateTestCloudEvent();
 		cloudEvent.SetSchemaVersion("1.0");
 		cloudEvent.SetSchemaCompatibility(SchemaCompatibilityMode.Full);
 
 		var registry = A.Fake<ISchemaRegistry>();
-		A.CallTo(() => registry.IsCompatible(
-			A<string>._, A<string>._, A<string>._, A<SchemaCompatibilityMode>._)).Returns(true);
 
-		// Act
-		var result = cloudEvent.IsCompatibleWith("2.0", registry);
-
-		// Assert
-		result.ShouldBeTrue();
-		A.CallTo(() => registry.IsCompatible(
-			A<string>._, "1.0", "2.0", SchemaCompatibilityMode.Full)).MustHaveHappenedOnceExactly();
+		// Same major (1.x) under Full mode -> compatible via canonical semver.
+		cloudEvent.IsCompatibleWith("1.5", registry).ShouldBeTrue();
+		// Different major under Full mode -> incompatible, regardless of the registry.
+		cloudEvent.IsCompatibleWith("2.0", registry).ShouldBeFalse();
 	}
 
 	private static CloudEvent CreateTestCloudEvent() =>

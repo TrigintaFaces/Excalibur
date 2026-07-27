@@ -10,6 +10,7 @@ using Excalibur.EventSourcing;
 namespace Excalibur.Data.ElasticSearch.Tests.ElasticSearch;
 
 [UnitTest]
+[Trait("Component", "Elasticsearch")]
 public sealed class ElasticSearchCursorHelperShould
 {
 	// ─── DecodeCursor ───────────────────────────────────────────────────

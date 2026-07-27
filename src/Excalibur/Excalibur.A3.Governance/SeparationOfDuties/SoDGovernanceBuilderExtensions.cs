@@ -10,6 +10,7 @@ using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -94,6 +95,12 @@ public static class SoDGovernanceBuilderExtensions
 	{
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<ISoDPolicyStore, InMemorySoDPolicyStore>();
+
+		// Registering SoD enforcement is a statement that it should enforce something. A store that loads
+		// zero policies makes every check answer "no conflicts", so that state fails at boot rather than
+		// passing silently at evaluation time. The evaluator's hot path is deliberately unchanged.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, SoDPolicyPresenceStartupCheck>());
 
 		// Default evaluator (overridable)
 		builder.Services.TryAddSingleton<ISoDEvaluator, DefaultSoDEvaluator>();

@@ -40,11 +40,14 @@ public sealed class InboxPrerequisiteValidatorShould
 	}
 
 	[Fact]
-	public async Task Succeed_WhenKeyedIInboxStoreIsRegistered()
+	public async Task Succeed_WhenKeyedClaimableIInboxStoreIsRegistered()
 	{
+		// scyy8a: the validator now requires the default store to support atomic CLAIM (a non-claimable store
+		// silently degrades the exactly-once guard), so a properly-registered store must be claimable.
 		var services = new ServiceCollection();
 		_ = services.AddExcaliburInbox(_ => { });
-		services.AddKeyedSingleton<IInboxStore>("default", (_, _) => A.Fake<IInboxStore>());
+		services.AddKeyedSingleton<IInboxStore>(
+			"default", (_, _) => A.Fake<IInboxStore>(options => options.Implements<IClaimableInboxStore>()));
 
 		using var provider = services.BuildServiceProvider(validateScopes: false);
 		var validator = provider.GetServices<IHostedService>()

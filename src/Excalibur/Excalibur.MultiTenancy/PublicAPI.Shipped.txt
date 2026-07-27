@@ -1,0 +1,11 @@
+#nullable enable
+Excalibur.MultiTenancy.MultiTenancyOptions
+Excalibur.MultiTenancy.MultiTenancyOptions.MultiTenancyOptions() -> void
+Excalibur.MultiTenancy.MultiTenancyOptions.Strategy.get -> Excalibur.MultiTenancy.TenantIsolationStrategy
+Excalibur.MultiTenancy.MultiTenancyOptions.Strategy.set -> void
+Excalibur.MultiTenancy.TenantIsolationStrategy
+Excalibur.MultiTenancy.TenantIsolationStrategy.RowDiscriminator = 1 -> Excalibur.MultiTenancy.TenantIsolationStrategy
+Excalibur.MultiTenancy.TenantIsolationStrategy.Sharding = 2 -> Excalibur.MultiTenancy.TenantIsolationStrategy
+Excalibur.MultiTenancy.TenantIsolationStrategy.Unspecified = 0 -> Excalibur.MultiTenancy.TenantIsolationStrategy
+Microsoft.Extensions.DependencyInjection.MultiTenancyServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MultiTenancyServiceCollectionExtensions.AddMultiTenancy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.MultiTenancy.MultiTenancyOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -61,6 +61,41 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	/// </remarks>
 	protected virtual bool SupportsOptimisticConcurrency => false;
 
+	/// <summary>
+	/// Gets a value indicating whether the store round-trips <see cref="SagaState.ProcessedEventIds"/>
+	/// across <c>SaveAsync</c>/<c>LoadAsync</c>, so the coordinator's idempotent-replay guard survives a
+	/// reload (a re-delivered already-processed event id is deduped after the saga is reloaded from the store).
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// uclyao (S865) capability seam. The dedup decision itself lives in
+	/// <c>SagaCoordinator.HandleEventInternalAsync</c> (<c>if (!sagaState.TryMarkEventProcessed(id)) return;</c>
+	/// — no re-save, no version bump, no <see cref="ConcurrencyException"/>); the STORE's contribution is
+	/// persisting/restoring the processed-id set so that guard fires after a reload. Stores that round-trip
+	/// <see cref="SagaState.ProcessedEventIds"/> (e.g. <c>InMemorySagaStore</c> via
+	/// <c>JsonObjectCreationHandling.Populate</c>) override this to <see langword="true"/> and are held to
+	/// <see cref="IdempotentReplay_ReDeliveredEvent_IsDeduped_VersionUnchanged"/>.
+	/// </para>
+	/// <para>
+	/// <b>TRANSITIONAL.</b> Default <see langword="false"/> keeps a provider whose round-trip has not yet been
+	/// verified from failing CI; each provider flips this to <see langword="true"/> once its
+	/// <see cref="SagaState.ProcessedEventIds"/> round-trip is confirmed (its lane). Tracked so it does not
+	/// silently stay opted-out.
+	/// </para>
+	/// </remarks>
+	protected virtual bool SupportsIdempotentReplay => false;
+
+	/// <summary>
+	/// Gets a value indicating whether the store under test implements
+	/// <see cref="ISagaStore.PurgeCompletedBeforeAsync"/> (d0wpug seam). Stores WITH a purge implementation
+	/// (in-memory, SqlServer, Postgres, MongoDB) leave this <see langword="true"/> and are held to the
+	/// deletion/retention behavior. Cloud stores that do not yet implement purge override this to
+	/// <see langword="false"/>; they hit the interface's default-implementation contract, which throws
+	/// <see cref="NotSupportedException"/> (fail-loud, per the SA ruling) — the gate asserts THAT contract
+	/// non-vacuously rather than skipping silently.
+	/// </summary>
+	protected virtual bool SupportsCompletedPurge => true;
+
 	/// <inheritdoc/>
 	public async ValueTask InitializeAsync()
 	{
@@ -428,6 +463,76 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 		loaded.ShouldBeNull("a stale-version save against a missing saga must not resurrect it");
 	}
 
+	/// <summary>
+	/// uclyao (S865, IDEMPOTENT-REPLAY) — author≠impl conformance, single-owned by TestsDeveloper
+	/// (forge cl.7), reused by every store declaring <see cref="SupportsIdempotentReplay"/> == <see langword="true"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Pins the store's half of the coordinator's idempotent-replay contract (SA seam, msg 20404): a
+	/// re-delivered <b>already-processed</b> event id (present in <see cref="SagaState.ProcessedEventIds"/>)
+	/// is a no-op — the coordinator's guard (<c>SagaCoordinator.HandleEventInternalAsync</c>:
+	/// <c>if (!sagaState.TryMarkEventProcessed(id)) return;</c>) returns BEFORE <c>SaveAsync</c>, so the saga
+	/// <see cref="SagaState.Version"/> is unchanged and no <see cref="ConcurrencyException"/> is thrown; a
+	/// genuinely NEW event id advances the version normally. This test models that guard against the REAL
+	/// store round-trip: it drives <see cref="SagaState.TryMarkEventProcessed"/> exactly as the coordinator
+	/// does, but across a <c>SaveAsync</c>→<c>LoadAsync</c> boundary — so it proves the store persisted the
+	/// processed-id set (the store's contribution), without re-testing the coordinator engine.
+	/// </para>
+	/// <para>
+	/// NON-VACUOUS: a store that DROPS <see cref="SagaState.ProcessedEventIds"/> on save/load reloads an empty
+	/// set → <c>TryMarkEventProcessed(x)</c> returns <see langword="true"/> on replay (dedup silently fails) →
+	/// RED on both the <c>ShouldContain</c> and the <c>ShouldBeFalse</c> assertions. GREEN only when the set
+	/// round-trips. Conflict-preservation (a stale divergent save STILL throws — SA step 4) is locked
+	/// separately by <see cref="StaleSave_ThrowsConcurrencyException_NoLostUpdate"/> under
+	/// <see cref="SupportsOptimisticConcurrency"/>; replay-dedup must not blanket-swallow that.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task IdempotentReplay_ReDeliveredEvent_IsDeduped_VersionUnchanged()
+	{
+		// Capability-gated: only stores whose ProcessedEventIds round-trip is verified are held to this.
+		if (!SupportsIdempotentReplay)
+		{
+			return;
+		}
+
+		const string eventId = "evt-x";
+		var sagaId = Guid.NewGuid();
+
+		// Step 1 — first delivery of event x: mark processed on a fresh saga, then save (store increments).
+		var initial = CreateTestSagaState(sagaId: sagaId, data: "v1");
+		initial.TryMarkEventProcessed(eventId).ShouldBeTrue("first delivery marks the event id processed");
+		await Store.SaveAsync(initial, CancellationToken.None).ConfigureAwait(false);
+
+		var afterFirst = await Store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None).ConfigureAwait(false);
+		afterFirst.ShouldNotBeNull();
+		var versionAfterFirst = afterFirst!.Version;
+
+		// Step 2 (the uclyao case) — re-delivery of the SAME event id. The store must have round-tripped
+		// ProcessedEventIds so the coordinator's replay guard fires on the reloaded saga.
+		afterFirst.ProcessedEventIds.ShouldContain(eventId,
+			"the store must round-trip ProcessedEventIds so a re-delivered event is deduped after reload");
+		afterFirst.TryMarkEventProcessed(eventId).ShouldBeFalse(
+			"an already-processed event id is a duplicate — the coordinator returns early WITHOUT re-saving");
+
+		// The coordinator returns before SaveAsync on a duplicate → no version bump, no ConcurrencyException.
+		var afterReplay = await Store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None).ConfigureAwait(false);
+		afterReplay.ShouldNotBeNull();
+		afterReplay!.Version.ShouldBe(versionAfterFirst, "a deduped replay must not advance the saga version");
+
+		// Step 3 — a genuinely NEW event id advances the saga normally (dedup didn't wedge the saga).
+		var next = await Store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None).ConfigureAwait(false);
+		next!.TryMarkEventProcessed("evt-y").ShouldBeTrue("a new event id is processed");
+		next.Data = "v2";
+		await Store.SaveAsync(next, CancellationToken.None).ConfigureAwait(false);
+
+		var afterSecond = await Store.LoadAsync<TestSagaState>(sagaId, CancellationToken.None).ConfigureAwait(false);
+		afterSecond.ShouldNotBeNull();
+		afterSecond!.Version.ShouldBeGreaterThan(versionAfterFirst, "a genuinely new event advances the version");
+		afterSecond.Data.ShouldBe("v2");
+	}
+
 	[Fact]
 	public async Task ConcurrentLoadAndSave_MaintainsConsistency()
 	{
@@ -521,6 +626,91 @@ public abstract class SagaStoreConformanceTestBase : IAsyncLifetime
 	}
 
 	#endregion Timeout Tests
+
+	#region Purge Tests (d0wpug — ISagaStore.PurgeCompletedBeforeAsync)
+
+	/// <summary>
+	/// d0wpug (S872) — author≠impl PURGE conformance, reused by every saga-store conformance subclass
+	/// (uniform cross-provider contract for the new <see cref="ISagaStore.PurgeCompletedBeforeAsync"/> seam).
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Contract (<c>ISagaStore.PurgeCompletedBeforeAsync</c>, threshold = exclusive upper bound on
+	/// <see cref="SagaState.CompletedAt"/>): only sagas that are <see cref="SagaState.Completed"/> with a
+	/// non-null <see cref="SagaState.CompletedAt"/> STRICTLY BEFORE the threshold are physically deleted;
+	/// completed sagas at/after the threshold are retained, and running (non-completed) sagas are NEVER
+	/// removed. The return value is the exact count removed.
+	/// </para>
+	/// <para>
+	/// NON-VACUOUS: a store that ignores the threshold (purges everything), ignores the completed flag
+	/// (purges a running saga), or is a no-op (removes nothing) fails one of the three retention/deletion
+	/// assertions below. RED against the pre-seam baseline (no purge implementation).
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task PurgeCompletedBefore_DeletesOldCompleted_RetainsNewerAndRunning()
+	{
+		if (!SupportsCompletedPurge)
+		{
+			// The store advertises no purge support: it hits the interface default implementation, which
+			// throws NotSupportedException (SA ruling — fail loud, not a silent no-op). Assert THAT contract
+			// non-vacuously rather than skipping.
+			_ = await Should.ThrowAsync<NotSupportedException>(async () =>
+				await Store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None)
+					.ConfigureAwait(false)).ConfigureAwait(false);
+			return;
+		}
+
+		// Anchor on a fixed cutoff so the three fixtures fall deterministically on either side.
+		var cutoff = DateTimeOffset.UtcNow;
+
+		// (a) COMPLETED, CompletedAt strictly BEFORE the cutoff → the single purge-eligible saga.
+		var oldCompleted = CreateTestSagaState(completed: true);
+		oldCompleted.CompletedAt = cutoff.AddMinutes(-30);
+		await Store.SaveAsync(oldCompleted, CancellationToken.None).ConfigureAwait(false);
+
+		// (b) COMPLETED, CompletedAt AT/AFTER the cutoff → retained (threshold is exclusive).
+		var newCompleted = CreateTestSagaState(completed: true);
+		newCompleted.CompletedAt = cutoff.AddMinutes(30);
+		await Store.SaveAsync(newCompleted, CancellationToken.None).ConfigureAwait(false);
+
+		// (c) RUNNING (not completed), no CompletedAt → never eligible regardless of age.
+		var running = CreateTestSagaState(completed: false);
+		await Store.SaveAsync(running, CancellationToken.None).ConfigureAwait(false);
+
+		// Act
+		var removed = await Store.PurgeCompletedBeforeAsync(cutoff, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert — exactly the one old-completed saga is purged and physically gone; the other two survive.
+		removed.ShouldBe(1, "exactly the one completed saga older than the cutoff must be purged");
+
+		(await Store.LoadAsync<TestSagaState>(oldCompleted.SagaId, CancellationToken.None).ConfigureAwait(false))
+			.ShouldBeNull("a completed saga whose CompletedAt is before the cutoff must be physically deleted");
+		(await Store.LoadAsync<TestSagaState>(newCompleted.SagaId, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("a completed saga whose CompletedAt is at/after the cutoff must be retained");
+		(await Store.LoadAsync<TestSagaState>(running.SagaId, CancellationToken.None).ConfigureAwait(false))
+			.ShouldNotBeNull("a running (non-completed) saga must never be purged");
+	}
+
+	[Fact]
+	public async Task PurgeCompletedBefore_EmptyStore_RemovesNothing()
+	{
+		if (!SupportsCompletedPurge)
+		{
+			// No purge support → the interface default throws NotSupportedException (SA ruling). Assert it.
+			_ = await Should.ThrowAsync<NotSupportedException>(async () =>
+				await Store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None)
+					.ConfigureAwait(false)).ConfigureAwait(false);
+			return;
+		}
+
+		var removed = await Store.PurgeCompletedBeforeAsync(DateTimeOffset.UtcNow, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		removed.ShouldBe(0, "purging an empty store must remove nothing");
+	}
+
+	#endregion Purge Tests (d0wpug — ISagaStore.PurgeCompletedBeforeAsync)
 }
 
 /// <summary>

@@ -210,8 +210,19 @@ public sealed class MongoDbCdcStateStore : IMongoDbCdcStateStore
 	/// <inheritdoc/>
 	async Task<bool> ICdcStateStore.DeletePositionAsync(string consumerId, CancellationToken cancellationToken)
 	{
-		await ClearStateAsync(consumerId, cancellationToken).ConfigureAwait(false);
-		return true;
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		await EnsureIndexesAsync(cancellationToken).ConfigureAwait(false);
+
+		// Scope to the generic checkpoint document (Namespace == null, matching Get/GetAll) and report
+		// whether a document actually existed, per the ICdcStateStore contract: deleting a non-existent
+		// checkpoint returns false.
+		var filter = Builders<CdcStateDocument>.Filter.And(
+			Builders<CdcStateDocument>.Filter.Eq(x => x.ProcessorId, consumerId),
+			Builders<CdcStateDocument>.Filter.Eq(x => x.Namespace, null));
+
+		var result = await _collection.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+		return result.DeletedCount > 0;
 	}
 
 	/// <inheritdoc/>

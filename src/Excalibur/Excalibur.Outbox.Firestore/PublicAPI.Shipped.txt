@@ -42,7 +42,6 @@ Excalibur.Outbox.Firestore.FirestoreOutboxStore.MarkAsPublishedAsync(string! mes
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.MarkBatchAsPublishedAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.ProviderType.get -> Excalibur.Data.CloudNative.CloudPersistenceProviderType
 Excalibur.Outbox.Firestore.FirestoreOutboxStore.SubscribeToNewMessagesAsync(Excalibur.Data.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.IChangeFeedSubscription<Excalibur.Data.CloudNative.CloudOutboxMessage!>!>!
-Microsoft.Extensions.DependencyInjection.OutboxBuilderFirestoreExtensions
 Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder
 Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
 Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.Client(Google.Cloud.Firestore.FirestoreDb! client) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
@@ -52,4 +51,5 @@ Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.CredentialsJson(string! crede
 Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.CredentialsPath(string! credentialsPath) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
 Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.EmulatorHost(string! emulatorHost) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
 Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder.ProjectId(string! projectId) -> Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!
+Microsoft.Extensions.DependencyInjection.OutboxBuilderFirestoreExtensions
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderFirestoreExtensions.UseFirestore(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Firestore.IFirestoreOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

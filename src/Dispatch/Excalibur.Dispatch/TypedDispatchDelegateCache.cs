@@ -37,19 +37,12 @@ internal static class TypedDispatchDelegateCache<TResponse>
 	private static readonly ConcurrentDictionary<Type, Func<IDispatcher, IDispatchAction<TResponse>, CancellationToken, Task<IMessageResult<TResponse>>>>
 		DispatchDelegates = new();
 
-	private static readonly ConcurrentDictionary<Type, Func<IDispatcher, IDispatchAction<TResponse>, CancellationToken, Task<IMessageResult<TResponse>>>>
-		DispatchChildDelegates = new();
-
 	private static readonly ConcurrentDictionary<Type, Func<IDispatcher, IDispatchAction<TResponse>, IMessageContext, CancellationToken, Task<IMessageResult<TResponse>>>>
 		DispatchWithContextDelegates = new();
 
 	private static readonly MethodInfo DispatchMethod =
 		typeof(TypedDispatchDelegateCache<TResponse>).GetMethod(
 			nameof(InvokeDispatch), BindingFlags.NonPublic | BindingFlags.Static)!;
-
-	private static readonly MethodInfo DispatchChildMethod =
-		typeof(TypedDispatchDelegateCache<TResponse>).GetMethod(
-			nameof(InvokeDispatchChild), BindingFlags.NonPublic | BindingFlags.Static)!;
 
 	private static readonly MethodInfo DispatchWithContextMethod =
 		typeof(TypedDispatchDelegateCache<TResponse>).GetMethod(
@@ -65,18 +58,6 @@ internal static class TypedDispatchDelegateCache<TResponse>
 		return DispatchDelegates.GetOrAdd(messageType, static type =>
 			CreateDelegate<Func<IDispatcher, IDispatchAction<TResponse>, CancellationToken, Task<IMessageResult<TResponse>>>>(
 				DispatchMethod, type));
-	}
-
-	/// <summary>
-	/// Gets or creates a cached delegate for <see cref="DispatcherContextExtensions.DispatchChildAsync{TMessage,TResponse}(IDispatcher,TMessage,CancellationToken)"/>.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal static Func<IDispatcher, IDispatchAction<TResponse>, CancellationToken, Task<IMessageResult<TResponse>>>
-		GetDispatchChildDelegate(Type messageType)
-	{
-		return DispatchChildDelegates.GetOrAdd(messageType, static type =>
-			CreateDelegate<Func<IDispatcher, IDispatchAction<TResponse>, CancellationToken, Task<IMessageResult<TResponse>>>>(
-				DispatchChildMethod, type));
 	}
 
 	/// <summary>
@@ -110,16 +91,6 @@ internal static class TypedDispatchDelegateCache<TResponse>
 		where TMessage : IDispatchAction<TResponse>
 	{
 		return DispatcherContextExtensions.DispatchAsync<TMessage, TResponse>(
-			dispatcher, (TMessage)message, cancellationToken);
-	}
-
-	private static Task<IMessageResult<TResponse>> InvokeDispatchChild<TMessage>(
-		IDispatcher dispatcher,
-		IDispatchAction<TResponse> message,
-		CancellationToken cancellationToken)
-		where TMessage : IDispatchAction<TResponse>
-	{
-		return DispatcherContextExtensions.DispatchChildAsync<TMessage, TResponse>(
 			dispatcher, (TMessage)message, cancellationToken);
 	}
 

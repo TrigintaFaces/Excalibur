@@ -205,6 +205,12 @@ public static class ObservabilityEventId
 	/// <summary>Failed to extract baggage - invalid argument.</summary>
 	public const int FailedExtractBaggageArgument = 80219;
 
+	/// <summary>Producer-side W3C trace-context injection failed and was skipped (fail-open).</summary>
+	public const int W3CTraceContextInjectionFailed = 80220;
+
+	/// <summary>Producer-side B3 trace-context injection failed and was skipped (fail-open).</summary>
+	public const int B3TraceContextInjectionFailed = 80221;
+
 	// ========================================
 	// 80300-80399: Metrics Collection
 	// ========================================
@@ -263,6 +269,9 @@ public static class ObservabilityEventId
 
 	/// <summary>Trace sampling instrumentation failed and was skipped (fail-open).</summary>
 	public const int TraceSamplingInstrumentationFailed = 80407;
+
+	/// <summary>A span enricher threw and was skipped; the export continues unaffected (fail-open).</summary>
+	public const int TraceEnrichmentFailed = 80408;
 
 	// ========================================
 	// 80500-80599: Health Checks

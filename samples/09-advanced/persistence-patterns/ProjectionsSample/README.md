@@ -239,14 +239,21 @@ public class ProjectionWorker : BackgroundService
 ### 3. Handle Idempotency
 Projections should handle duplicate events gracefully:
 ```csharp
-public async Task HandleAsync(ProductCreated @event, CancellationToken ct)
+public Task HandleAsync(
+    ProductCatalogProjection projection,
+    ProductCreated @event,
+    ProjectionHandlerContext context,
+    CancellationToken ct)
 {
-    var existing = await _store.GetByIdAsync(@event.ProductId.ToString(), ct);
-    if (existing?.Version >= @event.Version)
+    // The committed stream version lives in the projection context (the persistence envelope),
+    // not on the event payload. Skip events already folded into this projection.
+    if (projection.Version >= context.CommittedVersion)
     {
-        return; // Already processed
+        return Task.CompletedTask; // Already processed
     }
-    // ... process event
+    // ... process event, then record progress:
+    projection.Version = context.CommittedVersion;
+    return Task.CompletedTask;
 }
 ```
 

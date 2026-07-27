@@ -36,14 +36,14 @@ public static class DispatchResilienceServiceCollectionExtensions
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// services.UseDispatchResilience("my-pipeline", builder =>
+	/// services.AddDispatchResilience("my-pipeline", builder =>
 	/// {
 	///     builder.AddRetry(new RetryStrategyOptions { MaxRetryAttempts = 3 });
 	///     builder.AddTimeout(TimeSpan.FromSeconds(10));
 	/// });
 	/// </code>
 	/// </example>
-	public static IServiceCollection UseDispatchResilience(
+	public static IServiceCollection AddDispatchResilience(
 		this IServiceCollection services,
 		string pipelineName,
 		Action<ResiliencePipelineBuilder> configurePipeline)

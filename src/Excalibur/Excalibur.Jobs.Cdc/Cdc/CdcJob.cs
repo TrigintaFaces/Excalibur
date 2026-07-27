@@ -81,12 +81,13 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	/// <param name="heartbeatTracker"> The heartbeat tracker for recording job activity. </param>
 	/// <param name="logger"> The logger for logging job activities. </param>
 	/// <remarks>
+	/// <para>
 	/// This constructor resolves connection strings from <see cref="IConfiguration"/> by name,
 	/// creating <see cref="SqlConnection"/> instances via a factory function instead of
 	/// <c>new SqlConnection(connectionString)</c> directly. Prefer this constructor when
 	/// <c>Func&lt;string, SqlConnection&gt;</c> is not explicitly registered in DI.
-	/// </remarks>
-	/// <remarks>
+	/// </para>
+	/// <para>
 	/// Marked <see cref="ActivatorUtilitiesConstructorAttribute"/> so container activation
 	/// (Quartz's <c>MicrosoftDependencyInjectionJobFactory</c> via <c>ActivatorUtilities</c>)
 	/// deterministically selects this constructor. Both public constructors are equally
@@ -94,6 +95,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	/// otherwise throws "Multiple constructors accepting all given argument types". This one is
 	/// preferred because <see cref="IConfiguration"/> is always registered by the host, so
 	/// activation succeeds without requiring a <c>Func&lt;string, SqlConnection&gt;</c> registration.
+	/// </para>
 	/// </remarks>
 	[ActivatorUtilitiesConstructor]
 	public CdcJob(

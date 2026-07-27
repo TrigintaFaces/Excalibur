@@ -26,6 +26,12 @@ namespace Excalibur.Outbox.Diagnostics;
 /// </list>
 /// </para>
 /// <para>
+/// Optional capabilities are neither declared nor absorbed. They are resolved from the decorated store on
+/// demand and returned wrapped so their operations are measured too. A capability the decorated store does
+/// not provide resolves to <see langword="null"/>, exactly as it would without this decorator: the metrics
+/// layer never invents a capability, and never hides one.
+/// </para>
+/// <para>
 /// To enable collection, register the meter with your OpenTelemetry provider:
 /// <code>
 /// builder.Services.AddOpenTelemetry()
@@ -33,197 +39,178 @@ namespace Excalibur.Outbox.Diagnostics;
 /// </code>
 /// </para>
 /// </remarks>
-internal sealed class TelemetryOutboxStoreDecorator : IOutboxStore, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IDisposable
+/// <param name="inner"> The inner outbox store to decorate. </param>
+internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : OutboxStoreDecorator(inner), IDisposable
 {
 	/// <summary>
 	/// The meter name for outbox store metrics.
 	/// </summary>
 	public const string MeterName = "Excalibur.Outbox.Store";
 
-	private readonly IOutboxStore _inner;
-	private readonly Meter _meter;
-	private readonly Counter<long> _operationsCounter;
-	private readonly Histogram<double> _operationDuration;
-	private readonly Counter<long> _messagesCounter;
+	private readonly Meter _meter = new(MeterName, "1.0.0");
+	private Counter<long>? _operationsCounter;
+	private Histogram<double>? _operationDuration;
+	private Counter<long>? _messagesCounter;
+	private bool _disposed;
+
+	private Counter<long> Operations => _operationsCounter ??= _meter.CreateCounter<long>(
+		"excalibur.outbox.store.operations", "operations", "Total outbox store operations by type.");
+
+	private Histogram<double> Duration => _operationDuration ??= _meter.CreateHistogram<double>(
+		"excalibur.outbox.store.operation_duration", "ms", "Duration of outbox store operations in milliseconds.");
+
+	private Counter<long> Messages => _messagesCounter ??= _meter.CreateCounter<long>(
+		"excalibur.outbox.store.messages", "messages", "Total messages processed by outbox store operations.");
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="TelemetryOutboxStoreDecorator"/> class.
+	/// Resolves a capability from the decorated store, wrapped so that its operations are measured.
 	/// </summary>
-	/// <param name="inner">The inner outbox store to decorate.</param>
-	public TelemetryOutboxStoreDecorator(IOutboxStore inner)
+	/// <param name="serviceType"> The capability interface to resolve. </param>
+	/// <returns> A measured view of the capability, or <see langword="null"/> when the store lacks it. </returns>
+	/// <remarks>
+	/// The decorator declares none of the optional capability interfaces. It cannot advertise a capability
+	/// the decorated store does not have, and it cannot hide one the store does have.
+	/// </remarks>
+	public override object? GetService(Type serviceType)
 	{
-		ArgumentNullException.ThrowIfNull(inner);
-		_inner = inner;
-		_meter = new Meter(MeterName, "1.0.0");
+		ArgumentNullException.ThrowIfNull(serviceType);
 
-		_operationsCounter = _meter.CreateCounter<long>(
-			"excalibur.outbox.store.operations",
-			"operations",
-			"Total outbox store operations by type.");
+		if (serviceType == typeof(IOutboxStoreBatch))
+		{
+			return Inner.GetService(typeof(IOutboxStoreBatch)) is IOutboxStoreBatch batch
+				? new MeasuredBatch(batch, this)
+				: null;
+		}
 
-		_operationDuration = _meter.CreateHistogram<double>(
-			"excalibur.outbox.store.operation_duration",
-			"ms",
-			"Duration of outbox store operations in milliseconds.");
+		if (serviceType == typeof(IDeadLetterableOutboxStore))
+		{
+			return Inner.GetService(typeof(IDeadLetterableOutboxStore)) is IDeadLetterableOutboxStore dead
+				? new MeasuredDeadLetterable(dead, this)
+				: null;
+		}
 
-		_messagesCounter = _meter.CreateCounter<long>(
-			"excalibur.outbox.store.messages",
-			"messages",
-			"Total messages processed by outbox store operations.");
+		if (serviceType == typeof(IBackoffSchedulableOutboxStore))
+		{
+			return Inner.GetService(typeof(IBackoffSchedulableOutboxStore)) is IBackoffSchedulableOutboxStore backoff
+				? new MeasuredBackoffSchedulable(backoff, this)
+				: null;
+		}
+
+		return base.GetService(serviceType);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
+	public override async ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		await _inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
+		await Inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 		RecordOperation("stage", 1, sw.Elapsed.TotalMilliseconds);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
+	public override async ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		await _inner.EnqueueAsync(message, context, cancellationToken).ConfigureAwait(false);
+		await Inner.EnqueueAsync(message, context, cancellationToken).ConfigureAwait(false);
 		RecordOperation("enqueue", 1, sw.Elapsed.TotalMilliseconds);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
+	public override async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		var result = await _inner.GetUnsentMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false);
+		var result = await Inner.GetUnsentMessagesAsync(batchSize, cancellationToken).ConfigureAwait(false);
 		var messages = result as ICollection<OutboundMessage> ?? result.ToList();
 		RecordOperation("get_unsent", messages.Count, sw.Elapsed.TotalMilliseconds);
 		return messages;
 	}
 
 	/// <inheritdoc />
-	public async ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
+	public override async ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		await _inner.MarkSentAsync(messageId, cancellationToken).ConfigureAwait(false);
+		await Inner.MarkSentAsync(messageId, cancellationToken).ConfigureAwait(false);
 		RecordOperation("mark_sent", 1, sw.Elapsed.TotalMilliseconds);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
+	public override async ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
 	{
 		var sw = ValueStopwatch.StartNew();
-		await _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken).ConfigureAwait(false);
+		await Inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken).ConfigureAwait(false);
 		RecordOperation("mark_failed", 1, sw.Elapsed.TotalMilliseconds);
 	}
 
 	/// <inheritdoc />
-	public async ValueTask MarkFailedWithBackoffAsync(
-		string messageId,
-		string errorMessage,
-		int retryCount,
-		DateTimeOffset nextAttemptAt,
-		CancellationToken cancellationToken)
+	public void Dispose()
 	{
-		// Forward the optional backoff-schedule capability to the inner store. Unlike dead-lettering (a
-		// mandatory terminal transition that fails LOUD), backoff is an optimization: if the inner store
-		// doesn't support it, fall back to the plain failed status (fail-open) so the decorator never
-		// regresses behavior relative to an undecorated store.
-		var sw = ValueStopwatch.StartNew();
-		if (_inner is IBackoffSchedulableOutboxStore schedulable)
+		if (_disposed)
 		{
-			await schedulable.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, cancellationToken)
-				.ConfigureAwait(false);
-			RecordOperation("mark_failed_with_backoff", 1, sw.Elapsed.TotalMilliseconds);
+			return;
 		}
-		else
-		{
-			await _inner.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken).ConfigureAwait(false);
-			RecordOperation("mark_failed", 1, sw.Elapsed.TotalMilliseconds);
-		}
+
+		_disposed = true;
+		_meter.Dispose();
 	}
-
-	/// <inheritdoc />
-	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
-	{
-		// Forward the terminal dead-letter capability to the inner store. Fail LOUD (never a silent no-op) if
-		// the inner store cannot terminalize — a silent fallback would leave the message re-claimable forever.
-		if (_inner is not IDeadLetterableOutboxStore deadLetterable)
-		{
-			throw new NotSupportedException(
-				$"The decorated outbox store '{_inner.GetType().FullName}' does not implement IDeadLetterableOutboxStore; " +
-				"terminal dead-lettering cannot be forwarded through the telemetry decorator.");
-		}
-
-		var sw = ValueStopwatch.StartNew();
-		await deadLetterable.MarkDeadLetteredAsync(messageId, reason, cancellationToken).ConfigureAwait(false);
-		RecordOperation("mark_dead_lettered", 1, sw.Elapsed.TotalMilliseconds);
-	}
-
-	/// <inheritdoc />
-	public async ValueTask MarkBatchSentAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken)
-	{
-		var sw = ValueStopwatch.StartNew();
-		if (_inner is IOutboxStoreBatch batch)
-		{
-			await batch.MarkBatchSentAsync(messageIds, cancellationToken).ConfigureAwait(false);
-		}
-		else
-		{
-			foreach (var id in messageIds)
-			{
-				await _inner.MarkSentAsync(id, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		RecordOperation("mark_batch_sent", messageIds.Count, sw.Elapsed.TotalMilliseconds);
-	}
-
-	/// <inheritdoc />
-	public async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken)
-	{
-		var sw = ValueStopwatch.StartNew();
-		if (_inner is IOutboxStoreBatch batch)
-		{
-			await batch.MarkBatchFailedAsync(messageIds, reason, retryCount, cancellationToken).ConfigureAwait(false);
-		}
-		else
-		{
-			foreach (var id in messageIds)
-			{
-				await _inner.MarkFailedAsync(id, reason, retryCount, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		RecordOperation("mark_batch_failed", messageIds.Count, sw.Elapsed.TotalMilliseconds);
-	}
-
-	/// <inheritdoc />
-	public async ValueTask<bool> TryMarkSentAndReceivedAsync(string messageId, InboxEntry inboxEntry, CancellationToken cancellationToken)
-	{
-		var sw = ValueStopwatch.StartNew();
-		bool result;
-		if (_inner is IOutboxStoreBatch batch)
-		{
-			result = await batch.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
-		}
-		else
-		{
-			result = false;
-		}
-
-		RecordOperation("try_mark_sent_received", 1, sw.Elapsed.TotalMilliseconds);
-		return result;
-	}
-
-	/// <inheritdoc />
-	public void Dispose() => _meter.Dispose();
 
 	private void RecordOperation(string operation, int messageCount, double durationMs)
 	{
 		var tag = new KeyValuePair<string, object?>("operation", operation);
-		_operationsCounter.Add(1, tag);
-		_operationDuration.Record(durationMs, tag);
+		Operations.Add(1, tag);
+		Duration.Record(durationMs, tag);
 		if (messageCount > 0)
 		{
-			_messagesCounter.Add(messageCount, tag);
+			Messages.Add(messageCount, tag);
+		}
+	}
+
+	private sealed class MeasuredBatch(IOutboxStoreBatch inner, TelemetryOutboxStoreDecorator owner) : IOutboxStoreBatch
+	{
+		public async ValueTask MarkBatchSentAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			await inner.MarkBatchSentAsync(messageIds, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_batch_sent", messageIds.Count, sw.Elapsed.TotalMilliseconds);
+		}
+
+		public async ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			await inner.MarkBatchFailedAsync(messageIds, reason, retryCount, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_batch_failed", messageIds.Count, sw.Elapsed.TotalMilliseconds);
+		}
+
+		public async ValueTask<bool> TryMarkSentAndReceivedAsync(string messageId, InboxEntry inboxEntry, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			var result = await inner.TryMarkSentAndReceivedAsync(messageId, inboxEntry, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("try_mark_sent_received", 1, sw.Elapsed.TotalMilliseconds);
+			return result;
+		}
+	}
+
+	private sealed class MeasuredDeadLetterable(IDeadLetterableOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IDeadLetterableOutboxStore
+	{
+		public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			await inner.MarkDeadLetteredAsync(messageId, reason, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_dead_lettered", 1, sw.Elapsed.TotalMilliseconds);
+		}
+	}
+
+	private sealed class MeasuredBackoffSchedulable(IBackoffSchedulableOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IBackoffSchedulableOutboxStore
+	{
+		public async ValueTask MarkFailedWithBackoffAsync(
+			string messageId,
+			string errorMessage,
+			int retryCount,
+			DateTimeOffset nextAttemptAt,
+			CancellationToken cancellationToken)
+		{
+			var sw = ValueStopwatch.StartNew();
+			await inner.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, cancellationToken).ConfigureAwait(false);
+			owner.RecordOperation("mark_failed_with_backoff", 1, sw.Elapsed.TotalMilliseconds);
 		}
 	}
 }

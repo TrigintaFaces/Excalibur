@@ -216,12 +216,28 @@ The `DiscoveredMessageTypeMetadata` generated class provides the compile-time ty
 For your own DTOs, create a `JsonSerializerContext`:
 
 ```csharp
-[JsonSourceGenerationOptions(WriteIndented = false)]
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    UseStringEnumConverter = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CreateOrderCommand))]
 [JsonSerializable(typeof(GetOrderQuery))]
 [JsonSerializable(typeof(OrderDto))]
 public partial class AppJsonSerializerContext : JsonSerializerContext { }
 ```
+
+:::warning Wire-shape parity is your responsibility
+The three options above (`PropertyNamingPolicy = CamelCase`, `UseStringEnumConverter = true`,
+`DefaultIgnoreCondition = WhenWritingNull`) are **required** to match the reflection-based
+`JsonEventSerializer`'s wire shape — camelCase property names, enums serialized as strings, and
+nulls omitted. The `[JsonSourceGenerationOptions]` attribute is plain source-generated JSON config;
+nothing in the framework validates or enforces your choices here. If your `JsonSerializerContext`
+omits or diverges from these options (e.g. leaves the default PascalCase naming, or serializes
+enums as numbers), events written under one serialization path (source-generated, AOT) and read
+under the other (reflection-based) will silently mis-read — property names won't match and enum
+values may not round-trip. Always copy the options block above verbatim unless you have
+deliberately standardized on a different wire shape across *all* readers and writers.
+:::
 
 Register it:
 

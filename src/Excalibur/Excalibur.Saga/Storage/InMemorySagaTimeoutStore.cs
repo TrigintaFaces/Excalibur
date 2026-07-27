@@ -14,7 +14,8 @@ namespace Excalibur.Saga.Storage;
 /// <remarks>
 /// <para>
 /// This implementation uses a <see cref="ConcurrentDictionary{TKey, TValue}"/> for thread-safe
-/// storage with an additional lock for consistent reads in <see cref="GetDueTimeoutsAsync"/>.
+/// storage with an additional lock for consistent reads and atomic claims in
+/// <see cref="ClaimDueTimeoutsAsync"/>.
 /// </para>
 /// <para>
 /// <b>Warning:</b> Timeouts are lost on process restart. Use a persistent implementation
@@ -23,7 +24,10 @@ namespace Excalibur.Saga.Storage;
 /// </remarks>
 internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 {
+	private static readonly TimeSpan LeaseTimeout = TimeSpan.FromSeconds(120);
+
 	private readonly ConcurrentDictionary<string, SagaTimeout> _timeouts = new();
+	private readonly Dictionary<string, DateTimeOffset> _claims = new(StringComparer.Ordinal);
 	private readonly Lock _dueLock = new();
 
 	/// <inheritdoc />
@@ -48,6 +52,7 @@ internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 		lock (_dueLock)
 		{
 			_ = _timeouts.TryRemove(timeoutId, out _);
+			_ = _claims.Remove(timeoutId);
 		}
 
 		return Task.CompletedTask;
@@ -58,7 +63,7 @@ internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sagaId);
 
-		// Lock for consistent read-then-remove (same as GetDueTimeoutsAsync)
+		// Lock for consistent read-then-remove (same as ClaimDueTimeoutsAsync)
 		lock (_dueLock)
 		{
 			var keysToRemove = _timeouts
@@ -69,6 +74,7 @@ internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 			foreach (var key in keysToRemove)
 			{
 				_ = _timeouts.TryRemove(key, out _);
+				_ = _claims.Remove(key);
 			}
 		}
 
@@ -76,9 +82,35 @@ internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 	}
 
 	/// <inheritdoc />
+	public Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+
+		// Atomically select+claim under a single lock: two concurrent callers can never observe
+		// (and therefore never claim) the same due-and-unclaimed-or-stale timeout, because the
+		// claim map is updated before the lock is released.
+		lock (_dueLock)
+		{
+			var claimed = _timeouts.Values
+				.Where(t => t.DueAt <= asOf
+					&& (!_claims.TryGetValue(t.TimeoutId, out var claimedAt) || claimedAt + LeaseTimeout < asOf))
+				.OrderBy(t => t.DueAt)
+				.Take(batchSize)
+				.ToList();
+
+			foreach (var timeout in claimed)
+			{
+				_claims[timeout.TimeoutId] = asOf;
+			}
+
+			return Task.FromResult<IReadOnlyList<SagaTimeout>>(claimed);
+		}
+	}
+
+	/// <inheritdoc />
 	public Task<IReadOnlyList<SagaTimeout>> GetDueTimeoutsAsync(DateTimeOffset asOf, CancellationToken cancellationToken)
 	{
-		// Lock to ensure consistent snapshot for ordering
+		// Pure read snapshot: no claim/lease is recorded, unlike ClaimDueTimeoutsAsync.
 		lock (_dueLock)
 		{
 			var due = _timeouts.Values
@@ -99,6 +131,7 @@ internal sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
 		lock (_dueLock)
 		{
 			_ = _timeouts.TryRemove(timeoutId, out _);
+			_ = _claims.Remove(timeoutId);
 		}
 
 		return Task.CompletedTask;

@@ -207,18 +207,18 @@ public class OrderService
         // ... order completion logic ...
 
         // Publish the follow-on event. When this runs inside a dispatch
-        // (e.g. invoked from a handler), DispatchChildAsync propagates
+        // (e.g. invoked from a handler), DispatchAsync propagates
         // correlation/tenant and sets CausationId to the parent message,
         // preserving the causal chain. Handlers must remain idempotent.
         var @event = new OrderCompletedEvent(orderId, DateTime.UtcNow);
-        await _dispatcher.DispatchChildAsync(@event, ct);
+        await _dispatcher.DispatchAsync(@event, ct);
     }
 }
 ```
 
 ## Context Propagation
 
-When dispatching messages from within a handler, use `DispatchChildAsync` to maintain proper message lineage for distributed tracing and debugging.
+When dispatching messages from within a handler, call `DispatchAsync` — it automatically maintains proper message lineage for distributed tracing and debugging by dispatching a child message.
 
 ### Top-Level vs Nested Dispatch
 
@@ -254,8 +254,8 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
         var order = new Order { Id = Guid.NewGuid(), CustomerId = action.CustomerId };
         await _repository.SaveAsync(order, ct);
 
-        // Nested dispatch: use DispatchChildAsync for proper context chaining
-        await _dispatcher.DispatchChildAsync(
+        // Nested dispatch: DispatchAsync auto-childs for proper context chaining
+        await _dispatcher.DispatchAsync(
             new ValidateInventoryAction(order.Id, action.Items), ct);
     }
 }
@@ -263,7 +263,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 
 ### What Gets Propagated
 
-`DispatchChildAsync` creates a child context that:
+When called from within a handler, `DispatchAsync` automatically creates a child context that:
 
 | Property | Behavior |
 |----------|----------|
@@ -277,24 +277,28 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 | `CausationId` | Set to parent's `MessageId` (causal chain) |
 | `MessageId` | New unique ID generated |
 
-### When to Use Each Method
+### How `DispatchAsync` Behaves by Context
 
-| Method | Use When |
-|--------|----------|
-| `DispatchAsync` | Top-level dispatch (controllers, background services, external triggers) |
-| `DispatchChildAsync` | Nested dispatch from within a handler |
+There is a single `DispatchAsync` method whose behavior depends on whether an ambient context exists:
+
+| Call Site | Behavior |
+|-----------|----------|
+| Top level (no ambient context) | Creates a fresh root context |
+| Within a handler (ambient context exists) | Dispatches a child message — fresh `MessageId`, `CausationId` set to the parent's `MessageId`, propagating correlation/tenant/identity |
+
+To deliberately reuse the parent context instead of childing, pass it explicitly to the `DispatchAsync(message, context, ct)` overload.
 
 ```csharp
-// From a controller or service (top-level)
+// From a controller or service (top-level) - creates a fresh root context
 await _dispatcher.DispatchAsync(action, cancellationToken);
 
-// From within a handler (nested) - establishes causal chain
-await _dispatcher.DispatchChildAsync(childAction, cancellationToken);
+// From within a handler (nested) - automatically establishes the causal chain
+await _dispatcher.DispatchAsync(childAction, cancellationToken);
 ```
 
 ### Causal Chain Example
 
-When `DispatchChildAsync` is used, the message chain becomes traceable:
+When `DispatchAsync` is called from within a handler, the message chain becomes traceable:
 
 ```
 CreateOrderAction (MessageId: "msg-001")

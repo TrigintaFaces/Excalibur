@@ -9,20 +9,20 @@
 // the unified AddExcalibur() root builder. Every major subsystem is configured
 // together so you can see how the builders compose:
 //
-//   services.AddExcalibur(excalibur =>
-//   {
-//       excalibur
-//           .AddEventSourcing(...)   // Aggregates + event store + snapshots
-//           .AddOutbox(...)          // Transactional outbox + dispatcher
-//           .AddCdc(...)             // Change Data Capture from legacy DB
-//           .AddIdentityMap(...);    // Cross-system ID mapping (ACL)
-//   });
+// services.AddExcalibur(excalibur =>
+// {
+// excalibur
+//.AddEventSourcing(...) // Aggregates + event store + snapshots
+//.AddOutbox(...) // Transactional outbox + dispatcher
+//.AddCdc(...) // Change Data Capture from legacy DB
+//.AddIdentityMap(...); // Cross-system ID mapping (ACL)
+// });
 //
 // Subsystems that still register directly on IServiceCollection
 // (ElasticSearch projections, DataProcessing) are composed alongside
 // AddExcalibur() to demonstrate the full pattern.
 //
-// Every subsystem is configured via .BindConfiguration(...) so all options
+// Every subsystem is configured via.BindConfiguration(...) so all options
 // are driven from appsettings.json (+ appsettings.Development.json +
 // environment-variable overrides).
 //
@@ -74,17 +74,17 @@ var dataProcessingConnectionString = builder.Configuration.GetConnectionString("
 	?? eventStoreConnectionString;
 
 var elasticsearchNodeUris = builder.Configuration
-	.GetSection("Elasticsearch:NodeUris").Get<string[]>()
+.GetSection("Elasticsearch:NodeUris").Get<string[]>()
 	?? ["http://localhost:9200"];
 
 // ============================================================================
-// 2. Dispatch primitives  (registered automatically by AddExcalibur below,
-//    but an explicit AddDispatch(...) is also fine if you need custom pipelines)
+// 2. Dispatch primitives (registered automatically by AddExcalibur below,
+// but an explicit AddDispatch(...) is also fine if you need custom pipelines)
 // ============================================================================
 
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
-// c6wd6f: register event types for secure-by-default resolution
+// register event types for secure-by-default resolution
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================================
@@ -117,7 +117,7 @@ builder.Services.AddExcalibur(excalibur =>
 		// All options (PollingInterval, BatchSize, RetryPolicy) can be supplied
 		// via BindConfiguration("Outbox") if preferred.
 		outbox.UseSqlServer(sql =>
-			sql.ConnectionString(eventStoreConnectionString));
+		sql.ConnectionString(eventStoreConnectionString));
 	});
 
 	// ---- CDC (Change Data Capture) from the legacy source DB --------------
@@ -126,14 +126,27 @@ builder.Services.AddExcalibur(excalibur =>
 		cdc.UseSqlServer(sql =>
 		{
 			sql.ConnectionString(cdcSourceConnectionString)
-			   .DatabaseName("LegacyDb")
-			   .CaptureInstances("dbo_LegacyOrders")
-			   .PollingInterval(TimeSpan.FromSeconds(5))
-			   .BatchSize(100);
+	.DatabaseName("LegacyDb")
+	.CaptureInstances("dbo_LegacyOrders")
+	.PollingInterval(TimeSpan.FromSeconds(5))
+	.BatchSize(100);
 		});
 
-		// Run CDC polling as a hosted background service.
-		cdc.EnableBackgroundProcessing();
+		// NOT enabled here, deliberately. cdc.EnableBackgroundProcessing() starts a hosted
+		// poller, and this sample ships NO IDataChangeHandler -- it is a composition
+		// reference showing how the builders wire together, not a behavioural CDC demo.
+		//
+		// Starting the poller without a handler would make the sample LOOK like it
+		// processes legacy changes while doing nothing: DataChangeEventProcessor builds its
+		// handler map from GetServices<IDataChangeHandler>(), which returns an EMPTY
+		// enumerable -- not an error -- so every tracked change would be silently dropped.
+		//
+		// To make this sample actually process changes: implement IDataChangeHandler with
+		// TableNames => ["LegacyOrders"], register it as a SINGLETON, then uncomment the
+		// line below. A worked example of exactly that lives in
+		// samples/09-advanced/cdc/CdcEventStoreElasticsearch.
+		//
+		// cdc.EnableBackgroundProcessing();
 	});
 
 	// ---- IdentityMap (legacy ID <-> aggregate ID translation) -------------
@@ -147,7 +160,7 @@ builder.Services.AddExcalibur(excalibur =>
 });
 
 // ============================================================================
-// 4. ElasticSearch projections  (IServiceCollection registration)
+// 4. ElasticSearch projections (IServiceCollection registration)
 // ============================================================================
 // ElasticSearch projection registration is still a direct IServiceCollection
 // extension; it composes naturally alongside AddExcalibur(). Options are
@@ -168,10 +181,10 @@ builder.Services.AddElasticSearchProjections(
 	{
 		projections.Add<OrderReadModel>(options =>
 		{
-			options.IndexPrefix = $"{envPrefix}-orders";
-			options.CreateIndexOnInitialize = true;
-			options.NumberOfShards = 2;
-			options.NumberOfReplicas = 1;
+			options.Index.IndexPrefix = $"{envPrefix}-orders";
+			options.Index.CreateIndexOnInitialize = true;
+			options.Index.NumberOfShards = 2;
+			options.Index.NumberOfReplicas = 1;
 		});
 	});
 
@@ -181,7 +194,7 @@ builder.Services.AddSingleton<ElasticsearchClient>(_ =>
 {
 	var pool = new StaticNodePool(elasticsearchNodeUris.Select(u => new Uri(u)));
 	var settings = new ElasticsearchClientSettings(pool)
-		.RequestTimeout(TimeSpan.FromSeconds(30));
+.RequestTimeout(TimeSpan.FromSeconds(30));
 	return new ElasticsearchClient(settings);
 });
 
@@ -225,14 +238,15 @@ builder.Services.AddSingleton<IOrderProjectionStore, InMemoryOrderProjectionStor
 //
 // excalibur.AddAudit() (on IExcaliburBuilder, the canonical public path per
 //) wires the full audit stack in one call:
-//   TryAddTenantId         - scoped ITenantId (defaults to "Default"; multi-
-//                            tenant hosts override via their own resolver,
-//                            see the MultiTenantEventSourcing sample)
-//   TryAddCorrelationId    - per-request correlation id
-//   TryAddETag             - ETag concurrency token
-//   TryAddClientAddress    - originating client address
-//   IActivityContext       - ActivityContext aggregates the above
-//   AuditMiddleware        - registered via TryAddEnumerable<IDispatchMiddleware>
+// AddTenantContext - ambient ITenantContext (default tenant "Default"
+// via TenantContextOptions; multi-tenant hosts establish
+// the ambient tenant per request, see the
+// MultiTenantEventSourcing sample)
+// TryAddCorrelationId - per-request correlation id
+// TryAddETag - ETag concurrency token
+// TryAddClientAddress - originating client address
+// IActivityContext - ActivityContext aggregates the above
+// AuditMiddleware - registered via TryAddEnumerable<IDispatchMiddleware>
 //
 // The IOutboxDispatcher required by AuditMiddleware is registered by
 // excalibur.AddOutbox(...) earlier in this file, so if the audit publisher
@@ -241,7 +255,7 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddAudit());
 builder.Services.TryAddCorrelationId();
 builder.Services.TryAddETag();
 builder.Services.TryAddClientAddress();
-builder.Services.AddScoped<IActivityContext, ActivityContext>();
+// IActivityContext (with the ambient tenant snapshot) is registered by AddExcalibur/AddAudit.
 
 // Demo in-memory audit destination. Swap InMemoryAuditMessagePublisher for a
 // Kafka / EventHubs / ElasticSearch / Splunk publisher in production.
@@ -259,37 +273,37 @@ app.MapGet("/", () => Results.Text(
 	Full-Stack AddExcalibur composition sample.
 
 	Subsystems wired:
-	  * Event Sourcing          (Excalibur.EventSourcing.SqlServer)
-	  * Transactional Outbox    (Excalibur.Outbox.SqlServer)
-	  * CDC polling             (Excalibur.Cdc.SqlServer)
-	  * IdentityMap             (Excalibur.Data.IdentityMap.SqlServer)
-	  * ElasticSearch projection(Excalibur.Data.ElasticSearch)
-	  * DataProcessing batches  (Excalibur.Data.DataProcessing)
+	* Event Sourcing (Excalibur.EventSourcing.SqlServer)
+	* Transactional Outbox (Excalibur.Outbox.SqlServer)
+	* CDC polling (Excalibur.Cdc.SqlServer)
+	* IdentityMap (Excalibur.Data.IdentityMap.SqlServer)
+	* ElasticSearch projection(Excalibur.Data.ElasticSearch)
+	* DataProcessing batches (Excalibur.Data.DataProcessing)
 
 	Operational flow (canonical L3 pipeline):
-	  POST /orders              dispatch CreateOrderCommand -> handler ->
-	                            event-sourced SaveAsync (outbox) ->
-	                            IEventHandler projection write
-	  GET  /orders/{id}         read the projected OrderReadModel
-	  GET  /orders              list all projected orders
+	POST /orders dispatch CreateOrderCommand -> handler ->
+	event-sourced SaveAsync (outbox) ->
+	IEventHandler projection write
+	GET /orders/{id} read the projected OrderReadModel
+	GET /orders list all projected orders
 
 	Try:
-	  GET  /health
+	GET /health
 	"""));
 
 app.MapGet("/health", () => Results.Ok(new { status = "running" }));
 
 // ----------------------------------------------------------------------------
-// POST /orders  — canonical dispatcher entry point for a command
+// POST /orders — canonical dispatcher entry point for a command
 // ----------------------------------------------------------------------------
 // Sequence:
-//   1. Build a CreateOrderCommand (IDispatchAction<Guid>).
-//   2. Dispatch through IDispatcher; the pipeline resolves the IActionHandler.
-//   3. Handler saves the aggregate via IEventSourcedRepository (events are
-//      persisted to the event store and staged in the outbox).
-//   4. Handler dispatches the uncommitted domain events so registered
-//      IEventHandler<T> projection handlers update the read model.
-//   5. The generated OrderId is returned in the response.
+// 1. Build a CreateOrderCommand (IDispatchAction<Guid>).
+// 2. Dispatch through IDispatcher; the pipeline resolves the IActionHandler.
+// 3. Handler saves the aggregate via IEventSourcedRepository (events are
+// persisted to the event store and staged in the outbox).
+// 4. Handler dispatches the uncommitted domain events so registered
+// IEventHandler<T> projection handlers update the read model.
+// 5. The generated OrderId is returned in the response.
 app.MapPost("/orders", async (
 	CreateOrderRequest request,
 	IDispatcher dispatcher,
@@ -307,15 +321,15 @@ app.MapPost("/orders", async (
 	};
 
 	var result = await dispatcher
-		.DispatchAsync<CreateOrderCommand, Guid>(command, cancellationToken)
-		.ConfigureAwait(false);
+.DispatchAsync<CreateOrderCommand, Guid>(command, cancellationToken)
+.ConfigureAwait(false);
 
 	if (!result.Succeeded)
 	{
 		return Results.Problem(
-			detail: result.ErrorMessage,
-			statusCode: result.ProblemDetails?.Status ?? 500,
-			title: result.ProblemDetails?.Title ?? "Dispatch failed");
+		detail: result.ErrorMessage,
+		statusCode: result.ProblemDetails?.Status ?? 500,
+		title: result.ProblemDetails?.Title ?? "Dispatch failed");
 	}
 
 	var orderId = result.ReturnValue;
@@ -323,7 +337,7 @@ app.MapPost("/orders", async (
 });
 
 // ----------------------------------------------------------------------------
-// GET /orders/{id}  — read from the IEventHandler-maintained projection
+// GET /orders/{id} — read from the IEventHandler-maintained projection
 // ----------------------------------------------------------------------------
 app.MapGet("/orders/{id:guid}", async (
 	Guid id,
@@ -335,7 +349,7 @@ app.MapGet("/orders/{id:guid}", async (
 });
 
 // ----------------------------------------------------------------------------
-// GET /orders  — browse the projected read models
+// GET /orders — browse the projected read models
 // ----------------------------------------------------------------------------
 app.MapGet("/orders", async (
 	IOrderProjectionStore store,
@@ -346,7 +360,7 @@ app.MapGet("/orders", async (
 });
 
 // ----------------------------------------------------------------------------
-// GET /audit/recent  — browse ActivityAudited records emitted by AuditMiddleware
+// GET /audit/recent — browse ActivityAudited records emitted by AuditMiddleware
 // ----------------------------------------------------------------------------
 // Every IAmAuditable command that flows through IDispatcher produces one
 // ActivityAudited record (activity name, status code, tenant, correlation,

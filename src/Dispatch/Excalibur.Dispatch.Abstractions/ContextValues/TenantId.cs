@@ -5,36 +5,53 @@
 namespace Excalibur.Dispatch;
 
 /// <summary>
-/// Default tenant identifier implementation.
+/// Concrete tenant identifier message value-type.
 /// </summary>
-public sealed class TenantId : ITenantId, IEquatable<TenantId>
+/// <remarks>
+/// <para>
+/// The identifier is validated once, at construction, and is immutable thereafter. Those two properties are
+/// what make a tenant check meaningful: a value that could be changed after it was authorised would let a
+/// caller pass a scope check and then operate as a different tenant, and a value that silently substituted
+/// something for a missing identifier would make "no tenant was supplied" indistinguishable from a real
+/// scope. Both are refused here rather than normalised away.
+/// </para>
+/// <para>
+/// Comparison is ordinal and case-sensitive, matching the tenant term used by the scoping types and by the
+/// storage predicates built from them. Two identifiers differing only in case are two different tenants.
+/// </para>
+/// </remarks>
+public sealed class TenantId : IEquatable<TenantId>
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="TenantId" /> class with the specified value.
 	/// </summary>
 	/// <param name="value"> The tenant identifier value. </param>
-	public TenantId(string? value) => Value = value ?? string.Empty;
+	/// <exception cref="ArgumentException">
+	/// <paramref name="value" /> is <see langword="null" />, empty, or whitespace. A missing tenant is
+	/// rejected rather than coerced: substituting an empty value would produce an identifier that no longer
+	/// names the tenant the caller intended, with no diagnostic at the point the mistake was made.
+	/// </exception>
+	public TenantId(string value)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+		Value = value;
+	}
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="TenantId" /> class with an empty value.
+	/// Gets the tenant identifier value. Never <see langword="null" />, empty, or whitespace.
 	/// </summary>
-	public TenantId() => Value = string.Empty;
-
-	/// <inheritdoc />
-	public string Value { get; set; }
-
-	/// <summary>
-	/// Implicitly converts a string to a <see cref="TenantId" />.
-	/// </summary>
-	/// <param name="value"> The string value to convert. </param>
-	/// <returns> A new <see cref="TenantId" /> instance. </returns>
-	public static implicit operator TenantId(string value) => FromString(value);
+	/// <value> The unique tenant identifier string. </value>
+	public string Value { get; }
 
 	/// <summary>
 	/// Creates a new <see cref="TenantId" /> from the specified string value.
 	/// </summary>
 	/// <param name="value"> The string value. </param>
 	/// <returns> A new <see cref="TenantId" /> instance. </returns>
+	/// <exception cref="ArgumentException">
+	/// <paramref name="value" /> is <see langword="null" />, empty, or whitespace.
+	/// </exception>
 	public static TenantId FromString(string value) => new(value);
 
 	/// <inheritdoc cref="string" />
@@ -47,7 +64,7 @@ public sealed class TenantId : ITenantId, IEquatable<TenantId>
 	/// <returns> true if the specified <see cref="TenantId" /> is equal to the current instance; otherwise, false. </returns>
 	public bool Equals(TenantId? other) => other is not null &&
 										   (ReferenceEquals(this, other) ||
-											string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase));
+											string.Equals(Value, other.Value, StringComparison.Ordinal));
 
 	/// <summary>
 	/// Determines whether the specified object is equal to the current instance.
@@ -60,5 +77,5 @@ public sealed class TenantId : ITenantId, IEquatable<TenantId>
 	/// Returns the hash code for this instance.
 	/// </summary>
 	/// <returns> A 32-bit signed integer hash code. </returns>
-	public override int GetHashCode() => Value.GetHashCode(StringComparison.OrdinalIgnoreCase);
+	public override int GetHashCode() => Value.GetHashCode(StringComparison.Ordinal);
 }

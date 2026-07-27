@@ -370,6 +370,55 @@ services.AddExcalibur(x => x.AddSagas(saga =>
     })));
 ```
 
+## Retention & Cleanup
+
+Completed sagas remain in the store after they finish so you can audit or correlate them. To stop the store growing without bound, purge completed sagas older than a retention window. Purge-by-age is a first-class capability on **every** saga store — the in-memory store, the relational providers (SQL Server, PostgreSQL), MongoDB, and the document stores **Azure Cosmos DB, AWS DynamoDB, and Google Firestore**. Only sagas whose completion instant is older than the threshold are removed; in-flight sagas are never touched.
+
+### Automatic background cleanup
+
+`SagaOptions` drives a hosted background service that periodically purges completed sagas. It is off by default — opt in and it self-gates on the flag:
+
+```csharp
+services.AddExcalibur(x => x.AddSagas(saga =>
+    saga.UseCosmosDb(cosmos =>
+    {
+        cosmos.ConnectionString("AccountEndpoint=...;AccountKey=...")
+              .DatabaseName("myapp")
+              .ContainerName("sagas");
+    })));
+
+services.Configure<SagaOptions>(options =>
+{
+    options.EnableAutomaticCleanup = true;                 // default: false (no-op when disabled)
+    options.SagaRetentionPeriod = TimeSpan.FromDays(30);   // delete completed sagas older than this
+    options.CleanupInterval = TimeSpan.FromHours(1);       // how often the background service runs
+});
+```
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `EnableAutomaticCleanup` | `false` | Enables the background purge; when `false` the service is registered but a no-op. |
+| `SagaRetentionPeriod` | `30 days` | Completed sagas older than this are deleted each cycle. |
+| `CleanupInterval` | `1 hour` | How often the background service purges. |
+
+### Manual purge
+
+Call the store directly to drive your own retention schedule (a cron job, an admin endpoint). It returns the exact number of sagas removed, so you can log it or emit a metric:
+
+```csharp
+public class SagaRetentionJob(ISagaStore store, ILogger<SagaRetentionJob> logger)
+{
+    public async Task PurgeAsync(CancellationToken ct)
+    {
+        var threshold = DateTimeOffset.UtcNow.AddDays(-30);
+        var removed = await store.PurgeCompletedBeforeAsync(threshold, ct);
+        logger.LogInformation("Purged {Count} completed sagas older than {Threshold}", removed, threshold);
+    }
+}
+```
+
+`PurgeCompletedBeforeAsync` is an optional capability: a store that cannot purge by age throws `NotSupportedException` rather than silently returning `0`, so a missing capability fails loud instead of hiding from your retention scheduler.
+
 ## Builder Extensions
 
 The `ISagaBuilder` fluent API provides optional capabilities:

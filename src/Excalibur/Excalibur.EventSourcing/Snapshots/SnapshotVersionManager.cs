@@ -20,7 +20,9 @@ namespace Excalibur.EventSourcing.Snapshots;
 /// </remarks>
 public sealed partial class SnapshotVersionManager
 {
-	private readonly ConcurrentDictionary<string, List<ISnapshotUpgrader>> _upgraders = new(StringComparer.Ordinal);
+	// Copy-on-write (5gezua): the value is an immutable snapshot replaced (never mutated in place) under
+	// _registrationLock, so read paths enumerate a stable list without a lock even if a registration races.
+	private readonly ConcurrentDictionary<string, IReadOnlyList<ISnapshotUpgrader>> _upgraders = new(StringComparer.Ordinal);
 	private readonly Lock _registrationLock = new();
 	private readonly ILogger<SnapshotVersionManager> _logger;
 
@@ -57,9 +59,9 @@ public sealed partial class SnapshotVersionManager
 		// startup only, so contention is negligible.
 		lock (_registrationLock)
 		{
-			var upgraderList = _upgraders.GetOrAdd(upgrader.AggregateType, static _ => []);
+			var existing = _upgraders.TryGetValue(upgrader.AggregateType, out var current) ? current : [];
 
-			var existingUpgrader = upgraderList.FirstOrDefault(u =>
+			var existingUpgrader = existing.FirstOrDefault(u =>
 				u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
 
 			if (existingUpgrader is not null)
@@ -68,7 +70,8 @@ public sealed partial class SnapshotVersionManager
 					$"A snapshot upgrader for aggregate type '{upgrader.AggregateType}' from version {upgrader.FromVersion} to {upgrader.ToVersion} is already registered.");
 			}
 
-			upgraderList.Add(upgrader);
+			// Replace with a fresh immutable snapshot rather than mutating a list a reader may enumerate.
+			_upgraders[upgrader.AggregateType] = [.. existing, upgrader];
 		}
 
 		LogUpgraderRegistered(upgrader.AggregateType, upgrader.FromVersion, upgrader.ToVersion);
@@ -163,7 +166,7 @@ public sealed partial class SnapshotVersionManager
 	/// Finds the shortest upgrade path between versions using BFS.
 	/// </summary>
 	private static List<ISnapshotUpgrader>? FindUpgradePath(
-		List<ISnapshotUpgrader> upgraders,
+		IReadOnlyList<ISnapshotUpgrader> upgraders,
 		int fromVersion,
 		int toVersion)
 	{

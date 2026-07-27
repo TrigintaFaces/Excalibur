@@ -63,6 +63,20 @@ public sealed class MongoDbInboxOptions
 	public int MaxPoolSize { get; set; } = 100;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether to advertise transactional (exactly-once) inbox processing.
+	/// </summary>
+	/// <remarks>
+	/// MongoDB multi-document transactions require the server to be deployed as a replica set (or a sharded
+	/// cluster). A standalone <c>mongod</c> cannot start a transaction. This flag is opt-in and defaults to
+	/// <see langword="false"/> so the store never falsely advertises the atomic handler-plus-mark capability on
+	/// a deployment that cannot honour it; set it to <see langword="true"/> only when the target deployment is a
+	/// replica set. When <see langword="false"/>, the store reports no transactional capability and callers fall
+	/// back to the at-least-once idempotent claim protocol. Even when <see langword="true"/>, starting a
+	/// transaction against a non-replica-set server still fails loudly at runtime.
+	/// </remarks>
+	public bool EnableTransactions { get; set; }
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

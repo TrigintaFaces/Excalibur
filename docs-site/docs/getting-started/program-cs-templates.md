@@ -64,7 +64,7 @@ public class GreetHandler(IDispatcher dispatcher) : IActionHandler<GreetAction>
     public async Task HandleAsync(GreetAction action, CancellationToken ct)
     {
         Console.WriteLine($"Hello, {action.Name}!");
-        await dispatcher.DispatchChildAsync(new GreetedEvent(action.Name), ct);
+        await dispatcher.DispatchAsync(new GreetedEvent(action.Name), ct);
     }
 }
 
@@ -151,14 +151,8 @@ app.Run();
 // --- Messages ---
 public record CreateCounterAction() : IDispatchAction<Guid>;
 public record IncrementCounterAction(Guid CounterId) : IDispatchAction;
-public record CounterCreated(Guid CounterId) : DomainEvent
-{
-    public override string AggregateId => CounterId.ToString();
-}
-public record CounterIncremented(Guid CounterId) : DomainEvent
-{
-    public override string AggregateId => CounterId.ToString();
-}
+public record CounterCreated(Guid CounterId) : DomainEvent;
+public record CounterIncremented(Guid CounterId) : DomainEvent;
 
 // --- Aggregate ---
 public class CounterAggregate : AggregateRoot<Guid>
@@ -171,11 +165,11 @@ public class CounterAggregate : AggregateRoot<Guid>
     public void Create() => RaiseEvent(new CounterCreated(Id));
     public void Increment() => RaiseEvent(new CounterIncremented(Id));
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         CounterCreated => true,
         CounterIncremented => ApplyIncrement(),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool ApplyIncrement() { Value++; return true; }
@@ -260,7 +254,7 @@ public class ProcessDataHandler(IDispatcher dispatcher) : IActionHandler<Process
     {
         // Your business logic -- retries and circuit breaking handled by middleware
         Console.WriteLine($"Processing: {action.Data}");
-        await dispatcher.DispatchChildAsync(new DataProcessedEvent(action.Data), ct);
+        await dispatcher.DispatchAsync(new DataProcessedEvent(action.Data), ct);
     }
 }
 
@@ -359,14 +353,8 @@ app.Run();
 public record CreateTodoRequest(string Title);
 public record CreateTodoAction(string Title) : IDispatchAction<Guid>;
 public record CompleteTodoAction(Guid TodoId) : IDispatchAction;
-public record TodoCreated(Guid TodoId, string Title) : DomainEvent
-{
-    public override string AggregateId => TodoId.ToString();
-}
-public record TodoCompleted(Guid TodoId) : DomainEvent
-{
-    public override string AggregateId => TodoId.ToString();
-}
+public record TodoCreated(Guid TodoId, string Title) : DomainEvent;
+public record TodoCompleted(Guid TodoId) : DomainEvent;
 
 // --- Read Model (Projection) ---
 public class TodoView
@@ -392,11 +380,11 @@ public class TodoAggregate : AggregateRoot<Guid>
         RaiseEvent(new TodoCompleted(Id));
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         TodoCreated e => ApplyCreated(e),
         TodoCompleted => ApplyCompleted(),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool ApplyCreated(TodoCreated e) { Title = e.Title; return true; }

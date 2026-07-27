@@ -24,28 +24,58 @@ public sealed class ExcaliburValidationOptions
 	public bool FailFast { get; set; } = true;
 
 	/// <summary>
+	/// Gets the database configuration-validation options.
+	/// </summary>
+	/// <value> The database validation sub-options. Never null. </value>
+	public DatabaseValidationOptions Databases { get; } = new();
+
+	/// <summary>
+	/// Gets the cloud-provider configuration-validation options.
+	/// </summary>
+	/// <value> The cloud-provider validation sub-options. Never null. </value>
+	public CloudProviderValidationOptions CloudProviders { get; } = new();
+
+	/// <summary>
+	/// Gets the message-broker configuration-validation options.
+	/// </summary>
+	/// <value> The message-broker validation sub-options. Never null. </value>
+	public MessageBrokerValidationOptions MessageBrokers { get; } = new();
+}
+
+/// <summary>
+/// Database configuration-validation options.
+/// </summary>
+public sealed class DatabaseValidationOptions
+{
+	/// <summary>
 	/// Gets or sets a value indicating whether to validate database configurations.
 	/// </summary>
 	/// <value> <see langword="true" /> if database configurations should be validated; otherwise, <see langword="false" />. </value>
-	public bool ValidateDatabases { get; set; } = true;
+	public bool Enabled { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to test database connections.
 	/// </summary>
 	/// <value> <see langword="true" /> to test database connections; otherwise, <see langword="false" />. </value>
-	public bool TestDatabaseConnections { get; set; }
+	public bool TestConnections { get; set; }
 
 	/// <summary>
 	/// Gets the database connections to validate.
 	/// </summary>
 	/// <value> The database connections to validate. </value>
-	public Dictionary<string, DatabaseProvider> DatabaseConnections { get; } = [];
+	public Dictionary<string, DatabaseProvider> Connections { get; } = [];
+}
 
+/// <summary>
+/// Cloud-provider configuration-validation options.
+/// </summary>
+public sealed class CloudProviderValidationOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to validate cloud provider configurations.
 	/// </summary>
 	/// <value> <see langword="true" /> if cloud provider configurations should be validated; otherwise, <see langword="false" />. </value>
-	public bool ValidateCloudProviders { get; set; } = true;
+	public bool Enabled { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether AWS is used.
@@ -64,12 +94,18 @@ public sealed class ExcaliburValidationOptions
 	/// </summary>
 	/// <value> <see langword="true" /> if Google Cloud is used; otherwise, <see langword="false" />. </value>
 	public bool UseGoogleCloud { get; set; }
+}
 
+/// <summary>
+/// Message-broker configuration-validation options.
+/// </summary>
+public sealed class MessageBrokerValidationOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to validate message broker configurations.
 	/// </summary>
 	/// <value> <see langword="true" /> if message broker configurations should be validated; otherwise, <see langword="false" />. </value>
-	public bool ValidateMessageBrokers { get; set; } = true;
+	public bool Enabled { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether RabbitMQ is used.

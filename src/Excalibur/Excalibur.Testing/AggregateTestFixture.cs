@@ -94,8 +94,8 @@ public sealed class AggregateTestFixture<TAggregate>
 	{
 		ArgumentNullException.ThrowIfNull(action);
 
-		// Apply given events to establish initial state
-		_aggregate.LoadFromHistory(_givenEvents);
+		// Stamp contiguous versions, then apply given events to establish initial state.
+		_aggregate.LoadFromHistory(AsContiguousHistory());
 
 		// Clear any events that might be in uncommitted (shouldn't be any, but defensive)
 		_aggregate.MarkEventsAsCommitted();
@@ -131,8 +131,8 @@ public sealed class AggregateTestFixture<TAggregate>
 	{
 		ArgumentNullException.ThrowIfNull(action);
 
-		// Apply given events to establish initial state
-		_aggregate.LoadFromHistory(_givenEvents);
+		// Stamp contiguous versions, then apply given events to establish initial state.
+		_aggregate.LoadFromHistory(AsContiguousHistory());
 
 		// Clear any events that might be in uncommitted (shouldn't be any, but defensive)
 		_aggregate.MarkEventsAsCommitted();
@@ -187,4 +187,24 @@ public sealed class AggregateTestFixture<TAggregate>
 	/// <param name="messageContains">A substring that the exception message should contain.</param>
 	public void ShouldThrow<TException>(string messageContains) where TException : Exception =>
 		Then().ShouldThrow<TException>(messageContains);
+
+	/// <summary>
+	/// Pairs each given event with its contiguous zero-based stream position, exactly as an event store would,
+	/// so the replayed history satisfies the aggregate's <c>LoadFromHistory</c> contiguity check without the
+	/// test author having to hand-number events.
+	/// </summary>
+	/// <remarks>
+	/// The stream position (version) travels in the persistence envelope (<see cref="HistoricEvent"/>), never on
+	/// the event payload. Every event shape — including one implementing <see cref="IDomainEvent"/> directly —
+	/// replays correctly because its position is supplied here rather than written onto the event. Tests that
+	/// deliberately exercise a version gap or an unhandled event must call <c>LoadFromHistory</c> on the
+	/// aggregate directly.
+	/// </remarks>
+	private IEnumerable<HistoricEvent> AsContiguousHistory()
+	{
+		for (var i = 0; i < _givenEvents.Count; i++)
+		{
+			yield return new HistoricEvent(_givenEvents[i], i);
+		}
+	}
 }

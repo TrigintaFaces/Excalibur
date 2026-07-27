@@ -6,6 +6,11 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 using Excalibur.Compliance;
+
+using VaultSharp;
+using VaultSharp.V1.AuthMethods.Token;
+using VaultSharp.V1.SecretsEngines;
+
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Vault;
 
 /// <summary>
@@ -41,9 +46,9 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 
 	// Builds a VaultKeyProvider against the live container. The cache is a parameter so a test can construct
 	// a SECOND, independent instance (fresh cache) to prove durable cross-instance suspension (vihqw6).
-	private VaultKeyProvider CreateProvider(IMemoryCache cache)
+	private VaultKeyProvider CreateProvider(IMemoryCache cache, string? suspensionMountPath = null)
 	{
-		var options = Microsoft.Extensions.Options.Options.Create(new VaultOptions
+		var vaultOptions = new VaultOptions
 		{
 			VaultUri = new Uri(_fixture.VaultAddress),
 			Auth = { AuthMethod = VaultAuthMethod.Token, Token = _fixture.Token },
@@ -51,7 +56,15 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 			MetadataCacheDuration = TimeSpan.FromMinutes(5),
 			// SuspendedKeysMountPath defaults to "secret" (KV v2, mounted by the Vault dev container);
 			// SuspendedKeysPath defaults to "excalibur-dispatch/suspended-keys".
-		});
+		};
+
+		// bd-ixyew5 lock isolates on its own suspension KV mount so unmounting it can't disturb the shared "secret".
+		if (suspensionMountPath is not null)
+		{
+			vaultOptions.Suspension.MountPath = suspensionMountPath;
+		}
+
+		var options = Microsoft.Extensions.Options.Options.Create(vaultOptions);
 
 		return new VaultKeyProvider(options, cache, _logger);
 	}
@@ -72,6 +85,68 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 	{
 		_provider?.Dispose();
 		_cache?.Dispose();
+	}
+
+	/// <summary>
+	/// bd-ixyew5 SECURITY fail-closed regression lock (NEVER skipped). When the suspension KV mount becomes
+	/// unreachable mid-run (engine unmounted / read-ACL lost after startup), the suspension check MUST fail
+	/// CLOSED — the mount-missing 404 propagates — rather than swallowing it and handing back a suspended key as
+	/// Active. RED against the pre-fix impl (catch-all-404 → suspended=false → GetKey reports Active); GREEN once
+	/// the runtime catch mirrors the startup guard's <c>!IsMountMissing(ex)</c> filter.
+	/// </summary>
+	[Fact]
+	public async Task IsKeySuspended_FailsClosed_WhenSuspensionMountBecomesMissing_OnRealVault()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"bd-ixyew5 is a SECURITY fail-closed lock and MUST run against real Vault — never skipped. "
+			+ (_fixture.InitializationError ?? "Vault container required."));
+
+		// Isolated suspension mount so unmounting it cannot disturb the shared "secret" mount other tests use.
+		var suspensionMount = $"test-suspend-{Guid.NewGuid():N}";
+		var admin = new VaultClient(new VaultClientSettings(
+			_fixture.VaultAddress, new TokenAuthMethodInfo(_fixture.Token)));
+		await admin.V1.System.MountSecretBackendAsync(new SecretsEngine
+		{
+			Type = SecretsEngineType.KeyValueV2,
+			Path = suspensionMount,
+		});
+
+		var keyId = $"failclosed-{Guid.NewGuid():N}";
+		using var cache = new MemoryCache(new MemoryCacheOptions());
+		var provider = CreateProvider(cache, suspensionMount);
+		try
+		{
+			// Arrange — a real Transit key, resolved as the ACTIVE key so it is cached under "active:default".
+			// GetActiveKeyAsync's cached-active path re-checks IsKeySuspendedAsync on every call — that is the
+			// exact seam where a mid-run mount loss could otherwise hand back a suspended key as Active.
+			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+			var active = await provider.GetActiveKeyAsync(null, CancellationToken.None);
+			_ = active.ShouldNotBeNull();
+			active!.KeyId.ShouldBe(keyId);
+
+			// Suspend it (writes the durable marker; invalidates the suspension cache but NOT the active cache,
+			// so the next GetActiveKeyAsync still enters the cached-active suspension re-check).
+			(await provider.SuspendKeyAsync(keyId, "Security incident", CancellationToken.None)).ShouldBeTrue();
+
+			// Act — the suspension mount becomes MISSING mid-run (engine unmounted / read-ACL lost).
+			await admin.V1.System.UnmountSecretBackendAsync(suspensionMount);
+
+			// Assert — GetActiveKeyAsync MUST FAIL CLOSED: the cached-active suspension re-check hits the
+			// mount-missing 404, which now propagates, so it THROWS rather than returning the (cached, now
+			// suspended) key as Active.
+			// RED on the pre-fix swallow-all-404 impl: IsKeySuspendedAsync returns false → the cached-active
+			// path returns the SUSPENDED key as Active (the fail-open bd-ixyew5 closes).
+			_ = await Should.ThrowAsync<VaultSharp.Core.VaultApiException>(
+				() => provider.GetActiveKeyAsync(null, CancellationToken.None));
+		}
+		finally
+		{
+			provider.Dispose();
+			try { _ = await CreateProvider(cache).DeleteKeyAsync(keyId, 30, CancellationToken.None); }
+			catch (Exception) { /* best-effort transit cleanup; suspension mount already unmounted */ }
+			try { await admin.V1.System.UnmountSecretBackendAsync(suspensionMount); }
+			catch (Exception) { /* already unmounted */ }
+		}
 	}
 
 	[Fact]
@@ -245,8 +320,8 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 		// Act
 		var result = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert — Vault destroys transit key material immediately (irrecoverable now).
+		result.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.Completed);
 
 		var metadata = await _provider.GetKeyAsync(keyId, CancellationToken.None);
 		metadata.ShouldBeNull();
@@ -264,7 +339,7 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 		var result = await _provider.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 
 		// Assert
-		result.ShouldBeFalse();
+		result.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.NotFound);
 	}
 
 	[Fact]
@@ -350,6 +425,74 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 		{
 			_ = await _provider!.DeleteKeyAsync(keyId, 30, CancellationToken.None);
 		}
+	}
+
+	[Fact]
+	public async Task ReactivateKey_RestoresSuspendedKeyToUsable_AcrossAFreshProviderInstance()
+	{
+		// yvbuw2 — NON-SKIPPED real-Vault lock for ReactivateKeyAsync (the inverse of the vihqw6 SuspendKeyAsync
+		// fix). Suspension persists a DURABLE KV marker; reactivation deletes it, restoring the key to Active/usable.
+		// Contract:
+		//   - after ReactivateKeyAsync, GetKey* report KeyStatus.Active (the encryptor accepts it again);
+		//   - GetActiveKeyAsync surfaces the reactivated key once more;
+		//   - DURABLE: a FRESH provider instance (own cache, same Vault) also sees Active — proving the KV marker
+		//     was actually removed in Vault, not just a local cache flip.
+		// RED on the absence of ReactivateKeyAsync (does not compile / no way to lift the durable marker) and on any
+		// impl that only clears the in-memory suspension cache — instanceB would still read Suspended from the marker.
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"yvbuw2 is a SECURITY regression lock and MUST run against real Vault — it is never skipped. " +
+			(_fixture.InitializationError ?? "Vault container required."));
+
+		var keyId = $"reactivate-{Guid.NewGuid():N}";
+		try
+		{
+			// Arrange — a real Transit key, suspended and confirmed unusable.
+			_ = await _provider!.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+			(await _provider.SuspendKeyAsync(keyId, "Security incident", CancellationToken.None)).ShouldBeTrue();
+
+			var suspended = await _provider.GetKeyAsync(keyId, CancellationToken.None);
+			_ = suspended.ShouldNotBeNull();
+			suspended!.Status.ShouldBe(KeyStatus.Suspended);
+
+			// Act — reactivate (RED without the durable-marker deletion; GREEN on the fix).
+			var reactivated = await _provider.ReactivateKeyAsync(keyId, CancellationToken.None);
+			reactivated.ShouldBeTrue();
+
+			// Assert (same instance) — GetKey* reports Active; GetActiveKey surfaces it again.
+			var afterByKey = await _provider.GetKeyAsync(keyId, CancellationToken.None);
+			_ = afterByKey.ShouldNotBeNull();
+			afterByKey!.Status.ShouldBe(KeyStatus.Active,
+				"a reactivated key must surface as Active so the encryptor accepts it again");
+
+			var active = await _provider.GetActiveKeyAsync(keyId, CancellationToken.None);
+			_ = active.ShouldNotBeNull();
+			active!.KeyId.ShouldBe(keyId, "GetActiveKeyAsync must surface the reactivated key");
+
+			// Assert (DURABILITY) — a brand-new provider instance with its OWN cache also sees Active, proving the
+			// durable KV suspension marker was truly removed in Vault (a cache-only flip would still read Suspended).
+			using var freshCache = new MemoryCache(new MemoryCacheOptions());
+			using var instanceB = CreateProvider(freshCache);
+			var fromInstanceB = await instanceB.GetKeyAsync(keyId, CancellationToken.None);
+			_ = fromInstanceB.ShouldNotBeNull();
+			fromInstanceB!.Status.ShouldBe(KeyStatus.Active,
+				"reactivation MUST durably remove the Vault marker so a fresh provider instance sees Active");
+		}
+		finally
+		{
+			_ = await _provider!.DeleteKeyAsync(keyId, 30, CancellationToken.None);
+		}
+	}
+
+	[Fact]
+	public async Task ReactivateKey_ReturnsFalse_WhenKeyNotFound()
+	{
+		SkipIfUnavailable();
+
+		var keyId = $"missing-{Guid.NewGuid():N}";
+
+		var result = await _provider!.ReactivateKeyAsync(keyId, CancellationToken.None);
+
+		result.ShouldBeFalse("ReactivateKeyAsync must return false for a non-existent key");
 	}
 
 	[Fact]

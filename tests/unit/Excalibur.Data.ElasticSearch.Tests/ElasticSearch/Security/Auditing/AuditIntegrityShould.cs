@@ -132,6 +132,61 @@ public sealed class AuditIntegrityShould
 			+ "record as corrupted. Quantize Timestamp to ms; normalize Details via a stable JSON form.");
 	}
 
+	// cebhso (S847 REVIEW_CODE E/ptaqsv): Canonicalize hand-lists the integrity-covered fields. That is CORRECT
+	// today (all 10 SecurityAuditEvent properties are accounted for), but a FUTURE property added to the event
+	// would silently fall out of MAC coverage — tamper-undetectable — with nothing forcing the author to notice.
+	// enforce-invariants-structurally: this reflection guard makes "a property is neither covered nor explicitly
+	// excluded" INEXPRESSIBLE — adding an 11th property turns this RED until the author extends Canonicalize (and
+	// adds the new name here) OR consciously excludes it as a non-input. NOTE: the ptaqsv suggestion of "clone +
+	// serialize the whole object" is deliberately NOT taken — it would reintroduce the exact round-trip
+	// instability (full-tick Timestamp vs ES ms; CLR value vs JsonElement Details) that
+	// Canonicalize_IsRoundTripStable_* locks (SA 17652). A structural exhaustiveness guard closes the coverage
+	// gap WITHOUT breaking write-bytes==reload-bytes-by-construction.
+	[Fact]
+	public void EveryEventProperty_IsEither_MacCovered_Or_ExplicitlyExcluded()
+	{
+		// Every SecurityAuditEvent property whose value is folded into the canonical MAC input (Canonicalize).
+		var macCovered = new HashSet<string>(StringComparer.Ordinal)
+		{
+			nameof(SecurityAuditEvent.EventId),
+			nameof(SecurityAuditEvent.Timestamp),
+			nameof(SecurityAuditEvent.EventType),
+			nameof(SecurityAuditEvent.Severity),
+			nameof(SecurityAuditEvent.Source),
+			nameof(SecurityAuditEvent.UserId),
+			nameof(SecurityAuditEvent.SourceIpAddress),
+			nameof(SecurityAuditEvent.UserAgent),
+			nameof(SecurityAuditEvent.Details),
+		};
+
+		// Properties DELIBERATELY excluded from the MAC input, with the reason they are not integrity-inputs.
+		var deliberatelyExcluded = new HashSet<string>(StringComparer.Ordinal)
+		{
+			nameof(SecurityAuditEvent.IntegrityHash), // the MAC OUTPUT — signing over it would be self-referential.
+		};
+
+		var actual = typeof(SecurityAuditEvent)
+			.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+			.Select(static p => p.Name)
+			.ToHashSet(StringComparer.Ordinal);
+
+		var accountedFor = new HashSet<string>(macCovered, StringComparer.Ordinal);
+		accountedFor.UnionWith(deliberatelyExcluded);
+
+		var unaccounted = actual.Except(accountedFor).OrderBy(static n => n, StringComparer.Ordinal).ToArray();
+		unaccounted.ShouldBeEmpty(
+			"cebhso: a SecurityAuditEvent property is neither folded into the MAC (Canonicalize) nor explicitly "
+			+ "excluded — it would be tamper-undetectable. Add it to Canonicalize + `macCovered` above, or, if it "
+			+ "is genuinely not an integrity input, add it to `deliberatelyExcluded` with a reason. "
+			+ $"Unaccounted: [{string.Join(", ", unaccounted)}].");
+
+		// Symmetry guard: a name listed here but removed from the event would silently rot this test — keep the
+		// declared sets honest against the real type.
+		var stale = accountedFor.Except(actual).OrderBy(static n => n, StringComparer.Ordinal).ToArray();
+		stale.ShouldBeEmpty(
+			$"cebhso: these declared property names no longer exist on SecurityAuditEvent: [{string.Join(", ", stale)}].");
+	}
+
 	[Fact]
 	public async Task KeyedStrategy_DetectsForgery_WhenACanonicalFieldIsTampered()
 	{

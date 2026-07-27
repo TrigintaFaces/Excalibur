@@ -50,6 +50,15 @@ internal sealed class SqlServerKeyEscrowOptionsValidator : IValidateOptions<SqlS
 			failures.Add("TokensTableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
 		}
 
+		if (string.IsNullOrWhiteSpace(options.WrapTableName))
+		{
+			failures.Add("WrapTableName is required.");
+		}
+		else if (!SqlIdentifierValidator.IsValid(options.WrapTableName))
+		{
+			failures.Add("WrapTableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
+		}
+
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

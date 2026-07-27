@@ -361,21 +361,35 @@ public abstract class DataInventoryStoreConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that FindRegistrationsForDataSubjectAsync filters by IdType and tenant.
+	/// Verifies that FindRegistrationsForDataSubjectAsync filters by IdType.
 	/// </summary>
-	protected virtual async Task FindRegistrationsForDataSubjectAsync_ShouldFilterByIdTypeAndTenant()
+	/// <remarks>
+	/// THIS ARM ASSERTS IDTYPE FILTERING ONLY, AND ITS NAME SAYS SO. It was previously called
+	/// <c>..._ShouldFilterByIdTypeAndTenant</c> while passing <see langword="null" /> as the tenant
+	/// argument at every call site, so nothing tenant-related was ever filtered or asserted; the
+	/// tenant-columned row it seeded was scenery. A name is the one place a coverage audit does not
+	/// re-check — a reader greps the arm list, sees "AndTenant", and marks tenancy covered. That is
+	/// the same census-by-name failure as keying a population off a filename, except the misleading
+	/// token here is a TEST NAME.
+	///
+	/// Tenant isolation is asserted by
+	/// <see cref="FindRegistrationsForDataSubjectAsync_WithTenantFilter_ShouldFilterCorrectly" />,
+	/// which carries the real SAFETY and LIVENESS arms. Do not re-assert tenancy here: one arm, one
+	/// property, so a failure names its own cause.
+	/// </remarks>
+	protected virtual async Task FindRegistrationsForDataSubjectAsync_ShouldFilterByIdType()
 	{
 		// Arrange
 		var store = CreateStore();
 		var userIdReg = CreateRegistration("UserTable", "UserField", idType: DataSubjectIdType.UserId);
 		var emailReg = CreateRegistration("EmailTable", "EmailField", idType: DataSubjectIdType.Email);
-		var tenantReg = CreateRegistration("TenantTable", "TenantField", idType: DataSubjectIdType.UserId, tenantIdColumn: "TenantA");
+		var secondUserIdReg = CreateRegistration("SecondUserTable", "SecondUserField", idType: DataSubjectIdType.UserId);
 
 		try
 		{
 			await store.SaveRegistrationAsync(userIdReg, CancellationToken.None).ConfigureAwait(false);
 			await store.SaveRegistrationAsync(emailReg, CancellationToken.None).ConfigureAwait(false);
-			await store.SaveRegistrationAsync(tenantReg, CancellationToken.None).ConfigureAwait(false);
+			await store.SaveRegistrationAsync(secondUserIdReg, CancellationToken.None).ConfigureAwait(false);
 
 			// Act - Filter by UserId type only
 			var userIdResults = await GetQueryStore(store).FindRegistrationsForDataSubjectAsync(
@@ -384,11 +398,30 @@ public abstract class DataInventoryStoreConformanceTestKit
 				null,
 				CancellationToken.None).ConfigureAwait(false);
 
-			// Assert
+			// SAFETY -- no registration of a different IdType may come back.
 			if (userIdResults.Any(r => r.IdType != DataSubjectIdType.UserId))
 			{
 				throw new TestFixtureAssertionException(
-					"FindRegistrationsForDataSubjectAsync should filter by IdType");
+					"FindRegistrationsForDataSubjectAsync should filter by IdType, but returned a registration "
+					+ "whose IdType is not UserId: "
+					+ string.Join(", ", userIdResults.Where(r => r.IdType != DataSubjectIdType.UserId)
+						.Select(r => $"{r.TableName}.{r.FieldName}({r.IdType})")));
+			}
+
+			// LIVENESS -- paired with the safety arm above and NOT optional. The safety assertion is an
+			// Any() over the result set, so it is fully satisfied by a store that returns NOTHING: a
+			// filter that discards everything discloses no wrong IdType because it discloses nothing.
+			// Both UserId registrations must actually come back.
+			if (!userIdResults.Any(r => r.TableName == "UserTable")
+				|| !userIdResults.Any(r => r.TableName == "SecondUserTable"))
+			{
+				throw new TestFixtureAssertionException(
+					"FindRegistrationsForDataSubjectAsync filtered to UserId did not return both UserId "
+					+ "registrations. A store that answers nothing is not filtering, it is broken. Expected "
+					+ "UserTable and SecondUserTable; got: "
+					+ (userIdResults.Count == 0
+						? "(empty)"
+						: string.Join(", ", userIdResults.Select(r => r.TableName))));
 			}
 
 			// Act - Filter by Email type
@@ -398,11 +431,23 @@ public abstract class DataInventoryStoreConformanceTestKit
 				null,
 				CancellationToken.None).ConfigureAwait(false);
 
-			// Assert
+			// SAFETY -- the UserId registrations must not appear in an Email-scoped read.
 			if (emailResults.Any(r => r.IdType != DataSubjectIdType.Email))
 			{
 				throw new TestFixtureAssertionException(
-					"FindRegistrationsForDataSubjectAsync should only return registrations matching the IdType");
+					"FindRegistrationsForDataSubjectAsync should only return registrations matching the IdType, "
+					+ "but an Email-scoped read returned: "
+					+ string.Join(", ", emailResults.Where(r => r.IdType != DataSubjectIdType.Email)
+						.Select(r => $"{r.TableName}.{r.FieldName}({r.IdType})")));
+			}
+
+			// LIVENESS -- same reasoning as above; an empty result satisfies the safety arm vacuously.
+			if (!emailResults.Any(r => r.TableName == "EmailTable"))
+			{
+				throw new TestFixtureAssertionException(
+					"FindRegistrationsForDataSubjectAsync filtered to Email did not return the Email "
+					+ "registration. Got: "
+					+ (emailResults.Count == 0 ? "(empty)" : string.Join(", ", emailResults.Select(r => r.TableName))));
 			}
 		}
 		finally
@@ -797,14 +842,48 @@ public abstract class DataInventoryStoreConformanceTestKit
 				"TenantA",
 				CancellationToken.None).ConfigureAwait(false);
 
-			// Assert - Should include TenantA registrations and those with no tenant column
-			var hasTenantA = tenantAResults.Any(r => r.TenantIdColumn == "TenantA");
-			var hasNoTenant = tenantAResults.Any(r => string.IsNullOrEmpty(r.TenantIdColumn));
+			// SAFETY -- the arm this kit was missing, and the reason it certified a cross-tenant leak as
+			// conforming. Another tenant's registration MUST NOT come back from a scoped read.
+			//
+			// Identity is asserted on the registration's OWN identity (table + field), never on
+			// TenantIdColumn. TenantIdColumn holds the NAME of a column, not a tenant value, so a
+			// predicate written against it tests a naming coincidence rather than isolation -- that
+			// confusion is the root of the disclosure this arm failed to catch.
+			var leaked = tenantAResults
+				.Where(r => r.TableName == "TenantBTable" || r.FieldName == "TenantBField")
+				.ToList();
 
-			if (!hasTenantA && !hasNoTenant)
+			if (leaked.Count > 0)
 			{
 				throw new TestFixtureAssertionException(
-					"FindRegistrationsForDataSubjectAsync with tenant filter should return matching tenant or no-tenant registrations");
+					"CROSS-TENANT DISCLOSURE: FindRegistrationsForDataSubjectAsync scoped to 'TenantA' returned "
+					+ $"{leaked.Count} registration(s) belonging to TenantB. A scoped read must never return another "
+					+ "tenant's registrations. Registrations returned: "
+					+ string.Join(", ", leaked.Select(r => $"{r.TableName}.{r.FieldName}")));
+			}
+
+			// LIVENESS -- paired with the safety arm above and NOT optional. Safety alone is fully
+			// satisfied by a store that returns an empty set for every scoped read forever, which is a
+			// degenerate implementation that discloses nothing because it answers nothing. The previous
+			// arm was additionally an OR (`!hasTenantA && !hasNoTenant`), so it passed when EITHER kind
+			// of row came back -- and passed just as happily when TenantB's rows came back alongside them.
+			var hasTenantA = tenantAResults.Any(r => r.TableName == "TenantATable");
+			var hasNoTenant = tenantAResults.Any(r => r.TableName == "NoTenantTable");
+
+			if (!hasTenantA)
+			{
+				throw new TestFixtureAssertionException(
+					"FindRegistrationsForDataSubjectAsync scoped to 'TenantA' did not return TenantA's own "
+					+ "registration. The scoped read must still answer for the tenant that owns the data -- a store "
+					+ "that returns nothing is not isolated, it is broken.");
+			}
+
+			if (!hasNoTenant)
+			{
+				throw new TestFixtureAssertionException(
+					"FindRegistrationsForDataSubjectAsync scoped to 'TenantA' did not return the untenanted "
+					+ "registration. Untenanted rows are visible to every scope by contract; dropping them silently "
+					+ "loses data from the subject-access response.");
 			}
 		}
 		finally

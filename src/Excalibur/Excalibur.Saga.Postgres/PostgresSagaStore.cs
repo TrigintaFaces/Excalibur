@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -31,12 +32,13 @@ namespace Excalibur.Saga.Postgres;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class PostgresSagaStore : ISagaStore
+public sealed class PostgresSagaStore : ISagaStore, ISagaStoreAdmin
 {
 	private readonly Func<NpgsqlConnection> _connectionFactory;
 	private readonly PostgresSagaOptions _options;
 	private readonly ILogger<PostgresSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresSagaStore"/> class.
@@ -44,14 +46,22 @@ public sealed class PostgresSagaStore : ISagaStore
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
+	/// summary reads are scoped to the current tenant (row-level <c>tenant_id</c>) so a tenant can never load
+	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
+	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
+	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// </param>
 	/// <remarks>
 	/// This is the primary constructor for dependency injection scenarios.
 	/// </remarks>
 	public PostgresSagaStore(
 		IOptions<PostgresSagaOptions> options,
 		ILogger<PostgresSagaStore> logger,
-		DispatchJsonSerializer serializer)
-		: this(CreateConnectionFactory(options?.Value), options?.Value!, logger, serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
+		: this(CreateConnectionFactory(options?.Value), options?.Value!, logger, serializer, tenantContext)
 	{
 	}
 
@@ -65,6 +75,9 @@ public sealed class PostgresSagaStore : ISagaStore
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context for row-level tenant scoping (see the primary constructor's remarks).
+	/// </param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -89,7 +102,8 @@ public sealed class PostgresSagaStore : ISagaStore
 		Func<NpgsqlConnection> connectionFactory,
 		PostgresSagaOptions options,
 		ILogger<PostgresSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -102,6 +116,7 @@ public sealed class PostgresSagaStore : ISagaStore
 		_options = options;
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -112,7 +127,7 @@ public sealed class PostgresSagaStore : ISagaStore
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var result = await connection.ResolveAsync(
-				new LoadSagaRequest<TSagaState>(sagaId, _options, _serializer, cancellationToken))
+				new LoadSagaRequest<TSagaState>(sagaId, _options, _serializer, TenantScope.FromContext(_tenantContext), cancellationToken))
 			.ConfigureAwait(false);
 
 		if (result is not null)
@@ -137,7 +152,7 @@ public sealed class PostgresSagaStore : ISagaStore
 		var expectedVersion = sagaState.Version;
 
 		var rowsAffected = await connection.ResolveAsync(
-				new SaveSagaRequest<TSagaState>(sagaState, _options, _serializer, cancellationToken))
+				new SaveSagaRequest<TSagaState>(sagaState, _options, _serializer, TenantScope.FromContext(_tenantContext), cancellationToken))
 			.ConfigureAwait(false);
 
 		if (rowsAffected == 0)
@@ -146,7 +161,7 @@ public sealed class PostgresSagaStore : ISagaStore
 			// (loaded) version, i.e. a concurrent handler advanced this saga between our load and save.
 			// Surface it as a ConcurrencyException instead of silently losing the write (skl8r7).
 			var current = await connection.ResolveAsync(
-					new LoadSagaRequest<TSagaState>(sagaState.SagaId, _options, _serializer, cancellationToken))
+					new LoadSagaRequest<TSagaState>(sagaState.SagaId, _options, _serializer, TenantScope.FromContext(_tenantContext), cancellationToken))
 				.ConfigureAwait(false);
 
 			throw new ConcurrencyException(
@@ -167,6 +182,82 @@ public sealed class PostgresSagaStore : ISagaStore
 			sagaState.SagaId,
 			sagaState.Version,
 			sagaState.Completed);
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var removed = await connection.ResolveAsync(
+				new PurgeCompletedSagasRequest(
+					threshold,
+					_options,
+					cancellationToken,
+					TenantScope.FromContext(_tenantContext)))
+			.ConfigureAwait(false);
+
+		_logger.LogDebug("Purged {Count} completed sagas older than {Threshold}", removed, threshold);
+
+		return removed;
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var removed = await connection.ResolveAsync(
+				new PurgeCompletedSagasRequest(
+					threshold,
+					_options,
+					cancellationToken,
+					allTenants: true))
+			.ConfigureAwait(false);
+
+		_logger.LogDebug(
+			"Purged {Count} completed sagas older than {Threshold} across all tenants", removed, threshold);
+
+		return removed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<IReadOnlyList<SagaInstanceSummary>> QuerySagasAsync(
+		SagaQueryFilter filter,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new QuerySagaSummariesRequest(filter, _options, TenantScope.FromContext(_tenantContext), cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<SagaInstanceSummary?> GetSummaryAsync(Guid sagaId, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new GetSagaSummaryRequest(sagaId, _options, TenantScope.FromContext(_tenantContext), cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<SagaStoreStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new GetSagaStatisticsRequest(_options, TenantScope.FromContext(_tenantContext), cancellationToken))
+			.ConfigureAwait(false);
 	}
 
 	private static Func<NpgsqlConnection> CreateConnectionFactory(PostgresSagaOptions? options)

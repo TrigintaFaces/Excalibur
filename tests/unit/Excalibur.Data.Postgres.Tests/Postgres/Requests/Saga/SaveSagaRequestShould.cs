@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Saga.Postgres;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -43,7 +44,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, _serializer, CancellationToken.None);
+			state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -59,7 +60,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, _serializer, CancellationToken.None);
+			state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -76,10 +77,17 @@ public sealed class SaveSagaRequestShould : IDisposable
 		var state = CreateTestState(); // Version 0 (new saga)
 		var options = CreateOptions();
 
-		var sql = new SaveSagaRequest<TestSagaState>(state, options, _serializer, CancellationToken.None).Command.CommandText;
+		var sql = new SaveSagaRequest<TestSagaState>(state, options, _serializer, TenantScope.None, CancellationToken.None).Command.CommandText;
 
 		sql.ShouldContain($"INSERT INTO {options.QualifiedTableName}");
-		sql.ShouldContain("ON CONFLICT (saga_id) DO NOTHING");
+
+		// The conflict target is the (tenant_id, saga_id) PAIR, not saga_id alone. That widened when the
+		// tenant predicate became unconditional: the same saga_id legitimately exists once PER TENANT, so a
+		// single-column target would make one tenant's create collide with another's and DO NOTHING —
+		// silently dropping a saga that was never a duplicate. This arm asserted the narrower target and
+		// went red on the fix; it is rebound rather than relaxed, because the no-resurrect property it
+		// guards is unchanged and still worth holding.
+		sql.ShouldContain("ON CONFLICT (tenant_id, saga_id) DO NOTHING");
 		sql.ShouldNotContain("DO UPDATE"); // no blind upsert on the new-saga path
 	}
 
@@ -93,7 +101,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 		state.Version = 3; // existing saga loaded at v3
 		var options = CreateOptions();
 
-		var sql = new SaveSagaRequest<TestSagaState>(state, options, _serializer, CancellationToken.None).Command.CommandText;
+		var sql = new SaveSagaRequest<TestSagaState>(state, options, _serializer, TenantScope.None, CancellationToken.None).Command.CommandText;
 
 		sql.ShouldContain($"UPDATE {options.QualifiedTableName}");
 		sql.ShouldContain("version = @ExpectedVersion");
@@ -109,7 +117,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, _serializer, CancellationToken.None);
+			state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -131,7 +139,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, _serializer, CancellationToken.None);
+			state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -147,16 +155,18 @@ public sealed class SaveSagaRequestShould : IDisposable
 		var state = CreateTestState(); // Version 0
 		var options = CreateOptions();
 
-		var request = new SaveSagaRequest<TestSagaState>(state, options, _serializer, CancellationToken.None);
+		var request = new SaveSagaRequest<TestSagaState>(state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		var paramNames = request.Parameters.ParameterNames.ToList();
 		paramNames.ShouldContain("SagaId");
 		paramNames.ShouldContain("SagaType");
 		paramNames.ShouldContain("StateJson");
 		paramNames.ShouldContain("IsCompleted");
+		paramNames.ShouldContain("CompletedAt"); // completion instant bound on every save (w8aqq3 saga-purge key)
+		paramNames.ShouldContain("TenantId"); // tenant scope bound on every save (bd-952rbe)
 		paramNames.ShouldContain("NewVersion");
 		paramNames.ShouldNotContain("ExpectedVersion");
-		paramNames.Count.ShouldBe(5);
+		paramNames.Count.ShouldBe(7);
 	}
 
 	[Fact]
@@ -169,12 +179,14 @@ public sealed class SaveSagaRequestShould : IDisposable
 		state.Version = 3;
 		var options = CreateOptions();
 
-		var request = new SaveSagaRequest<TestSagaState>(state, options, _serializer, CancellationToken.None);
+		var request = new SaveSagaRequest<TestSagaState>(state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		var paramNames = request.Parameters.ParameterNames.ToList();
 		paramNames.ShouldContain("ExpectedVersion");
 		paramNames.ShouldContain("NewVersion");
-		paramNames.Count.ShouldBe(6);
+		paramNames.ShouldContain("CompletedAt"); // completion instant bound on every save (w8aqq3 saga-purge key)
+		paramNames.ShouldContain("TenantId"); // tenant scope bound on every save (bd-952rbe)
+		paramNames.Count.ShouldBe(8);
 	}
 
 	[Fact]
@@ -187,7 +199,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, _serializer, CancellationToken.None);
+			state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(45);
@@ -203,7 +215,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, _serializer, CancellationToken.None);
+			state, options, _serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert — verify serializer produced valid JSON containing the saga state
 		var stateJson = request.Parameters.Get<string>("StateJson");
@@ -216,7 +228,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 	{
 		var options = CreateOptions();
 		Should.Throw<ArgumentNullException>(() => new SaveSagaRequest<TestSagaState>(
-			null!, options, _serializer, CancellationToken.None));
+			null!, options, _serializer, TenantScope.None, CancellationToken.None));
 	}
 
 	[Fact]
@@ -224,7 +236,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 	{
 		var state = CreateTestState();
 		Should.Throw<ArgumentNullException>(() => new SaveSagaRequest<TestSagaState>(
-			state, null!, _serializer, CancellationToken.None));
+			state, null!, _serializer, TenantScope.None, CancellationToken.None));
 	}
 
 	[Fact]
@@ -233,7 +245,7 @@ public sealed class SaveSagaRequestShould : IDisposable
 		var state = CreateTestState();
 		var options = CreateOptions();
 		Should.Throw<ArgumentNullException>(() => new SaveSagaRequest<TestSagaState>(
-			state, options, null!, CancellationToken.None));
+			state, options, null!, TenantScope.None, CancellationToken.None));
 	}
 
 	/// <summary>

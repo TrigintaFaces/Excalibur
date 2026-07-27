@@ -32,6 +32,7 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	private readonly ILogger _logger;
 	private readonly int _waitTimeSeconds;
 	private readonly int _visibilityTimeoutSeconds;
+	private readonly int? _maxPayloadBytes;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -42,18 +43,24 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="waitTimeSeconds">Long polling wait time in seconds (0-20).</param>
 	/// <param name="visibilityTimeoutSeconds">Visibility timeout for received messages.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length, in bytes, enforced before the body is materialized;
+	/// <see langword="null"/> opts out of the size limit. Defaults to the SQS provider ceiling (256 KiB).
+	/// </param>
 	public SqsTransportReceiver(
 		IAmazonSQS sqsClient,
 		string source,
 		ILogger<SqsTransportReceiver> logger,
 		int waitTimeSeconds = 20,
-		int visibilityTimeoutSeconds = 30)
+		int visibilityTimeoutSeconds = 30,
+		int? maxPayloadBytes = AwsSqsTransportAdapterOptions.SqsMaxPayloadBytes)
 	{
 		_sqsClient = sqsClient ?? throw new ArgumentNullException(nameof(sqsClient));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_waitTimeSeconds = Math.Clamp(waitTimeSeconds, 0, 20);
 		_visibilityTimeoutSeconds = Math.Clamp(visibilityTimeoutSeconds, 0, 43200);
+		_maxPayloadBytes = maxPayloadBytes;
 	}
 
 	/// <inheritdoc />
@@ -85,7 +92,25 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 			var messages = new List<TransportReceivedMessage>(response.Messages.Count);
 			foreach (var sqsMessage in response.Messages)
 			{
-				var received = ConvertToReceivedMessage(sqsMessage);
+				TransportReceivedMessage received;
+				try
+				{
+					received = ConvertToReceivedMessage(sqsMessage);
+				}
+				catch (PayloadTooLargeException ex)
+				{
+					// Poison-message guard: an oversized payload can never be processed and, left in the
+					// queue, would be redelivered forever — a poison loop that stalls consumption. Delete
+					// the single offending message (DLQ routing is handled by the SQS redrive policy) and
+					// continue the batch, rather than letting the throw abort the whole receive.
+					LogPayloadTooLargeRejected(Source, Encoding.UTF8.GetByteCount(sqsMessage.Body ?? string.Empty), ex);
+					using var poisonCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+					await _sqsClient.DeleteMessageAsync(
+						new DeleteMessageRequest { QueueUrl = Source, ReceiptHandle = sqsMessage.ReceiptHandle },
+						poisonCts.Token).ConfigureAwait(false);
+					continue;
+				}
+
 				messages.Add(received);
 				LogMessageReceived(received.Id, Source);
 			}
@@ -233,8 +258,14 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 		return ValueTask.CompletedTask;
 	}
 
-	private static TransportReceivedMessage ConvertToReceivedMessage(Message sqsMessage)
+	private TransportReceivedMessage ConvertToReceivedMessage(Message sqsMessage)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (Encoding.UTF8.GetBytes below). The raw SQS wire length is the UTF-8 byte count of the message
+		// Body string; GetByteCount measures without allocating. Fail-closed — throws
+		// PayloadTooLargeException, which the receive loop catches to delete the poison message.
+		PayloadSizeGuard.EnsureWithinLimit(Encoding.UTF8.GetByteCount(sqsMessage.Body ?? string.Empty), _maxPayloadBytes);
+
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 
 		if (sqsMessage.MessageAttributes is { Count: > 0 })
@@ -343,4 +374,8 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	[LoggerMessage(AwsSqsEventId.TransportReceiverDisposed, LogLevel.Debug,
 		"SQS transport receiver disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(AwsSqsEventId.TransportReceiverPayloadTooLarge, LogLevel.Warning,
+		"SQS transport receiver: rejected an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization (deleted; dead-lettered if a redrive policy is configured)")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

@@ -65,21 +65,23 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		RaiseEvent(new CustomerDeactivated(Id, reason));
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case CustomerRegistered e:
 				Apply(e);
-				break;
+				return true;
 
 			case CustomerAddressUpdated e:
 				Apply(e);
-				break;
+				return true;
 
 			case CustomerDeactivated e:
 				Apply(e);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

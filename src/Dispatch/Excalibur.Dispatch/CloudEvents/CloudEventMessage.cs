@@ -9,7 +9,11 @@ namespace Excalibur.Dispatch.CloudEvents;
 /// <summary>
 /// Simple message wrapper for CloudEvent data conversion.
 /// </summary>
-public sealed class CloudEventMessage : IDispatchMessage
+/// <remarks>
+/// A CloudEvent is, by its own specification, a record that something happened; there is no reading under which it is a command. It is
+/// classified explicitly rather than left unclassifiable, so it never depends on a default to decide which middleware protects it.
+/// </remarks>
+public sealed class CloudEventMessage : IDispatchEvent
 {
 	private readonly Dictionary<string, object> _headers = [];
 	private readonly DefaultMessageFeatures _features = new();
@@ -60,7 +64,4 @@ public sealed class CloudEventMessage : IDispatchMessage
 
 	/// <inheritdoc />
 	public Guid Id => Guid.TryParse(MessageId, out var guid) ? guid : Guid.Empty;
-
-	/// <inheritdoc />
-	public MessageKinds Kind => MessageKinds.Event;
 }

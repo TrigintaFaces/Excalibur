@@ -110,19 +110,6 @@ public sealed class AwsSqsTransportServiceCollectionExtensionsShould : UnitTestB
 	}
 
 	[Fact]
-	public void AddAwsSqsTransport_RegisterAwsSqsChannelReceiver()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddAwsSqsTransport("sqs", sqs => sqs.UseRegion(ValidRegion));
-
-		// Assert
-		services.Any(d => d.ServiceType == typeof(AwsSqsChannelReceiver)).ShouldBeTrue();
-	}
-
-	[Fact]
 	public void AddAwsSqsTransport_RegisterTransportAdapter()
 	{
 		// Arrange

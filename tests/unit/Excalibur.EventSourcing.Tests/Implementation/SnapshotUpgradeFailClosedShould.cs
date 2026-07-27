@@ -60,10 +60,7 @@ public sealed class SnapshotUpgradeFailClosedShould
 		public FailClosedAggregate() { }
 		public FailClosedAggregate(string id) : base(id) { }
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
-		{
-			// No-op: this lock never reaches event replay (the throw precedes it).
-		}
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // No-op: never reaches replay (totality: unhandled => false).
 	}
 
 	[Fact]

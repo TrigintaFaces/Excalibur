@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Operational Dashboard Observability Sample -->
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>OperationalDashboardSample</RootNamespace>
+    <AssemblyName>OperationalDashboardSample</AssemblyName>
+  </PropertyGroup>
+  <!-- Excalibur operational dashboard (read-only-by-default; AddDashboard/MapDashboard). -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Operations.Dashboard\Excalibur.Operations.Dashboard.csproj" />
+    <!-- A3 for the turnkey grant-authorization helper (AddGrantAuthorization). -->
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3\Excalibur.A3.csproj" />
+  </ItemGroup>
+</Project>

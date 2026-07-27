@@ -30,10 +30,16 @@ public partial class ScheduledMessageService(
 	IOptions<CronScheduleOptions> cronOptions,
 	ILogger<ScheduledMessageService> logger,
 	ITimePolicy? timePolicy = null,
-	ITimeoutMonitor? timeoutMonitor = null) : BackgroundService
+	ITimeoutMonitor? timeoutMonitor = null,
+	TimeProvider? timeProvider = null) : BackgroundService
 {
 	private readonly SchedulerOptions _schedulerOptions = options.Value;
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
+
+	// ywodwj — due-check, missed-execution replay, and Last/NextExecutionUtc reads go through TimeProvider so
+	// the scheduling boundaries are deterministic under test (default TimeProvider.System is transparent to
+	// existing DI and callers).
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
 	public override async Task StopAsync(CancellationToken cancellationToken)
@@ -75,7 +81,7 @@ public partial class ScheduledMessageService(
 				var schedules = await scheduleStore.GetAllAsync(retrievalCts.Token).ConfigureAwait(false);
 				foreach (var item in schedules)
 				{
-					if (!item.Enabled || item.NextExecutionUtc is null || item.NextExecutionUtc > DateTimeOffset.UtcNow)
+					if (!item.Enabled || item.NextExecutionUtc is null || item.NextExecutionUtc > _timeProvider.GetUtcNow())
 					{
 						continue;
 					}
@@ -138,7 +144,7 @@ public partial class ScheduledMessageService(
 		var behavior = item.MissedExecutionBehavior ?? _cronOptions.MissedExecutionBehavior;
 		return behavior != MissedExecutionBehavior.SkipMissed &&
 			   item is { LastExecutionUtc: not null, NextExecutionUtc: not null } &&
-			   item.NextExecutionUtc.Value < DateTimeOffset.UtcNow.Subtract(_schedulerOptions.PollInterval);
+			   item.NextExecutionUtc.Value < _timeProvider.GetUtcNow().Subtract(_schedulerOptions.PollInterval);
 	}
 
 	[RequiresUnreferencedCode("Uses dynamic type loading")]
@@ -167,7 +173,7 @@ public partial class ScheduledMessageService(
 					case MissedExecutionBehavior.ExecuteLatestMissed:
 						{
 							var missedExecutionCount = 0;
-							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
+							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, _timeProvider.GetUtcNow()))
 							{
 								missedExecutionCount++;
 							}
@@ -184,7 +190,7 @@ public partial class ScheduledMessageService(
 					case MissedExecutionBehavior.ExecuteAllMissed:
 						{
 							var missedExecutionCount = 0;
-							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
+							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, _timeProvider.GetUtcNow()))
 							{
 								missedExecutionCount++;
 								await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
@@ -259,7 +265,7 @@ public partial class ScheduledMessageService(
 		}
 
 		// Update last execution time
-		item.LastExecutionUtc = DateTimeOffset.UtcNow;
+		item.LastExecutionUtc = _timeProvider.GetUtcNow();
 	}
 
 	private async Task UpdateNextExecutionTimeAsync(IScheduledMessage item, CancellationToken cancellationToken)
@@ -268,7 +274,7 @@ public partial class ScheduledMessageService(
 		{
 			var timeZone = GetTimeZone(item.TimeZoneId);
 			var cronExpr = cronScheduler.Parse(item.CronExpression, timeZone);
-			item.NextExecutionUtc = cronExpr.GetNextOccurrenceUtc(DateTimeOffset.UtcNow);
+			item.NextExecutionUtc = cronExpr.GetNextOccurrenceUtc(_timeProvider.GetUtcNow());
 
 			if (_cronOptions.EnableDetailedLogging)
 			{
@@ -277,7 +283,7 @@ public partial class ScheduledMessageService(
 		}
 		else if (item.Interval is not null)
 		{
-			item.NextExecutionUtc = DateTimeOffset.UtcNow.Add(item.Interval.Value);
+			item.NextExecutionUtc = _timeProvider.GetUtcNow().Add(item.Interval.Value);
 		}
 		else
 		{

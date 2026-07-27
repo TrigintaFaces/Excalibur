@@ -13,7 +13,7 @@ using AuthorizationResult = Excalibur.Dispatch.AuthorizationResult;
 namespace Excalibur.Tests.A3.Authorization;
 
 /// <summary>
-/// Depth unit tests for <see cref="AuthorizationMiddleware"/>.
+/// Depth unit tests for <see cref="A3AuthorizationMiddleware"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "A3")]
@@ -22,7 +22,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 	private readonly IAccessToken _accessToken;
 	private readonly IDispatchAuthorizationService _authorization;
 	private readonly AttributeAuthorizationCache _attributeCache;
-	private readonly AuthorizationMiddleware _sut;
+	private readonly A3AuthorizationMiddleware _sut;
 
 	public AuthorizationMiddlewareDepthShould()
 	{
@@ -32,7 +32,7 @@ public sealed class AuthorizationMiddlewareDepthShould
 
 		A.CallTo(() => _accessToken.IsAuthenticated()).Returns(true);
 
-		_sut = new AuthorizationMiddleware(_accessToken, _authorization, _attributeCache, new ConditionExpressionEvaluator());
+		_sut = new A3AuthorizationMiddleware(_accessToken, _authorization, _attributeCache, new ConditionExpressionEvaluator());
 	}
 
 	[Fact]

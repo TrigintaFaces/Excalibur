@@ -185,12 +185,19 @@ public static class GrpcTransportServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHealthCheck, GrpcTransportHealthCheck>());
 
-		// Register transport adapter (bridges gRPC to dispatch pipeline)
-		services.TryAddSingleton<GrpcTransportAdapter>();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<ITransportAdapter, GrpcTransportAdapter>());
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<ITransportHealthChecker, GrpcTransportAdapter>());
+		// Register transport adapter (bridges gRPC to dispatch pipeline). The adapter MUST resolve the
+		// KEYED gRPC sender (registered by 'name' above) explicitly — implicit construction would inject an
+		// unkeyed ITransportSender, which is not registered (throws) or cross-wires to another transport.
+		services.TryAddSingleton(sp => new GrpcTransportAdapter(
+			sp.GetRequiredService<GrpcChannel>(),
+			sp.GetRequiredKeyedService<ITransportSender>(name),
+			sp.GetRequiredService<ILogger<GrpcTransportAdapter>>()));
+		// Expose the single keyed-constructed adapter as ITransportAdapter/ITransportHealthChecker via a
+		// forwarding factory. TryAddEnumerable rejects a factory descriptor (its implementation type is the
+		// service type itself -> "indistinguishable"), so use TryAddSingleton, which accepts a factory and
+		// stays idempotent on repeated registration.
+		services.TryAddSingleton<ITransportAdapter>(static sp => sp.GetRequiredService<GrpcTransportAdapter>());
+		services.TryAddSingleton<ITransportHealthChecker>(static sp => sp.GetRequiredService<GrpcTransportAdapter>());
 	}
 
 	/// <summary>

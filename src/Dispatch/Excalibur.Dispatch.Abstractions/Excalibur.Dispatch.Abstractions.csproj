@@ -57,6 +57,20 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Abstractions.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+    <!-- PayloadSizeGuard/PayloadTooLargeException are internal cross-cutting primitives (m084l4)
+         consumed down the graph by core Dispatch inbox/outbox + the transport packages. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AwsSqs" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Grpc" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.IbmMq" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Pulsar" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <!-- PublicAPI baseline files for breaking change detection -->

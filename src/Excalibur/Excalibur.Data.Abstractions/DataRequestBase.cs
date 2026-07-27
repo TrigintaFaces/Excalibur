@@ -58,10 +58,18 @@ public abstract class DataRequestBase<TConnection, TModel> : IDataRequest<TConne
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(commandText);
-		_ = cancellationToken; // Parameter reserved for future async implementation
 
 		Parameters = parameters ?? Parameters;
 
-		return new CommandDefinition(commandText, Parameters, transaction, commandTimeout, commandType);
+		// Thread the cancellation token into the command so every DataRequest observes cancellation
+		// (Dapper honors CommandDefinition.CancellationToken on its async execution paths).
+		return new CommandDefinition(
+			commandText,
+			Parameters,
+			transaction,
+			commandTimeout,
+			commandType,
+			CommandFlags.Buffered,
+			cancellationToken);
 	}
 }

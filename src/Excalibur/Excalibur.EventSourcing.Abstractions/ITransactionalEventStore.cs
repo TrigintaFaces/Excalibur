@@ -15,7 +15,7 @@ namespace Excalibur.EventSourcing;
 /// <para>
 /// Event store providers backed by a transactional database (e.g., SQL Server, Postgres) should
 /// implement this interface to enable the <c>OutboxStagingStrategy.Transactional</c> path, in which
-/// <see cref="Implementation.EventSourcedRepository{TAggregate,TKey}"/> appends events and stages the
+/// <see cref="IEventSourcedRepository{TAggregate, TKey}"/> appends events and stages the
 /// resulting integration messages in one atomic unit of work.
 /// </para>
 /// <para>

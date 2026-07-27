@@ -32,7 +32,7 @@ public sealed class GrpcTransportSubscriberShould : IAsyncDisposable
 	public void ThrowWhenChannelIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new GrpcTransportSubscriber(null!, _options, NullLogger<GrpcTransportSubscriber>.Instance));
+			new GrpcTransportSubscriber((global::Grpc.Net.Client.GrpcChannel)null!, _options, NullLogger<GrpcTransportSubscriber>.Instance));
 	}
 
 	[Fact]

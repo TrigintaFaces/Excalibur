@@ -28,6 +28,10 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 {
+	/// <summary>The asking consumer. These arms are not about consumer isolation, so one identity is used
+	/// throughout; CdcIdempotencyConsumerCollisionShould is where two identities are contrasted.</summary>
+	private const string TestConsumer = "test-consumer";
+
 	private static readonly byte[] SampleLsn = [0x00, 0x00, 0x00, 0x01];
 	private static readonly byte[] SampleSeqVal = [0x00, 0x01];
 	private const string SampleTable = "dbo_Orders";
@@ -212,7 +216,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.IsProcessedAsync(null!, SampleLsn, SampleSeqVal, CancellationToken.None));
+			() => filter.IsProcessedAsync(null!, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -223,7 +227,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.IsProcessedAsync(SampleTable, null!, SampleSeqVal, CancellationToken.None));
+			() => filter.IsProcessedAsync(SampleTable, null!, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -234,7 +238,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.IsProcessedAsync(SampleTable, SampleLsn, null!, CancellationToken.None));
+			() => filter.IsProcessedAsync(SampleTable, SampleLsn, null!, TestConsumer, CancellationToken.None));
 	}
 
 	#endregion
@@ -249,7 +253,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.MarkProcessedAsync(null!, SampleLsn, SampleSeqVal, CancellationToken.None));
+			() => filter.MarkProcessedAsync(null!, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -260,7 +264,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.MarkProcessedAsync(SampleTable, null!, SampleSeqVal, CancellationToken.None));
+			() => filter.MarkProcessedAsync(SampleTable, null!, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -271,7 +275,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.MarkProcessedAsync(SampleTable, SampleLsn, null!, CancellationToken.None));
+			() => filter.MarkProcessedAsync(SampleTable, SampleLsn, null!, TestConsumer, CancellationToken.None));
 	}
 
 	#endregion

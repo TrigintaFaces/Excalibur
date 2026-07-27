@@ -19,14 +19,14 @@ public sealed class TenantIdShould
 	#region Constructor Tests
 
 	[Fact]
-	public void Constructor_Default_InitializesWithEmptyValue()
+	public void Constructor_RejectsAMissingValueRatherThanCoercingIt()
 	{
-		// Arrange & Act
-		var tenantId = new TenantId();
-
-		// Assert
-		_ = tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe(string.Empty);
+		// Was: a default-constructed identifier holds "". An empty tenant is not a tenant — downstream it
+		// matches nothing, or everything where absence reads as unscoped. Rejection happens at the point
+		// the mistake is made, which is the only place it can still be attributed to a caller.
+		_ = Should.Throw<ArgumentNullException>(() => new TenantId(null!));
+		_ = Should.Throw<ArgumentException>(() => new TenantId(string.Empty));
+		_ = Should.Throw<ArgumentException>(() => new TenantId("   "));
 	}
 
 	#endregion
@@ -34,13 +34,12 @@ public sealed class TenantIdShould
 	#region Value Property Tests
 
 	[Fact]
-	public void Value_CanBeSet()
+	public void Value_IsFixedAtConstruction()
 	{
-		// Arrange
-		var tenantId = new TenantId();
-
-		// Act
-		tenantId.Value = "tenant-123";
+		// Was: Value_CanBeSet. A mutable tenant identifier can change after every scope check that read it,
+		// so the value that authorised an operation need not be the value it runs under. There is no setter
+		// now; the property is asserted by construction instead.
+		var tenantId = new TenantId("tenant-123");
 
 		// Assert
 		tenantId.Value.ShouldBe("tenant-123");
@@ -51,32 +50,41 @@ public sealed class TenantIdShould
 	[InlineData("acme-corp")]
 	[InlineData("00000000-0000-0000-0000-000000000001")]
 	[InlineData("prod-us-east-tenant")]
-	[InlineData("")]
 	public void Value_WithVariousTenantIds_Works(string value)
 	{
-		// Arrange
-		var tenantId = new TenantId();
+		var tenantId = new TenantId(value);
 
-		// Act
-		tenantId.Value = value;
-
-		// Assert
 		tenantId.Value.ShouldBe(value);
 	}
 
-	[Fact]
-	public void Value_CanBeChangedMultipleTimes()
+	/// <remarks>
+	/// The empty string used to be the FIFTH case of the theory above, asserting it round-tripped like any
+	/// other identifier. It is moved here and inverted rather than dropped, because "" is the one input
+	/// whose old behaviour was the defect: it produced an identifier that names no tenant and reads as
+	/// valid everywhere downstream.
+	/// </remarks>
+	[Theory]
+	[InlineData("")]
+	[InlineData("   ")]
+	[InlineData("\t")]
+	public void Value_WithAMissingTenantId_IsRejected(string value)
 	{
-		// Arrange
-		var tenantId = new TenantId();
+		_ = Should.Throw<ArgumentException>(() => new TenantId(value));
+	}
 
-		// Act
-		tenantId.Value = "first";
-		tenantId.Value = "second";
-		tenantId.Value = "third";
+	[Fact]
+	public void DistinctValues_RequireDistinctInstances()
+	{
+		// Was: Value_CanBeChangedMultipleTimes, which reassigned one instance through three tenants. That
+		// is precisely the hazard — one object that was three different tenants over its lifetime, each
+		// after whatever check had already read it. Changing tenant now means constructing a new
+		// identifier, so a reference captured earlier still names who it named.
+		var first = new TenantId("first");
+		var third = new TenantId("third");
 
-		// Assert
-		tenantId.Value.ShouldBe("third");
+		first.Value.ShouldBe("first");
+		third.Value.ShouldBe("third");
+		first.Equals(third).ShouldBeFalse();
 	}
 
 	#endregion
@@ -87,7 +95,7 @@ public sealed class TenantIdShould
 	public void ToString_ReturnsValue()
 	{
 		// Arrange
-		var tenantId = new TenantId { Value = "tenant-xyz" };
+		var tenantId = new TenantId("tenant-xyz");
 
 		// Act
 		var result = tenantId.ToString();
@@ -97,46 +105,33 @@ public sealed class TenantIdShould
 	}
 
 	[Fact]
-	public void ToString_WithEmptyValue_ReturnsEmptyString()
+	public void ToString_NeverReturnsEmpty_BecauseAnEmptyIdentifierCannotExist()
 	{
-		// Arrange
-		var tenantId = new TenantId();
+		// Arrange -- an empty identifier can no longer be constructed, so the invariant replaces the old
+		// assertion that ToString rendered one as "".
+		var tenantId = new TenantId("t");
 
 		// Act
 		var result = tenantId.ToString();
 
 		// Assert
-		result.ShouldBe(string.Empty);
+		result.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	#endregion
 
-	#region Interface Implementation Tests
+
+	#region Construction Tests
 
 	[Fact]
-	public void ImplementsITenantId()
+	public void Construction_RequiresTheValueUpFront()
 	{
-		// Arrange & Act
-		var tenantId = new TenantId();
+		// This was an object-initializer test: `new TenantId { Value = "..." }`. That shape needs a
+		// parameterless constructor and a settable property, which together mean an identifier exists in an
+		// empty state before it is populated -- and stays mutable afterwards. Both are gone. The value is
+		// now required at construction, so there is no window in which a TenantId names no tenant.
+		var tenantId = new TenantId("initialized-tenant");
 
-		// Assert
-		_ = tenantId.ShouldBeAssignableTo<ITenantId>();
-	}
-
-	#endregion
-
-	#region Object Initializer Tests
-
-	[Fact]
-	public void ObjectInitializer_SetsValue()
-	{
-		// Arrange & Act
-		var tenantId = new TenantId
-		{
-			Value = "initialized-tenant",
-		};
-
-		// Assert
 		tenantId.Value.ShouldBe("initialized-tenant");
 	}
 
@@ -148,8 +143,8 @@ public sealed class TenantIdShould
 	public void MultiTenantScenario_TenantIsolation()
 	{
 		// Arrange - Two different tenants
-		var tenant1 = new TenantId { Value = "acme-corp" };
-		var tenant2 = new TenantId { Value = "contoso-inc" };
+		var tenant1 = new TenantId("acme-corp");
+		var tenant2 = new TenantId("contoso-inc");
 
 		// Assert - They should be different
 		tenant1.Value.ShouldNotBe(tenant2.Value);
@@ -160,7 +155,7 @@ public sealed class TenantIdShould
 	{
 		// Arrange & Act
 		var guid = Guid.NewGuid();
-		var tenantId = new TenantId { Value = guid.ToString() };
+		var tenantId = new TenantId(guid.ToString());
 
 		// Assert
 		Guid.TryParse(tenantId.Value, out var parsedGuid).ShouldBeTrue();
@@ -171,7 +166,7 @@ public sealed class TenantIdShould
 	public void HierarchicalTenantId_Scenario()
 	{
 		// Arrange & Act - Hierarchical tenant structure (org > department > team)
-		var tenantId = new TenantId { Value = "acme-corp.engineering.platform" };
+		var tenantId = new TenantId("acme-corp.engineering.platform");
 
 		// Assert
 		tenantId.Value.ShouldContain("acme-corp");

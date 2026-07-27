@@ -347,7 +347,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		{
 			throw new NotSupportedException(
 				"AllVersionsAndDeletes change feed mode is not available in the stable Cosmos .NET SDK " +
-				"(preview-only); tracked in bd-ajt1iy. Use Incremental/LatestVersion mode.");
+				"(preview-only). Use Incremental/LatestVersion mode.");
 		}
 
 		var mode = ChangeFeedMode.Incremental;

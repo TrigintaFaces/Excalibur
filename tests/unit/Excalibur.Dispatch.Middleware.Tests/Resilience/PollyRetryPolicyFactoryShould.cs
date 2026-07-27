@@ -114,7 +114,7 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Assert
 		policy.ShouldNotBeNull();
-		policy.ShouldBeAssignableTo<IAsyncPolicy>();
+		policy.ShouldBeOfType<ResiliencePipeline>();
 	}
 
 	[Fact]
@@ -257,7 +257,7 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var policy = factory.Create(busOptions);
 
 		// Act
-		var result = await policy.ExecuteAsync(() => Task.FromResult(42));
+		var result = await policy.ExecuteAsync(_ => ValueTask.FromResult(42));
 
 		// Assert
 		result.ShouldBe(42);
@@ -282,14 +282,14 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var callCount = 0;
 
 		// Act
-		var result = await policy.ExecuteAsync(() =>
+		var result = await policy.ExecuteAsync(_ =>
 		{
 			callCount++;
 			if (callCount < 2)
 			{
 				throw new TimeoutException("Transient failure");
 			}
-			return Task.FromResult(99);
+			return ValueTask.FromResult(99);
 		});
 
 		// Assert
@@ -309,11 +309,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
-			() => policy.ExecuteAsync<int>(() =>
+			() => policy.ExecuteAsync<int>(_ =>
 			{
 				callCount++;
 				throw new ArgumentException("Non-transient");
-			}));
+			}).AsTask());
 
 		callCount.ShouldBe(1); // No retries for ArgumentException
 	}
@@ -350,11 +350,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<TaskCanceledException>(
-			() => policy.ExecuteAsync<int>(() =>
+			() => policy.ExecuteAsync<int>(_ =>
 			{
 				callCount++;
 				throw new TaskCanceledException("Cancelled");
-			}));
+			}).AsTask());
 
 		callCount.ShouldBe(1); // No retries
 	}
@@ -371,11 +371,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(
-			() => policy.ExecuteAsync<int>(() =>
+			() => policy.ExecuteAsync<int>(_ =>
 			{
 				callCount++;
 				throw new OperationCanceledException("Cancelled");
-			}));
+			}).AsTask());
 
 		callCount.ShouldBe(1); // No retries
 	}
@@ -392,11 +392,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<InvalidOperationException>(
-			() => policy.ExecuteAsync<int>(() =>
+			() => policy.ExecuteAsync<int>(_ =>
 			{
 				callCount++;
 				throw new InvalidOperationException("Invalid operation");
-			}));
+			}).AsTask());
 
 		callCount.ShouldBe(1); // No retries
 	}
@@ -413,11 +413,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<NotSupportedException>(
-			() => policy.ExecuteAsync<int>(() =>
+			() => policy.ExecuteAsync<int>(_ =>
 			{
 				callCount++;
 				throw new NotSupportedException("Not supported");
-			}));
+			}).AsTask());
 
 		callCount.ShouldBe(1); // No retries
 	}
@@ -441,14 +441,14 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var callCount = 0;
 
 		// Act
-		var result = await policy.ExecuteAsync(() =>
+		var result = await policy.ExecuteAsync(_ =>
 		{
 			callCount++;
 			if (callCount < 2)
 			{
 				throw new IOException("IO Error");
 			}
-			return Task.FromResult(42);
+			return ValueTask.FromResult(42);
 		});
 
 		// Assert
@@ -475,14 +475,14 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var callCount = 0;
 
 		// Act
-		var result = await policy.ExecuteAsync(() =>
+		var result = await policy.ExecuteAsync(_ =>
 		{
 			callCount++;
 			if (callCount < 2)
 			{
 				throw new HttpRequestException("Network error");
 			}
-			return Task.FromResult(42);
+			return ValueTask.FromResult(42);
 		});
 
 		// Assert
@@ -502,11 +502,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<Polly.CircuitBreaker.BrokenCircuitException>(
-			() => policy.ExecuteAsync<int>(() =>
+			() => policy.ExecuteAsync<int>(_ =>
 			{
 				callCount++;
 				throw new Polly.CircuitBreaker.BrokenCircuitException("Circuit is open");
-			}));
+			}).AsTask());
 
 		callCount.ShouldBe(1); // No retries for BrokenCircuitException
 	}
@@ -539,7 +539,7 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		{
 			try
 			{
-				await policy.ExecuteAsync<int>(() => throw new TimeoutException("Simulated failure"));
+				await policy.ExecuteAsync<int>(_ => throw new TimeoutException("Simulated failure"));
 			}
 			catch (TimeoutException)
 			{
@@ -576,14 +576,14 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var callCount = 0;
 
 		// Act - Trigger retries
-		var result = await policy.ExecuteAsync(() =>
+		var result = await policy.ExecuteAsync(_ =>
 		{
 			callCount++;
 			if (callCount < 3)
 			{
 				throw new TimeoutException("Transient failure");
 			}
-			return Task.FromResult(100);
+			return ValueTask.FromResult(100);
 		});
 
 		// Assert
@@ -632,7 +632,7 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var policy = factory.Create(busOptions);
 
 		// Act - Operation completes quickly
-		var result = await policy.ExecuteAsync(() => Task.FromResult(42));
+		var result = await policy.ExecuteAsync(_ => ValueTask.FromResult(42));
 
 		// Assert
 		result.ShouldBe(42);

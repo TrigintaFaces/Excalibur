@@ -569,6 +569,12 @@ public static class ComplianceEventId
 	/// <summary>Cascade erasure related subject discovered.</summary>
 	public const int CascadeErasureRelatedSubjectDiscovered = 92903;
 
+	/// <summary>Cascade erasure subject blocked (e.g. by legal hold).</summary>
+	public const int CascadeErasureSubjectBlocked = 92904;
+
+	/// <summary>Cascade erasure subject failed or was cancelled.</summary>
+	public const int CascadeErasureSubjectFailed = 92905;
+
 	/// <summary>Data portability export started.</summary>
 	public const int DataPortabilityExportStarted = 92910;
 
@@ -622,6 +628,9 @@ public static class ComplianceEventId
 
 	/// <summary>Retention enforcement scan failed.</summary>
 	public const int RetentionEnforcementFailed = 92962;
+
+	/// <summary>Retention enforcement ran contributors but every one failed and nothing was cleaned.</summary>
+	public const int RetentionEnforcementAllContributorsFailed = 92973;
 
 	/// <summary>Retention enforcement service disabled.</summary>
 	public const int RetentionEnforcementDisabled = 92963;

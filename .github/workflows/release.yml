@@ -40,7 +40,7 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -75,7 +75,7 @@ jobs:
           echo "✅ Version format is valid"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -133,7 +133,7 @@ jobs:
           fi
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -175,12 +175,13 @@ jobs:
       - name: Run release-blocking unit tests
         run: |
           echo "Running release-blocking unit suite from ReleaseBlocking.slnf..."
-          dotnet test eng/ci/shards/ReleaseBlocking.slnf \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.RELEASE_BLOCKING_TEST_FILTER }}" -- \
+            eng/ci/shards/ReleaseBlocking.slnf \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
             --logger "console;verbosity=minimal" \
-            --filter "${{ env.RELEASE_BLOCKING_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Release readiness check
@@ -188,10 +189,17 @@ jobs:
           echo "🔍 Checking release readiness..."
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Check for any TODO/FIXME/HACK comments in core libraries
+          # Check for any TODO/FIXME/HACK comments in core libraries.
+          #
+          # `|| true` belongs on the CAPTURE (grep exits 1 on no-match, which would abort the
+          # step), never on the `if` condition itself: `if grep ... || true; then` is a tautology
+          # -- the condition is always true, the warning always fires, and the "clean" branch is
+          # unreachable regardless of what the code actually contains. Branch on the CONTENT.
           echo "Scanning for development placeholders..."
-          if grep -r --include="*.cs" -E "(TODO|FIXME|HACK|UNDONE)" src/Dispatch/ || true; then
+          placeholder_hits="$(grep -rn --include='*.cs' -E '(TODO|FIXME|HACK|UNDONE)' src/Dispatch/ || true)"
+          if [ -n "$placeholder_hits" ]; then
             echo "⚠️ Found development placeholders - review before release"
+            echo "$placeholder_hits"
           else
             echo "✅ No development placeholders found"
           fi
@@ -237,10 +245,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -298,7 +306,7 @@ jobs:
           fi
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -341,10 +349,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -372,13 +380,22 @@ jobs:
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
       - name: "Soak iteration 1 of 3"
-        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-1" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+        run: |
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.PRETAG_SOAK_FILTER }}" -- \
+            eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-1" --logger "console;verbosity=minimal" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: "Soak iteration 2 of 3"
-        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-2" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+        run: |
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.PRETAG_SOAK_FILTER }}" -- \
+            eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-2" --logger "console;verbosity=minimal" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: "Soak iteration 3 of 3"
-        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-3" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+        run: |
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.PRETAG_SOAK_FILTER }}" -- \
+            eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-3" --logger "console;verbosity=minimal" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
@@ -398,12 +415,12 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -411,7 +428,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -499,12 +516,12 @@ jobs:
     needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -545,7 +562,7 @@ jobs:
     needs: [pre-release-validation, build-packages]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download packages
         uses: actions/download-artifact@v8
@@ -554,7 +571,7 @@ jobs:
           path: packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -628,7 +645,7 @@ jobs:
       release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -757,10 +774,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [pre-release-validation, create-release]
-    if: github.repository == 'TrigintaFaces/Excalibur' # Only publish from main repo
+    # Fork guard. This name is the MIRROR repository, and that is correct: CI does
+    # not execute in the development repository this file is authored in -- these
+    # workflows are copied to the mirror and run there, so at runtime
+    # github.repository is the mirror's name, not the source repository's.
+    #
+    # Do not "correct" this to the development repository's name by comparing it
+    # against that repository's git remote. The remote answers "where is this file
+    # authored", and the guard asks "where is this workflow executing" -- different
+    # questions with different answers. Changing it to match the remote makes the
+    # condition never true, which SKIPS the job; a skipped job reports neutral
+    # rather than failed, so the release would go green having published nothing.
+    if: github.repository == 'TrigintaFaces/Excalibur' # the mirror, where CI runs
     environment:
       name: nuget-production
       url: https://www.nuget.org/profiles/TrigintaFaces
+    # Declared at job scope so step-level `if:` conditions can see it. A step's own `env:`
+    # block is NOT in scope for that step's `if:`, which silently makes such a condition
+    # reference an always-empty value.
+    env:
+      NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+      NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
     steps:
       - name: Download packages
         uses: actions/download-artifact@v8
@@ -769,7 +803,7 @@ jobs:
           path: packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -783,6 +817,61 @@ jobs:
             exit 1
           fi
           echo "✅ NuGet API key is configured"
+
+      # A release that cannot sign MUST NOT publish. This fails the job rather than
+      # falling through to an unsigned push: shipping unsigned packages to a public feed
+      # is not a degraded success, it is the defect. Mirrors the API-key guard above.
+      - name: Validate signing certificate
+        run: |
+          if [ -z "$NUGET_SIGNING_CERT_BASE64" ]; then
+            echo "❌ NUGET_SIGNING_CERT_BASE64 secret is not set — refusing to publish unsigned packages."
+            echo "   Configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD, or the release cannot proceed."
+            exit 1
+          fi
+          if [ -z "$NUGET_SIGNING_CERT_PASSWORD" ]; then
+            echo "❌ NUGET_SIGNING_CERT_PASSWORD secret is not set — refusing to publish unsigned packages."
+            exit 1
+          fi
+          echo "✅ Signing certificate is configured"
+
+      - name: Sign packages
+        run: |
+          echo "🔏 Signing packages before publish..."
+          cert_path="${RUNNER_TEMP}/nuget-signing.pfx"
+          cleanup() { rm -f "$cert_path"; }
+          trap cleanup EXIT
+
+          printf '%s' "$NUGET_SIGNING_CERT_BASE64" | base64 --decode > "$cert_path"
+
+          shopt -s nullglob
+          packages=(packages/*.nupkg)
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "❌ No .nupkg files found to sign — the publish step would have had nothing to push."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            echo "Signing: $(basename "$package")"
+            dotnet nuget sign "$package" \
+              --certificate-path "$cert_path" \
+              --certificate-password "$NUGET_SIGNING_CERT_PASSWORD" \
+              --timestamper http://timestamp.digicert.com \
+              --overwrite || {
+                echo "❌ Failed to sign $(basename "$package")"
+                exit 1
+              }
+          done
+
+          # Verify every package carries a signature before any push happens.
+          for package in "${packages[@]}"; do
+            echo "Verifying: $(basename "$package")"
+            dotnet nuget verify "$package" || {
+              echo "❌ Signature verification failed for $(basename "$package")"
+              exit 1
+            }
+          done
+
+          echo "✅ All ${#packages[@]} package(s) signed and verified"
 
       - name: Publish packages to NuGet
         run: |
@@ -857,7 +946,7 @@ jobs:
     if: always() && needs.create-release.result == 'success'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Release summary
         run: |

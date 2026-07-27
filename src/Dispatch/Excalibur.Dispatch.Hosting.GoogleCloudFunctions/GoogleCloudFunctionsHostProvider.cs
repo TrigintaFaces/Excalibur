@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.Dispatch.Hosting.GoogleCloudFunctions;
 
-namespace Excalibur.Dispatch.Hosting.GoogleCloud;
+namespace Excalibur.Dispatch.Hosting.GoogleCloudFunctions;
 
 /// <summary>
 /// Provides Google Cloud Functions specific serverless hosting implementation.

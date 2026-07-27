@@ -21,20 +21,14 @@ Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.MaxBatchSize.get -> i
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.MaxBatchSize.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.PartitionKeyAttribute.get -> string!
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.PartitionKeyAttribute.set -> void
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.ReadCapacityUnits.get -> int
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.ReadCapacityUnits.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.SortKeyAttribute.get -> string!
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.SortKeyAttribute.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.StreamsPollIntervalMs.get -> int
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.StreamsPollIntervalMs.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.Throughput.get -> Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions!
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.Throughput.set -> void
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseOnDemandCapacity.get -> bool
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseOnDemandCapacity.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseTransactionalWrite.get -> bool
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseTransactionalWrite.set -> void
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.WriteCapacityUnits.get -> int
-Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.WriteCapacityUnits.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.CurrentContinuationToken.get -> string?
 Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
@@ -52,9 +46,6 @@ Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.UseOnDemandCapacity.g
 Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.UseOnDemandCapacity.set -> void
 Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.WriteCapacityUnits.get -> int
 Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.WriteCapacityUnits.set -> void
-Microsoft.Extensions.DependencyInjection.EventSourcingBuilderDynamoDbExtensions
-Microsoft.Extensions.DependencyInjection.DynamoDbTenantShardingExtensions
-static Microsoft.Extensions.DependencyInjection.DynamoDbTenantShardingExtensions.UseDynamoDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder
 Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.BindConfiguration(string! sectionPath) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
 Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.Client(Amazon.DynamoDBv2.IAmazonDynamoDB! client) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
@@ -63,4 +54,7 @@ Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.Region(Amazon.Reg
 Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
 Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.TableName(string! tableName) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
 Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder.TablePrefix(string! prefix) -> Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!
+Microsoft.Extensions.DependencyInjection.DynamoDbTenantShardingExtensions
+Microsoft.Extensions.DependencyInjection.EventSourcingBuilderDynamoDbExtensions
+static Microsoft.Extensions.DependencyInjection.DynamoDbTenantShardingExtensions.UseDynamoDbTenantEventStore(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.EventSourcingBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.DynamoDb.IDynamoDBEventSourcingBuilder!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!

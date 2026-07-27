@@ -24,7 +24,23 @@ public sealed class GrantsAuthorizationHandler(IAuthorizationPolicyProvider poli
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(requirement);
 
-		var policy = await policyProvider.GetPolicyAsync().ConfigureAwait(false);
+		IAuthorizationPolicy policy;
+		try
+		{
+			policy = await policyProvider.GetPolicyAsync().ConfigureAwait(false);
+		}
+		catch (InvalidOperationException)
+		{
+			// A missing principal or ambient tenant means we cannot determine the caller's grants — this is a
+			// definitive "not authorized", not a server fault. Fail closed with a clean authorization failure
+			// (surfaces as 403) rather than letting the exception escape as an unhandled 500. The provider
+			// documents these as InvalidOperationException (missing UserId / TenantId); a transient grant-store
+			// outage throws a store-specific exception and is intentionally left to surface as 500 (an honest
+			// transient server fault — the request is still denied, so fail-closed holds either way).
+			context.Fail();
+			return;
+		}
+
 		var authorized = policy.IsAuthorized(requirement.ActivityName, requirement.ResourceId);
 
 		if (authorized)

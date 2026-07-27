@@ -91,7 +91,7 @@ The repository supports two build modes:
 
 ```bash
 # Fast builds using ProjectReference - use for everyday development
-dotnet build Excalibur.sln
+dotnet build Excalibur.sln -p:BuildExamplesAndTests=true
 dotnet build eng/ci/shards/ShippingOnly.slnf
 ```
 

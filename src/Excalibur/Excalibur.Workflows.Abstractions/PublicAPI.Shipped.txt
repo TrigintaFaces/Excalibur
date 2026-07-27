@@ -1,0 +1,173 @@
+#nullable enable
+Excalibur.Workflows.ActivityCompleted
+Excalibur.Workflows.ActivityCompleted.ActivityName.get -> string!
+Excalibur.Workflows.ActivityCompleted.ActivityName.init -> void
+Excalibur.Workflows.ActivityCompleted.ResultJson.get -> string?
+Excalibur.Workflows.ActivityCompleted.ResultJson.init -> void
+Excalibur.Workflows.ActivityCompleted.StepOrdinal.get -> int
+Excalibur.Workflows.ActivityCompleted.StepOrdinal.init -> void
+Excalibur.Workflows.ActivityFailed
+Excalibur.Workflows.ActivityFailed.ActivityName.get -> string!
+Excalibur.Workflows.ActivityFailed.ActivityName.init -> void
+Excalibur.Workflows.ActivityFailed.Error.get -> string?
+Excalibur.Workflows.ActivityFailed.Error.init -> void
+Excalibur.Workflows.ActivityFailed.StepOrdinal.get -> int
+Excalibur.Workflows.ActivityFailed.StepOrdinal.init -> void
+Excalibur.Workflows.ActivityScheduled
+Excalibur.Workflows.ActivityScheduled.ActivityName.get -> string!
+Excalibur.Workflows.ActivityScheduled.ActivityName.init -> void
+Excalibur.Workflows.ActivityScheduled.StepOrdinal.get -> int
+Excalibur.Workflows.ActivityScheduled.StepOrdinal.init -> void
+Excalibur.Workflows.IActivity<TInput, TOutput>
+Excalibur.Workflows.IActivity<TInput, TOutput>.ExecuteAsync(TInput input, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TOutput>
+Excalibur.Workflows.IWorkflowContext
+Excalibur.Workflows.IWorkflowContext.CallActivityAsync<TResult>(string! activityName, object! input, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResult>
+Excalibur.Workflows.IWorkflowContext.CreateTimerAsync(System.TimeSpan delay, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Workflows.IWorkflowContext.NewGuidAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Guid>
+Excalibur.Workflows.IWorkflowContext.UtcNowAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.DateTimeOffset>
+Excalibur.Workflows.IWorkflowContext.WaitForSignalAsync<TResult>(string! signalName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TResult>
+Excalibur.Workflows.IWorkflowExecutor
+Excalibur.Workflows.IWorkflowExecutor.GetStateAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Workflows.WorkflowState?>
+Excalibur.Workflows.IWorkflowExecutor.GetStatusAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Workflows.WorkflowStatus?>
+Excalibur.Workflows.IWorkflowExecutor.SignalAsync(string! instanceId, string! signalName, string! signalId, object! payload, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Workflows.IWorkflowExecutor.StartAsync(string! workflowName, string! instanceId, object! input, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Workflows.IWorkflowSignalDurability
+Excalibur.Workflows.IWorkflowSignalInbox
+Excalibur.Workflows.IWorkflowSignalInbox.DrainAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.Workflows.WorkflowSignalEntry!>!>
+Excalibur.Workflows.IWorkflowSignalInbox.TryEnqueueAsync(string! instanceId, string! signalId, string! signalName, string? payloadJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Workflows.IWorkflowStoreAdmin
+Excalibur.Workflows.IWorkflowStoreAdmin.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Workflows.WorkflowStoreStatistics!>
+Excalibur.Workflows.IWorkflowStoreAdmin.GetSummaryAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Workflows.WorkflowInstanceSummary?>
+Excalibur.Workflows.IWorkflowStoreAdmin.QueryWorkflowsAsync(Excalibur.Workflows.WorkflowQueryFilter! filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.Workflows.WorkflowInstanceSummary!>!>
+Excalibur.Workflows.SignalReceived
+Excalibur.Workflows.SignalReceived.PayloadJson.get -> string?
+Excalibur.Workflows.SignalReceived.PayloadJson.init -> void
+Excalibur.Workflows.SignalReceived.SignalId.get -> string!
+Excalibur.Workflows.SignalReceived.SignalId.init -> void
+Excalibur.Workflows.SignalReceived.SignalName.get -> string!
+Excalibur.Workflows.SignalReceived.SignalName.init -> void
+Excalibur.Workflows.SignalReceived.StepOrdinal.get -> int
+Excalibur.Workflows.SignalReceived.StepOrdinal.init -> void
+Excalibur.Workflows.TimerCreated
+Excalibur.Workflows.TimerCreated.Delay.get -> System.TimeSpan
+Excalibur.Workflows.TimerCreated.Delay.init -> void
+Excalibur.Workflows.TimerCreated.StepOrdinal.get -> int
+Excalibur.Workflows.TimerCreated.StepOrdinal.init -> void
+Excalibur.Workflows.TimerFired
+Excalibur.Workflows.TimerFired.StepOrdinal.get -> int
+Excalibur.Workflows.TimerFired.StepOrdinal.init -> void
+Excalibur.Workflows.WorkflowAttribute
+Excalibur.Workflows.WorkflowAttribute.Name.get -> string?
+Excalibur.Workflows.WorkflowAttribute.Name.init -> void
+Excalibur.Workflows.WorkflowAttribute.WorkflowAttribute() -> void
+Excalibur.Workflows.WorkflowCompleted
+Excalibur.Workflows.WorkflowCompleted.ResultJson.get -> string?
+Excalibur.Workflows.WorkflowCompleted.ResultJson.init -> void
+Excalibur.Workflows.WorkflowDiagnostics
+Excalibur.Workflows.WorkflowGuidCreated
+Excalibur.Workflows.WorkflowGuidCreated.StepOrdinal.get -> int
+Excalibur.Workflows.WorkflowGuidCreated.StepOrdinal.init -> void
+Excalibur.Workflows.WorkflowGuidCreated.Value.get -> string!
+Excalibur.Workflows.WorkflowGuidCreated.Value.init -> void
+Excalibur.Workflows.WorkflowInstanceSummary
+Excalibur.Workflows.WorkflowInstanceSummary.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Workflows.WorkflowInstanceSummary.CompletedAt.init -> void
+Excalibur.Workflows.WorkflowInstanceSummary.InstanceId.get -> string!
+Excalibur.Workflows.WorkflowInstanceSummary.InstanceId.init -> void
+Excalibur.Workflows.WorkflowInstanceSummary.StartedAt.get -> System.DateTimeOffset
+Excalibur.Workflows.WorkflowInstanceSummary.StartedAt.init -> void
+Excalibur.Workflows.WorkflowInstanceSummary.Status.get -> Excalibur.Workflows.WorkflowStatus
+Excalibur.Workflows.WorkflowInstanceSummary.Status.init -> void
+Excalibur.Workflows.WorkflowInstanceSummary.TenantId.get -> string?
+Excalibur.Workflows.WorkflowInstanceSummary.TenantId.init -> void
+Excalibur.Workflows.WorkflowInstanceSummary.WorkflowName.get -> string!
+Excalibur.Workflows.WorkflowInstanceSummary.WorkflowName.init -> void
+Excalibur.Workflows.WorkflowJournalEvent
+Excalibur.Workflows.WorkflowJournalEvent.AggregateId.get -> string!
+Excalibur.Workflows.WorkflowJournalEvent.AggregateId.init -> void
+Excalibur.Workflows.WorkflowJournalEvent.EventId.get -> string!
+Excalibur.Workflows.WorkflowJournalEvent.EventId.init -> void
+Excalibur.Workflows.WorkflowJournalEvent.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
+Excalibur.Workflows.WorkflowJournalEvent.Metadata.init -> void
+Excalibur.Workflows.WorkflowJournalEvent.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Workflows.WorkflowJournalEvent.OccurredAt.init -> void
+Excalibur.Workflows.WorkflowJournalEvent.Version.get -> long
+Excalibur.Workflows.WorkflowJournalEvent.Version.init -> void
+Excalibur.Workflows.WorkflowOptions
+Excalibur.Workflows.WorkflowOptions.CaptureActivityFailureDetails.get -> bool
+Excalibur.Workflows.WorkflowOptions.CaptureActivityFailureDetails.set -> void
+Excalibur.Workflows.WorkflowOptions.MaxReplayEvents.get -> int
+Excalibur.Workflows.WorkflowOptions.MaxReplayEvents.set -> void
+Excalibur.Workflows.WorkflowOptions.PayloadTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.Workflows.WorkflowOptions.PayloadTypeInfoResolver.set -> void
+Excalibur.Workflows.WorkflowOptions.WorkflowOptions() -> void
+Excalibur.Workflows.WorkflowQueryFilter
+Excalibur.Workflows.WorkflowQueryFilter.Skip.get -> int
+Excalibur.Workflows.WorkflowQueryFilter.Skip.init -> void
+Excalibur.Workflows.WorkflowQueryFilter.Status.get -> Excalibur.Workflows.WorkflowStatus?
+Excalibur.Workflows.WorkflowQueryFilter.Status.init -> void
+Excalibur.Workflows.WorkflowQueryFilter.Take.get -> int
+Excalibur.Workflows.WorkflowQueryFilter.Take.init -> void
+Excalibur.Workflows.WorkflowQueryFilter.WorkflowName.get -> string?
+Excalibur.Workflows.WorkflowQueryFilter.WorkflowName.init -> void
+Excalibur.Workflows.WorkflowSignalEntry
+Excalibur.Workflows.WorkflowSignalEntry.PayloadJson.get -> string?
+Excalibur.Workflows.WorkflowSignalEntry.PayloadJson.init -> void
+Excalibur.Workflows.WorkflowSignalEntry.Sequence.get -> long
+Excalibur.Workflows.WorkflowSignalEntry.Sequence.init -> void
+Excalibur.Workflows.WorkflowSignalEntry.SignalId.get -> string!
+Excalibur.Workflows.WorkflowSignalEntry.SignalId.init -> void
+Excalibur.Workflows.WorkflowSignalEntry.SignalName.get -> string!
+Excalibur.Workflows.WorkflowSignalEntry.SignalName.init -> void
+Excalibur.Workflows.WorkflowStarted
+Excalibur.Workflows.WorkflowStarted.DefinitionVersion.get -> int
+Excalibur.Workflows.WorkflowStarted.DefinitionVersion.init -> void
+Excalibur.Workflows.WorkflowStarted.WorkflowName.get -> string!
+Excalibur.Workflows.WorkflowStarted.WorkflowName.init -> void
+Excalibur.Workflows.WorkflowState
+Excalibur.Workflows.WorkflowState.CompletedActivitySteps.get -> int
+Excalibur.Workflows.WorkflowState.CompletedActivitySteps.init -> void
+Excalibur.Workflows.WorkflowState.DefinitionVersion.get -> int
+Excalibur.Workflows.WorkflowState.DefinitionVersion.init -> void
+Excalibur.Workflows.WorkflowState.FailureReason.get -> string?
+Excalibur.Workflows.WorkflowState.FailureReason.init -> void
+Excalibur.Workflows.WorkflowState.InstanceId.get -> string!
+Excalibur.Workflows.WorkflowState.InstanceId.init -> void
+Excalibur.Workflows.WorkflowState.LastUpdatedAt.get -> System.DateTimeOffset
+Excalibur.Workflows.WorkflowState.LastUpdatedAt.init -> void
+Excalibur.Workflows.WorkflowState.ResultJson.get -> string?
+Excalibur.Workflows.WorkflowState.ResultJson.init -> void
+Excalibur.Workflows.WorkflowState.StartedAt.get -> System.DateTimeOffset
+Excalibur.Workflows.WorkflowState.StartedAt.init -> void
+Excalibur.Workflows.WorkflowState.Status.get -> Excalibur.Workflows.WorkflowStatus
+Excalibur.Workflows.WorkflowState.Status.init -> void
+Excalibur.Workflows.WorkflowState.WorkflowName.get -> string!
+Excalibur.Workflows.WorkflowState.WorkflowName.init -> void
+Excalibur.Workflows.WorkflowStatus
+Excalibur.Workflows.WorkflowStatus.Completed = 1 -> Excalibur.Workflows.WorkflowStatus
+Excalibur.Workflows.WorkflowStatus.Faulted = 2 -> Excalibur.Workflows.WorkflowStatus
+Excalibur.Workflows.WorkflowStatus.Running = 0 -> Excalibur.Workflows.WorkflowStatus
+Excalibur.Workflows.WorkflowStoreStatistics
+Excalibur.Workflows.WorkflowStoreStatistics.Completed.get -> long
+Excalibur.Workflows.WorkflowStoreStatistics.Completed.init -> void
+Excalibur.Workflows.WorkflowStoreStatistics.Faulted.get -> long
+Excalibur.Workflows.WorkflowStoreStatistics.Faulted.init -> void
+Excalibur.Workflows.WorkflowStoreStatistics.Running.get -> long
+Excalibur.Workflows.WorkflowStoreStatistics.Running.init -> void
+Excalibur.Workflows.WorkflowStoreStatistics.Total.get -> long
+Excalibur.Workflows.WorkflowStoreStatistics.Total.init -> void
+Excalibur.Workflows.WorkflowTimeRead
+Excalibur.Workflows.WorkflowTimeRead.StepOrdinal.get -> int
+Excalibur.Workflows.WorkflowTimeRead.StepOrdinal.init -> void
+abstract Excalibur.Workflows.WorkflowJournalEvent.EventType.get -> string!
+const Excalibur.Workflows.WorkflowDiagnostics.ActivitySourceName = "Excalibur.Workflows" -> string!
+override Excalibur.Workflows.ActivityCompleted.EventType.get -> string!
+override Excalibur.Workflows.ActivityFailed.EventType.get -> string!
+override Excalibur.Workflows.ActivityScheduled.EventType.get -> string!
+override Excalibur.Workflows.SignalReceived.EventType.get -> string!
+override Excalibur.Workflows.TimerCreated.EventType.get -> string!
+override Excalibur.Workflows.TimerFired.EventType.get -> string!
+override Excalibur.Workflows.WorkflowCompleted.EventType.get -> string!
+override Excalibur.Workflows.WorkflowGuidCreated.EventType.get -> string!
+override Excalibur.Workflows.WorkflowStarted.EventType.get -> string!
+override Excalibur.Workflows.WorkflowTimeRead.EventType.get -> string!

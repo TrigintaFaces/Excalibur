@@ -311,7 +311,6 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 						.SchemaName("outbox");
 				})
 				.WithProcessing(p => p.BatchSize(150).PollingInterval(TimeSpan.FromSeconds(10)))
-				.WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromDays(14)))
 				.EnableBackgroundProcessing();
 		});
 		var provider = services.BuildServiceProvider();
@@ -324,8 +323,6 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		var outboxOptions = provider.GetRequiredService<OutboxOptions>();
 		outboxOptions.BatchSize.ShouldBe(150);
 		outboxOptions.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		outboxOptions.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		outboxOptions.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
 		outboxOptions.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 }

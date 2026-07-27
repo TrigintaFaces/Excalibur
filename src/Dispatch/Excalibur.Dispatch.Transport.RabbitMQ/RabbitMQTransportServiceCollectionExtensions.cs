@@ -322,6 +322,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 					options.Queue.QueueAutoDelete = queue.AutoDelete;
 					options.Consumption.PrefetchCount = queue.PrefetchCount;
 					options.Consumption.AutoAck = queue.AutoAck;
+					options.Consumption.MaxPayloadBytes = queue.MaxPayloadBytes;
 				}
 
 				// Set dead letter options
@@ -345,7 +346,6 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				var cloudEvents = transportOptions.CloudEvents;
 				options.Exchange.ExchangeType = cloudEvents.Exchange.ExchangeType;
 				options.Exchange.Persistence = cloudEvents.Exchange.Persistence;
-				options.Exchange.RoutingStrategy = cloudEvents.Exchange.RoutingStrategy;
 				options.Exchange.EnablePublisherConfirms = cloudEvents.Exchange.EnablePublisherConfirms;
 			})
 			.ValidateOnStart();
@@ -386,6 +386,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			RabbitMQTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<RabbitMQTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
@@ -453,7 +454,8 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		{
 			var channel = sp.GetRequiredService<IChannel>();
 			var logger = sp.GetRequiredService<ILogger<RabbitMqTransportReceiver>>();
-			return new RabbitMqTransportReceiver(channel, queueName, queueName, logger);
+			var maxPayloadBytes = sp.GetRequiredService<IOptions<RabbitMqOptions>>().Value.Consumption.MaxPayloadBytes;
+			return new RabbitMqTransportReceiver(channel, queueName, queueName, logger, maxPayloadBytes);
 		});
 	}
 
@@ -476,13 +478,15 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			// Honor the documented default prefetch (100) when no queue-specific value is configured,
 			// rather than falling back to 0 which disables QoS (unbounded prefetch).
 			var prefetchCount = queueOptions?.PrefetchCount ?? DefaultPrefetchCount;
+			var maxPayloadBytes = sp.GetRequiredService<IOptions<RabbitMqOptions>>().Value.Consumption.MaxPayloadBytes;
 			var nativeSubscriber = new RabbitMqTransportSubscriber(
 				channel,
 				queueName,
 				queueName,
 				logger,
 				prefetchCount,
-				prefetchGlobal: false);
+				prefetchGlobal: false,
+				maxPayloadBytes);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));

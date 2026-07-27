@@ -29,7 +29,7 @@ public sealed class DataInventoryServiceShould
 		_ = A.CallTo(() => _store.GetService(typeof(IDataInventoryQueryStore)))
 			.Returns(_queryStore);
 
-		_sut = new DataInventoryService(_store, _keyProvider, NullLogger<DataInventoryService>.Instance);
+		_sut = new DataInventoryService(_store, _keyProvider, TestDataSubjectHasher.Instance, NullLogger<DataInventoryService>.Instance);
 	}
 
 	#region Constructor Tests
@@ -41,7 +41,7 @@ public sealed class DataInventoryServiceShould
 		_ = Should.Throw<ArgumentNullException>(() => new DataInventoryService(
 			null!,
 			_keyProvider,
-			NullLogger<DataInventoryService>.Instance));
+			TestDataSubjectHasher.Instance, NullLogger<DataInventoryService>.Instance));
 	}
 
 	[Fact]
@@ -51,7 +51,7 @@ public sealed class DataInventoryServiceShould
 		_ = Should.Throw<ArgumentNullException>(() => new DataInventoryService(
 			_store,
 			null!,
-			NullLogger<DataInventoryService>.Instance));
+			TestDataSubjectHasher.Instance, NullLogger<DataInventoryService>.Instance));
 	}
 
 	[Fact]
@@ -61,6 +61,7 @@ public sealed class DataInventoryServiceShould
 		_ = Should.Throw<ArgumentNullException>(() => new DataInventoryService(
 			_store,
 			_keyProvider,
+			TestDataSubjectHasher.Instance,
 			null!));
 	}
 
@@ -97,7 +98,7 @@ public sealed class DataInventoryServiceShould
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.DataSubjectId.ShouldBe(DataSubjectHasher.HashDataSubjectId("user-123"));
+		result.DataSubjectId.ShouldBe(TestDataSubjectHasher.Instance.HashDataSubjectId("user-123"));
 		result.Locations.ShouldBeEmpty();
 		result.AssociatedKeys.ShouldBeEmpty();
 		result.HasData.ShouldBeFalse();

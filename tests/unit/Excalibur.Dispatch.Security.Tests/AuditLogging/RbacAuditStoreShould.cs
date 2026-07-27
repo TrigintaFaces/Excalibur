@@ -25,7 +25,7 @@ public sealed class RbacAuditStoreShould
 		_roleProvider = A.Fake<IAuditRoleProvider>();
 		_metaAuditLogger = A.Fake<IAuditLogger>();
 		_logger = new NullLogger<RbacAuditStore>();
-		_sut = new RbacAuditStore(_innerStore, _roleProvider, _logger, null, _metaAuditLogger);
+		_sut = new RbacAuditStore(_innerStore, _roleProvider, _metaAuditLogger, _logger, null);
 	}
 
 	#region Constructor Tests
@@ -35,7 +35,7 @@ public sealed class RbacAuditStoreShould
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(null!, _roleProvider, _logger, null, _metaAuditLogger));
+			new RbacAuditStore(null!, _roleProvider, _metaAuditLogger, _logger, null));
 	}
 
 	[Fact]
@@ -43,7 +43,7 @@ public sealed class RbacAuditStoreShould
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(_innerStore, null!, _logger, null, _metaAuditLogger));
+			new RbacAuditStore(_innerStore, null!, _metaAuditLogger, _logger, null));
 	}
 
 	[Fact]
@@ -51,15 +51,16 @@ public sealed class RbacAuditStoreShould
 	{
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new RbacAuditStore(_innerStore, _roleProvider, null!, null, _metaAuditLogger));
+			new RbacAuditStore(_innerStore, _roleProvider, _metaAuditLogger, null!, null));
 	}
 
 	[Fact]
-	public void NotThrow_WhenMetaAuditLoggerIsNull()
+	public void ThrowArgumentNullException_WhenMetaAuditLoggerIsNull()
 	{
-		// Arrange & Act & Assert
-		_ = Should.NotThrow(() =>
-			new RbacAuditStore(_innerStore, _roleProvider, _logger, null));
+		// The meta-audit logger records who read the audit trail — a segregation-of-duties control that
+		// must never be silently disabled by being left unconfigured. Its absence fails closed at construction.
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new RbacAuditStore(_innerStore, _roleProvider, null!, _logger, null));
 	}
 
 	#endregion Constructor Tests
@@ -756,10 +757,12 @@ public sealed class RbacAuditStoreShould
 	}
 
 	[Fact]
-	public async Task GetByIdAsync_NoMetaAuditWhenLoggerIsNull()
+	public async Task GetByIdAsync_LogsMetaAudit_WithTheAlwaysPresentMetaLogger()
 	{
-		// Arrange
-		var sutWithoutMetaLogger = new RbacAuditStore(_innerStore, _roleProvider, _logger, null);
+		// The meta-audit logger is now a required dependency, so every authorized read records a meta-audit
+		// event. Liveness: a distinct meta logger receives the access record for a permitted read.
+		var metaLogger = A.Fake<IAuditLogger>();
+		var sut = new RbacAuditStore(_innerStore, _roleProvider, metaLogger, _logger, null);
 
 		_ = A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(AuditLogRole.Administrator);
@@ -768,11 +771,13 @@ public sealed class RbacAuditStoreShould
 		_ = A.CallTo(() => _innerStore.GetByIdAsync("event-123", A<CancellationToken>._))
 			.Returns(auditEvent);
 
-		// Act - should not throw even without meta logger
-		var result = await sutWithoutMetaLogger.GetByIdAsync("event-123", CancellationToken.None);
+		// Act
+		var result = await sut.GetByIdAsync("event-123", CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(auditEvent);
+		_ = A.CallTo(() => metaLogger.LogAsync(A<AuditEvent>._, A<CancellationToken>._))
+			.MustHaveHappened();
 	}
 
 	[Fact]

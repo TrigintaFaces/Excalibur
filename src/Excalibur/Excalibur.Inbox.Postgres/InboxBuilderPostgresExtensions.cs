@@ -3,11 +3,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
+using Excalibur.Inbox;
 using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.Postgres;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Npgsql;
@@ -117,5 +120,30 @@ public static class InboxBuilderPostgresExtensions
 				return () => new NpgsqlConnection(resolved);
 			});
 		}
+
+		// Register the inbox store and its provider/default keys. Without this the provider is
+		// advertised-but-unwired: AddExcaliburInbox(inbox => inbox.UsePostgres(...)) registers options
+		// and a connection factory but no IInboxStore, so the documented entry point resolves nothing
+		// under the "postgres" or "default" key. The fail-closed single-tenant default guarantees a
+		// non-null ITenantContext; the multi-tenancy composition replaces it with the ambient context.
+		builder.Services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext, on which PostgresInboxStore
+		// filters every keyed read) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably
+		// (S886 rw2ull — a store wired without the tenant predicate cannot carry a truthful marker).
+		builder.Services.AddTenantScopedStore<IInboxStore, PostgresInboxStore>((sp, tenantContext) =>
+		{
+			var inboxOptions = sp.GetRequiredService<IOptions<PostgresInboxOptions>>();
+			var logger = sp.GetRequiredService<ILogger<PostgresInboxStore>>();
+			var connectionFactory = sp.GetService<Func<NpgsqlConnection>>();
+			return connectionFactory is not null
+				? new PostgresInboxStore(connectionFactory, inboxOptions.Value, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>())
+				: new PostgresInboxStore(inboxOptions, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
+		});
+		builder.Services.AddKeyedSingleton<IInboxStore>(
+			"postgres", (sp, _) => sp.GetRequiredService<PostgresInboxStore>());
+		builder.Services.TryAddKeyedSingleton<IInboxStore>(
+			"default", (sp, _) => sp.GetRequiredKeyedService<IInboxStore>("postgres"));
+		builder.Services.AddInboxSchemaValidation();
+		builder.Services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<PostgresInboxStore>());
 	}
 }

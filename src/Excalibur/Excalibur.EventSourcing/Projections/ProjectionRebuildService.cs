@@ -35,6 +35,11 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	private readonly bool _enableAutoUpcast;
 	private readonly ConcurrentDictionary<string, ProjectionRebuildStatus> _statuses = new();
 
+	// Per-projection in-progress claim set (th0wtn): a rebuild atomically claims its projection name here so a
+	// second concurrent StartRebuild for the same projection is rejected rather than interleaving replays and
+	// racing the final UpsertAsync. Released in a finally so a later rebuild (after this one finishes) proceeds.
+	private readonly ConcurrentDictionary<string, byte> _rebuildsInProgress = new(StringComparer.Ordinal);
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionRebuildService"/> class.
 	/// </summary>
@@ -83,6 +88,16 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		where TProjection : class, new()
 	{
 		var projectionName = typeof(TProjection).Name;
+
+		// Reject an overlapping rebuild of the same projection (th0wtn): the atomic TryAdd claim ensures only
+		// one rebuild per projection runs at a time, so two starts cannot interleave reindex/upsert and leave
+		// the read model partially overwritten. A second concurrent start fails fast instead of racing.
+		if (!_rebuildsInProgress.TryAdd(projectionName, 0))
+		{
+			LogRebuildAlreadyInProgress(projectionName);
+			throw new InvalidOperationException(
+				$"A rebuild for projection '{projectionName}' is already in progress; concurrent rebuilds of the same projection are not allowed.");
+		}
 
 		LogRebuildStarted(projectionName);
 
@@ -229,6 +244,12 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 			LogRebuildFailed(projectionName, ex);
 			throw;
 		}
+		finally
+		{
+			// Release the claim so a subsequent rebuild of this projection can proceed once this one ends
+			// (success, failure, or cancellation).
+			_ = _rebuildsInProgress.TryRemove(projectionName, out _);
+		}
 	}
 
 	/// <inheritdoc />
@@ -268,6 +289,10 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	[LoggerMessage(EventSourcingEventId.ProjectionError, LogLevel.Error,
 		"Projection rebuild failed for {ProjectionName}")]
 	private partial void LogRebuildFailed(string projectionName, Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.ProjectionRebuildAlreadyInProgress, LogLevel.Warning,
+		"Rebuild rejected for {ProjectionName}: a rebuild is already in progress")]
+	private partial void LogRebuildAlreadyInProgress(string projectionName);
 
 	[LoggerMessage(EventSourcingEventId.ProjectionBatchProcessed, LogLevel.Debug,
 		"Projection {ProjectionName}: batch of {BatchSize} events rebuilt, {TotalProcessed} total")]

@@ -12,7 +12,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Excalibur.Dispatch.SourceGenerators;
 
 /// <summary>
-/// Source generator that creates typed extension methods for <see cref="IDispatcher"/> dispatch
+/// Source generator that creates typed extension methods for <c>IDispatcher</c> dispatch
 /// operations, enabling <c>TResponse</c> type inference without explicit type arguments.
 /// </summary>
 /// <remarks>
@@ -105,7 +105,7 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 
 	/// <summary>
 	/// Generates a file-scoped, deterministic safe identifier from the type symbol
-	/// to avoid naming collisions for types with the same <see cref="INamedTypeSymbol.Name"/>
+	/// to avoid naming collisions for types with the same <c>INamedTypeSymbol.Name</c>
 	/// in different namespaces.
 	/// </summary>
 	private static string GetSafeIdentifier(INamedTypeSymbol symbol)
@@ -185,7 +185,6 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 		{
 			EmitDispatchAsync(sb, action);
 			EmitDispatchAsyncWithContext(sb, action);
-			EmitDispatchChildAsync(sb, action);
 		}
 
 		_ = sb.AppendLine("}");
@@ -224,22 +223,6 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 		_ = sb.AppendLine($"\t\tCancellationToken cancellationToken)");
 		_ = sb.AppendLine($"\t{{");
 		_ = sb.AppendLine($"\t\treturn dispatcher.DispatchAsync<{action.MessageTypeFullName}, {action.ResponseTypeFullName}>(message, context, cancellationToken);");
-		_ = sb.AppendLine($"\t}}");
-	}
-
-	private static void EmitDispatchChildAsync(StringBuilder sb, ActionInfo action)
-	{
-		_ = sb.AppendLine();
-		_ = sb.AppendLine($"\t/// <summary>");
-		_ = sb.AppendLine($"\t/// Dispatches a <see cref=\"{EscapeXml(action.MessageTypeFullName)}\"/> as a child dispatch with compile-time type inference.");
-		_ = sb.AppendLine($"\t/// </summary>");
-		_ = sb.AppendLine($"\t[MethodImpl(MethodImplOptions.AggressiveInlining)]");
-		_ = sb.AppendLine($"\tpublic static Task<IMessageResult<{action.ResponseTypeFullName}>> DispatchChildAsync(");
-		_ = sb.AppendLine($"\t\tthis IDispatcher dispatcher,");
-		_ = sb.AppendLine($"\t\t{action.MessageTypeFullName} message,");
-		_ = sb.AppendLine($"\t\tCancellationToken cancellationToken)");
-		_ = sb.AppendLine($"\t{{");
-		_ = sb.AppendLine($"\t\treturn DispatcherContextExtensions.DispatchChildAsync<{action.MessageTypeFullName}, {action.ResponseTypeFullName}>(dispatcher, message, cancellationToken);");
 		_ = sb.AppendLine($"\t}}");
 	}
 

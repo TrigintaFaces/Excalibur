@@ -33,8 +33,10 @@ public sealed class EncryptedFieldResult(
 	/// <remarks>
 	/// This value is distinct from the key version: key rotation and envelope-schema evolution are orthogonal axes.
 	/// Decryption dispatches on the stored <see cref="FormatVersion"/> and rejects any version it does not recognize.
+	/// Version <c>"2"</c> binds the field crypto-context (field name, key version, algorithm, classification) as
+	/// AES-GCM Associated Authenticated Data; version <c>"1"</c> wrote no AAD.
 	/// </remarks>
-	internal const string CurrentFormatVersion = "1";
+	internal const string CurrentFormatVersion = "2";
 	/// <summary>
 	/// Gets the encrypted field value as a Base64-encoded string.
 	/// </summary>

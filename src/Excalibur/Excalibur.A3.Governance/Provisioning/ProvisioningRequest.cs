@@ -109,7 +109,7 @@ internal sealed class ProvisioningRequest : AggregateRoot, IAggregateRoot<Provis
 	public static ProvisioningRequest Create(string id) => new() { Id = id };
 
 	/// <summary>Rebuilds from a stream of events.</summary>
-	public static ProvisioningRequest FromEvents(string id, IEnumerable<IDomainEvent> events)
+	public static ProvisioningRequest FromEvents(string id, IEnumerable<HistoricEvent> events)
 	{
 		var request = new ProvisioningRequest { Id = id };
 		request.LoadFromHistory(events);
@@ -238,28 +238,30 @@ internal sealed class ProvisioningRequest : AggregateRoot, IAggregateRoot<Provis
 	internal DateTimeOffset CreatedAt { get; private set; }
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case ProvisioningRequestCreated e:
 				Apply(e);
-				break;
+				return true;
 			case ProvisioningStepAdvanced e:
 				ApplyStepAdvanced(e);
-				break;
+				return true;
 			case ProvisioningStepApproved e:
 				ApplyStepApproved(e);
-				break;
+				return true;
 			case ProvisioningStepDenied e:
 				ApplyStepDenied(e);
-				break;
+				return true;
 			case ProvisioningRequestProvisioned:
 				Status = ProvisioningRequestStatus.Provisioned;
-				break;
+				return true;
 			case ProvisioningRequestFailed e:
 				ApplyFailed(e);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

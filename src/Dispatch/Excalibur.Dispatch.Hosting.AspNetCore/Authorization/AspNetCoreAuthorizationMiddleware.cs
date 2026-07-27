@@ -82,7 +82,14 @@ public sealed partial class AspNetCoreAuthorizationMiddleware : IDispatchMiddlew
 	public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.Authorization;
 
 	/// <inheritdoc />
-	public MessageKinds ApplicableMessageKinds => MessageKinds.Action;
+	/// <remarks>
+	/// Authorization applies to both Actions (commands/queries) and Events. Events are not necessarily internal: an event arriving from a
+	/// transport adapter is inbound and untrusted, so it is authorized on the same terms as an Action. Documents are excluded.
+	/// <para>
+	/// This type carries no <c>AppliesTo</c> attribute, so this property is the sole source of its applicability decision.
+	/// </para>
+	/// </remarks>
+	public MessageKinds ApplicableMessageKinds => MessageKinds.Action | MessageKinds.Event;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(

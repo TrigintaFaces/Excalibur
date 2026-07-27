@@ -36,23 +36,21 @@ public static class ExcaliburWebHostApplicationExtensions
 	}
 
 	/// <summary>
-	/// Adds middleware to populate the <see cref="ITenantId" /> service with the current tenant ID.
+	/// Adds middleware that establishes the ambient tenant (read via <see cref="ITenantContext" />)
+	/// for the duration of the request by wrapping the pipeline in a
+	/// <see cref="TenantContextHolder.BeginScope(string?)" /> scope.
 	/// </summary>
 	/// <param name="app"> The application builder to configure. </param>
 	/// <returns> The configured <see cref="IApplicationBuilder" />. </returns>
 	public static IApplicationBuilder UseTenantIdMiddleware(this IApplicationBuilder app) =>
 		app
-			.Use(static (httpContext, next) =>
+			.Use(static async (httpContext, next) =>
 			{
 				var tenantId = httpContext.TenantId();
-				if (tenantId != null)
+				using (TenantContextHolder.BeginScope(tenantId?.ToString()))
 				{
-					httpContext.RequestServices
-						.GetRequiredService<ITenantId>()
-						.Value = tenantId.Value.ToString();
+					await next().ConfigureAwait(false);
 				}
-
-				return next();
 			});
 
 	/// <summary>

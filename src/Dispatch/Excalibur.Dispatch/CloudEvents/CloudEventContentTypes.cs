@@ -19,17 +19,17 @@ public static class CloudEventContentTypes
 	/// <summary>
 	/// CloudEvents JSON format content type.
 	/// </summary>
-	public const string CloudEventsJson = "APPLICATION/CLOUDEVENTS+JSON";
+	public const string CloudEventsJson = "application/cloudevents+json";
 
 	/// <summary>
 	/// CloudEvents batch JSON format content type.
 	/// </summary>
-	public const string CloudEventsBatchJson = "APPLICATION/CLOUDEVENTS-BATCH+JSON";
+	public const string CloudEventsBatchJson = "application/cloudevents-batch+json";
 
 	/// <summary>
 	/// Standard JSON content type.
 	/// </summary>
-	public const string ApplicationJson = "APPLICATION/JSON";
+	public const string ApplicationJson = "application/json";
 
 	/// <summary>
 	/// Binary content type for CloudEvents in HTTP binary mode.
@@ -44,15 +44,18 @@ public static class CloudEventContentTypes
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
 
-		// Normalize content type
-		var mediaType = contentType.Split(';')[0].Trim().ToUpperInvariant();
+		// Media types are case-insensitive (RFC 2045 §5.1); compare with OrdinalIgnoreCase rather than
+		// normalizing case — this avoids CA1308 (ToLowerInvariant) while honouring the lowercase
+		// canonical content-type constants.
+		var mediaType = contentType.Split(';')[0].Trim();
 
-		return mediaType switch
+		if (mediaType.Equals(CloudEventsJson, StringComparison.OrdinalIgnoreCase)
+			|| mediaType.Equals(ApplicationJson, StringComparison.OrdinalIgnoreCase))
 		{
-			CloudEventsJson => new JsonEventFormatter(),
-			ApplicationJson => new JsonEventFormatter(),
-			_ => throw new NotSupportedException($"Content type '{contentType}' is not supported for CloudEvents"),
-		};
+			return new JsonEventFormatter();
+		}
+
+		throw new NotSupportedException($"Content type '{contentType}' is not supported for CloudEvents");
 	}
 
 	/// <summary>
@@ -75,7 +78,8 @@ public static class CloudEventContentTypes
 	{
 		ArgumentNullException.ThrowIfNull(batch);
 
-		if (contentType is not CloudEventsBatchJson and not ApplicationJson)
+		if (!string.Equals(contentType, CloudEventsBatchJson, StringComparison.OrdinalIgnoreCase)
+			&& !string.Equals(contentType, ApplicationJson, StringComparison.OrdinalIgnoreCase))
 		{
 			throw new ArgumentException($"Content type '{contentType}' is not supported for CloudEvent batches");
 		}
@@ -105,7 +109,8 @@ public static class CloudEventContentTypes
 	{
 		ArgumentNullException.ThrowIfNull(data);
 
-		if (contentType is not CloudEventsBatchJson and not ApplicationJson)
+		if (!string.Equals(contentType, CloudEventsBatchJson, StringComparison.OrdinalIgnoreCase)
+			&& !string.Equals(contentType, ApplicationJson, StringComparison.OrdinalIgnoreCase))
 		{
 			throw new ArgumentException($"Content type '{contentType}' is not supported for CloudEvent batches");
 		}
@@ -129,27 +134,27 @@ public static class CloudEventContentTypes
 
 		foreach (var (mediaType, _) in acceptTypes)
 		{
-			switch (mediaType.ToUpperInvariant())
+			// Media types are case-insensitive (RFC 2045 §5.1).
+			if (mediaType.Equals(CloudEventsJson, StringComparison.OrdinalIgnoreCase))
 			{
-				case CloudEventsJson:
-					return CloudEventsJson;
+				return CloudEventsJson;
+			}
 
-				case CloudEventsBatchJson:
-					if (supportsBatch)
-					{
-						return CloudEventsBatchJson;
-					}
-
-					break;
-
-				case ApplicationJson:
-					return ApplicationJson;
-
-				case "*/*":
-				case "application/*":
-					return CloudEventsJson;
-				default:
-					break;
+			if (mediaType.Equals(CloudEventsBatchJson, StringComparison.OrdinalIgnoreCase))
+			{
+				if (supportsBatch)
+				{
+					return CloudEventsBatchJson;
+				}
+			}
+			else if (mediaType.Equals(ApplicationJson, StringComparison.OrdinalIgnoreCase))
+			{
+				return ApplicationJson;
+			}
+			else if (string.Equals(mediaType, "*/*", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(mediaType, "application/*", StringComparison.OrdinalIgnoreCase))
+			{
+				return CloudEventsJson;
 			}
 		}
 

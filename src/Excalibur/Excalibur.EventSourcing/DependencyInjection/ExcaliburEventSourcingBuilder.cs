@@ -187,6 +187,28 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 		return this;
 	}
 
+	/// <inheritdoc />
+	public IEventSourcingBuilder RegisterEventTypes<TEvent>()
+	{
+		_ = Services.AddEventTypes<TEvent>();
+		return this;
+	}
+
+	/// <inheritdoc />
+	public IEventSourcingBuilder RegisterEventTypes(params Type[] eventTypes)
+	{
+		_ = Services.AddEventTypes(eventTypes);
+		return this;
+	}
+
+	/// <inheritdoc />
+	[RequiresUnreferencedCode("Scans the assembly for IDomainEvent types via reflection, which is not trim-safe. Use RegisterEventTypes<TEvent>() or RegisterEventTypes(params Type[]) for a trim/AOT-safe path.")]
+	public IEventSourcingBuilder RegisterEventTypesFromAssembly(System.Reflection.Assembly assembly)
+	{
+		_ = Services.AddEventTypesFromAssembly(assembly);
+		return this;
+	}
+
 	/// <summary>
 	/// Resolves repository options, merging global defaults with per-aggregate overrides.
 	/// </summary>

@@ -20,10 +20,18 @@ namespace Excalibur.Dispatch;
 /// dropping a message whose handler fails:
 /// </para>
 /// <list type="number">
-/// <item><description><see cref="TryClaimAsync"/> atomically before the handler runs. <see langword="false"/> means another caller already holds the claim (duplicate) — skip.</description></item>
+/// <item><description><see cref="TryClaimAsync(string, string, CancellationToken)"/> atomically before the handler runs. <see langword="false"/> means another caller already holds the claim (duplicate) — skip.</description></item>
 /// <item><description>On handler success, finalize the claim via <see cref="IInboxStore.MarkProcessedAsync"/> (the entry becomes terminal <see cref="InboxStatus.Processed"/>).</description></item>
 /// <item><description>On handler failure, <see cref="ReleaseAsync"/> the claim so a redelivery can re-admit the message. Leaving a terminal entry on failure would silently drop the message.</description></item>
 /// </list>
+/// <para>
+/// The steps above describe the two-argument <see cref="TryClaimAsync(string, string, CancellationToken)"/>
+/// protocol (caller-governed TTL, explicit release-on-failure). The self-expiring lease overload
+/// <see cref="TryClaimAsync(string, string, TimeSpan, CancellationToken)"/> uses a different failure model:
+/// a failed handler leaves the entry <see cref="InboxStatus.Failed"/> and a redelivery re-admits it for
+/// retry — no explicit release call. In both models only <see cref="InboxStatus.Processed"/> is terminal,
+/// so a handler failure never silently drops the message.
+/// </para>
 /// </remarks>
 public interface IClaimableInboxStore
 {
@@ -47,11 +55,63 @@ public interface IClaimableInboxStore
 	ValueTask<bool> TryClaimAsync(string messageId, string handlerType, CancellationToken cancellationToken);
 
 	/// <summary>
+	/// Atomically claims a message for a specific handler under a self-expiring <b>lease</b>: the claim
+	/// succeeds if no entry exists, the entry is <see cref="InboxStatus.Received"/>, or the entry is
+	/// <see cref="InboxStatus.Processing"/> but its lease has expired (reclaiming a dead processor's stuck
+	/// claim). A terminal <see cref="InboxStatus.Processed"/> entry is never reclaimed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the full-mode, self-governing counterpart to the two-argument
+	/// <see cref="TryClaimAsync(string, string, CancellationToken)"/> (which never auto-expires — the caller
+	/// governs TTL there). Collapsing admission and expired-lease reclaim into a <b>single</b> atomic
+	/// compare-and-set makes both the double-admission race and the permanent-stuck-claim inexpressible.
+	/// </para>
+	/// <para>
+	/// The <c>leaseExpiry &lt; now</c> comparison MUST be evaluated against the <b>store's own server clock</b>
+	/// inside the atomic operation (SQL <c>SYSUTCDATETIME()</c>/<c>now()</c>, Redis <c>TIME</c>, Mongo
+	/// <c>$$NOW</c>) — never an app-side clock — because the invariant is distributed across competing
+	/// processors and only the store's single clock is skew-free. <paramref name="leaseDuration"/> governs the
+	/// app-side lease length only.
+	/// </para>
+	/// <para>
+	/// A <see cref="InboxStatus.Failed"/> entry is <b>re-admittable</b>: a handler failure leaves the entry
+	/// Failed, and a redelivery re-claims it so processing is retried. This keeps the atomic lease-claim
+	/// path consistent with the non-lease admission path, so a handler failure never silently drops the
+	/// message. Only <see cref="InboxStatus.Processed"/> is terminal for claiming.
+	/// </para>
+	/// <para>
+	/// Lease-based claiming is an optional capability; a store that does not implement it throws
+	/// <see cref="NotSupportedException"/>.
+	/// </para>
+	/// </remarks>
+	/// <param name="messageId">The unique identifier of the message.</param>
+	/// <param name="handlerType">The fully qualified type name of the handler processing the message.</param>
+	/// <param name="leaseDuration">How long the claim is held before it becomes reclaimable by another processor.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>
+	/// <see langword="true"/> if the caller acquired the claim, reclaimed an expired lease, or re-admitted a
+	/// previously <see cref="InboxStatus.Failed"/> entry for retry (it is now the sole processor);
+	/// <see langword="false"/> if a live lease is held by another caller, or the entry is terminal
+	/// <see cref="InboxStatus.Processed"/>.
+	/// </returns>
+	/// <exception cref="ArgumentException">Thrown when <paramref name="messageId"/> or <paramref name="handlerType"/> is null or empty.</exception>
+	/// <exception cref="NotSupportedException">Thrown when the store does not support lease-based claiming.</exception>
+	ValueTask<bool> TryClaimAsync(
+		string messageId,
+		string handlerType,
+		TimeSpan leaseDuration,
+		CancellationToken cancellationToken) =>
+		throw new NotSupportedException(
+			"This inbox store does not support lease-based claiming (the TryClaimAsync lease overload). " +
+			"Use a store that implements it (SqlServer, Postgres, Redis, or MongoDB) or the two-argument claim.");
+
+	/// <summary>
 	/// Releases a previously acquired claim for a specific handler by removing the entry, so that a
 	/// redelivery of the same message can be re-admitted.
 	/// </summary>
 	/// <remarks>
-	/// Call this when the handler fails after a successful <see cref="TryClaimAsync"/>. Releasing an
+	/// Call this when the handler fails after a successful <see cref="TryClaimAsync(string, string, CancellationToken)"/>. Releasing an
 	/// already-removed or never-claimed entry is a no-op. Do not call after the claim has been finalized
 	/// via <see cref="IInboxStore.MarkProcessedAsync"/>.
 	/// </remarks>

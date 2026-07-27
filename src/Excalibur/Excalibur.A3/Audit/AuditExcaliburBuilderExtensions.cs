@@ -12,7 +12,7 @@ public static class AuditExcaliburBuilderExtensions
 {
 	/// <summary>
 	/// Registers <c>AuditMiddleware</c> and every context service it needs
-	/// (<c>IActivityContext</c>, <c>ITenantId</c>, <c>ICorrelationId</c>,
+	/// (<c>IActivityContext</c>, the ambient <c>ITenantContext</c>, <c>ICorrelationId</c>,
 	/// <c>IETag</c>, <c>IClientAddress</c>) with safe <c>TryAdd</c> defaults
 	/// within the Excalibur composition root.
 	/// </summary>

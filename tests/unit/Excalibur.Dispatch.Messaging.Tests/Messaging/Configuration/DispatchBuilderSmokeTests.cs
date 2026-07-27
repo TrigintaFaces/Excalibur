@@ -39,7 +39,7 @@ public sealed class DispatchBuilderSmokeTests
 		context.Message.ShouldBeSameAs(message);
 	}
 
-	private sealed class TestMessage : IDispatchMessage
+	private sealed class TestMessage : IDispatchEvent
 	{
 		public Guid Id { get; } = Guid.NewGuid();
 		public string MessageId { get; } = Guid.NewGuid().ToString();

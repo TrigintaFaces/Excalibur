@@ -24,7 +24,6 @@ Production-grade persistence for event-sourced systems. Shows event store provid
 |--------|----------------|----------------|
 | [InboxIdempotency](InboxIdempotency/) | At-least-once delivery with deduplication guarantees | None (in-memory) |
 | [TransactionalHandlers](TransactionalHandlers/) | ACID handler execution with `TransactionScope` | None (in-memory) |
-| [SessionManagement](SessionManagement/) | Session-aware message processing, state tracking | None (in-memory) |
 
 ### Scale-out
 

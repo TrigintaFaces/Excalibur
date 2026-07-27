@@ -36,7 +36,10 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 
 	private readonly CircuitBreakerMetrics _metrics = new();
 	private readonly Lock _stateLock = new();
-	private readonly ConcurrentDictionary<string, long> _operationLatencies = new(StringComparer.Ordinal);
+	// Running totals for a mathematically-correct arithmetic mean latency (sum / count), not a
+	// blended (old + new) / 2 which weights recent samples exponentially and is not the true average.
+	private long _latencySumMs;
+	private long _latencyCount;
 	private int _consecutiveFailures;
 	private int _consecutiveSuccesses;
 	private DateTimeOffset _openedAt = DateTimeOffset.MinValue;
@@ -192,11 +195,14 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 				return await fallback().ConfigureAwait(false);
 			}
 
-			// Execute operation with timeout
+			// Execute operation with timeout. The operation delegate takes no token, so the timeout is
+			// enforced by racing its task against the linked CTS via WaitAsync — CancelAfter alone was
+			// inert (the token was never observed). A timeout/caller-cancel surfaces as
+			// OperationCanceledException (non-tripping, FR-116-2).
 			using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			cts.CancelAfter(_options.OperationTimeout);
 
-			var result = await operation().ConfigureAwait(false);
+			var result = await operation().WaitAsync(cts.Token).ConfigureAwait(false);
 
 			// Record success
 			RecordSuccess();
@@ -368,30 +374,22 @@ public partial class CircuitBreakerPattern : IResiliencePattern, IPatternObserva
 			string.Format(CultureInfo.InvariantCulture, RecoveryConfirmedFormat, _consecutiveSuccesses));
 	}
 
-	private void RecordLatency(long milliseconds) =>
-		_ = _operationLatencies.AddOrUpdate(
-			"default",
-			(key, state) =>
-			{
-				_ = key;
-				return state;
-			},
-			(key, old, state) =>
-			{
-				_ = key;
-				return (old + state) / 2;
-			},
-			milliseconds);
+	private void RecordLatency(long milliseconds)
+	{
+		_ = Interlocked.Add(ref _latencySumMs, milliseconds);
+		_ = Interlocked.Increment(ref _latencyCount);
+	}
 
 	private void UpdateAverageResponseTime()
 	{
-		if (_operationLatencies.IsEmpty)
+		var count = Interlocked.Read(ref _latencyCount);
+		if (count == 0)
 		{
 			return;
 		}
 
-		var avgMs = _operationLatencies.Values.Average();
-		_metrics.AverageResponseTime = TimeSpan.FromMilliseconds(avgMs);
+		var sum = Interlocked.Read(ref _latencySumMs);
+		_metrics.AverageResponseTime = TimeSpan.FromMilliseconds((double)sum / count);
 	}
 
 	/// <summary>

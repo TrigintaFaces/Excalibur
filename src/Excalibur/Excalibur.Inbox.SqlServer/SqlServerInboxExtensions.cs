@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
+using Excalibur.Inbox;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Inbox.SqlServer;
 
@@ -32,8 +33,15 @@ public static class SqlServerInboxExtensions
 
 		_ = services.Configure(configure);
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerInboxOptions>, SqlServerInboxOptionsValidator>());
-		services.TryAddSingleton<SqlServerInboxStore>();
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore threads the resolved ITenantContext into construction (dep-gated: absent
+		// context ⇒ resolution fails closed, on which the store filters every keyed read) AND emits the
+		// ITenantScopingCapability<IInboxStore> marker inseparably (S886 rw2ull (B)).
+		services.AddTenantScopedStore<IInboxStore, SqlServerInboxStore>(
+			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<SqlServerInboxStore>(sp, tenantContext));
 		services.AddKeyedSingleton<IInboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
+		services.AddInboxSchemaValidation();
+		services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<SqlServerInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("sqlserver"));
 
@@ -70,14 +78,20 @@ public static class SqlServerInboxExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		_ = services.Configure(configure);
-		services.TryAddSingleton(sp =>
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext so this factory path applies the
+		// tenant predicate rather than silently dropping it) AND emits the ITenantScopingCapability<IInboxStore>
+		// marker inseparably (S886 rw2ull).
+		services.AddTenantScopedStore<IInboxStore, SqlServerInboxStore>((sp, tenantContext) =>
 		{
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<SqlServerInboxStore>>();
-			return new SqlServerInboxStore(connectionFactory, options, logger);
+			return new SqlServerInboxStore(connectionFactory, options, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
 		});
 		services.AddKeyedSingleton<IInboxStore>("sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
+		services.AddInboxSchemaValidation();
+		services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<SqlServerInboxStore>());
 		services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("sqlserver"));
 

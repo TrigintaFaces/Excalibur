@@ -15,7 +15,7 @@ public sealed class PostgresAuditStoreShould
 	public void ThrowWhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(
-			() => new PostgresAuditStore(null!, EnabledTestLogger.Create<PostgresAuditStore>()));
+			() => new PostgresAuditStore(null!, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>()));
 	}
 
 	[Fact]
@@ -27,7 +27,7 @@ public sealed class PostgresAuditStoreShould
 		});
 
 		Should.Throw<ArgumentNullException>(
-			() => new PostgresAuditStore(options, null!));
+			() => new PostgresAuditStore(options, tenantContext: null, null!));
 	}
 
 	[Fact]
@@ -39,7 +39,7 @@ public sealed class PostgresAuditStoreShould
 		});
 
 		Should.Throw<InvalidOperationException>(
-			() => new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>()));
+			() => new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>()));
 	}
 
 	[Fact]
@@ -51,7 +51,7 @@ public sealed class PostgresAuditStoreShould
 		});
 
 		Should.Throw<InvalidOperationException>(
-			() => new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>()));
+			() => new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>()));
 	}
 
 	[Fact]
@@ -61,7 +61,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 
 		await Should.NotThrowAsync(() => store.DisposeAsync().AsTask());
 	}
@@ -73,7 +73,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 
 		await store.DisposeAsync();
 		await Should.NotThrowAsync(() => store.DisposeAsync().AsTask());
@@ -86,7 +86,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 		await store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
@@ -100,7 +100,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 		await store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
@@ -114,7 +114,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 		await store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
@@ -128,7 +128,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 		await store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
@@ -142,7 +142,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 		await store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
@@ -159,7 +159,7 @@ public sealed class PostgresAuditStoreShould
 		{
 			ConnectionString = "Host=localhost;Database=test;"
 		});
-		var store = new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		var store = new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 		await store.DisposeAsync();
 
 		await Should.ThrowAsync<ObjectDisposedException>(
@@ -216,27 +216,55 @@ public sealed class PostgresAuditStoreShould
 	[Fact]
 	public void BuildWhereClause_ReturnsEmptyClauseForDefaultQuery()
 	{
+		// BuildWhereClause became an INSTANCE method when the store gained an ambient
+		// ITenantContext: the tenant term is resolved from the instance, not passed in. Binding it
+		// as Static returned null and Invoke(null, ...) threw NullReferenceException at runtime --
+		// invisible to the compiler, because the member is bound by string.
+		var store = new PostgresAuditStore(
+			Microsoft.Extensions.Options.Options.Create(new PostgresAuditOptions
+			{
+				ConnectionString = "Host=localhost;Database=test;"
+			}),
+			tenantContext: null,
+			EnabledTestLogger.Create<PostgresAuditStore>());
+
 		var method = typeof(PostgresAuditStore).GetMethod(
 			"BuildWhereClause",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 
 		var query = new AuditQuery();
-		var tuple = method.Invoke(null, [query])!;
+		var tuple = method.Invoke(store, [query])!;
 		var whereClause = (string)(tuple.GetType().GetField("Item1")?.GetValue(tuple)
 			?? tuple.GetType().GetProperty("Item1")?.GetValue(tuple))!;
 		var parameters = (Dapper.DynamicParameters)(tuple.GetType().GetField("Item2")?.GetValue(tuple)
 			?? tuple.GetType().GetProperty("Item2")?.GetValue(tuple))!;
 
-		whereClause.ShouldBeEmpty();
-		parameters.ParameterNames.ShouldBeEmpty();
+		// FLIPPED to the scoping contract. This previously asserted an EMPTY where-clause for a
+		// default query -- and that empty clause WAS the vulnerability: no predicate matched every
+		// tenant's rows. The tenant term is now unconditional, so a default query is scoped, never
+		// estate-wide. Asserting emptiness here would re-encode the defect.
+		whereClause.ShouldContain("tenant_id", Case.Insensitive);
+		parameters.ParameterNames.ShouldContain("TenantId");
 	}
 
 	[Fact]
 	public void BuildWhereClause_IncludesAllSupportedFilters()
 	{
+		// BuildWhereClause became an INSTANCE method when the store gained an ambient
+		// ITenantContext: the tenant term is resolved from the instance, not passed in. Binding it
+		// as Static returned null and Invoke(null, ...) threw NullReferenceException at runtime --
+		// invisible to the compiler, because the member is bound by string.
+		var store = new PostgresAuditStore(
+			Microsoft.Extensions.Options.Options.Create(new PostgresAuditOptions
+			{
+				ConnectionString = "Host=localhost;Database=test;"
+			}),
+			tenantContext: null,
+			EnabledTestLogger.Create<PostgresAuditStore>());
+
 		var method = typeof(PostgresAuditStore).GetMethod(
 			"BuildWhereClause",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 
 		var query = new AuditQuery
 		{
@@ -251,7 +279,7 @@ public sealed class PostgresAuditStoreShould
 			IpAddress = "127.0.0.1"
 		};
 
-		var tuple = method.Invoke(null, [query])!;
+		var tuple = method.Invoke(store, [query])!;
 		var whereClause = (string)(tuple.GetType().GetField("Item1")?.GetValue(tuple)
 			?? tuple.GetType().GetProperty("Item1")?.GetValue(tuple))!;
 		var parameters = (Dapper.DynamicParameters)(tuple.GetType().GetField("Item2")?.GetValue(tuple)
@@ -262,7 +290,9 @@ public sealed class PostgresAuditStoreShould
 		whereClause.ShouldContain("actor_id = @ActorId");
 		whereClause.ShouldContain("resource_id = @ResourceId");
 		whereClause.ShouldContain("resource_type = @ResourceType");
-		whereClause.ShouldContain("tenant_id = @TenantId");
+		// NULL-safe form. A bare "tenant_id = @TenantId" never matches a row whose tenant column is
+		// NULL, which is how every untenanted row became unreadable. COALESCE is the corrected shape.
+		whereClause.ShouldContain("COALESCE(tenant_id");
 		whereClause.ShouldContain("correlation_id = @CorrelationId");
 		whereClause.ShouldContain("action = @Action");
 		whereClause.ShouldContain("ip_address = @IpAddress");
@@ -391,7 +421,7 @@ public sealed class PostgresAuditStoreShould
 			CommandTimeoutSeconds = 1
 		});
 
-		return new PostgresAuditStore(options, EnabledTestLogger.Create<PostgresAuditStore>());
+		return new PostgresAuditStore(options, tenantContext: null, EnabledTestLogger.Create<PostgresAuditStore>());
 	}
 }
 

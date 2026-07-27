@@ -136,4 +136,59 @@ public static class DispatchContextInitializer
 
 		return context;
 	}
+
+	/// <summary>
+	/// Creates a <see cref="MessageContext"/> directly from a strongly-typed <see cref="MessageMetadata"/>,
+	/// avoiding the intermediate string dictionary the <see cref="CreateFromMetadata(IDictionary{string, string?})"/>
+	/// overload requires. Behaviourally equivalent (same identity fields + the same keys copied into
+	/// <see cref="MessageContext.Items"/>); used on the outbox/inbox relay hot path where a per-message
+	/// dictionary allocation is avoidable.
+	/// </summary>
+	/// <param name="metadata"> The delivery metadata to seed the context from. </param>
+	/// <returns> A new <see cref="MessageContext"/>. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="metadata"/> is null. </exception>
+	public static MessageContext CreateFromMetadata(MessageMetadata metadata)
+	{
+		ArgumentNullException.ThrowIfNull(metadata);
+
+		var context = CreateDefaultContext();
+
+		if (!string.IsNullOrWhiteSpace(metadata.CorrelationId))
+		{
+			context.CorrelationId = metadata.CorrelationId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(metadata.CausationId))
+		{
+			context.CausationId = metadata.CausationId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(metadata.TraceParent))
+		{
+			context.GetOrCreateIdentityFeature().TraceParent = metadata.TraceParent;
+		}
+
+		if (!string.IsNullOrWhiteSpace(metadata.UserId))
+		{
+			context.GetOrCreateIdentityFeature().UserId = metadata.UserId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(metadata.TenantId))
+		{
+			context.GetOrCreateIdentityFeature().TenantId = metadata.TenantId;
+		}
+
+		// Mirror the dictionary overload: every metadata field is also copied into Items.
+		context.Items["CorrelationId"] = metadata.CorrelationId;
+		context.Items["CausationId"] = metadata.CausationId ?? string.Empty;
+		context.Items["TraceParent"] = metadata.TraceParent ?? string.Empty;
+		context.Items["TenantId"] = metadata.TenantId ?? string.Empty;
+		context.Items["UserId"] = metadata.UserId ?? string.Empty;
+		context.Items["ContentType"] = metadata.ContentType;
+		context.Items["SerializerVersion"] = metadata.SerializerVersion;
+		context.Items["MessageVersion"] = metadata.MessageVersion;
+		context.Items["ContractVersion"] = metadata.ContractVersion;
+
+		return context;
+	}
 }

@@ -20,8 +20,8 @@ public sealed class PubSubSubscriberOptionsShould
 		options.AckDeadlineSeconds.ShouldBe(60);
 		options.EnableAutoAckExtension.ShouldBeTrue();
 		options.MaxConcurrentAcks.ShouldBe(10);
-		options.EnableDeadLetterTopic.ShouldBeFalse();
-		options.DeadLetterTopicId.ShouldBeNull();
+		options.DeadLetter.Enable.ShouldBeFalse();
+		options.DeadLetter.TopicId.ShouldBeNull();
 	}
 
 	[Fact]
@@ -34,8 +34,11 @@ public sealed class PubSubSubscriberOptionsShould
 			AckDeadlineSeconds = 120,
 			EnableAutoAckExtension = false,
 			MaxConcurrentAcks = 50,
-			EnableDeadLetterTopic = true,
-			DeadLetterTopicId = "my-dlq-topic",
+			DeadLetter =
+			{
+				Enable = true,
+				TopicId = "my-dlq-topic",
+			},
 		};
 
 		// Assert
@@ -43,7 +46,7 @@ public sealed class PubSubSubscriberOptionsShould
 		options.AckDeadlineSeconds.ShouldBe(120);
 		options.EnableAutoAckExtension.ShouldBeFalse();
 		options.MaxConcurrentAcks.ShouldBe(50);
-		options.EnableDeadLetterTopic.ShouldBeTrue();
-		options.DeadLetterTopicId.ShouldBe("my-dlq-topic");
+		options.DeadLetter.Enable.ShouldBeTrue();
+		options.DeadLetter.TopicId.ShouldBe("my-dlq-topic");
 	}
 }

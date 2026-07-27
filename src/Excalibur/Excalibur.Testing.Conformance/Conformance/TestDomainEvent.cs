@@ -14,10 +14,16 @@ public sealed record TestDomainEvent : IDomainEvent
 	/// <inheritdoc />
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets the aggregate identifier this test event is associated with. Retained as a convenience on the
+	/// test double; the authoritative stream identity and version live in the persistence envelope.
+	/// </summary>
 	public string AggregateId { get; init; } = string.Empty;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets the stream position for this test event. Retained as a convenience on the test double; the
+	/// authoritative version lives in the persistence envelope.
+	/// </summary>
 	public long Version { get; init; }
 
 	/// <inheritdoc />

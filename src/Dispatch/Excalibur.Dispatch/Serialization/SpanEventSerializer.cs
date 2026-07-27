@@ -9,27 +9,8 @@ namespace Excalibur.Dispatch.Serialization;
 /// Event serializer implementation using the pluggable serialization infrastructure.
 /// </summary>
 /// <remarks>
-/// <para>
 /// This serializer implements <see cref="IEventSerializer"/> by delegating to the
 /// configured <see cref="ISerializer"/> (the current/default serializer, typically JSON).
-/// Also provides Span-based overloads for zero-allocation scenarios.
-/// </para>
-/// <para>
-/// <b>Usage Pattern (Span-based):</b>
-/// </para>
-/// <code>
-/// var size = serializer.GetEventSize(evt);
-/// var buffer = ArrayPool&lt;byte&gt;.Shared.Rent(size);
-/// try
-/// {
-///     var written = serializer.SerializeEvent(evt, buffer);
-///     await StoreAsync(buffer.AsSpan(0, written), ct);
-/// }
-/// finally
-/// {
-///     ArrayPool&lt;byte&gt;.Shared.Return(buffer);
-/// }
-/// </code>
 /// </remarks>
 public sealed class SpanEventSerializer : IEventSerializer
 {
@@ -76,30 +57,6 @@ public sealed class SpanEventSerializer : IEventSerializer
 	#region Span-based methods
 
 	/// <summary>
-	/// Serializes an event to a caller-provided span buffer.
-	/// </summary>
-	[RequiresDynamicCode("Serialization of events requires dynamic code generation for type inspection")]
-	[RequiresUnreferencedCode("Serialization may reference types not preserved during trimming")]
-	public int SerializeEvent(IDomainEvent domainEvent, Span<byte> buffer)
-	{
-		ArgumentNullException.ThrowIfNull(domainEvent);
-
-		var eventType = domainEvent.GetType();
-		var bytes = _pluggable.SerializeObject(domainEvent, eventType);
-
-		if (bytes.Length > buffer.Length)
-		{
-			throw new ArgumentException(
-				$"Buffer too small. Required: {bytes.Length}, Available: {buffer.Length}. " +
-				$"Use GetEventSize() to determine required buffer size.",
-				nameof(buffer));
-		}
-
-		bytes.CopyTo(buffer);
-		return bytes.Length;
-	}
-
-	/// <summary>
 	/// Deserializes an event from a read-only span (zero-copy).
 	/// </summary>
 	[RequiresDynamicCode("Deserialization of events requires dynamic code generation for type inspection")]
@@ -117,21 +74,6 @@ public sealed class SpanEventSerializer : IEventSerializer
 		}
 
 		return domainEvent;
-	}
-
-	/// <summary>
-	/// Gets the required buffer size for serializing an event.
-	/// </summary>
-	[RequiresDynamicCode("Size calculation may require dynamic code generation")]
-	[RequiresUnreferencedCode("Size calculation may reference types not preserved during trimming")]
-	public int GetEventSize(IDomainEvent domainEvent)
-	{
-		ArgumentNullException.ThrowIfNull(domainEvent);
-
-		// Serialize once to get exact size, then add margin
-		var eventType = domainEvent.GetType();
-		var bytes = _pluggable.SerializeObject(domainEvent, eventType);
-		return bytes.Length + SizeMargin;
 	}
 
 	/// <summary>

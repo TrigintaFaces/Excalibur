@@ -150,7 +150,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 
 			return signature;
 		}
-		catch (Exception ex) when (ex is not SigningException)
+		catch (Exception ex) when (ex is not (SigningException or OperationCanceledException))
 		{
 			LogSigningFailed(ex);
 			throw new SigningException(Resources.HmacMessageSigningService_MessageSigningFailed, ex);
@@ -253,7 +253,7 @@ public sealed partial class HmacMessageSigningService : IMessageSigningService, 
 
 			return isValid;
 		}
-		catch (Exception ex) when (ex is not VerificationException)
+		catch (Exception ex) when (ex is not (VerificationException or OperationCanceledException))
 		{
 			LogVerificationError(ex);
 			throw new VerificationException(

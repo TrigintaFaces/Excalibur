@@ -1,0 +1,32 @@
+# gate-wiring-baseline.txt — accepted known-orphan gates (tracked debt).
+#
+# Each line is the basename of an enforcement gate under eng/ci or eng/hooks that currently has NO
+# caller running it in CI or a git hook. gate-wiring.sh accepts these instead of failing the whole
+# battery, so the check ships LIVE against a codebase that already carries this debt.
+#
+# THIS FILE IS A SHRINK TARGET. Wiring a gate into a caller (a workflow, a git hook, or
+# harness-gates-ci.sh) should DELETE its line here. A brand-new gate added with no caller is NOT
+# allowed to be appended here casually — the default expectation is that a new gate is wired; a
+# baseline entry is an explicit, reviewed admission of temporary debt.
+#
+# Format: one gate basename per line. Blank lines and #-comments ignored.
+
+# --- enforcement gates that exist but are not yet run by any CI job or hook ---
+no-internal-refs-gate.sh
+tracked-artifact-gate.sh
+fabricated-utc-gate.sh
+# real committed-content enforcement gate that currently REFUSEs (cannot render a verdict, exit 2): its
+# shipped-DDL-table -> src-write-path map does not yet cover ~18 shipped-DDL blocks, and its column-count
+# floor rejects legitimate low-column keyed tables. Wiring it blocking today would red CI on a REFUSE, not
+# a real defect; an advisory `|| true` wrapper would swallow the REFUSE into a false-green. Baselined as
+# explicit tracked debt until the map + floor are completed, then wired blocking and this line deleted.
+shipped-ddl-sweep.sh
+
+# --- beads/metrics + planning helpers invoked manually or only when their own file is staged ---
+bd-status-tokens.sh
+p0-denominator.sh
+validate-sprint-plan.sh
+# manual human-decision triage tool (emits a terminal disposition for a human to act on); it evaluates
+# nothing on src/ and its name is a forbidden workflow token, so it is structurally un-wireable as a
+# committed-content gate.
+premise-triage.sh

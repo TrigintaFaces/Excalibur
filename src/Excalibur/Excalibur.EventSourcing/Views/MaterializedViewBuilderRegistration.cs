@@ -10,7 +10,19 @@ namespace Excalibur.EventSourcing.Views;
 /// <param name="ViewType">The type of view being built.</param>
 /// <param name="BuilderType">The type of the builder implementation.</param>
 /// <param name="BuilderInstance">The builder instance.</param>
+/// <param name="Accessor">
+/// A strongly-typed store accessor for <paramref name="ViewType"/>, constructed at registration time
+/// (where the view type is statically known) so the processor never reflects at runtime.
+/// </param>
+/// <param name="Semantics">
+/// The delivery guarantee the projection declared (<see cref="IMaterializedViewBuilder{TView}.DeliverySemantics"/>),
+/// read from the builder at registration. Gates the atomic-store requirement: an
+/// <see cref="ViewDeliverySemantics.ExactlyOnce"/> view requires an atomic store, an
+/// <see cref="ViewDeliverySemantics.AtLeastOnceIdempotent"/> view may run on a non-atomic one.
+/// </param>
 internal sealed record MaterializedViewBuilderRegistration(
 	Type ViewType,
 	Type BuilderType,
-	object BuilderInstance);
+	object BuilderInstance,
+	ViewStoreAccessor Accessor,
+	ViewDeliverySemantics Semantics);

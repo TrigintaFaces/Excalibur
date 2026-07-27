@@ -9,7 +9,7 @@ namespace Excalibur.EventSourcing.Tests.DynamoDb;
 
 /// <summary>
 /// Tests for DynamoDbEventStoreOptions ISP split (S560.49) -- verifies Throughput sub-option binding,
-/// nested initializer syntax, backward-compatible shims, and DataAnnotations validation.
+/// nested initializer syntax, and DataAnnotations validation.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
@@ -84,75 +84,6 @@ public sealed class DynamoDbEventStoreOptionsIspSplitShould
 		options.UseTransactionalWrite.ShouldBeFalse();
 		options.Throughput.ReadCapacityUnits.ShouldBe(100);
 		options.Throughput.WriteCapacityUnits.ShouldBe(200);
-	}
-
-	#endregion
-
-	#region Backward-Compatible Shims
-
-	[Fact]
-	public void Shim_ReadCapacityUnits_DelegatesToThroughput()
-	{
-		var options = new DynamoDbEventStoreOptions();
-
-		// Set via shim
-		options.ReadCapacityUnits = 25;
-
-		// Read from Throughput
-		options.Throughput.ReadCapacityUnits.ShouldBe(25);
-
-		// Set via Throughput
-		options.Throughput.ReadCapacityUnits = 50;
-
-		// Read from shim
-		options.ReadCapacityUnits.ShouldBe(50);
-	}
-
-	[Fact]
-	public void Shim_WriteCapacityUnits_DelegatesToThroughput()
-	{
-		var options = new DynamoDbEventStoreOptions();
-
-		// Set via shim
-		options.WriteCapacityUnits = 30;
-
-		// Read from Throughput
-		options.Throughput.WriteCapacityUnits.ShouldBe(30);
-
-		// Set via Throughput
-		options.Throughput.WriteCapacityUnits = 60;
-
-		// Read from shim
-		options.WriteCapacityUnits.ShouldBe(60);
-	}
-
-	[Fact]
-	public void Shim_UseOnDemandCapacity_DelegatesToThroughput()
-	{
-		var options = new DynamoDbEventStoreOptions();
-
-		// Set via shim
-		options.UseOnDemandCapacity = false;
-
-		// Read from Throughput
-		options.Throughput.UseOnDemandCapacity.ShouldBeFalse();
-
-		// Set via Throughput
-		options.Throughput.UseOnDemandCapacity = true;
-
-		// Read from shim
-		options.UseOnDemandCapacity.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void Shim_DefaultValues_MatchThroughputDefaults()
-	{
-		var options = new DynamoDbEventStoreOptions();
-
-		// Shim defaults should mirror Throughput defaults
-		options.ReadCapacityUnits.ShouldBe(options.Throughput.ReadCapacityUnits);
-		options.WriteCapacityUnits.ShouldBe(options.Throughput.WriteCapacityUnits);
-		options.UseOnDemandCapacity.ShouldBe(options.Throughput.UseOnDemandCapacity);
 	}
 
 	#endregion

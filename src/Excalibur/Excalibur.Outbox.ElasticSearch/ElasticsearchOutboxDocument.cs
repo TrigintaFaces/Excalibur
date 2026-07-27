@@ -19,6 +19,14 @@ internal sealed class ElasticsearchOutboxDocument
 	public string? CorrelationId { get; set; }
 	public string? CausationId { get; set; }
 	public string? TenantId { get; set; }
+
+	// Consumer-supplied routing fields — persisted so they round-trip on reload (a dropped routing field is
+	// silent consumer-data loss).
+	public string? PartitionKey { get; set; }
+	public string? GroupKey { get; set; }
+	public string? TargetTransports { get; set; }
+	public bool IsMultiTransport { get; set; }
+
 	public string? LastError { get; set; }
 	public DateTimeOffset? ScheduledAt { get; set; }
 	public DateTimeOffset? SentAt { get; set; }

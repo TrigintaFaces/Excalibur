@@ -33,7 +33,7 @@ namespace Excalibur.Compliance.Azure;
 /// providing maximum security.
 /// </para>
 /// </remarks>
-public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKeyManagementAdmin, IDisposable
+public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
 {
 	private readonly KeyClient _keyClient;
 	private readonly ConcurrentDictionary<string, CryptographyClient> _cryptoClients = new();
@@ -303,7 +303,7 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKey
 	}
 
 	/// <inheritdoc />
-	public async Task<bool> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
+	public async Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrEmpty(keyId);
@@ -313,11 +313,12 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKey
 		{
 			var keyName = GetKeyName(keyId);
 
-			// Azure Key Vault has built-in soft-delete with configurable retention The retention period is configured at the vault level
+			// Azure Key Vault soft-deletes: the key stays recoverable until its vault-level retention window elapses
+			// (it is NOT irrecoverable on return). Report the disclosed purge instant honestly rather than a false completion.
 			var operation = await _keyClient.StartDeleteKeyAsync(keyName, cancellationToken).ConfigureAwait(false);
 
 			// Wait for deletion to complete
-			_ = await operation.WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
+			var deleted = await operation.WaitForCompletionAsync(cancellationToken).ConfigureAwait(false);
 
 			// Invalidate cache
 			InvalidateCache(keyId);
@@ -327,12 +328,15 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKey
 
 			LogKeyScheduledForDeletion(keyId);
 
-			return true;
+			// Prefer the vault's disclosed ScheduledPurgeDate; fall back to the requested/90-day window if unavailable.
+			var irreversibleAt = deleted.Value?.ScheduledPurgeDate
+				?? DateTimeOffset.UtcNow.AddDays(retentionDays > 0 ? retentionDays : 90);
+			return KeyDestructionOutcome.ScheduledAt(irreversibleAt);
 		}
 		catch (RequestFailedException ex) when (ex.Status == 404)
 		{
 			LogKeyNotFoundForDeletion(keyId);
-			return false;
+			return KeyDestructionOutcome.NotFound;
 		}
 		finally
 		{
@@ -378,6 +382,48 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKey
 		catch (RequestFailedException ex) when (ex.Status == 404)
 		{
 			LogKeyNotFoundForSuspension(keyId);
+			return false;
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task<bool> ReactivateKeyAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			var keyName = GetKeyName(keyId);
+
+			// Get current key
+			var response = await _keyClient.GetKeyAsync(keyName, cancellationToken: cancellationToken).ConfigureAwait(false);
+			var key = response.Value;
+
+			// Inverse of SuspendKeyAsync: re-enable the key natively and clear the suspension tags.
+			var properties = key.Properties;
+			properties.Enabled = true;
+			_ = properties.Tags.Remove("excalibur:suspended");
+			_ = properties.Tags.Remove("excalibur:suspension_reason");
+			_ = properties.Tags.Remove("excalibur:suspended_at");
+
+			_ = await _keyClient.UpdateKeyPropertiesAsync(properties, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			// Invalidate cache
+			InvalidateCache(keyId);
+
+			LogKeyReactivated(keyId);
+
+			return true;
+		}
+		catch (RequestFailedException ex) when (ex.Status == 404)
+		{
+			LogKeyNotFoundForReactivation(keyId);
 			return false;
 		}
 		finally
@@ -614,6 +660,14 @@ public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKey
 	[LoggerMessage(AzureKeyVaultEventId.KeyNotFoundForSuspension, LogLevel.Warning,
 		"Key {KeyId} not found for suspension")]
 	private partial void LogKeyNotFoundForSuspension(string keyId);
+
+	[LoggerMessage(AzureKeyVaultEventId.KeyReactivated, LogLevel.Information,
+		"Reactivated Azure Key Vault key {KeyId}")]
+	private partial void LogKeyReactivated(string keyId);
+
+	[LoggerMessage(AzureKeyVaultEventId.KeyNotFoundForReactivation, LogLevel.Warning,
+		"Key {KeyId} not found for reactivation")]
+	private partial void LogKeyNotFoundForReactivation(string keyId);
 
 	[LoggerMessage(AzureKeyVaultEventId.ProviderDisposed, LogLevel.Debug,
 		"AzureKeyVaultProvider disposed")]

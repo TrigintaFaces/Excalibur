@@ -34,48 +34,6 @@ public sealed class ObservabilityMetricsServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void AddCircuitBreakerMetricsRegistersServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddCircuitBreakerMetrics();
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		provider.GetService<ICircuitBreakerMetrics>().ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddCircuitBreakerMetricsThrowsOnNull()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((IServiceCollection)null!).AddCircuitBreakerMetrics());
-	}
-
-	[Fact]
-	public void AddDeadLetterQueueMetricsRegistersServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddDeadLetterQueueMetrics();
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		provider.GetService<IDeadLetterQueueMetrics>().ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void AddDeadLetterQueueMetricsThrowsOnNull()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			((IServiceCollection)null!).AddDeadLetterQueueMetrics());
-	}
-
-	[Fact]
 	public void AddAllDispatchMetricsRegistersAllServices()
 	{
 		// Arrange
@@ -87,8 +45,6 @@ public sealed class ObservabilityMetricsServiceCollectionExtensionsShould
 		// Assert
 		var provider = services.BuildServiceProvider();
 		provider.GetService<IDispatchMetrics>().ShouldNotBeNull();
-		provider.GetService<ICircuitBreakerMetrics>().ShouldNotBeNull();
-		provider.GetService<IDeadLetterQueueMetrics>().ShouldNotBeNull();
 	}
 
 	[Fact]

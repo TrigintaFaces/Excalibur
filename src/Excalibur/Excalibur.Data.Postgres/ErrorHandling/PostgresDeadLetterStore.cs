@@ -10,6 +10,7 @@ using System.Text.Json;
 using Dapper;
 
 using Excalibur.Data.Postgres.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Extensions.Logging;
@@ -29,14 +30,17 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 	private readonly ILogger<PostgresDeadLetterStore> _logger;
 	private readonly string _schema;
 	private readonly string _tableName;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresDeadLetterStore" /> class.
 	/// </summary>
 	/// <param name="options"> The Postgres dead letter options. </param>
+	/// <param name="tenantContext"> The ambient tenant, or <see langword="null" /> in a single-tenant host. </param>
 	/// <param name="logger"> The logger for diagnostic output. </param>
 	public PostgresDeadLetterStore(
 		IOptions<PostgresDeadLetterOptions> options,
+		ITenantContext? tenantContext,
 		ILogger<PostgresDeadLetterStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -48,8 +52,25 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		_connectionString = opts.ConnectionString;
 		_schema = opts.SchemaName;
 		_tableName = opts.TableName;
+
+		// Optional by construction: a single-tenant host registers no ITenantContext, which resolves to the
+		// untenanted partition. That partition still binds a concrete term, so no statement is ever emitted
+		// without a tenant predicate.
+		_tenantContext = tenantContext;
 		_logger = logger;
 	}
+
+	/// <summary>
+	/// Gets the tenant term bound by every statement this store emits: the ambient tenant, or the reserved
+	/// untenanted sentinel when no tenant is resolved.
+	/// </summary>
+	/// <remarks>
+	/// A dead-letter row holds the failed message body, so an unscoped read discloses one tenant's message
+	/// content to another. Routed through <see cref="KeyedTenantPartition" />, which has no empty
+	/// inhabitant, so the term is always concrete and a tenant-blind statement cannot arise by omission.
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
@@ -66,12 +87,12 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			CultureInfo.InvariantCulture,
 			"""
 			INSERT INTO "{0}"."{1}" (
-			id, message_id, message_type, message_body, message_metadata,
+			id, tenant_id, message_id, message_type, message_body, message_metadata,
 			reason, exception_details, processing_attempts, moved_to_dead_letter_at,
 			first_attempt_at, last_attempt_at, is_replayed, replayed_at,
 			source_system, correlation_id, properties
 			) VALUES (
-			@Id, @MessageId, @MessageType, @MessageBody, @MessageMetadata,
+			@Id, @TenantId, @MessageId, @MessageType, @MessageBody, @MessageMetadata,
 			@Reason, @ExceptionDetails, @ProcessingAttempts, @MovedToDeadLetterAt,
 			@FirstAttemptAt, @LastAttemptAt, @IsReplayed, @ReplayedAt,
 			@SourceSystem, @CorrelationId, @Properties::jsonb
@@ -85,6 +106,9 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			sql,
 			new
 			{
+				// Stamped from AMBIENT CONTEXT, never from the DTO: a caller-supplied tenant could name
+				// someone else's, so the value that scopes the row is not under the caller's control.
+				TenantId = CurrentTenantTerm,
 				message.Id,
 				message.MessageId,
 				message.MessageType,
@@ -118,7 +142,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			CultureInfo.InvariantCulture,
 			"""
 			SELECT * FROM "{0}"."{1}"
-			WHERE message_id = @MessageId
+			WHERE message_id = @MessageId AND tenant_id = @TenantId
 			LIMIT 1
 			""",
 			_schema,
@@ -127,7 +151,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		using var connection = CreateConnection();
 		var result = await connection.QueryFirstOrDefaultAsync<DeadLetterMessageDto>(
 			sql,
-			new { MessageId = messageId }).ConfigureAwait(false);
+			new { MessageId = messageId, TenantId = CurrentTenantTerm }).ConfigureAwait(false);
 
 		return result?.ToDeadLetterMessage();
 	}
@@ -139,12 +163,15 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 	{
 		ArgumentNullException.ThrowIfNull(filter);
 
+		// The tenant term is seeded as a MANDATORY clause rather than appended per-filter, so a filter that
+		// specifies nothing still returns only the caller's own rows instead of the whole estate.
 		var sql = $"""
 			SELECT * FROM "{_schema}"."{_tableName}"
-			WHERE 1=1
+			WHERE tenant_id = @TenantId
 			""";
 
 		var parameters = new DynamicParameters();
+		parameters.Add("TenantId", CurrentTenantTerm);
 
 		if (!string.IsNullOrWhiteSpace(filter.MessageType))
 		{
@@ -216,7 +243,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			"""
 			UPDATE "{0}"."{1}"
 			SET is_replayed = true, replayed_at = @ReplayedAt
-			WHERE message_id = @MessageId
+			WHERE message_id = @MessageId AND tenant_id = @TenantId
 			""",
 			_schema,
 			_tableName);
@@ -224,7 +251,8 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		using var connection = CreateConnection();
 		var rowsAffected = await connection.ExecuteAsync(
 			sql,
-			new { MessageId = messageId, ReplayedAt = DateTimeOffset.UtcNow }).ConfigureAwait(false);
+			new { MessageId = messageId, ReplayedAt = DateTimeOffset.UtcNow, TenantId = CurrentTenantTerm })
+			.ConfigureAwait(false);
 
 		if (rowsAffected > 0)
 		{
@@ -241,7 +269,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			CultureInfo.InvariantCulture,
 			"""
 			DELETE FROM "{0}"."{1}"
-			WHERE message_id = @MessageId
+			WHERE message_id = @MessageId AND tenant_id = @TenantId
 			""",
 			_schema,
 			_tableName);
@@ -249,7 +277,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		using var connection = CreateConnection();
 		var rowsAffected = await connection.ExecuteAsync(
 			sql,
-			new { MessageId = messageId }).ConfigureAwait(false);
+			new { MessageId = messageId, TenantId = CurrentTenantTerm }).ConfigureAwait(false);
 
 		if (rowsAffected > 0)
 		{
@@ -264,12 +292,15 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 	{
 		var sql = string.Format(
 			CultureInfo.InvariantCulture,
-			"""SELECT COUNT(*) FROM "{0}"."{1}" """,
+			// An admin count is still tenant-scoped: an estate-wide total tells one tenant how many failures
+			// every other tenant has, which is an inference channel even though no message body is returned.
+			"""SELECT COUNT(*) FROM "{0}"."{1}" WHERE tenant_id = @TenantId""",
 			_schema,
 			_tableName);
 
 		using var connection = CreateConnection();
-		return await connection.ExecuteScalarAsync<long>(sql).ConfigureAwait(false);
+		return await connection.ExecuteScalarAsync<long>(sql, new { TenantId = CurrentTenantTerm })
+			.ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -279,7 +310,7 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 			CultureInfo.InvariantCulture,
 			"""
 			DELETE FROM "{0}"."{1}"
-			WHERE moved_to_dead_letter_at < @CutoffDate
+			WHERE moved_to_dead_letter_at < @CutoffDate AND tenant_id = @TenantId
 			""",
 			_schema,
 			_tableName);
@@ -287,7 +318,8 @@ public sealed partial class PostgresDeadLetterStore : IDeadLetterStore, IDeadLet
 		using var connection = CreateConnection();
 		var rowsAffected = await connection.ExecuteAsync(
 			sql,
-			new { CutoffDate = DateTimeOffset.UtcNow.AddDays(-retentionDays) }).ConfigureAwait(false);
+			new { CutoffDate = DateTimeOffset.UtcNow.AddDays(-retentionDays), TenantId = CurrentTenantTerm })
+			.ConfigureAwait(false);
 
 		if (rowsAffected > 0)
 		{

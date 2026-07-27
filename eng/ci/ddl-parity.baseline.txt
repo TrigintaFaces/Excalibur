@@ -1,0 +1,21 @@
+# ddl-parity baseline — KNOWN provider-sibling DDL gaps, tracked, not forgiven.
+#
+# Each line is "<family>:<provider>" for a RELATIONAL provider package that ships no .sql
+# while a relational sibling in the same family ships one. These are real consumer-facing
+# gaps: a consumer installing the package cannot obtain the schema needed to run it, and the
+# framework does not auto-create tables.
+#
+# This file exists so the parity check can go live NOW against a tree that already has gaps,
+# without either (a) failing every commit until the DDL is authored, or (b) being weakened
+# into a warning that nobody reads. A listed gap is ALLOWED. Any gap NOT listed FAILS.
+#
+# Adding a line is a deliberate act and must reference the bead that will close it.
+# Removing a line is what "fixed" looks like. The set only shrinks.
+#
+# THE BASELINE IS ALSO CHECKED IN THE OTHER DIRECTION: a line here that is no longer a gap
+# (the DDL got authored) FAILS as STALE, so this file cannot silently accumulate entries that
+# forgive nothing. A suppression list nobody prunes becomes a way to hide the next regression.
+
+Excalibur.EventSourcing:Sqlite
+Excalibur.Outbox:Oracle
+Excalibur.Outbox:Postgres

@@ -34,12 +34,12 @@ public sealed class PipelineBuilderDefaultsShould
 			.Build();
 
 		// Assert -- UseDefaults registers these 5 in order
-		profile.MiddlewareTypes.Count.ShouldBe(5);
-		profile.MiddlewareTypes[0].ShouldBe(typeof(ValidationMiddleware));
-		profile.MiddlewareTypes[1].ShouldBe(typeof(LoggingMiddleware));
-		profile.MiddlewareTypes[2].ShouldBe(typeof(TimeoutMiddleware));
-		profile.MiddlewareTypes[3].ShouldBe(typeof(RetryMiddleware));
-		profile.MiddlewareTypes[4].ShouldBe(typeof(ExceptionMappingMiddleware));
+		profile.MiddlewareEntries.Count.ShouldBe(5);
+		profile.MiddlewareEntries[0].MiddlewareType.ShouldBe(typeof(ValidationMiddleware));
+		profile.MiddlewareEntries[1].MiddlewareType.ShouldBe(typeof(LoggingMiddleware));
+		profile.MiddlewareEntries[2].MiddlewareType.ShouldBe(typeof(TimeoutMiddleware));
+		profile.MiddlewareEntries[3].MiddlewareType.ShouldBe(typeof(RetryMiddleware));
+		profile.MiddlewareEntries[4].MiddlewareType.ShouldBe(typeof(ExceptionMappingMiddleware));
 	}
 
 	[Fact]

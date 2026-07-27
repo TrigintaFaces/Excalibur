@@ -458,9 +458,7 @@ public sealed class DomainEventSerializationContractShould
 		// Arrange - uses the DomainEvent abstract record base class
 		var original = new OrderCreatedEvent("order-rec-1", 199.99m)
 		{
-			AggregateId = "order-rec-1",
 			EventId = "evt-record",
-			Version = 10,
 			OccurredAt = new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero),
 		};
 
@@ -470,8 +468,6 @@ public sealed class DomainEventSerializationContractShould
 
 		// Assert
 		deserialized.EventId.ShouldBe("evt-record");
-		deserialized.AggregateId.ShouldBe("order-rec-1");
-		deserialized.Version.ShouldBe(10);
 		deserialized.OccurredAt.ShouldBe(original.OccurredAt);
 		deserialized.EventType.ShouldBe(nameof(OrderCreatedEvent));
 		deserialized.OrderId.ShouldBe("order-rec-1");

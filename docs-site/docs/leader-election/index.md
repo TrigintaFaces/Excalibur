@@ -37,10 +37,38 @@ Leader election ensures only one instance in a distributed system performs a spe
 | Scenario | Why Leader Election |
 |----------|---------------------|
 | Outbox message publishing | Prevent duplicate message sends |
-| Scheduled job processing | Run cron jobs exactly once |
+| Scheduled job processing | Keep a cron job to one instance at a time — see the caveat below before treating that as *exactly* once |
 | Cache warming | Single instance warms cache |
 | Event projection updates | Prevent duplicate projections |
 | Singleton background services | Only one active instance |
+
+:::warning Leadership is at-most-one, bounded by lease expiry plus grace — not a distributed lock
+
+Every scenario above is *"one instance at a time"*, which is **not** the same as *"exactly once"*. The
+guarantee is: two candidates never both consider themselves leader **except** within a window bounded by the
+incumbent's lease expiry plus its configured grace period. Outside that window leadership is mutually
+exclusive; inside it, two instances can briefly both believe they lead.
+
+**So leadership alone does not protect a non-idempotent side effect.** To make the work safe, either make it
+idempotent, or **fence the resource**: pin `CurrentLeadership` once per tenure, carry its fencing token into
+every write, and require the downstream store to reject a stale token. Checking a boolean "am I the leader?"
+before acting is not sufficient — the answer can be stale by the time the write lands.
+
+Set the grace period below the tolerance of whatever you are protecting; it is the upper bound on how long a
+candidate that has lost contact may still act as leader.
+
+:::
+
+:::note Outbox draining is fenced automatically
+Registering an `ILeaderElection` provider makes the [outbox](../patterns/outbox.md#multi-instance-leader-fenced-processing)
+drain **single-active (leader-fenced) by default** — the multi-instance signal is the registration itself,
+so no separate opt-in is needed. A store that cannot enforce a fencing high-water mark fails fast at
+startup; a genuine single-active-writer deployment opts out explicitly with `AsSingleWriter()`. How
+durably a superseded leader stays fenced varies by store — see
+[Multi-Instance (Leader-Fenced) Processing](../patterns/outbox.md#multi-instance-leader-fenced-processing)
+before relying on it, particularly on SQL Server. The manual `ILeaderElection` API below is for
+coordinating your **own** workloads (jobs, projections, cache warming).
+:::
 
 ## Core Concepts
 
@@ -83,6 +111,12 @@ public interface ILeaderElection
     /// Event raised when the leader changes (any instance).
     /// </summary>
     event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
+
+    /// <summary>
+    /// Event raised when this instance fails to acquire leadership, either by losing the
+    /// acquisition race or because an error occurred during the attempt.
+    /// </summary>
+    event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
 
     /// <summary>
     /// Gets the unique identifier for this election participant.
@@ -480,6 +514,29 @@ public class TenantProcessorService : BackgroundService
 }
 ```
 
+:::tip Fail-closed tenant scoping
+The example above builds the per-tenant lease name (`$"tenant-{id}"`) by hand. When you already have an
+ambient [`ITenantContext`](../multi-tenancy.md), prefer the opt-in tenant-scoped extensions, which qualify the
+lease with the current tenant and **fail closed** when no tenant is resolved — so a missing tenant can never
+silently collapse into an unscoped, cross-tenant lease:
+
+```csharp
+using Excalibur.Dispatch.LeaderElection;
+
+// Lease is scoped to the ambient tenant: "outbox-drain:{tenantId}".
+// Throws TenantRequiredException if no tenant is resolved.
+ILeaderElection election = factory.CreateTenantScopedElection(
+    tenantContext, resourceName: "outbox-drain", candidateId: null);
+
+// Health-based variant:
+IHealthBasedLeaderElection healthElection = factory.CreateTenantScopedHealthBasedElection(
+    tenantContext, resourceName: "outbox-drain", candidateId: null);
+```
+
+`ITenantContext.TenantScopedResourceName("outbox-drain")` composes the `"{resourceName}:{tenantId}"` name
+directly if you want to scope a lease name yourself.
+:::
+
 ## Basic Usage
 
 ### Event-Based Leadership Pattern
@@ -734,8 +791,8 @@ builder.Services.AddExcaliburKubernetesLeaderElectionHostedService(
     "my-processor",
     options =>
     {
-        options.LeaseDurationSeconds = 15;
-        options.RenewIntervalMilliseconds = 10_000;
+        options.LeaseDuration = TimeSpan.FromSeconds(15);
+        options.RenewInterval = TimeSpan.FromSeconds(10);
     });
 ```
 
@@ -916,6 +973,42 @@ public class LeadershipAwareProcessor : BackgroundService
     }
 }
 ```
+
+### Observing Acquisition Failures
+
+`BecameLeader` and `LostLeadership` only tell you when leadership *changes*. A follower that repeatedly loses
+the acquisition race — or an instance hitting backend errors on every attempt — never raises either event, so
+contention and connectivity problems can stay invisible. The `AcquisitionFailed` event closes that gap: it is
+raised whenever this instance fails to acquire leadership, either by losing the race to another candidate or
+because the acquisition attempt threw.
+
+```csharp
+_leaderElection.AcquisitionFailed += (_, args) =>
+{
+    // args.CandidateId   — this instance's candidate ID
+    // args.ResourceName  — the contended resource
+    // args.Reason        — short, human-readable failure reason
+    // args.Exception     — the error, or null when it was simply a lost race
+    // args.Timestamp     — when the failure occurred (UTC)
+
+    if (args.Exception is not null)
+        _logger.LogWarning(args.Exception,
+            "Leader acquisition error for {Resource}: {Reason}", args.ResourceName, args.Reason);
+};
+```
+
+:::note Cadence
+
+`AcquisitionFailed` fires **per failed acquisition attempt** — that is, roughly once per poll while this
+instance is a standby follower — **not** once per leadership state transition. Expect it to fire steadily on
+every non-leader instance under normal operation; treat a raised `Exception` (rather than a plain lost race)
+as the actionable signal.
+
+:::
+
+When the telemetry decorator is active (`Excalibur.LeaderElection` with observability), each failure is also
+recorded on the leader-election acquisitions counter with a `result=failed` tag, so you can alert on failed
+acquisitions without wiring the event yourself.
 
 ### Multiple Leader Elections
 
@@ -1166,6 +1259,43 @@ Each candidate exposes health information:
 | `IsLeader` | `bool` | Whether this candidate is the current leader |
 | `LastUpdated` | `DateTimeOffset` | When health was last reported |
 | `Metadata` | `IDictionary<string, string>` | Custom health metadata |
+
+## Fencing tokens
+
+A fencing token is a strictly monotonic number minted on each leadership acquisition. Passing it to a shared resource lets that resource **reject a write from a stale leader** — one that was paused (GC, network partition) long enough to lose leadership without noticing — because the stale leader's token is lower than the token the resource has already seen. Fencing tokens are the standard defence against the split-brain write hazard.
+
+Enable them through the builder, and register the backend's fencing-token provider:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+// Kubernetes leader election with fencing tokens
+services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
+    .UseKubernetes(opts => opts.Namespace = "default")
+    .WithFencingTokens()));
+
+services.AddKubernetesFencingTokenProvider();
+```
+
+Each backend ships a matching registration:
+
+| Extension | Package |
+|-----------|---------|
+| `AddConsulFencingTokenProvider()` | `Excalibur.LeaderElection.Consul` |
+| `AddKubernetesFencingTokenProvider()` | `Excalibur.LeaderElection.Kubernetes` |
+| `AddMongoDbFencingTokenProvider()` | `Excalibur.LeaderElection.MongoDB` |
+
+Consul, Kubernetes, MongoDB, Postgres, Redis, and SQL Server leader election all accept an optional `IFencingTokenProvider`.
+
+:::note MongoDB fences durably by default
+MongoDB leader election defaults to a **durable per-resource fencing counter** — a separate, TTL-free collection — when you don't supply your own provider. This is deliberate: a token stored in the lock document itself would be reset when the lock document is deleted on graceful release or expired by its TTL index, letting a stale token from a restarted instance validate as current (split-brain). The durable counter never resets. Registering `AddMongoDbFencingTokenProvider()` or supplying any `IFencingTokenProvider` overrides the default.
+:::
+
+### Token exhaustion fails closed
+
+Because tokens must never wrap or repeat — a reused value would let a stale leader validate as current — a provider that cannot mint the next monotonic token throws `FencingTokenExhaustedException` (namespace `Excalibur.Dispatch.LeaderElection.Fencing`) and **fails closed**: it refuses to mint, so leadership cannot be granted or renewed, and a leader that hits exhaustion mid-tenure relinquishes rather than continue with an unsafe token.
+
+Exhaustion is practically unreachable for the 64-bit self-minting domains (Consul and MongoDB mint their own `long` counters). It is reachable only for a narrow native counter — notably a Kubernetes `Lease.spec.leaseTransitions`, which is a 32-bit value.
 
 ## Troubleshooting
 

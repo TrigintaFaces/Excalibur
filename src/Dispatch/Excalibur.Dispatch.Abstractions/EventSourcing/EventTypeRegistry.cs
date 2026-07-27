@@ -30,6 +30,13 @@ internal sealed class EventTypeRegistry : IEventTypeRegistry
 	private readonly ConcurrentDictionary<Type, string> _byType = new();
 
 	/// <summary>
+	/// Gets a value indicating whether no event types have been registered. Used by the event-sourcing
+	/// startup guard to fail fast when the default type-rejecting serializer is paired with an empty
+	/// allow-list (a configuration that bricks every aggregate replay).
+	/// </summary>
+	internal bool IsEmpty => _byName.IsEmpty;
+
+	/// <summary>
 	/// Registers an event type for secure name-based resolution.
 	/// </summary>
 	/// <param name="eventType">The event type to register.</param>

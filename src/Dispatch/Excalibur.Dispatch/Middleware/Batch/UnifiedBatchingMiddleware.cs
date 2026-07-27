@@ -30,7 +30,6 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 /// <item> Comprehensive observability and metrics </item>
 /// </list>
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="UnifiedBatchingMiddleware" /> class. </remarks>
 /// <param name="options"> The unified batching options. </param>
 /// <param name="logger"> The logger. </param>
 /// <param name="loggerFactory"> The logger factory. </param>

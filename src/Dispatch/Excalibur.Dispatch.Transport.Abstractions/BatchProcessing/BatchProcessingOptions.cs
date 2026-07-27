@@ -29,12 +29,6 @@ public sealed class BatchCollectionOptions
 	/// </summary>
 	/// <value>The <see cref="TimeSpan"/> allowed for aggregating messages before a partial dispatch.</value>
 	public TimeSpan CollectionTimeout { get; set; } = TimeSpan.FromSeconds(5);
-
-	/// <summary>
-	/// Gets or sets the batch completion strategy.
-	/// </summary>
-	/// <value>The strategy used to determine when the batch is ready to be processed.</value>
-	public BatchCompletionStrategy CompletionStrategy { get; set; } = BatchCompletionStrategy.Size;
 }
 
 /// <summary>

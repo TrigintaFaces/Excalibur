@@ -41,4 +41,14 @@ public interface IRabbitMQQueuePolicyBuilder
 	/// <returns>The builder for chaining.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxBytes"/> is less than 1.</exception>
 	IRabbitMQQueueBuilder MaxLengthBytes(long maxBytes);
+
+	/// <summary>
+	/// Sets the maximum inbound-payload length, in bytes, enforced at receive ingress before the body
+	/// is materialized (defense-in-depth DoS hardening). An over-limit message is rejected before
+	/// deserialization.
+	/// </summary>
+	/// <param name="maxBytes">The maximum payload length in bytes, or <see langword="null"/> to opt out (unbounded).</param>
+	/// <returns>The builder for chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxBytes"/> is less than 1.</exception>
+	IRabbitMQQueueBuilder MaxPayloadBytes(int? maxBytes);
 }

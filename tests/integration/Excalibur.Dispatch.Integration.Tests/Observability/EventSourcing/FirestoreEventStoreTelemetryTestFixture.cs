@@ -5,6 +5,8 @@ using MsOptions = Microsoft.Extensions.Options.Options;
 using Excalibur.EventSourcing.Firestore;
 using Excalibur.EventSourcing.Observability;
 
+using Google.Api.Gax;
+
 using Google.Cloud.Firestore;
 
 using Grpc.Core;
@@ -97,11 +99,17 @@ public sealed class FirestoreEventStoreTelemetryTestFixture : IAsyncLifetime, ID
 
 			// Use FirestoreDbBuilder with explicit endpoint and insecure credentials
 			// This is required for emulator connections - environment variables don't work reliably
+			// EmulatorOnly makes the SDK speak EMULATOR semantics; an explicit Endpoint alone leaves it
+			// behaving as though this were a real deployment, so the emulator rejects admin-ish calls with
+			// PermissionDenied "Metadata operations require admin authentication." EmulatorOnly and an
+			// explicit Endpoint/ChannelCredentials are mutually exclusive: the SDK builds its own channel
+			// from FIRESTORE_EMULATOR_HOST and throws from GaxPreconditions.CheckState if given both.
+			Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
+
 			var firestoreDbBuilder = new FirestoreDbBuilder
 			{
 				ProjectId = ProjectId,
-				Endpoint = _container.GetEmulatorEndpoint(),
-				ChannelCredentials = ChannelCredentials.Insecure,
+				EmulatorDetection = EmulatorDetection.EmulatorOnly,
 			};
 			_firestoreDb = await firestoreDbBuilder.BuildAsync().ConfigureAwait(false);
 

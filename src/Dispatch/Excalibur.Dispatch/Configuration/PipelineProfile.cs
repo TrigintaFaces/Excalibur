@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <summary>
 /// Represents a pipeline profile with ordered middleware for specific message kinds.
 /// </summary>
-public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
+internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindCache = new();
@@ -82,7 +82,30 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 	public MessageKinds SupportedKinds { get; }
 
 	/// <inheritdoc />
-	public IReadOnlyList<Type> MiddlewareTypes => GetMiddleware();
+	/// <remarks>
+	/// Projected from the same ordered snapshot <see cref="GetOrderedMiddlewareSnapshot" /> returns, so there is one source of truth for what this profile
+	/// declares. Entries are <see cref="MiddlewareCriticality.Required" />: a profile that names a middleware has asked for it, and a
+	/// pipeline that cannot materialize it must say so rather than build without it.
+	/// </remarks>
+	public IReadOnlyList<MiddlewareEntry> MiddlewareEntries
+	{
+		get
+		{
+			var snapshot = GetOrderedMiddlewareSnapshot();
+			if (snapshot.Length == 0)
+			{
+				return [];
+			}
+
+			var entries = new MiddlewareEntry[snapshot.Length];
+			for (var i = 0; i < snapshot.Length; i++)
+			{
+				entries[i] = new MiddlewareEntry(snapshot[i].MiddlewareType, snapshot[i].Criticality);
+			}
+
+			return Array.AsReadOnly(entries);
+		}
+	}
 
 	/// <inheritdoc />
 	public bool IsStrict { get; set; }
@@ -92,51 +115,6 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 	/// <inheritdoc />
 	public string Description { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Creates a strict pipeline profile for Actions (Commands/Queries).
-	/// </summary>
-	/// <returns> A strict pipeline profile. </returns>
-	public static PipelineProfile CreateStrictProfile()
-	{
-		var profile = new PipelineProfile(
-			"Strict",
-			"Strict pipeline for Actions (Commands/Queries) with full validation and security",
-			Array.Empty<Type>(), // Default middleware types will be added by pipeline synthesizer per R7.6
-			isStrict: true,
-			supportedMessageKinds: MessageKinds.Action);
-
-		return profile;
-	}
-
-	/// <summary>
-	/// Creates a lightweight pipeline profile for internal events.
-	/// </summary>
-	/// <returns> A lightweight pipeline profile for events. </returns>
-	public static PipelineProfile CreateInternalEventProfile()
-	{
-		var profile = new PipelineProfile(
-			"InternalEvent",
-			"Lightweight pipeline for internal events",
-			Array.Empty<Type>(), // Default middleware types will be added by pipeline synthesizer per R7.6
-			isStrict: false,
-			supportedMessageKinds: MessageKinds.Event);
-
-		return profile;
-	}
-
-	/// <inheritdoc />
-	public IReadOnlyList<Type> GetMiddleware()
-	{
-		var snapshot = Volatile.Read(ref _orderedMiddlewareTypesSnapshot);
-		if (snapshot != null)
-		{
-			return snapshot;
-		}
-
-		_ = GetOrderedMiddlewareSnapshot();
-		return _orderedMiddlewareTypesSnapshot ?? [];
-	}
 
 	/// <inheritdoc />
 	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind)
@@ -172,12 +150,32 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		AddMiddleware(typeof(TMiddleware), order);
 
 	/// <summary>
+	/// Adds middleware to the profile with the specified order and criticality.
+	/// </summary>
+	/// <typeparam name="TMiddleware"> The middleware type. </typeparam>
+	/// <param name="order"> The execution order. </param>
+	/// <param name="criticality"> Whether the built pipeline may omit this middleware when it cannot be materialized. </param>
+	public void AddMiddleware<TMiddleware>(int order, MiddlewareCriticality criticality)
+		where TMiddleware : IDispatchMiddleware =>
+		AddMiddleware(typeof(TMiddleware), order, criticality);
+
+	/// <summary>
 	/// Adds middleware to the profile with the specified order.
 	/// </summary>
 	/// <param name="middlewareType"> The middleware type. </param>
 	/// <param name="order"> The execution order. </param>
 	/// <exception cref="ArgumentException"></exception>
-	public void AddMiddleware(Type middlewareType, int order)
+	public void AddMiddleware(Type middlewareType, int order) =>
+		AddMiddleware(middlewareType, order, MiddlewareCriticality.Required);
+
+	/// <summary>
+	/// Adds middleware to the profile with the specified order and criticality.
+	/// </summary>
+	/// <param name="middlewareType"> The middleware type. </param>
+	/// <param name="order"> The execution order. </param>
+	/// <param name="criticality"> Whether the built pipeline may omit this middleware when it cannot be materialized. </param>
+	/// <exception cref="ArgumentException"> The type does not implement <see cref="IDispatchMiddleware" />. </exception>
+	public void AddMiddleware(Type middlewareType, int order, MiddlewareCriticality criticality)
 	{
 		ArgumentNullException.ThrowIfNull(middlewareType);
 
@@ -189,7 +187,7 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 				nameof(middlewareType));
 		}
 
-		var registration = CreateMiddlewareRegistration(middlewareType, order);
+		var registration = CreateMiddlewareRegistration(middlewareType, order, criticality);
 
 		if (_middleware.TryAdd(middlewareType, registration))
 		{
@@ -313,16 +311,6 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		return MessageKinds.Action; // Default to Action for unknown types
 	}
 
-	private static bool IsApplicableToMessageKind(MiddlewareRegistration registration, MessageKinds messageKind)
-	{
-		if ((registration.ExcludedKinds & messageKind) != MessageKinds.None)
-		{
-			return false;
-		}
-
-		return (registration.IncludedKinds & messageKind) != MessageKinds.None;
-	}
-
 	/// <summary>
 	/// Checks if middleware has all required features enabled.
 	/// </summary>
@@ -373,11 +361,14 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 			return [];
 		}
 
+		// akwb5j: kind applicability is the runtime property strategy's job; filter only on features here.
+		_ = messageKind;
+
 		var applicable = new List<Type>(snapshot.Length);
 		for (var i = 0; i < snapshot.Length; i++)
 		{
 			ref readonly var registration = ref snapshot[i];
-			if (IsApplicableToMessageKind(registration, messageKind) && registration.RequiredFeatures.Length == 0)
+			if (registration.RequiredFeatures.Length == 0)
 			{
 				applicable.Add(registration.MiddlewareType);
 			}
@@ -396,12 +387,14 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 			return [];
 		}
 
+		// akwb5j: kind applicability is the runtime property strategy's job; filter only on features here.
+		_ = messageKind;
+
 		var applicable = new List<Type>(snapshot.Length);
 		for (var i = 0; i < snapshot.Length; i++)
 		{
 			ref readonly var registration = ref snapshot[i];
-			if (IsApplicableToMessageKind(registration, messageKind) &&
-				HasRequiredFeatures(registration, enabledFeatures))
+			if (HasRequiredFeatures(registration, enabledFeatures))
 			{
 				applicable.Add(registration.MiddlewareType);
 			}
@@ -446,12 +439,15 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 		}
 	}
 
-	private MiddlewareRegistration CreateMiddlewareRegistration(Type middlewareType, int order)
+	private MiddlewareRegistration CreateMiddlewareRegistration(
+		Type middlewareType,
+		int order,
+		MiddlewareCriticality criticality = MiddlewareCriticality.Required)
 	{
-		var appliesToAttribute =
-			System.Reflection.CustomAttributeExtensions.GetCustomAttribute<AppliesToAttribute>(middlewareType, inherit: true);
-		var excludeKindsAttribute =
-			System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ExcludeKindsAttribute>(middlewareType, inherit: true);
+		// akwb5j: message-kind applicability is resolved at runtime from each middleware's
+		// ApplicableMessageKinds property via IMiddlewareApplicabilityStrategy (the single source of truth).
+		// The build-time [AppliesTo]/[ExcludeKinds] kinds filter was a divergent second source and is removed;
+		// only the orthogonal [RequiresFeatures] gate remains.
 		var requiresFeaturesAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<RequiresFeaturesAttribute>(
 			middlewareType,
 			inherit: true);
@@ -476,9 +472,8 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 			MiddlewareType = middlewareType,
 			Order = order,
 			RegistrationSequence = Interlocked.Increment(ref _registrationSequence),
-			IncludedKinds = appliesToAttribute?.MessageKinds ?? MessageKinds.All,
-			ExcludedKinds = excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
 			RequiredFeatures = requiredFeatureArray,
+			Criticality = criticality,
 		};
 	}
 
@@ -522,10 +517,15 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 		public required long RegistrationSequence { get; init; }
 
-		public required MessageKinds IncludedKinds { get; init; }
-
-		public required MessageKinds ExcludedKinds { get; init; }
-
 		public required DispatchFeatures[] RequiredFeatures { get; init; }
+
+		/// <summary>
+		/// Whether the built pipeline may omit this entry when it cannot be materialized.
+		/// </summary>
+		/// <remarks>
+		/// Defaults to <see cref="MiddlewareCriticality.Required" />, which governs entries authored without stating a criticality. The
+		/// framework's own shipped profiles state theirs explicitly, so changing this default cannot silently alter what ships.
+		/// </remarks>
+		public MiddlewareCriticality Criticality { get; init; } = MiddlewareCriticality.Required;
 	}
 }

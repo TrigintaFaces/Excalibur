@@ -14,8 +14,6 @@ namespace Excalibur.Saga.Orchestration;
 /// </summary>
 public static class SagaRegistry
 {
-	private const int MaxCacheEntries = 1024;
-
 	private static readonly ConcurrentDictionary<Type, SagaInfo> EventToSagaMap = new();
 
 	/// <summary>
@@ -37,12 +35,12 @@ public static class SagaRegistry
 		var info = new SagaInfo(typeof(TSaga), typeof(TSagaState));
 		configure(info);
 
+		// The event-to-saga map is a registration table bounded by the declared saga types at startup,
+		// NOT a runtime cache — every handled event MUST route. A skip-when-full cap (mis-applied from
+		// the recomputable-cache pattern) would silently drop routes for sagas registered past the cap.
 		foreach (var eventType in info.GetHandledEvents())
 		{
-			if (EventToSagaMap.Count < MaxCacheEntries)
-			{
-				EventToSagaMap[eventType] = info;
-			}
+			EventToSagaMap[eventType] = info;
 		}
 	}
 

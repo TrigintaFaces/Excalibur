@@ -202,6 +202,57 @@ public static class DispatchBuilderObservabilityExtensions
 	}
 
 	/// <summary>
+	/// Adds producer-side W3C Trace Context injection middleware to the dispatch pipeline.
+	/// </summary>
+	/// <param name="builder">The dispatch builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> is null.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This middleware injects the ambient <c>traceparent</c>/<c>tracestate</c> onto the
+	/// outgoing message context (built on the BCL <c>DistributedContextPropagator</c>) so the
+	/// transport-serialized envelope carries it and the distributed trace continues to the
+	/// consumer. Symmetric with the inbound extraction added by <see cref="UseW3CTraceContext"/>.
+	/// Propagation fails open: an injection error is logged and skipped, never breaking the send.
+	/// </para>
+	/// </remarks>
+	public static IDispatchBuilder UseW3CTraceContextInjection(this IDispatchBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		builder.Services.TryAddSingleton<W3CTraceContextInjectionMiddleware>();
+		return builder.UseMiddleware<W3CTraceContextInjectionMiddleware>();
+	}
+
+	/// <summary>
+	/// Adds producer-side B3 Trace Context injection middleware to the dispatch pipeline.
+	/// </summary>
+	/// <param name="builder">The dispatch builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> is null.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This middleware injects the B3 trace-context headers (<c>b3</c> / <c>x-b3-*</c>) onto the
+	/// outgoing message context (built on the OpenTelemetry B3 propagator) so the transport-serialized
+	/// envelope carries them and the distributed trace continues to consumers that speak the B3
+	/// propagation format. It is the B3 counterpart to <see cref="UseW3CTraceContextInjection"/> and is
+	/// opt-in: register it only when interoperating with B3-based systems. Propagation fails open: an
+	/// injection error is logged and skipped, never breaking the send.
+	/// </para>
+	/// </remarks>
+	public static IDispatchBuilder UseB3TraceContextInjection(this IDispatchBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		builder.Services.TryAddSingleton<B3TraceContextInjectionMiddleware>();
+		return builder.UseMiddleware<B3TraceContextInjectionMiddleware>();
+	}
+
+	/// <summary>
 	/// Adds trace sampling middleware to the dispatch pipeline.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>

@@ -22,6 +22,14 @@ namespace Excalibur.Dispatch;
 /// <item><description>Multi-handler support - different handlers can process the same message independently</description></item>
 /// </list>
 /// <para>
+/// <b>Durability fault model.</b> Every mutating operation is <em>fail-loud</em>: a successful (non-faulted)
+/// return guarantees the corresponding state change was durably recorded before the returned task completed,
+/// and a persistence failure is surfaced as a thrown exception — never swallowed as a silent no-op. Callers
+/// may therefore treat a completed <see cref="MarkProcessedAsync"/> / <see cref="TryMarkAsProcessedAsync"/>
+/// as proof that the dedup record is persisted, so at-least-once redelivery combined with an idempotent
+/// handler yields at-most-once effects even across a process crash.
+/// </para>
+/// <para>
 /// Interface uses ValueTask for synchronous completion optimization.
 /// In-memory implementations complete synchronously without allocation overhead.
 /// </para>
@@ -52,6 +60,11 @@ public interface IInboxStore
 	/// <summary>
 	/// Marks a message as successfully processed for a specific handler.
 	/// </summary>
+	/// <remarks>
+	/// When this operation completes without faulting, the processed marker is guaranteed to be durably
+	/// persisted. A persistence failure MUST propagate as a thrown exception; the operation MUST NOT return
+	/// successfully while leaving the marker unrecorded (a silent no-op would break dedup across a crash).
+	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message to mark as processed.</param>
 	/// <param name="handlerType">The fully qualified type name of the handler that processed the message.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
@@ -72,6 +85,12 @@ public interface IInboxStore
 	/// <para>
 	/// This is the preferred method for idempotent message handling as it combines the check-and-mark
 	/// operation atomically, preventing race conditions in concurrent processing scenarios.
+	/// </para>
+	/// <para>
+	/// The <see langword="bool"/> result is only returned once the atomic claim has been durably persisted:
+	/// a <c>true</c> result guarantees this caller is the recorded first writer, and a <c>false</c> result
+	/// guarantees an existing durable record. A persistence failure MUST throw rather than return a value, so
+	/// the boolean decision is never backed by unpersisted state.
 	/// </para>
 	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message.</param>

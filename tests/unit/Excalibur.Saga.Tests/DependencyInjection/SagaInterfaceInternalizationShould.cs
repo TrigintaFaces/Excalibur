@@ -16,17 +16,6 @@ public sealed class SagaInterfaceInternalizationShould
     private static readonly Assembly SagaAssembly = typeof(SagaOptions).Assembly;
 
     [Fact]
-    public void HaveISagaReminderAsInternal()
-    {
-        // Act
-        var type = SagaAssembly.GetType("Excalibur.Saga.Reminders.ISagaReminder");
-
-        // Assert — type exists but is not public
-        type.ShouldNotBeNull("ISagaReminder should exist in the assembly");
-        type.IsPublic.ShouldBeFalse("ISagaReminder should be internal per bd-uu6j5a");
-    }
-
-    [Fact]
     public void HaveISagaOutboxMediatorAsInternal()
     {
         // Act

@@ -30,6 +30,7 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Google" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Pulsar" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Unit" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Integration" />

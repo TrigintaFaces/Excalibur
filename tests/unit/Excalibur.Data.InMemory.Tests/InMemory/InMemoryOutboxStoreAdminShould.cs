@@ -77,7 +77,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 
 		methodNames.ShouldContain("GetFailedMessagesAsync");
 		methodNames.ShouldContain("GetScheduledMessagesAsync");
-		methodNames.ShouldContain("CleanupSentMessagesAsync");
+		methodNames.ShouldContain("CleanupAllTenantsSentMessagesAsync");
 		methodNames.ShouldContain("GetStatisticsAsync");
 	}
 
@@ -382,12 +382,12 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 
 	#endregion
 
-	#region CleanupSentMessagesAsync Tests
+	#region CleanupAllTenantsSentMessagesAsync Tests
 
 	[Fact]
 	public async Task CleanupSentMessages_EmptyStore_ReturnsZero()
 	{
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(1), 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -401,7 +401,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		var message = CreateTestMessage();
 		await _store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(1), 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -416,7 +416,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		await _store.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
 
 		// Clean up everything sent before 1 hour from now (includes all just-sent)
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(1), 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -435,7 +435,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		await _store.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
 
 		// Clean up only messages sent before 1 hour ago (our message was just sent)
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(-1), 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -455,7 +455,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		await _store.StageMessageAsync(sent, CancellationToken.None).ConfigureAwait(false);
 		await _store.MarkSentAsync(sent.Id, CancellationToken.None).ConfigureAwait(false);
 
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(1), 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -478,7 +478,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		await _store.MarkFailedAsync(failed.Id, "Error", 1, CancellationToken.None).ConfigureAwait(false);
 		await _store.MarkSentAsync(sent.Id, CancellationToken.None).ConfigureAwait(false);
 
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(1), 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -500,7 +500,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 			await _store.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
 		}
 
-		var result = await _admin.CleanupSentMessagesAsync(
+		var result = await _admin.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddHours(1), 2, CancellationToken.None)
 			.ConfigureAwait(false);
 
@@ -757,7 +757,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		_store.Dispose();
 
 		_ = await Should.ThrowAsync<ObjectDisposedException>(async () =>
-			await _admin.CleanupSentMessagesAsync(DateTimeOffset.UtcNow, 100, CancellationToken.None)
+			await _admin.CleanupAllTenantsSentMessagesAsync(DateTimeOffset.UtcNow, 100, CancellationToken.None)
 				.ConfigureAwait(false));
 	}
 

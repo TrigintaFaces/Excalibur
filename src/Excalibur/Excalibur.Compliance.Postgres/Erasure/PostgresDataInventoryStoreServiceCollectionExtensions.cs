@@ -38,6 +38,7 @@ public static class PostgresDataInventoryStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresDataInventoryStoreOptions>,
 				PostgresDataInventoryStoreOptionsValidator>());
 
+		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
 		services.TryAddSingleton<PostgresDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<PostgresDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<PostgresDataInventoryStore>());

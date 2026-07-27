@@ -14,18 +14,15 @@ public sealed class DomainEventShould
 
 	}
 
-	// Derived record with positional params and AggregateId override
-	private sealed record TestOrderCreated(string OrderId, decimal Total) : DomainEvent
-	{
-		public override string AggregateId => OrderId;
-	}
+	// Derived record with positional params (AggregateId/Version are no longer IDomainEvent members)
+	private sealed record TestOrderCreated(string OrderId, decimal Total) : DomainEvent;
 
 	[Fact]
 	public void Generate_Unique_EventId_Using_Uuid7()
 	{
 		// Act
-		var event1 = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
-		var event2 = new TestDomainEvent { AggregateId = "agg-1", Version = 2 };
+		var event1 = new TestDomainEvent();
+		var event2 = new TestDomainEvent();
 
 		// Assert
 		event1.EventId.ShouldNotBeNullOrWhiteSpace("EventId must be generated");
@@ -44,7 +41,7 @@ public sealed class DomainEventShould
 		var expectedTime = new DateTimeOffset(2025, 11, 23, 10, 30, 0, TimeSpan.Zero);
 
 		// Act
-		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1, OccurredAt = expectedTime };
+		var domainEvent = new TestDomainEvent { OccurredAt = expectedTime };
 
 		// Assert
 		domainEvent.OccurredAt.ShouldBe(expectedTime, "OccurredAt must accept init value");
@@ -57,7 +54,7 @@ public sealed class DomainEventShould
 		var beforeCreation = DateTimeOffset.UtcNow;
 
 		// Act
-		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var domainEvent = new TestDomainEvent();
 		var afterCreation = DateTimeOffset.UtcNow;
 
 		// Assert
@@ -69,7 +66,7 @@ public sealed class DomainEventShould
 	public void Support_Metadata_Dictionary()
 	{
 		// Arrange
-		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var domainEvent = new TestDomainEvent();
 
 		// Act
 		var eventWithMetadata = domainEvent.WithMetadata("key1", "value1");
@@ -90,7 +87,7 @@ public sealed class DomainEventShould
 	{
 		// Arrange
 		var correlationId = Guid.NewGuid();
-		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var domainEvent = new TestDomainEvent();
 
 		// Act
 		var eventWithCorrelation = domainEvent.WithCorrelationId(correlationId);
@@ -104,7 +101,7 @@ public sealed class DomainEventShould
 	{
 		// Arrange
 		var causationId = "parent-event-123";
-		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var domainEvent = new TestDomainEvent();
 
 		// Act
 		var eventWithCausation = domainEvent.WithCausationId(causationId);
@@ -117,8 +114,8 @@ public sealed class DomainEventShould
 	public void Be_Immutable_Record()
 	{
 		// Arrange
-		var event1 = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
-		var event2 = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var event1 = new TestDomainEvent();
+		var event2 = new TestDomainEvent();
 
 		// Act & Assert - Record provides value equality
 		event1.ShouldNotBeSameAs(event2, "Different instances should not be the same reference");
@@ -135,7 +132,7 @@ public sealed class DomainEventShould
 	public void Implement_IDispatchMessage()
 	{
 		// Arrange & Act
-		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var domainEvent = new TestDomainEvent();
 
 		// Assert
 		_ = domainEvent.ShouldBeAssignableTo<IDispatchMessage>("DomainEvent must implement IDispatchMessage");
@@ -222,13 +219,12 @@ public sealed class DomainEventShould
 	// ── Derived record pattern ──
 
 	[Fact]
-	public void DerivedRecord_OverrideAggregateId_ViaPositionalParam()
+	public void DerivedRecord_ExposesPositionalParams()
 	{
 		// Arrange & Act
 		var evt = new TestOrderCreated("order-42", 199.99m);
 
 		// Assert
-		evt.AggregateId.ShouldBe("order-42");
 		evt.OrderId.ShouldBe("order-42");
 		evt.Total.ShouldBe(199.99m);
 		evt.EventType.ShouldBe(nameof(TestOrderCreated));
@@ -261,19 +257,10 @@ public sealed class DomainEventShould
 		evt.Metadata.ShouldBeNull();
 	}
 
-	[Fact]
-	public void DefaultVersion_IsZero()
-	{
-		var evt = new TestDomainEvent();
-		evt.Version.ShouldBe(0);
-	}
-
-	[Fact]
-	public void DefaultAggregateId_IsEmptyString()
-	{
-		var evt = new TestDomainEvent();
-		evt.AggregateId.ShouldBe(string.Empty);
-	}
+	// Version/AggregateId are no longer IDomainEvent/DomainEvent members (removed as a
+	// dispatch-vs-excalibur boundary leak); the stream version lives in the persistence
+	// envelope (StoredEvent.Version -> HistoricEvent). Their DefaultVersion/DefaultAggregateId
+	// tests are deleted; the interface-contract absence is asserted by IDomainEventContractShould (K3).
 
 	[Fact]
 	public void EventType_ReturnsTypeName()

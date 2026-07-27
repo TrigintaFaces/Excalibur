@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Observability.Aws;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -39,6 +40,10 @@ public static class AwsObservabilityServiceCollectionExtensions
 
 		services.TryAddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
 
+		// Activate the X-Ray / CloudWatch listeners at startup (each self-gates on its enable flag).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AwsTracingActivationHostedService>());
+
 		return services;
 	}
 
@@ -69,6 +74,10 @@ public static class AwsObservabilityServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<AwsObservabilityOptions>, AwsObservabilityOptionsValidator>());
 
 		services.TryAddSingleton<IAwsTracingIntegration, AwsTracingIntegration>();
+
+		// Activate the X-Ray / CloudWatch listeners at startup (each self-gates on its enable flag).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AwsTracingActivationHostedService>());
 
 		return services;
 	}

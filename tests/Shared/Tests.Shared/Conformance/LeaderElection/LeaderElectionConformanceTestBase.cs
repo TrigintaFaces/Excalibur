@@ -359,7 +359,17 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	}
 
 	[Fact]
-	public async Task ConcurrentContention_AllCandidatesAgreeOnLeader()
+	/// <remarks>
+	/// VIRTUAL because <c>CurrentLeaderId</c> is a best-effort property, not a guarantee. It is guaranteed
+	/// non-null only while the instance being asked is itself the leader; whether any OTHER instance can
+	/// name the leader depends on how the provider arbitrates. A provider that elects by advisory lock
+	/// learns only true or false when it fails to acquire -- the lock carries no owner identity -- so a
+	/// follower has nothing to report and this arm asserts a property the contract does not promise.
+	///
+	/// Such a provider overrides this arm to assert the guaranteed half instead. It does NOT skip it: a
+	/// skipped arm proves nothing and reads as covered, which is the failure this kit exists to prevent.
+	/// </remarks>
+	public virtual async Task ConcurrentContention_AllCandidatesAgreeOnLeader()
 	{
 		// Arrange
 		var competitors = new List<ILeaderElection> { Election };

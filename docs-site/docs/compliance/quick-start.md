@@ -350,17 +350,33 @@ builder.Services.AddSoc2ComplianceWithMonitoring(options =>
 
 ### 4.1 Run Conformance Tests
 
-The framework includes 80 conformance tests to verify your implementation:
+The framework ships conformance **kits** you use to verify your implementation. The kits carry **no test
+attributes** — every arm is `virtual`, so nothing runs until you declare an attributed wrapper in your own
+derived class. You choose which arms to wrap; **the executed count is yours, not ours.**
+
+The `--RunConfiguration.TreatNoTestsAsError=true` flag below matters for that reason: without it, a filter
+that matches nothing exits successfully and reads as a pass.
 
 ```bash
 # Run all GDPR conformance tests
-dotnet test --filter "FullyQualifiedName~ErasureStoreConformance"
-dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance"
-dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance"
-dotnet test --filter "FullyQualifiedName~AuditStoreConformance"
+dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~AuditStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
 
-# Expected: All tests PASS
+# Expected: All tests PASS, and a non-zero Total on each run
 ```
+
+:::warning A conformance run that executes nothing is not a pass
+These commands carry `RunConfiguration.TreatNoTestsAsError=true` deliberately. Without it, `dotnet test
+--filter` **exits `0` when the filter matches nothing** — so if you have not referenced the conformance
+package, or a type has been renamed, the command prints `No test matches the given testcase filter` and
+**succeeds**. The checklist item would read as passed on a run that verified nothing, which is the state
+this instruction exists to detect.
+
+With the setting, a filter that matches no tests fails the command. **Confirm the summary reports a
+non-zero `Total`** — an exit code alone is not evidence that a check ran.
+:::
 
 **Test Breakdown:**
 - **AuditStoreConformanceTestKit:** 18 tests (audit logging)
@@ -528,9 +544,9 @@ public class Patient
 
 **Problem:** Implementation bugs discovered during external audit.
 
-**Solution:** Run all 80 conformance tests before engaging auditor:
+**Solution:** Wrap and run the conformance arms relevant to your controls before engaging an auditor:
 ```bash
-dotnet test --filter "FullyQualifiedName~Conformance"
+dotnet test --filter "FullyQualifiedName~Conformance" -- RunConfiguration.TreatNoTestsAsError=true
 ```
 
 ### 4. Skipping Organizational Controls
@@ -626,7 +642,7 @@ Before proceeding to full certification, verify:
 - [ ] Configured audit logging (`IAuditStore` via `AddAuditLogging()` or `AddSqlServerAuditStore()`)
 - [ ] Configured GDPR erasure (`IErasureService`) - if applicable
 - [ ] Configured SOC 2 validation - if applicable
-- [ ] Ran all 80 conformance tests (ALL PASS)
+- [ ] Wrapped the conformance arms covering your controls, and recorded the executed/passed counts from your own run
 - [ ] Verified encryption in database (ciphertext visible)
 - [ ] Verified audit logs persisting
 - [ ] Verified authorization enforcement

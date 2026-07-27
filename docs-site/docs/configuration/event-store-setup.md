@@ -259,7 +259,7 @@ public class OrderCreatedV1ToV2Upcaster : IMessageUpcaster<OrderCreatedV1, Order
 {
     public OrderCreated Upcast(OrderCreatedV1 source)
     {
-        return new OrderCreated(source.AggregateId, source.Version)
+        return new OrderCreated
         {
             OrderId = source.OrderId,
             CustomerId = source.CustomerName,  // Map renamed field
@@ -273,31 +273,96 @@ public class OrderCreatedV1ToV2Upcaster : IMessageUpcaster<OrderCreatedV1, Order
 
 ### SQL Server Schema
 
-The SQL Server provider creates these tables:
+The SQL Server provider does **not** create these tables. You must create them before
+first use — the schema below is the one the provider reads and writes.
+
+The names below are the **defaults** (`EventStoreSchema` = `dbo`, `EventStoreTable` = `EventStoreEvents`,
+`SnapshotStoreTable` = `EventStoreSnapshots`). If you override any of them in
+`SqlServerEventSourcingOptions`, rename the corresponding object here to match — the provider does not
+discover a differently-named table, it fails the read.
 
 ```sql
 -- Events table
-CREATE TABLE [EventSourcing].[Events] (
-    [SequenceNumber] BIGINT IDENTITY(1,1) PRIMARY KEY,
-    [StreamId] NVARCHAR(256) NOT NULL,
-    [Version] INT NOT NULL,
-    [EventType] NVARCHAR(512) NOT NULL,
-    [Data] NVARCHAR(MAX) NOT NULL,
-    [Metadata] NVARCHAR(MAX) NULL,
-    [Timestamp] DATETIMEOFFSET NOT NULL,
-    CONSTRAINT [UQ_Events_StreamVersion] UNIQUE ([StreamId], [Version])
+CREATE TABLE [dbo].[EventStoreEvents] (
+    -- Assigned by the database and read back via OUTPUT INSERTED.Position.
+    -- Must be IDENTITY: the insert never supplies a value for it.
+    [Position]       BIGINT IDENTITY(1,1) NOT NULL,
+    [EventId]        NVARCHAR(256)  NOT NULL,
+    [AggregateId]    NVARCHAR(256)  NOT NULL,
+    [AggregateType]  NVARCHAR(256)  NOT NULL,
+    [EventType]      NVARCHAR(512)  NOT NULL,
+    -- MUST be nullable. Erasure sets EventData to NULL to tombstone an event while
+    -- preserving its position in the stream; a NOT NULL column makes erasure fail.
+    [EventData]      VARBINARY(MAX) NULL,
+    [Metadata]       VARBINARY(MAX) NULL,
+    [Version]        BIGINT         NOT NULL,
+    [Timestamp]      DATETIMEOFFSET NOT NULL,
+    -- The event store is a keyed multi-tenant table: every row carries a tenant term, so this column is
+    -- NOT NULL and part of the tenant-discriminated unique key. A single-tenant (unscoped) host stores the
+    -- reserved '__untenanted__' sentinel here — never NULL — so an un-partitioned, all-tenants read or
+    -- erase is unrepresentable. The sentinel is a concrete value because a NULL discriminator cannot
+    -- participate in a unique constraint on any provider.
+    [TenantId]       NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL,
+    CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
+    CONSTRAINT [UQ_Events_AggregateVersion] UNIQUE ([AggregateId], [AggregateType], [Version], [TenantId])
 );
 
+-- Stream reads order by Version within an aggregate.
+CREATE INDEX [IX_EventStoreEvents_Aggregate]
+    ON [dbo].[EventStoreEvents] ([AggregateId], [AggregateType], [Version]);
+
+-- Migrating an existing Events table to tenant keying: backfill any legacy NULL tenant to the sentinel
+-- BEFORE adding the NOT NULL and unique-key constraints, or existing untenanted rows become unreadable
+-- (a tenant predicate binding the sentinel will not match a NULL row):
+--     UPDATE [dbo].[EventStoreEvents] SET [TenantId] = '__untenanted__' WHERE [TenantId] IS NULL;
+
 -- Snapshots table
-CREATE TABLE [EventSourcing].[Snapshots] (
-    [StreamId] NVARCHAR(256) PRIMARY KEY,
-    [Version] INT NOT NULL,
-    [Data] NVARCHAR(MAX) NOT NULL,
-    [Timestamp] DATETIMEOFFSET NOT NULL
+CREATE TABLE [dbo].[EventStoreSnapshots] (
+    [SnapshotId]     NVARCHAR(256)  NULL,
+    [AggregateId]    NVARCHAR(256)  NOT NULL,
+    [AggregateType]  NVARCHAR(256)  NOT NULL,
+    [Version]        BIGINT         NOT NULL,
+    [Data]           VARBINARY(MAX) NOT NULL,
+    -- DATETIME2, not DATETIMEOFFSET: the read path maps this to DateTime and re-stamps
+    -- UTC kind, which a DATETIMEOFFSET column does not round-trip through.
+    [CreatedAt]      DATETIME2      NOT NULL,
+    [Metadata]       VARBINARY(MAX) NULL,
+    -- The reserved '__untenanted__' sentinel in a single-tenant host -- never NULL and never
+    -- an empty string. NOT NULL because SQL Server does not allow a nullable column in a
+    -- primary key.
+    --
+    -- Deliberately NO DEFAULT. The store always supplies this column -- a single-tenant
+    -- save writes the '__untenanted__' sentinel explicitly, not by omission. A DEFAULT here would be
+    -- unreachable in normal operation and harmful in abnormal operation: it would let an
+    -- INSERT that omitted the tenant succeed silently, taking the default and colliding
+    -- every tenant onto one row. Without it, such a statement fails outright.
+    [TenantId]       NVARCHAR(256) COLLATE Latin1_General_BIN2  NOT NULL,
+    -- One row per aggregate PER TENANT. Saves MERGE on these columns, and the read path
+    -- issues a single-row query with no TOP 1 -- a second row makes it throw. Without
+    -- TenantId in the key, two tenants holding the same aggregate id ARE that second row.
+    CONSTRAINT [PK_EventStoreSnapshots_Aggregate] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
 );
 ```
 
 ### Migrations
+
+The SQL Server provider ships a migration **runner**, not migration **scripts**. It discovers `.sql` files
+embedded as manifest resources in an assembly *you* nominate, records what it has applied in a
+`__MigrationHistory` table it creates itself, and applies anything pending at startup before the
+application begins serving.
+
+Both settings are **required** when the migrator is registered — it throws at startup if either is unset:
+
+```csharp
+options.MigrationAssembly = typeof(Program).Assembly;   // assembly holding your embedded .sql resources
+options.MigrationNamespace = "MyApp.Migrations";        // resource-name prefix to scan
+```
+
+Scripts are applied in ascending order of the portion of the resource name after the namespace prefix, so
+name them to sort correctly (`001_...`, `002_...`). A checksum is recorded per applied migration.
+
+**This does not create the event-store tables for you.** Nothing in the package embeds the schema above —
+provision it yourself (the DDL in this section), or supply it as your own first migration script.
 
 ## Configuration Options
 
@@ -346,23 +411,63 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 
 ## Multiple Event Stores
 
-For multi-tenant or sharded scenarios:
+### Multi-tenancy (recommended)
+
+For **multi-tenant** scenarios, do not register one event store per tenant by hand. Use first-class
+multi-tenancy, which scopes a **declared set of tenant-owned contracts** — the event store, projections,
+sagas, the inbox, the outbox, and event-store erasure — through a single ambient tenant context, and is
+**fail-closed** for those contracts (an operation with no ambient tenant throws rather than running
+unscoped). It does **not** scope every store you register: anything outside that set — including the audit
+store, the compliance/data-inventory stores, and the dead-letter queue — is left unscoped, with no error
+raised. See [multi-tenancy](../multi-tenancy.md) for the full set and what it excludes:
+
+```csharp
+// Ambient tenant context (resolved from the message pipeline)
+services.AddTenantContext();
+
+// One call selects the isolation strategy and wires fail-closed tenant scoping
+services.AddMultiTenancy(o => o.Strategy = TenantIsolationStrategy.RowDiscriminator);
+```
+
+- **`RowDiscriminator`** — a single shared store with a `TenantId` predicate applied inside every query.
+  `AddMultiTenancy` wraps the registered tenant-owned contracts — `IEventStore`, `IProjectionStore<T>`,
+  `ISagaStore`, `IInboxStore`, `IOutboxStore` and `IEventStoreErasure` — with its tenant-scoping decorator.
+  Stores outside that set are not wrapped.
+- **`Sharding`** — a dedicated store per tenant, selected per operation by tenant-aware routing. Register
+  the shard map and provider store resolvers, then select `TenantIsolationStrategy.Sharding` (which wires
+  the same routing as `EnableTenantSharding(...)`).
+
+See [Multi-Tenancy](../multi-tenancy.md) for the full setup.
+
+### Keyed stores (advanced)
+
+If you genuinely need physically distinct stores resolved by a key **you** control (e.g. a manual shard
+key that is not the tenant), register them keyed and resolve from a built `IServiceProvider` — keyed
+resolution is an extension on `IServiceProvider`, not on `IServiceCollection`:
 
 ```csharp
 // Register named event stores using keyed services
-services.AddKeyedSingleton<IEventStore>("tenant-a",
+services.AddKeyedSingleton<IEventStore>("shard-a",
     (sp, _) => new SqlServerEventStore(
-        tenantAConnection,
+        shardAConnection,
         sp.GetRequiredService<ILogger<SqlServerEventStore>>()));
 
-services.AddKeyedSingleton<IEventStore>("tenant-b",
+services.AddKeyedSingleton<IEventStore>("shard-b",
     (sp, _) => new SqlServerEventStore(
-        tenantBConnection,
+        shardBConnection,
         sp.GetRequiredService<ILogger<SqlServerEventStore>>()));
 
-// Resolve by tenant
-var eventStore = services.GetRequiredKeyedService<IEventStore>(tenantId);
+// Resolve from the built provider (or inject IServiceProvider / use [FromKeyedServices])
+var provider = services.BuildServiceProvider();
+var eventStore = provider.GetRequiredKeyedService<IEventStore>(shardKey);
 ```
+
+:::warning Keyed stores are not automatically tenant-scoped
+`AddMultiTenancy(RowDiscriminator)` decorates exactly **one** registered `IEventStore` descriptor. If you
+register N keyed stores by hand, the other stores are **not** wrapped with tenant scoping and will read
+and write across tenant boundaries. For tenant isolation use `TenantIsolationStrategy.Sharding` (or the
+`RowDiscriminator` strategy over a single store), never a set of hand-keyed stores.
+:::
 
 ## Observability
 

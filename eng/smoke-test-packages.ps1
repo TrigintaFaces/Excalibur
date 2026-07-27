@@ -54,7 +54,7 @@ $Script:SmokeTestVersion = "99.0.0-smoketest"  # Use prerelease version for all 
 # Order matters for dependency resolution!
 $Script:DispatchPackages = @(
     'Excalibur.Dispatch.Abstractions',              # Must be first (dependency of all others)
-    'Excalibur.Compliance.Abstractions',            # Dependency of Dispatch (moved src/Excalibur in S806)
+    'Excalibur.Compliance.Abstractions',            # Dependency of Dispatch (moved to src/Excalibur)
     'Excalibur.Dispatch.Serialization.MemoryPack',  # Dependency of Dispatch
     'Excalibur.Dispatch'                            # Core dispatcher
 )
@@ -109,7 +109,7 @@ function Invoke-PackPhase {
     # (Avoids building entire solution which may have missing example projects)
     $packedCount = 0
     foreach ($packageName in $Script:DispatchPackages) {
-        # Search both src/Dispatch/ and src/Excalibur/ (some packages moved in S806)
+        # Search both src/Dispatch/ and src/Excalibur/ (some packages moved)
         $projectPath = Join-Path $Script:RepoRoot "src/Dispatch/$packageName/$packageName.csproj"
         if (-not (Test-Path $projectPath)) {
             $projectPath = Join-Path $Script:RepoRoot "src/Excalibur/$packageName/$packageName.csproj"

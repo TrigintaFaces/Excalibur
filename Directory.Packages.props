@@ -11,19 +11,20 @@
 		<PackageVersion Include="System.Threading.RateLimiting" Version="10.0.7" />
 		<PackageVersion Include="System.IO.Hashing" Version="10.0.7" />
 		<PackageVersion Include="System.IO.Pipelines" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
 		<PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="10.5.0" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
 		<!-- Serialization / Messaging -->
 		<PackageVersion Include="MessagePack" Version="3.1.7" />
 		<PackageVersion Include="CloudNative.CloudEvents" Version="2.8.0" />
@@ -38,6 +39,7 @@
 		<PackageVersion Include="OpenTelemetry.Instrumentation.Process" Version="1.12.0-beta.1" />
 		<PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.13.0-beta.1" />
 		<PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+		<PackageVersion Include="OpenTelemetry.Extensions.Propagators" Version="1.15.3" />
 		<PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
 		<PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
 		<PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.1" />
@@ -89,8 +91,8 @@
 		<PackageVersion Include="System.Threading.Channels" Version="10.0.7" />
 		<!-- Load Testing -->
 		<PackageVersion Include="NBomber" Version="6.3.0" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.10" />
 		<!-- Messaging libs -->
 		<PackageVersion Include="Confluent.Kafka" Version="2.14.0" />
 		<PackageVersion Include="Confluent.SchemaRegistry" Version="2.14.0" />
@@ -149,26 +151,30 @@
 	<ItemGroup>
 		<!-- Core DB / Serialization libs used in src projects -->
 		<PackageVersion Include="Dapper" Version="2.1.72" />
+		<PackageVersion Include="Oracle.ManagedDataAccess.Core" Version="23.8.0" />
+		<PackageVersion Include="DotPulsar" Version="5.3.0" />
 		<PackageVersion Include="System.Data.SqlClient" Version="4.9.0" />
 		<PackageVersion Include="Npgsql" Version="10.0.2" />
+		<PackageVersion Include="Marten" Version="9.12.0" />
 		<PackageVersion Include="MySqlConnector" Version="2.5.0" />
 		<PackageVersion Include="Cronos" Version="0.12.0" />
 		<PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="10.0.7" />
 		<PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
 		<PackageVersion Include="Microsoft.AspNetCore.Http.Features" Version="5.0.17" />
-		<PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.10" />
 		<PackageVersion Include="FluentValidation" Version="12.1.1" />
 		<PackageVersion Include="Wasmtime" Version="34.0.2" />
 		<!-- Caching / Redis -->
 		<PackageVersion Include="StackExchange.Redis" Version="2.12.14" />
-		<PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
 		<PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.5.0" />
 		<!-- HTTP / gRPC / Consul -->
-		<PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
 		<PackageVersion Include="Grpc.Net.Client" Version="2.76.0" />
 		<PackageVersion Include="Consul" Version="1.8.0" />
 		<!-- Roslyn for generators -->
@@ -191,8 +197,12 @@
 		<PackageVersion Include="System.Collections.Immutable" Version="10.0.7" />
 		<!-- Transitive pin: AspNetCore.DataProtection pulls Xml transitively.
 		     Originally pinned to 10.0.6 for GHSA-37gx-xxp4-5rgx + GHSA-w3x6-4m5h-cxqf (S810 bd-qn5sjd).
-		     Bumped to 10.0.7 alongside DataProtection 10.0.7 for GHSA-9mv3-2cwr-p262. -->
-		<PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.7" />
+		     Bumped to 10.0.7 alongside DataProtection 10.0.7 for GHSA-9mv3-2cwr-p262.
+		     Bumped to 10.0.10: 10.0.7 carries four high-severity advisories, three DoS
+		     (GHSA-23rf-6693-g89p, GHSA-8q5v-6pqq-x66h, GHSA-cvvh-rhrc-wg4q) and one
+		     EncryptedXml security-feature bypass (GHSA-g8r8-53c2-pm3f, CVSS 8.1) that lets
+		     an attacker read encrypted XML. All four are fixed in 10.0.10. -->
+		<PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
 	</ItemGroup>
 	<ItemGroup>
 		<!-- Add missing central versions for packages flagged by NU1008 -->
@@ -227,6 +237,11 @@
 		<PackageVersion Include="Google.Cloud.Storage.V1" Version="4.14.0" />
 		<PackageVersion Include="Google.Cloud.Functions.Hosting" Version="3.0.1" />
 		<PackageVersion Include="Google.Cloud.Firestore" Version="4.2.0" />
+		<PackageVersion Include="Google.Cloud.Spanner.Data" Version="4.6.0" />
+		<!-- IBM MQ -->
+		<PackageVersion Include="IBMMQDotnetClient" Version="10.0.0" />
+		<!-- MQTT -->
+		<PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
 		<PackageVersion Include="Google.Cloud.PubSub.V1" Version="3.33.0" />
 		<!-- Adjusted to 3.5.0 to match available offline index -->
 		<PackageVersion Include="Google.Cloud.Scheduler.V1" Version="3.6.0" />
@@ -279,12 +294,16 @@
 		<PackageVersion Include="SQLitePCLRaw.core" Version="3.0.3" />
 		<PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.3" />
 		<PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
+		<!-- Security (CVE-2026-49451 / GHSA-v5pm-xwqc-g5wc): Swashbuckle.AspNetCore.SwaggerGen transitively
+		     pulls Microsoft.OpenApi 2.4.1, in which a circular schema reference can StackOverflow-terminate the
+		     process (DoS). Pin to the patched 2.x line (>= 2.7.5) via CPM transitive pinning. -->
+		<PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
 		<PackageVersion Include="MassTransit" Version="8.5.9" />
 		<PackageVersion Include="MediatR" Version="12.5.0" />
 		<PackageVersion Include="NServiceBus" Version="10.1.3" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.7" />
-		<PackageVersion Include="Microsoft.Extensions.Configuration.Memory" Version="10.0.7" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.Memory" Version="10.0.10" />
 		<PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
 		<PackageVersion Include="IdentityModel" Version="7.0.0" />
 		<PackageVersion Include="System.Diagnostics.PerformanceCounter" Version="10.0.7" />
@@ -303,6 +322,7 @@
 		<PackageVersion Include="Testcontainers.RabbitMq" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.MsSql" Version="4.11.0" />
+		<PackageVersion Include="Testcontainers.Oracle" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.LocalStack" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.Azurite" Version="4.11.0" />
 		<PackageVersion Include="Testcontainers.PubSub" Version="4.11.0" />

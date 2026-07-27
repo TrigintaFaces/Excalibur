@@ -29,10 +29,12 @@ namespace Excalibur.Dispatch.Middleware.Auth;
 /// <item> Provides optional caching for performance </item>
 /// </list>
 /// </remarks>
-[AppliesTo(MessageKinds.Action)]
+[AppliesTo(MessageKinds.Action | MessageKinds.Event)]
 [RequiresFeatures(DispatchFeatures.Authorization)]
 public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 {
+	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.AuthenticationMiddleware, "1.0.0");
+
 	private readonly AuthenticationOptions _options;
 	private readonly IAuthenticationService _authenticationService;
 	private readonly ITelemetrySanitizer _sanitizer;
@@ -73,10 +75,15 @@ public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// Authentication typically applies to Actions (commands/queries) rather than Events, as Events are usually internal notifications that
-	/// don't require authentication.
+	/// Authentication applies to both Actions (commands/queries) and Events. Events are not necessarily internal: an event arriving from a
+	/// transport adapter is inbound and untrusted, so it is authenticated on the same terms as an Action. Documents are excluded.
+	/// <para>
+	/// This value must stay in agreement with the <c>AppliesTo</c> attribute on this type. The attribute and this property are read by
+	/// different consumers of the applicability decision, so changing one alone makes those consumers disagree about whether authentication
+	/// applies to the same message.
+	/// </para>
 	/// </remarks>
-	public MessageKinds ApplicableMessageKinds => MessageKinds.Action;
+	public MessageKinds ApplicableMessageKinds => MessageKinds.Action | MessageKinds.Event;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -88,6 +95,8 @@ public sealed partial class AuthenticationMiddleware : IDispatchMiddleware
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
+
+		using var activity = ActivitySource.StartActivity("AuthenticationMiddleware.Invoke");
 
 		var messageType = message.GetType().Name;
 

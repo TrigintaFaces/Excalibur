@@ -48,6 +48,7 @@ public static class ElasticSearchProjectionStoreExtensions
 		// Configure named options keyed by projection type name
 		var optionsName = typeof(TProjection).Name;
 		_ = services.Configure(optionsName, configureOptions);
+		WireOptionsValidation(services, optionsName);
 
 		// Register projection store -- uses IOptionsMonitor to resolve named options
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
@@ -110,6 +111,7 @@ public static class ElasticSearchProjectionStoreExtensions
 		// Configure named options keyed by projection type name
 		var optionsName = typeof(TProjection).Name;
 		_ = services.Configure(optionsName, configureOptions);
+		WireOptionsValidation(services, optionsName);
 
 		// Register projection store with client factory
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
@@ -137,8 +139,8 @@ public static class ElasticSearchProjectionStoreExtensions
 	/// services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 	/// {
 	///     projections.Add&lt;OrderSummary&gt;();
-	///     projections.Add&lt;CustomerProfile&gt;(options => options.IndexPrefix = "customers");
-	///     projections.Add&lt;ProductCatalog&gt;(options => options.NumberOfShards = 3);
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.Index.IndexPrefix = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;(options => options.Index.NumberOfShards = 3);
 	/// });
 	/// </code>
 	/// </example>
@@ -168,11 +170,11 @@ public static class ElasticSearchProjectionStoreExtensions
 	/// <example>
 	/// <code>
 	/// services.AddElasticSearchProjections(
-	///     shared => { shared.NodeUri = "https://es.example.com:9200"; shared.NumberOfReplicas = 2; },
+	///     shared => { shared.NodeUri = "https://es.example.com:9200"; shared.Index.NumberOfReplicas = 2; },
 	///     projections =>
 	///     {
 	///         projections.Add&lt;OrderSummary&gt;();
-	///         projections.Add&lt;CustomerProfile&gt;(options => options.IndexPrefix = "customers");
+	///         projections.Add&lt;CustomerProfile&gt;(options => options.Index.IndexPrefix = "customers");
 	///     });
 	/// </code>
 	/// </example>
@@ -189,5 +191,19 @@ public static class ElasticSearchProjectionStoreExtensions
 		configure(registrar);
 
 		return services;
+	}
+
+	/// <summary>
+	/// Wires eager (fail-fast at startup) validation for a named projection-store options instance.
+	/// Registers the cross-property validator once (idempotent) and marks the named instance for
+	/// <c>ValidateOnStart</c>, so a misconfiguration surfaces at host start rather than only at the
+	/// store's first use.
+	/// </summary>
+	private static void WireOptionsValidation(IServiceCollection services, string optionsName)
+	{
+		_ = services.AddOptions<ElasticSearchProjectionStoreOptions>(optionsName).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticSearchProjectionStoreOptions>,
+				ElasticSearchProjectionStoreOptionsValidator>());
 	}
 }

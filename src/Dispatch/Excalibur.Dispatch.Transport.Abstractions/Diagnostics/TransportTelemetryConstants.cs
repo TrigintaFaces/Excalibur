@@ -190,6 +190,9 @@ internal static class TransportTelemetryConstants
 			/// <summary>Apache Kafka messaging system.</summary>
 			public const string Kafka = "kafka";
 
+			/// <summary>Apache Pulsar messaging system.</summary>
+			public const string Pulsar = "pulsar";
+
 			/// <summary>Google Cloud Pub/Sub messaging system.</summary>
 			public const string GooglePubSub = "gcp_pubsub";
 

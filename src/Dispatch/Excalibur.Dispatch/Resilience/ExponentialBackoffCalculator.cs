@@ -101,20 +101,34 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 	/// <inheritdoc />
 	public TimeSpan CalculateDelay(int attempt)
 	{
+		// This calculator rejects a non-positive attempt (its documented contract), whereas the shared
+		// ExponentialBackoff.Calculate clamps it — so validate here before delegating.
 		if (attempt < 1)
 		{
 			throw new ArgumentOutOfRangeException(nameof(attempt), Resources.ExponentialBackoffCalculator_AttemptMustBeAtLeastOne);
 		}
 
-		// Calculate exponential delay: baseDelay * multiplier^(attempt-1)
-		var exponentialFactor = Math.Pow(_multiplier, attempt - 1);
-		var delayMs = _baseDelay.TotalMilliseconds * exponentialFactor;
-
-		// Apply jitter if enabled
-		if (_enableJitter && _jitterFactor > 0)
+		var parameters = new BackoffParameters
 		{
-			delayMs = ApplyJitter(delayMs);
+			BaseDelay = _baseDelay,
+			MaxDelay = _maxDelay,
+			Multiplier = _multiplier,
+			UseJitter = false,
+			JitterFactor = _jitterFactor,
+		};
+
+		// No-jitter path: delegate the exponential + NaN-guard + cap math entirely to ExponentialBackoff,
+		// the single source of truth for that computation (shared with every transport's backoff).
+		if (!_enableJitter || _jitterFactor <= 0)
+		{
+			return ExponentialBackoff.Calculate(attempt, in parameters);
 		}
+
+		// Jitter path: this calculator applies jitter through an INJECTABLE source (so tests can make the
+		// delay deterministic), a capability the shared helper — which always uses Random.Shared — does not
+		// expose. The exponential base is computed the same way, then jitter is applied before the cap.
+		var exponentialFactor = Math.Pow(_multiplier, attempt - 1);
+		var delayMs = ApplyJitter(_baseDelay.TotalMilliseconds * exponentialFactor);
 
 		// Guard NaN before the cap so the never-throws contract holds: a zero base delay times an overflowed
 		// exponential factor is 0 * Infinity = NaN, which would propagate through Min/Max and make
@@ -124,10 +138,7 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 			delayMs = 0;
 		}
 
-		// Clamp to max delay
 		delayMs = Math.Min(delayMs, _maxDelay.TotalMilliseconds);
-
-		// Ensure non-negative
 		delayMs = Math.Max(0, delayMs);
 
 		return TimeSpan.FromMilliseconds(delayMs);

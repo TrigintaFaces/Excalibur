@@ -77,11 +77,9 @@ public sealed class DistributedCircuitBreakerCrossInstanceRecoveryShould
 		// Barrier: the store starts empty -> the t=0 sync reads Closed -> _lastKnownState stays Closed.
 		// Poll on the OBSERVED state read (a real condition) — not a wall-clock sleep — so that the flip
 		// below is deterministically ordered AFTER the only sync that could refresh the local view.
-		var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(10);
-		while (cache.StateReadCount == 0 && DateTimeOffset.UtcNow < deadline)
-		{
-			await Task.Delay(10, CancellationToken.None);
-		}
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => cache.StateReadCount > 0,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		cache.StateReadCount.ShouldBeGreaterThanOrEqualTo(
 			1,

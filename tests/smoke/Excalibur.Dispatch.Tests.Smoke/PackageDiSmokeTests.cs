@@ -141,8 +141,6 @@ public sealed class PackageDiSmokeTests
 		});
 		yield return Reg("Excalibur.Dispatch.Observability [AllMetrics]", s => s.AddAllDispatchMetrics());
 		yield return Reg("Excalibur.Dispatch.Observability [DispatchMetrics]", s => s.AddDispatchMetricsInstrumentation());
-		yield return Reg("Excalibur.Dispatch.Observability [CircuitBreakerMetrics]", s => s.AddCircuitBreakerMetrics());
-		yield return Reg("Excalibur.Dispatch.Observability [DLQMetrics]", s => s.AddDeadLetterQueueMetrics());
 
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH RESILIENCE
@@ -403,8 +401,6 @@ public sealed class PackageDiSmokeTests
 		yield return Reg("Excalibur.Saga", s => s.AddExcalibur(x => x.AddSagas()));
 		yield return Reg("Excalibur.Saga [Timeout]", s => s.AddSagaTimeoutDelivery());
 		yield return Reg("Excalibur.Saga [Instrumentation]", s => s.AddSagaInstrumentation());
-		yield return Reg("Excalibur.Saga [Correlation]", s => s.AddSagaCorrelation());
-		yield return Reg("Excalibur.Saga [Reminders]", s => s.AddSagaReminders());
 		yield return Reg("Excalibur.Saga [Orchestration]", s => s.AddExcaliburOrchestration());
 		yield return Reg("Excalibur.Saga.SqlServer", s =>
 			s.AddSqlServerSagaStore(sql => { sql.ConnectionString = MockConnectionString; }));

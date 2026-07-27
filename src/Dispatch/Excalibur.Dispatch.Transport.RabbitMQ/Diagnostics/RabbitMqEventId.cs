@@ -339,8 +339,11 @@ public static class RabbitMqEventId
 	/// <summary>Transport receiver: delivery tag cache exceeded expected bounds.</summary>
 	public const int TransportReceiverDeliveryTagCacheOverflow = 21818;
 
+	/// <summary>Transport receiver: oversized payload rejected (nacked without requeue) to avoid a poison loop.</summary>
+	public const int TransportReceiverPayloadTooLarge = 21819;
+
 	// ========================================
-	// 21820-21827: ITransportSubscriber
+	// 21820-21828: ITransportSubscriber
 	// ========================================
 
 	/// <summary>Transport subscriber: subscription started.</summary>
@@ -366,4 +369,7 @@ public static class RabbitMqEventId
 
 	/// <summary>Transport subscriber: disposed.</summary>
 	public const int TransportSubscriberDisposed = 21827;
+
+	/// <summary>Transport subscriber: inbound payload rejected for exceeding the configured size limit.</summary>
+	public const int TransportSubscriberPayloadTooLarge = 21828;
 }

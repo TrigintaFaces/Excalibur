@@ -422,9 +422,15 @@ internal sealed class MessageFlowHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await _provider.DisposeAsync().ConfigureAwait(false);
 
+    // The framework's outbox staging serializes the event body via its canonical DispatchJsonSerializer,
+    // which uses web (camelCase, case-insensitive) JSON conventions. Deserialize with matching
+    // case-insensitive options so the staged payload round-trips symmetrically regardless of whether
+    // the framework staged it (camelCase) or a test staged it via SerializeEvent (PascalCase).
+    private static readonly JsonSerializerOptions StagedEventJsonOptions = new(JsonSerializerDefaults.Web);
+
     private static OrderPlacedEvent DeserializeEvent(OutboundMessage message)
     {
-        var evt = JsonSerializer.Deserialize<OrderPlacedEvent>(message.Payload)
+        var evt = JsonSerializer.Deserialize<OrderPlacedEvent>(message.Payload, StagedEventJsonOptions)
             ?? throw new InvalidOperationException("Failed to deserialize staged OrderPlaced event.");
         // The correlation id is carried on the outbox entry; restore it onto the event for end-to-end flow.
         evt.CorrelationId = message.CorrelationId ?? evt.CorrelationId;

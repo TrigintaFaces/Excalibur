@@ -7,7 +7,7 @@ namespace Company.DispatchMinimalApi.Handlers;
 /// <summary>
 /// Handles <see cref="CreateOrderAction"/> requests.
 /// </summary>
-public sealed class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
+public sealed class CreateOrderHandler : IActionHandler<CreateOrderAction, CreateOrderResult>
 {
     private readonly InMemoryOrderStore _orderStore;
     private readonly ILogger<CreateOrderHandler> _logger;
@@ -19,7 +19,7 @@ public sealed class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
     }
 
     /// <inheritdoc />
-    public Task<Guid> HandleAsync(CreateOrderAction action, CancellationToken cancellationToken)
+    public Task<CreateOrderResult> HandleAsync(CreateOrderAction action, CancellationToken cancellationToken)
     {
         var orderId = Guid.NewGuid();
 
@@ -28,6 +28,6 @@ public sealed class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
         _logger.LogInformation("Order {OrderId} created for product {ProductId}, quantity {Quantity}",
             orderId, action.ProductId, action.Quantity);
 
-        return Task.FromResult(orderId);
+        return Task.FromResult(new CreateOrderResult(orderId));
     }
 }

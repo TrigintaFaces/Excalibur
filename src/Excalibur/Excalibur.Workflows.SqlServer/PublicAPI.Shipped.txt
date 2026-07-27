@@ -1,0 +1,19 @@
+#nullable enable
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInbox
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInbox.DrainAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.Workflows.WorkflowSignalEntry!>!>
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInbox.SqlServerWorkflowSignalInbox(Microsoft.Extensions.Options.IOptions<Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions!>! options) -> void
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInbox.SqlServerWorkflowSignalInbox(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions! options) -> void
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInbox.TryEnqueueAsync(string! instanceId, string! signalId, string! signalName, string? payloadJson, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.ConnectionString.get -> string!
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.ConnectionString.set -> void
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.QualifiedTableName.get -> string!
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.SchemaName.get -> string!
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.SchemaName.set -> void
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.SqlServerWorkflowSignalInboxOptions() -> void
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.TableName.get -> string!
+Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions.TableName.set -> void
+Microsoft.Extensions.DependencyInjection.WorkflowSignalInboxSqlServerExtensions
+static Microsoft.Extensions.DependencyInjection.WorkflowSignalInboxSqlServerExtensions.AddSqlServerWorkflowSignalInbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Workflows.SqlServer.SqlServerWorkflowSignalInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -356,7 +356,7 @@ public sealed class EventSourcedRepositoryDepthShould
 
 		public void Create(string id) => RaiseEvent(new TestRepoCreatedEvent(id));
 
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			TestRepoCreatedEvent e => Apply(e),
 			_ => throw new InvalidOperationException(),

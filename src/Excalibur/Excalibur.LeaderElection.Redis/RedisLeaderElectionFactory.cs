@@ -34,7 +34,7 @@ public sealed class RedisLeaderElectionFactory : ILeaderElectionFactory
 	/// the consumer. These are honored by every election this factory creates.
 	/// </param>
 	/// <param name="failureClassifier">
-	/// An optional <see cref="IMessageFailureClassifier"/> (ot72w3) propagated to every election this
+	/// An optional <see cref="IMessageFailureClassifier"/> propagated to every election this
 	/// factory creates, enabling accelerated self-demotion on definitively-permanent renewal faults.
 	/// Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
@@ -63,7 +63,12 @@ public sealed class RedisLeaderElectionFactory : ILeaderElectionFactory
 		ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
 
 		var logger = _loggerFactory.CreateLogger<RedisLeaderElection>();
-		return new RedisLeaderElection(_redis, resourceName, ResolveOptions(_options, candidateId), logger, _failureClassifier, _fencingTokenProvider);
+		var context = new RedisLeaderElectionContext
+		{
+			FailureClassifier = _failureClassifier,
+			FencingTokenProvider = _fencingTokenProvider,
+		};
+		return new RedisLeaderElection(_redis, resourceName, ResolveOptions(_options, candidateId), logger, context);
 	}
 
 	/// <inheritdoc/>

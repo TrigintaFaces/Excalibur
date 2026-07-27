@@ -264,6 +264,16 @@ public sealed class RabbitMQExchangeOptions
 /// <summary>
 /// Configuration options for a RabbitMQ queue.
 /// </summary>
+/// <remarks>
+/// This type intentionally exceeds the Microsoft-first ≤10-property DTO guideline: it is a flat mirror
+/// of the AMQP <c>queue.declare</c> / <c>basic.qos</c> parameter surface that RabbitMQ consumers already
+/// know — <see cref="Durable"/>, <see cref="Exclusive"/>, <see cref="AutoDelete"/> and the
+/// <see cref="Arguments"/> map (into which <see cref="MessageTtl"/> → <c>x-message-ttl</c>,
+/// <see cref="MaxLength"/> → <c>x-max-length</c>, <see cref="MaxLengthBytes"/> → <c>x-max-length-bytes</c>),
+/// plus the consumer settings (<see cref="PrefetchCount"/> → <c>basic.qos</c>, <see cref="AutoAck"/>) and the
+/// framework's <see cref="MaxPayloadBytes"/> ingress guard. Splitting these into nested groups would diverge
+/// from the well-known broker vocabulary and reduce discoverability, so the flat surface is retained by design.
+/// </remarks>
 public sealed class RabbitMQQueueOptions
 {
 	/// <summary>
@@ -319,6 +329,17 @@ public sealed class RabbitMQQueueOptions
 	/// </summary>
 	/// <value>The max length in bytes, or null for unlimited.</value>
 	public long? MaxLengthBytes { get; set; }
+
+	/// <summary>
+	/// Gets or sets the maximum inbound-payload length, in bytes, enforced at receive ingress before
+	/// the body is materialized (defense-in-depth DoS hardening). An over-limit message is rejected
+	/// before deserialization.
+	/// </summary>
+	/// <value>
+	/// The maximum payload length in bytes. Default is 4 MiB (bounded so the guard is never inert).
+	/// Set to <see langword="null"/> to opt out (unbounded) for larger legitimate payloads.
+	/// </value>
+	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
 
 	/// <summary>
 	/// Gets the additional arguments for queue declaration.

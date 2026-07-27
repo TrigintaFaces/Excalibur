@@ -30,6 +30,7 @@ namespace Excalibur.Compliance.Postgres.Erasure;
 public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore
 {
 	private readonly PostgresErasureStoreOptions _options;
+	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<PostgresErasureStore> _logger;
 	private volatile bool _initialized;
 
@@ -38,9 +39,11 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	/// </summary>
 	public PostgresErasureStore(
 		IOptions<PostgresErasureStoreOptions> options,
+		IDataSubjectHasher dataSubjectHasher,
 		ILogger<PostgresErasureStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
@@ -445,8 +448,8 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		return null;
 	}
 
-	private static string HashDataSubjectId(string dataSubjectId) =>
-		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+	private string HashDataSubjectId(string dataSubjectId) =>
+		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
 	private static VerificationSummary CreateDefaultVerificationSummary() => new()
 	{
@@ -478,8 +481,47 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
+		else
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		_initialized = true;
+	}
+
+	/// <summary>
+	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// </summary>
+	/// <remarks>
+	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
+	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
+	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
+	{
+		const string ExistsSql = "SELECT to_regclass(@TableName) IS NOT NULL";
+
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullRequestsTableName, _options.FullCertificatesTableName })
+		{
+			var exists = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!exists)
+			{
+				throw new InvalidOperationException(
+					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
+					$"Either create the schema out of band, or set {nameof(PostgresErasureStoreOptions)}."
+					+ $"{nameof(PostgresErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+			}
+		}
 	}
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)

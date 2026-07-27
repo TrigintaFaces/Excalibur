@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -52,11 +53,19 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 					BackoffStrategy.Linear => DelayBackoffType.Linear,
 					BackoffStrategy.Exponential => DelayBackoffType.Exponential,
 					BackoffStrategy.Fixed => DelayBackoffType.Constant,
+					// FullJitter maps to Polly's exponential backoff with jitter forced on — Polly v8 has no
+					// distinct FullJitter member; UseJitter applies its AWS-style jitter on the exponential base.
+					BackoffStrategy.FullJitter => DelayBackoffType.Exponential,
 					_ => DelayBackoffType.Exponential,
 				},
-				UseJitter = _options.UseJitter,
+				UseJitter = _options.UseJitter || _options.BackoffStrategy == BackoffStrategy.FullJitter,
+				// The floor is composed with AND, so a consumer predicate can only ever NARROW what is retried,
+				// never widen it. Written the other way round -- consulting ShouldRetry first, or defaulting to
+				// true and letting the predicate opt out -- a caller who supplies no predicate (the default)
+				// retries a permanently-failing operation forever, and a caller who supplies a permissive one
+				// can re-enable it deliberately. Neither is a choice worth offering.
 				ShouldHandle = new PredicateBuilder()
-					.Handle<Exception>(ex => _options.ShouldRetry?.Invoke(ex) ?? true),
+					.Handle<Exception>(ex => !IsNeverRetryable(ex) && (_options.ShouldRetry?.Invoke(ex) ?? true)),
 				OnRetry = args =>
 				{
 					LogRetryAttempt(args.AttemptNumber, args.RetryDelay.TotalMilliseconds, args.Outcome.Exception?.Message,
@@ -66,6 +75,26 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 			})
 			.Build();
 	}
+
+	/// <summary>
+	/// Returns whether an exception represents a failure that cannot succeed on a later attempt, regardless of
+	/// how the caller has configured retries.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A retry is a bet that the same operation may succeed later. That bet is sound for a timeout, a
+	/// transient fault, or a concurrency conflict. It is unsound for a tenant-isolation violation: the record
+	/// belongs to another tenant, that does not change between attempts, and every retry fails identically
+	/// while consuming the caller's retry budget and delaying the failure they need to see.
+	/// </para>
+	/// <para>
+	/// This is deliberately a floor rather than a policy. It names only failures whose permanence is a
+	/// property of the exception's own contract, so widening it is a design decision rather than a tuning
+	/// one — a caller who wants to retry less can still say so through <c>ShouldRetry</c>.
+	/// </para>
+	/// </remarks>
+	private static bool IsNeverRetryable(Exception exception) =>
+		exception is TenantIsolationViolationException;
 
 	/// <inheritdoc />
 	/// <remarks>

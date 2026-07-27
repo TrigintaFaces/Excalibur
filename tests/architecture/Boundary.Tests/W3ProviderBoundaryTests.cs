@@ -14,121 +14,34 @@ using Xunit;
 namespace Boundary.Tests;
 
 /// <summary>
-/// W3 Provider Boundary Tests - Sprint 308, T5.1.
-///
-/// These tests verify the boundaries established during W3 Provider Extraction
-/// (Sprints 306-307) are maintained. Database drivers (Dapper, Npgsql, SqlClient)
-/// must be completely removed from Dispatch core and only exist in
-/// Excalibur.Data.* provider packages.
-///
-/// Reference Decisions:
-/// - AD-306-1 to AD-306-5: SqlServer provider patterns
-/// - AD-307-1 to AD-307-4: Postgres provider patterns
-///
-/// These tests prevent architectural regression by enforcing at build time
-/// that Dispatch remains infrastructure-agnostic.
+/// W3 Provider Boundary Tests — database drivers (Dapper, Npgsql, SqlClient) must not leak into the
+/// Dispatch core; they belong only in Excalibur.Data.* provider packages.
 /// </summary>
+/// <remarks>
+/// The namespace-based <c>HaveDependencyOn(driver)</c> forms of these checks were deleted: post-ADR-075
+/// <c>ResideInNamespace("Excalibur.Dispatch")</c> over-captures the Abstractions project and Excalibur.Outbox
+/// types shipping under <c>Excalibur.Dispatch.Delivery</c>, and the same boundary is enforced authoritatively
+/// and non-vacuously by the assembly-identity <see cref="Dispatch_AssemblyReferences_ShouldNotInclude_BannedAssemblies"/>
+/// below plus the disk-based <c>ProjectReferenceTests</c> / <c>PackageReferenceTests</c>.
+/// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Architecture")]
 public sealed class W3ProviderBoundaryTests
 {
-    private static readonly string[] ExcaliburPackages =
-        ["Excalibur.Data", "Excalibur.Domain", "Excalibur.EventSourcing", "Excalibur.Saga", "Excalibur.Outbox"];
-
-    #region Dispatch Must Not Depend On Database Drivers
-
-    /// <summary>
-    /// Dispatch MUST NOT depend on Dapper.
-    ///
-    /// W3 Provider Extraction moved all database access to Excalibur.Data.* packages.
-    /// Dapper should only exist in provider packages (SqlServer, Postgres).
-    /// </summary>
-    [Fact]
-    public void Dispatch_MustNotDependOn_Dapper()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .ShouldNot().HaveDependencyOn("Dapper")
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Dispatch must not depend on Dapper after W3 Provider Extraction. " +
-            "Database access belongs in Excalibur.Data.* provider packages. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    /// <summary>
-    /// Dispatch MUST NOT depend on Npgsql (Postgres driver).
-    ///
-    /// Postgres driver should only exist in Excalibur.Data.Postgres package.
-    /// </summary>
-    [Fact]
-    public void Dispatch_MustNotDependOn_Npgsql()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .ShouldNot().HaveDependencyOn("Npgsql")
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Dispatch must not depend on Npgsql after W3 Provider Extraction. " +
-            "Postgres access belongs in Excalibur.Data.Postgres package. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    /// <summary>
-    /// Dispatch MUST NOT depend on Microsoft.Data.SqlClient (SQL Server driver).
-    ///
-    /// SQL Server driver should only exist in Excalibur.Data.SqlServer package.
-    /// </summary>
-    [Fact]
-    public void Dispatch_MustNotDependOn_SqlClient()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .ShouldNot().HaveDependencyOn("Microsoft.Data.SqlClient")
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Dispatch must not depend on Microsoft.Data.SqlClient after W3 Provider Extraction. " +
-            "SQL Server access belongs in Excalibur.Data.SqlServer package. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    /// <summary>
-    /// Theory test covering all database drivers at once.
-    /// Provides a single test point for verifying driver isolation.
-    /// </summary>
-    [Theory]
-    [InlineData("Dapper")]
-    [InlineData("Npgsql")]
-    [InlineData("Microsoft.Data.SqlClient")]
-    public void Dispatch_MustNotDependOn_DatabaseDriver(string driver)
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .ShouldNot().HaveDependencyOn(driver)
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            $"Dispatch must not depend on {driver} after W3 Provider Extraction. " +
-            "Database drivers belong in Excalibur.Data.* provider packages. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    #endregion
+    // REMOVED (bh0syy) — namespace-based duplicates of the assembly-identity banned-assembly guard below
+    // (+ the disk-based ProjectReferenceTests/PackageReferenceTests), all over-capturing post-ADR-075:
+    //   Dispatch_MustNotDependOn_Dapper / _Npgsql / _SqlClient, Dispatch_MustNotDependOn_DatabaseDriver
+    //   (Theory), Dispatch_MustNotReference_SystemDataSqlClient, Dispatch_MustNotDependOn_Excalibur,
+    //   DispatchAbstractions_MustNotDependOn_Excalibur.
+    // REMOVED (bh0syy) — informational (`true.ShouldBeTrue`, assert nothing): ExcaliburData_MayDependOn_DatabaseDrivers,
+    //   Excalibur_CanReference_DispatchAbstractions.
 
     #region Dispatch Must Not Reference System.Data Types Directly
 
     /// <summary>
-    /// Dispatch MUST NOT reference System.Data.Common types directly.
-    ///
-    /// System.Data types (DbConnection, DbCommand, etc.) should only be
-    /// used in provider packages, not in the core messaging framework.
+    /// Dispatch MUST NOT reference System.Data.Common types directly — database operations belong in
+    /// Excalibur.Data.* provider packages. Kept as a namespace/type check: the target is a shared BCL
+    /// namespace, which has no assembly-identity equivalent.
     /// </summary>
     [Fact]
     public void Dispatch_MustNotReference_SystemDataCommon()
@@ -145,170 +58,22 @@ public sealed class W3ProviderBoundaryTests
             $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
     }
 
-    /// <summary>
-    /// Dispatch MUST NOT reference System.Data.SqlClient types.
-    ///
-    /// Legacy SqlClient namespace should never be used in Excalibur.Dispatch.
-    /// </summary>
-    [Fact]
-    public void Dispatch_MustNotReference_SystemDataSqlClient()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .ShouldNot().HaveDependencyOn("System.Data.SqlClient")
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Dispatch must not reference System.Data.SqlClient types. " +
-            "SQL Server access belongs in Excalibur.Data.SqlServer package. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
     #endregion
 
-    #region Excalibur.Data.* Provider Patterns
-
-    /// <summary>
-    /// Excalibur.Data.* packages MAY depend on database drivers.
-    /// This is the correct pattern - provider packages contain driver dependencies.
-    ///
-    /// This is a documentation test validating the expected pattern.
-    /// </summary>
-    [Fact]
-    public void ExcaliburData_MayDependOn_DatabaseDrivers()
-    {
-        // This test documents the pattern - providers CAN have driver dependencies
-        // We're validating that the architecture allows this correctly
-
-        // Check if Excalibur.Data types exist in the domain
-        var excaliburDataTypes = Types.InCurrentDomain()
-            .That().ResideInNamespaceContaining("Excalibur.Data")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .GetTypes()
-            .ToList();
-
-        // Document: Excalibur.Data.* packages are where database drivers belong
-        // This test passes to confirm the pattern is valid
-        true.ShouldBeTrue(
-            "Excalibur.Data.* packages are the correct location for database driver dependencies. " +
-            $"Found {excaliburDataTypes.Count} types in Excalibur.Data.* namespace.");
-    }
-
-    /// <summary>
-    /// Excalibur.Data.* packages should implement expected interfaces.
-    /// Providers must implement IConnectionFactory, IDeadLetterStore, etc.
-    /// </summary>
-    [Fact]
-    public void ExcaliburData_Providers_ShouldImplement_ExpectedInterfaces()
-    {
-        // Get all types in Excalibur.Data.* that end with Factory, Store, or Checker
-        var providerTypes = Types.InCurrentDomain()
-            .That().ResideInNamespaceContaining("Excalibur.Data")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .And().AreClasses()
-            .And().AreNotAbstract()
-            .GetTypes()
-            .Where(t => t.Name.EndsWith("Factory") ||
-                        t.Name.EndsWith("Store") ||
-                        t.Name.EndsWith("Checker"))
-            .ToList();
-
-        // Each provider type should implement at least one interface
-        var typesWithoutInterfaces = providerTypes
-            .Where(t => !t.GetInterfaces().Any())
-            .ToList();
-
-        typesWithoutInterfaces.ShouldBeEmpty(
-            "All Excalibur.Data.* provider types (Factory, Store, Checker) should implement interfaces. " +
-            $"Types without interfaces: {string.Join(", ", typesWithoutInterfaces.Select(t => t.Name))}");
-    }
-
-    #endregion
-
-    #region Dependency Direction Tests
-
-    /// <summary>
-    /// Excalibur.* packages CAN reference Excalibur.Dispatch.Abstractions.
-    /// This is the correct dependency direction per separation of concerns.
-    /// </summary>
-    [Fact]
-    public void Excalibur_CanReference_DispatchAbstractions()
-    {
-        // Document: Excalibur → Excalibur.Dispatch.Abstractions is the correct direction
-        // Excalibur.Dispatch.Abstractions provides IDomainEvent, IIntegrationEvent, etc.
-
-        var excaliburTypes = Types.InCurrentDomain()
-            .That().ResideInNamespaceContaining("Excalibur")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .GetTypes()
-            .ToList();
-
-        // This test documents the allowed dependency direction
-        true.ShouldBeTrue(
-            "Excalibur.* packages may reference Excalibur.Dispatch.Abstractions for IDomainEvent, etc. " +
-            $"Found {excaliburTypes.Count} types in Excalibur.* namespace.");
-    }
-
-    /// <summary>
-    /// Dispatch MUST NOT depend on Excalibur.* packages.
-    /// This is the critical separation: Dispatch is messaging only.
-    /// </summary>
-    [Fact]
-    public void Dispatch_MustNotDependOn_Excalibur()
-    {
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Dispatch")
-            .And().DoNotResideInNamespaceContaining("Tests")
-            .ShouldNot().HaveDependencyOnAny(ExcaliburPackages)
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Dispatch must not depend on Excalibur.* packages per separation of concerns. " +
-            "Dispatch handles messaging; Excalibur handles domain/persistence. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    /// <summary>
-    /// Excalibur.Dispatch.Abstractions MUST NOT depend on any Excalibur packages.
-    /// Abstractions layer must remain pure messaging contracts.
-    /// </summary>
-    [Fact]
-    public void DispatchAbstractions_MustNotDependOn_Excalibur()
-    {
-        // After namespace rename, Abstractions types use CLR namespace "Excalibur.Dispatch".
-        // We identify them by their assembly name instead.
-        var abstractionsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
-
-        if (abstractionsAssembly is null)
-        {
-            true.ShouldBeTrue("Excalibur.Dispatch.Abstractions assembly not loaded in test domain.");
-            return;
-        }
-
-        var result = Types.InAssembly(abstractionsAssembly)
-            .ShouldNot().HaveDependencyOnAny(ExcaliburPackages)
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Excalibur.Dispatch.Abstractions must not depend on Excalibur.* packages. " +
-            "Abstractions layer provides pure messaging contracts only. " +
-            $"Violating types: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
-    }
-
-    #endregion
+    // REMOVED (bh0syy): ExcaliburData_Providers_ShouldImplement_ExpectedInterfaces. Per SoftwareArchitect's
+    // ruling — a design heuristic ("every *Factory/*Store/*Checker implements an interface"), not a
+    // dependency boundary; it is legitimately violated by types like SqlServerBulkOperationFactory that need
+    // no interface. Deleted.
 
     #region Package Reference Verification
 
     /// <summary>
-    /// Validates that Dispatch assembly has no references to banned assemblies.
-    /// This is a stronger check using assembly reflection.
+    /// The <c>Excalibur.Dispatch</c> core assembly must not reference any banned database-driver assembly.
+    /// Assembly-identity check (exact match) — the authoritative form of the driver-isolation boundary.
     /// </summary>
     [Fact]
     public void Dispatch_AssemblyReferences_ShouldNotInclude_BannedAssemblies()
     {
-        // Banned assemblies that should not be referenced by Dispatch
         var bannedAssemblies = new[]
         {
             "Dapper",
@@ -317,22 +82,15 @@ public sealed class W3ProviderBoundaryTests
             "System.Data.SqlClient"
         };
 
-        // Get the Dispatch assembly (if loaded)
         var dispatchAssembly = AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch");
 
-        if (dispatchAssembly is null)
-        {
-            // Dispatch assembly not loaded - test is informational
-            true.ShouldBeTrue("Dispatch assembly not loaded in test domain.");
-            return;
-        }
+        _ = dispatchAssembly.ShouldNotBeNull(
+            "The Excalibur.Dispatch core assembly is not loaded — the module initializer force-loads it, so " +
+            "its absence means drift, not a pass.");
 
-        var referencedAssemblies = dispatchAssembly.GetReferencedAssemblies()
+        var violations = dispatchAssembly.GetReferencedAssemblies()
             .Select(a => a.Name ?? string.Empty)
-            .ToList();
-
-        var violations = referencedAssemblies
             .Where(name => bannedAssemblies.Any(banned =>
                 name.Equals(banned, StringComparison.OrdinalIgnoreCase)))
             .ToList();

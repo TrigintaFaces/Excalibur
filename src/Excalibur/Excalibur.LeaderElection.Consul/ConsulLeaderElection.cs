@@ -8,7 +8,10 @@ using System.Text.Json;
 
 using Consul;
 
+using System.Net.Http;
+
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using Excalibur.LeaderElection.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -25,6 +28,9 @@ namespace Excalibur.LeaderElection.Consul;
 /// </summary>
 public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, IDisposable, IAsyncDisposable
 {
+	// Cap on the exponential retry backoff (seconds) so a persistent transient never grows the delay unbounded.
+	private const double MaxRetryDelaySeconds = 30;
+
 	private readonly string _resourceName;
 	private readonly ConsulLeaderElectionOptions _options;
 	private readonly IConsulClient _consulClient;
@@ -33,6 +39,26 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	private readonly Timer _monitorTimer;
 	private readonly ConcurrentDictionary<string, CandidateHealth> _candidateHealthCache = new(StringComparer.Ordinal);
 	private readonly ResiliencePipeline _retryPolicy;
+
+	// Optional monotonic fencing token provider (opt-in, backward compatible). When supplied, a token is
+	// minted on acquisition BEFORE leadership is announced; on token-domain exhaustion the candidate
+	// relinquishes rather than leading with an un-advanced/wrapped fence.
+	private readonly IFencingTokenProvider? _fencingTokenProvider;
+	private readonly TimeProvider _timeProvider;
+
+	// The fencing token minted for the current leadership term, carried on the LeaderChanged event so
+	// subscribers capture the exact token issued at this transition (no TOCTOU re-read). Null when no
+	// provider is configured or leadership is not held.
+	// Sentinel for "no current fencing token" — a real monotonic token is never long.MinValue. The field is
+	// accessed via Interlocked from both the acquire/renew flow and the LeaderChanged event raise, so a plain
+	// long? (non-atomic, no memory barrier) could tear or read stale across those threads (wj6b10).
+	private const long NoFencingToken = long.MinValue;
+	private long _currentFencingToken = NoFencingToken;
+
+	// 3g58kl: UTC ticks of the instant the current leadership tenure began, accessed via Interlocked
+	// alongside _currentFencingToken (both mutated at the same acquisition site under no lock, mirroring
+	// the existing lock-free field pattern used throughout this type).
+	private long _leadershipAcquiredAtTicks;
 
 	private ConcurrentBag<Task> _trackedTasks = [];
 	private readonly CancellationTokenSource _shutdownTokenSource = new();
@@ -50,15 +76,27 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	/// <param name="options"> The Consul leader election options. </param>
 	/// <param name="consulClient"> The Consul client. </param>
 	/// <param name="logger"> The logger. </param>
+	/// <param name="fencingTokenProvider">
+	/// Optional monotonic fencing token provider. When supplied, a token is minted on acquisition before
+	/// leadership is announced; if the token domain is exhausted the candidate relinquishes (fail-closed).
+	/// </param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
+	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
+	/// </param>
 	public ConsulLeaderElection(
 		string resourceName,
 		IOptions<ConsulLeaderElectionOptions>? options,
 		IConsulClient? consulClient,
-		ILogger<ConsulLeaderElection>? logger)
+		ILogger<ConsulLeaderElection>? logger,
+		IFencingTokenProvider? fencingTokenProvider = null,
+		TimeProvider? timeProvider = null)
 	{
 		_resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger<ConsulLeaderElection>.Instance;
+		_fencingTokenProvider = fencingTokenProvider;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		CandidateId = _options.InstanceId ?? $"{Environment.MachineName}_{Guid.NewGuid():N}";
 
@@ -87,10 +125,16 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 				MaxRetryAttempts = _options.MaxRetryAttempts,
 				DelayGenerator = args =>
 				{
-					var delay = TimeSpan.FromSeconds(Math.Pow(2, args.AttemptNumber));
-					return ValueTask.FromResult<TimeSpan?>(delay);
+					// Exponential backoff, capped so a long-lived transient can't grow the delay unbounded.
+					var seconds = Math.Min(Math.Pow(2, args.AttemptNumber), MaxRetryDelaySeconds);
+					return ValueTask.FromResult<TimeSpan?>(TimeSpan.FromSeconds(seconds));
 				},
-				ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+				// Retry only TRANSIENT faults (Consul request / HTTP / timeout), never programming errors or
+				// other non-retryable exceptions — those must surface, not spin on aggressive backoff.
+				ShouldHandle = new PredicateBuilder()
+					.Handle<ConsulRequestException>()
+					.Handle<HttpRequestException>()
+					.Handle<TaskCanceledException>(),
 				OnRetry = args =>
 				{
 					LogRetryAttempt(args.Outcome.Exception!, args.AttemptNumber, args.RetryDelay.TotalSeconds, _resourceName);
@@ -112,11 +156,30 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 	/// <inheritdoc />
 	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
+	/// <inheritdoc/>
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
 	/// <inheritdoc />
 	public string CandidateId { get; }
 
 	/// <inheritdoc />
 	public bool IsLeader => string.Equals(CurrentLeaderId, CandidateId, StringComparison.Ordinal);
+
+	/// <inheritdoc />
+	public Leadership? CurrentLeadership
+	{
+		get
+		{
+			if (!IsLeader)
+			{
+				return null;
+			}
+
+			var token = Interlocked.Read(ref _currentFencingToken);
+			var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
+			return new Leadership(token == NoFencingToken ? null : token, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
+		}
+	}
 
 	/// <inheritdoc />
 	public string? CurrentLeaderId => _cachedCurrentLeaderId;
@@ -392,6 +455,14 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		"Failed to acquire leadership for resource '{Resource}' - another leader exists")]
 	partial void LogFailedToAcquireLeadership(string resource);
 
+	[LoggerMessage(LeaderElectionEventId.ConsulFencingTokenIssued, Microsoft.Extensions.Logging.LogLevel.Information,
+		"Candidate {CandidateId} minted fencing token {Token} for resource {Resource}")]
+	partial void LogFencingTokenIssued(string candidateId, long token, string resource);
+
+	[LoggerMessage(LeaderElectionEventId.ConsulFencingTokenExhausted, Microsoft.Extensions.Logging.LogLevel.Critical,
+		"Candidate {CandidateId} could not mint a fencing token for resource {Resource} — token domain exhausted; relinquishing leadership (fail-closed) rather than leading with an un-advanced fence")]
+	partial void LogFencingTokenExhausted(Exception exception, string candidateId, string resource);
+
 	[LoggerMessage(LeaderElectionEventId.ConsulErrorAcquiringLeadership, Microsoft.Extensions.Logging.LogLevel.Error,
 		"Error trying to acquire leadership for resource '{Resource}'")]
 	partial void LogErrorAcquiringLeadership(Exception ex, string resource);
@@ -520,7 +591,17 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 
 			if (acquired)
 			{
+				// Mint the fencing token BEFORE announcing leadership so the fence is always advanced first.
+				// On token-domain exhaustion, relinquish (release the lock, do not lead) — fail-closed.
+				if (!await TryMintFencingTokenAsync(cancellationToken).ConfigureAwait(false))
+				{
+					await ReleaseLeadershipAsync().ConfigureAwait(false);
+					RaiseAcquisitionFailed("fencing token domain exhausted", exception: null);
+					return;
+				}
+
 				_cachedCurrentLeaderId = CandidateId;
+				Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
 				LogAcquiredLeadership(_resourceName);
 
 				// Raise events
@@ -528,18 +609,63 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 
 				if (!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
 				{
-					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, CandidateId, _resourceName));
+					var fencingToken = Interlocked.Read(ref _currentFencingToken);
+					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, CandidateId, _resourceName, fencingToken == NoFencingToken ? null : fencingToken));
 					_lastKnownLeaderId = CandidateId;
 				}
 			}
 			else
 			{
 				LogFailedToAcquireLeadership(_resourceName);
+				RaiseAcquisitionFailed("lost the acquisition race", exception: null);
 			}
 		}
 		catch (Exception ex)
 		{
 			LogErrorAcquiringLeadership(ex, _resourceName);
+			RaiseAcquisitionFailed("error during acquisition", ex);
+		}
+	}
+
+	/// <summary>
+	/// Mints a monotonic fencing token on acquisition (when a provider is configured), returning
+	/// <see langword="true"/> if leadership may proceed. Returns <see langword="false"/> only when the token
+	/// domain is exhausted (<see cref="FencingTokenExhaustedException"/>) — the fail-closed relinquish path.
+	/// </summary>
+	private async Task<bool> TryMintFencingTokenAsync(CancellationToken cancellationToken)
+	{
+		if (_fencingTokenProvider is null)
+		{
+			return true;
+		}
+
+		try
+		{
+			var token = await _fencingTokenProvider.IssueTokenAsync(_resourceName, cancellationToken).ConfigureAwait(false);
+			_ = Interlocked.Exchange(ref _currentFencingToken, token);
+			LogFencingTokenIssued(CandidateId, token, _resourceName);
+			return true;
+		}
+		catch (FencingTokenExhaustedException ex)
+		{
+			LogFencingTokenExhausted(ex, CandidateId, _resourceName);
+			return false;
+		}
+	}
+
+	/// <summary>
+	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
+	/// can never break the acquisition/renewal loop.
+	/// </summary>
+	private void RaiseAcquisitionFailed(string reason, Exception? exception)
+	{
+		try
+		{
+			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
+		}
+		catch (Exception)
+		{
+			// A throwing subscriber must never break the acquire loop.
 		}
 	}
 
@@ -562,6 +688,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			if (released.Response)
 			{
 				_cachedCurrentLeaderId = null;
+				_ = Interlocked.Exchange(ref _currentFencingToken, NoFencingToken);
 				LogReleasedLeadership(_resourceName);
 
 				// Raise events

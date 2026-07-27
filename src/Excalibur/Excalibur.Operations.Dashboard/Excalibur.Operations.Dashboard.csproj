@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>$(AssemblyName)</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- AOT/trim-safe minimal APIs: emit interceptors for Map* delegates instead of runtime reflection. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <Description>Free, OSS, read-only-by-default operational dashboard for the Excalibur framework. Surfaces live outbox, dead-letter, inbox, saga, projection/CDC-lag, and leader-election state across every configured storage provider via minimal-API endpoints and an embedded single-page app. Mutating actions (dead-letter replay) are opt-in and auth-gated.</Description>
+    <PackageTags>excalibur;dashboard;operations;observability;outbox;dlq;saga;leader-election;monitoring</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Operations.Dashboard.Spa\Excalibur.Operations.Dashboard.Spa.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
+    <ProjectReference Include="..\Excalibur.Workflows.Abstractions\Excalibur.Workflows.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.LeaderElection.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Saga" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Workflows.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <PropertyGroup>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Operations.Dashboard.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

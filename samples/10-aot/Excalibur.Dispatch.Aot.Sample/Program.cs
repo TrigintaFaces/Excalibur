@@ -18,6 +18,7 @@ using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Aot.Sample.EventSourcing;
 using Excalibur.Dispatch.Aot.Sample.Handlers;
+using Excalibur.Domain.Model;
 using Excalibur.Dispatch.Aot.Sample.Messages;
 using Excalibur.Dispatch.Aot.Sample.Serialization;
 using Excalibur.Dispatch.Configuration;
@@ -245,9 +246,19 @@ Console.WriteLine();
 // ============================================================================
 Console.WriteLine("--- Demo 9: Aggregate Reconstruction from History ---");
 
-// Create a fresh aggregate and replay events (simulating load from store)
+// Create a fresh aggregate and replay events (simulating load from store).
+//
+// Replay pairs each event with the version the event store assigned it on append. The version is a
+// persistence fact that belongs to the stream, not a property the event knows about itself, so it
+// travels alongside the event in a HistoricEvent rather than inside the payload.
+var history = new HistoricEvent[storedEvents.Count];
+for (var i = 0; i < storedEvents.Count; i++)
+{
+	history[i] = new HistoricEvent(uncommittedEvents[i], storedEvents[i].Version);
+}
+
 var reconstructed = new BankAccountAggregate();
-reconstructed.LoadFromHistory(uncommittedEvents);
+reconstructed.LoadFromHistory(history);
 
 Console.WriteLine($"Reconstructed account: {reconstructed.Id}");
 Console.WriteLine($"Holder:  {reconstructed.HolderName}");

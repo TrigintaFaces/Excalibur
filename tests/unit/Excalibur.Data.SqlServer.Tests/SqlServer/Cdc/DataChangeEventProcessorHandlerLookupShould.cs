@@ -55,6 +55,7 @@ public sealed class DataChangeEventProcessorHandlerLookupShould : UnitTestBase
 			Options.Create(new SqlServerCdcStateStoreOptions()),
 			provider,
 			A.Fake<IDataAccessPolicyFactory>(),
+			TimeProvider.System,
 			provider.GetRequiredService<ILogger<DataChangeEventProcessor>>());
 	}
 

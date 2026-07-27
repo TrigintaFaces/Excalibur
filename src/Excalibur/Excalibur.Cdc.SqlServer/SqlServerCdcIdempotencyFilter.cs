@@ -60,23 +60,29 @@ internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFil
 		string tableName,
 		byte[] lsn,
 		byte[] seqVal,
+		string consumerId,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 
+		// ConsumerId is part of the predicate, not decoration. Without it the dedupe namespace is table plus
+		// position, so the FIRST consumer to process a change marks it done for every other consumer of that
+		// table and the others skip a change they never saw -- silent, unrecoverable, and invisible to any
+		// alert. A duplicate merely reprocesses, which an idempotent handler absorbs; a suppression does not.
 		var sql = $"""
 			SELECT CASE WHEN EXISTS (
 				SELECT 1 FROM {_options.QualifiedTableName}
-				WHERE TableName = @tableName AND Lsn = @lsn AND SeqVal = @seqVal
+				WHERE TableName = @tableName AND Lsn = @lsn AND SeqVal = @seqVal AND ConsumerId = @consumerId
 			) THEN 1 ELSE 0 END
 			""";
 
 		var result = await _connection.Ready().QuerySingleAsync<int>(
 			new CommandDefinition(
 				sql,
-				new { tableName, lsn, seqVal },
+				new { tableName, lsn, seqVal, consumerId },
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
@@ -93,15 +99,17 @@ internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFil
 		string tableName,
 		byte[] lsn,
 		byte[] seqVal,
+		string consumerId,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 
 		var sql = $"""
-			INSERT INTO {_options.QualifiedTableName} (TableName, Lsn, SeqVal, ProcessedAt)
-			VALUES (@tableName, @lsn, @seqVal, SYSUTCDATETIME())
+			INSERT INTO {_options.QualifiedTableName} (TableName, Lsn, SeqVal, ConsumerId, ProcessedAt)
+			VALUES (@tableName, @lsn, @seqVal, @consumerId, SYSUTCDATETIME())
 			""";
 
 		try
@@ -109,7 +117,7 @@ internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFil
 			await _connection.Ready().ExecuteAsync(
 				new CommandDefinition(
 					sql,
-					new { tableName, lsn, seqVal },
+					new { tableName, lsn, seqVal, consumerId },
 					commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 		}

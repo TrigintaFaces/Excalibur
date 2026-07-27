@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 [Trait(TraitNames.Component, TestComponents.Compliance)]
 public sealed class InMemoryErasureStoreShould
 {
-	private readonly InMemoryErasureStore _sut = new();
+	private readonly InMemoryErasureStore _sut = new(TestDataSubjectHasher.Instance);
 
 	#region SaveRequestAsync Tests
 

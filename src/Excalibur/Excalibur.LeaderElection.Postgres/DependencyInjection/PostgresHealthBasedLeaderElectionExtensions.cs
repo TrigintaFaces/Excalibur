@@ -86,6 +86,8 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 
+		services.TryAddSingleton(TimeProvider.System);
+
 		services.TryAddSingleton(sp =>
 		{
 			var pgOptions = sp.GetRequiredService<IOptions<PostgresLeaderElectionOptions>>();
@@ -93,7 +95,8 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 			var healthOptions = sp.GetRequiredService<IOptions<PostgresHealthBasedLeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<PostgresHealthBasedLeaderElection>>();
 			var innerLogger = sp.GetRequiredService<ILogger<PostgresLeaderElection>>();
-			return new PostgresHealthBasedLeaderElection(pgOptions, electionOptions, healthOptions, logger, innerLogger);
+			var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
+			return new PostgresHealthBasedLeaderElection(pgOptions, electionOptions, healthOptions, logger, innerLogger, timeProvider: timeProvider);
 		});
 
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>
@@ -109,6 +112,13 @@ public static class PostgresHealthBasedLeaderElectionExtensions
 		});
 		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
+
+		// Also register unkeyed. Consumers of a single leader election resolve ILeaderElection directly —
+		// including the outbox leader gate — and a keyed registration does not satisfy an unkeyed request.
+		// Without this, a host that registers leader election here resolves nothing and drains unfenced.
+		// TryAdd, so a consumer's own unkeyed registration still wins.
+		services.TryAddSingleton<ILeaderElection>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElection>("default"));
 
 		return services;
 	}

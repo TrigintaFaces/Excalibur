@@ -19,6 +19,10 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 {
+	/// <summary>The asking consumer. These arms are not about consumer isolation, so one identity is used
+	/// throughout; CdcIdempotencyConsumerCollisionShould is where two identities are contrasted.</summary>
+	private const string TestConsumer = "test-consumer";
+
 	private static readonly byte[] SampleLsn = [0x00, 0x00, 0x00, 0x01];
 	private static readonly byte[] SampleSeqVal = [0x00, 0x01];
 	private const string SampleTable = "dbo_Orders";
@@ -32,7 +36,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var filter = CreateFilter();
 
 		// Act
-		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
+		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -45,8 +49,8 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var filter = CreateFilter();
 
 		// Act
-		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
-		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
+		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 
 		// Assert
 		result.ShouldBeTrue();
@@ -59,7 +63,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var filter = CreateFilter();
 
 		// Act
-		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 
 		// Assert
 		filter.Count.ShouldBe(1);
@@ -75,10 +79,10 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var seqVal = new byte[] { 0x01 };
 
 		// Act
-		await filter.MarkProcessedAsync(SampleTable, lsn1, seqVal, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, lsn1, seqVal, TestConsumer, CancellationToken.None);
 
 		// Assert — same table, different LSN is NOT processed
-		var result = await filter.IsProcessedAsync(SampleTable, lsn2, seqVal, CancellationToken.None);
+		var result = await filter.IsProcessedAsync(SampleTable, lsn2, seqVal, TestConsumer, CancellationToken.None);
 		result.ShouldBeFalse();
 	}
 
@@ -89,10 +93,10 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var filter = CreateFilter();
 
 		// Act
-		await filter.MarkProcessedAsync("dbo_Orders", SampleLsn, SampleSeqVal, CancellationToken.None);
+		await filter.MarkProcessedAsync("dbo_Orders", SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 
 		// Assert — different table, same LSN+SeqVal is NOT processed
-		var result = await filter.IsProcessedAsync("dbo_Customers", SampleLsn, SampleSeqVal, CancellationToken.None);
+		var result = await filter.IsProcessedAsync("dbo_Customers", SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 		result.ShouldBeFalse();
 	}
 
@@ -105,10 +109,10 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var seqVal2 = new byte[] { 0x02 };
 
 		// Act
-		await filter.MarkProcessedAsync(SampleTable, SampleLsn, seqVal1, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, SampleLsn, seqVal1, TestConsumer, CancellationToken.None);
 
 		// Assert
-		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, seqVal2, CancellationToken.None);
+		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, seqVal2, TestConsumer, CancellationToken.None);
 		result.ShouldBeFalse();
 	}
 
@@ -123,21 +127,21 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var filter = CreateFilter();
 
 		// Act
-		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
-		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 
 		// Assert — count should still be 1 (TryAdd is idempotent)
 		filter.Count.ShouldBe(1);
-		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, CancellationToken.None);
+		var result = await filter.IsProcessedAsync(SampleTable, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None);
 		result.ShouldBeTrue();
 	}
 
 	#endregion
 
-	#region Capacity Limit (Skip-When-Full)
+	#region Capacity Limit (Fail-Closed)
 
 	[Fact]
-	public async Task StopTracking_WhenCapacityIsReached()
+	public async Task FailClosed_WhenIsProcessedSeesNewEvent_AtCapacity()
 	{
 		// Arrange — capacity of 3
 		var filter = CreateFilter(capacity: 3);
@@ -145,18 +149,21 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		// Fill to capacity
 		for (var i = 0; i < 3; i++)
 		{
-			await filter.MarkProcessedAsync(SampleTable, new byte[] { (byte)i }, SampleSeqVal, CancellationToken.None);
+			await filter.MarkProcessedAsync(SampleTable, new byte[] { (byte)i }, SampleSeqVal, TestConsumer, CancellationToken.None);
 		}
 
 		filter.Count.ShouldBe(3);
 
-		// Act — try to add a 4th event (should be silently skipped)
-		await filter.MarkProcessedAsync(SampleTable, new byte[] { 0xFF }, SampleSeqVal, CancellationToken.None);
-
-		// Assert — count stays at 3, new event is NOT tracked
+		// MarkProcessedAsync stays best-effort — it runs AFTER the handler, so it must never throw.
+		await Should.NotThrowAsync(
+			() => filter.MarkProcessedAsync(SampleTable, new byte[] { 0xFF }, SampleSeqVal, TestConsumer, CancellationToken.None));
 		filter.Count.ShouldBe(3);
-		var result = await filter.IsProcessedAsync(SampleTable, new byte[] { 0xFF }, SampleSeqVal, CancellationToken.None);
-		result.ShouldBeFalse();
+
+		// IsProcessedAsync is the pre-process fail-closed gate: a not-yet-seen event at capacity cannot be
+		// deduplicated, so it throws transient rather than admit it un-tracked (which would risk a double-
+		// process on redelivery).
+		await Should.ThrowAsync<CdcIdempotencyCapacityExceededException>(
+			() => filter.IsProcessedAsync(SampleTable, new byte[] { 0xFE }, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -167,12 +174,12 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		var lsn1 = new byte[] { 0x01 };
 		var lsn2 = new byte[] { 0x02 };
 
-		await filter.MarkProcessedAsync(SampleTable, lsn1, SampleSeqVal, CancellationToken.None);
-		await filter.MarkProcessedAsync(SampleTable, lsn2, SampleSeqVal, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, lsn1, SampleSeqVal, TestConsumer, CancellationToken.None);
+		await filter.MarkProcessedAsync(SampleTable, lsn2, SampleSeqVal, TestConsumer, CancellationToken.None);
 
 		// Act & Assert — already-tracked events are still found
-		(await filter.IsProcessedAsync(SampleTable, lsn1, SampleSeqVal, CancellationToken.None)).ShouldBeTrue();
-		(await filter.IsProcessedAsync(SampleTable, lsn2, SampleSeqVal, CancellationToken.None)).ShouldBeTrue();
+		(await filter.IsProcessedAsync(SampleTable, lsn1, SampleSeqVal, TestConsumer, CancellationToken.None)).ShouldBeTrue();
+		(await filter.IsProcessedAsync(SampleTable, lsn2, SampleSeqVal, TestConsumer, CancellationToken.None)).ShouldBeTrue();
 	}
 
 	#endregion
@@ -190,8 +197,8 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 		for (var i = 0; i < 50; i++)
 		{
 			var lsn = new byte[] { (byte)(i / 256), (byte)(i % 256) };
-			tasks.Add(filter.MarkProcessedAsync(SampleTable, lsn, SampleSeqVal, CancellationToken.None));
-			tasks.Add(filter.IsProcessedAsync(SampleTable, lsn, SampleSeqVal, CancellationToken.None));
+			tasks.Add(filter.MarkProcessedAsync(SampleTable, lsn, SampleSeqVal, TestConsumer, CancellationToken.None));
+			tasks.Add(filter.IsProcessedAsync(SampleTable, lsn, SampleSeqVal, TestConsumer, CancellationToken.None));
 		}
 
 		// Assert — no exceptions
@@ -209,7 +216,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 	{
 		var filter = CreateFilter();
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.IsProcessedAsync(null!, SampleLsn, SampleSeqVal, CancellationToken.None));
+			() => filter.IsProcessedAsync(null!, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -217,7 +224,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 	{
 		var filter = CreateFilter();
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.IsProcessedAsync(SampleTable, null!, SampleSeqVal, CancellationToken.None));
+			() => filter.IsProcessedAsync(SampleTable, null!, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -225,7 +232,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 	{
 		var filter = CreateFilter();
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.IsProcessedAsync(SampleTable, SampleLsn, null!, CancellationToken.None));
+			() => filter.IsProcessedAsync(SampleTable, SampleLsn, null!, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -233,7 +240,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 	{
 		var filter = CreateFilter();
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.MarkProcessedAsync(null!, SampleLsn, SampleSeqVal, CancellationToken.None));
+			() => filter.MarkProcessedAsync(null!, SampleLsn, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -241,7 +248,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 	{
 		var filter = CreateFilter();
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.MarkProcessedAsync(SampleTable, null!, SampleSeqVal, CancellationToken.None));
+			() => filter.MarkProcessedAsync(SampleTable, null!, SampleSeqVal, TestConsumer, CancellationToken.None));
 	}
 
 	[Fact]
@@ -249,7 +256,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 	{
 		var filter = CreateFilter();
 		await Should.ThrowAsync<ArgumentNullException>(
-			() => filter.MarkProcessedAsync(SampleTable, SampleLsn, null!, CancellationToken.None));
+			() => filter.MarkProcessedAsync(SampleTable, SampleLsn, null!, TestConsumer, CancellationToken.None));
 	}
 
 	#endregion

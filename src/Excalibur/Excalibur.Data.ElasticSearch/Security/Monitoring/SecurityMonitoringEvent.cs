@@ -7,9 +7,6 @@ namespace Excalibur.Data.ElasticSearch.Security;
 /// <summary>
 /// Represents a security monitoring event.
 /// </summary>
-/// <summary>
-/// Represents a security monitoring event.
-/// </summary>
 public sealed class SecurityMonitoringEvent
 {
 	/// <summary>

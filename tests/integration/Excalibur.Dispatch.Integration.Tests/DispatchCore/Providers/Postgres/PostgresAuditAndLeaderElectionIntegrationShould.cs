@@ -241,6 +241,8 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 
 		return new PostgresAuditStore(
 			Microsoft.Extensions.Options.Options.Create(options),
+			// No ambient tenant: this suite asserts audit + leader-election behaviour, not tenancy.
+			tenantContext: null,
 			EnabledTestLogger.Create<PostgresAuditStore>());
 	}
 

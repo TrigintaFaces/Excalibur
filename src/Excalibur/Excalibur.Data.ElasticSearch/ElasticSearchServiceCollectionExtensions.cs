@@ -118,6 +118,8 @@ public static class ElasticSearchServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchConfigurationOptions>()
 			.Bind(configuration.GetSection("ElasticSearch"))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchConfigurationOptions>, ElasticsearchConfigurationOptionsValidator>());
 
 		services.TryAddSingleton<IElasticsearchHealthClient, ElasticsearchHealthClient>();
 
@@ -204,6 +206,8 @@ public static class ElasticSearchServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchMonitoringOptions>()
 			.Bind(configuration.GetSection("ElasticSearch:Monitoring"))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchMonitoringOptions>, ElasticsearchMonitoringOptionsValidator>());
 
 		// Register monitoring services
 		services.TryAddSingleton(static sp =>
@@ -353,6 +357,8 @@ public static class ElasticSearchServiceCollectionExtensions
 		_ = services.AddOptions<IndexManagementOptions>()
 			.Bind(configuration.GetSection("ElasticSearch:IndexManagement"))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<IndexManagementOptions>, IndexManagementOptionsValidator>());
 
 		// Register index management services
 		services.TryAddSingleton<IIndexTemplateManager, IndexTemplateManager>();
@@ -418,6 +424,8 @@ public static class ElasticSearchServiceCollectionExtensions
 			services.AddOptions<ElasticsearchConfigurationOptions>()
 				.BindConfiguration(esBuilder.BindConfigurationPath)
 				.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchConfigurationOptions>, ElasticsearchConfigurationOptionsValidator>());
 
 			services.TryAddSingleton(sp =>
 			{

@@ -187,10 +187,13 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 		var options = new SqlServerOutboxOptions
 		{
 			ConnectionString = _connectionString!,
-			SchemaName = "dbo",
-			OutboxTableName = "OutboxMessages",
-			TransportsTableName = "OutboxTransports",
-			CommandTimeoutSeconds = 30
+			Tables =
+			{
+				SchemaName = "dbo",
+				OutboxTableName = "OutboxMessages",
+				TransportsTableName = "OutboxTransports",
+			},
+			Processing = { CommandTimeoutSeconds = 30 },
 		};
 
 		return new SqlServerOutboxStore(Options.Create(options), NullLogger<SqlServerOutboxStore>.Instance);

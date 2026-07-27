@@ -114,14 +114,16 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case CustomerCreated e: Apply(e); break;
-			case CustomerInfoUpdated e: Apply(e); break;
-			case CustomerOrderPlaced e: Apply(e); break;
-			case CustomerDeactivated e: Apply(e); break;
+			case CustomerCreated e: Apply(e); return true;
+			case CustomerInfoUpdated e: Apply(e); return true;
+			case CustomerOrderPlaced e: Apply(e); return true;
+			case CustomerDeactivated e: Apply(e); return true;
+			default:
+				return false;
 		}
 	}
 

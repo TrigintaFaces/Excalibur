@@ -47,7 +47,9 @@ public static class AuditEventCanonicalizer
 			auditEvent.ActorType,
 			auditEvent.ResourceId,
 			auditEvent.ResourceType,
-			auditEvent.ResourceClassification?.ToString(),
+			auditEvent.ResourceClassification.HasValue
+				? ((int)auditEvent.ResourceClassification.Value).ToString(CultureInfo.InvariantCulture)
+				: null,
 			auditEvent.TenantId,
 			auditEvent.ApplicationName,
 			auditEvent.CorrelationId,

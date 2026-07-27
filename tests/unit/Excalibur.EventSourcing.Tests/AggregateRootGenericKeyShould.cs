@@ -46,13 +46,14 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
+			RaiseEvent(new TestEvent { Data = state });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is TestEvent e)
 				State = e.Data;
+					return true;
 		}
 	}
 
@@ -72,13 +73,14 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
+			RaiseEvent(new TestEvent { Data = state });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is TestEvent e)
 				State = e.Data;
+					return true;
 		}
 	}
 
@@ -98,13 +100,14 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
+			RaiseEvent(new TestEvent { Data = state });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is TestEvent e)
 				State = e.Data;
+					return true;
 		}
 	}
 
@@ -132,13 +135,14 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
+			RaiseEvent(new TestEvent { Data = state });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is TestEvent e)
 				State = e.Data;
+					return true;
 		}
 	}
 
@@ -195,14 +199,14 @@ public sealed class AggregateRootGenericKeyShould
 		// Arrange
 		var id = Guid.NewGuid();
 		var aggregate = new GuidAggregate(id);
-		var events = new List<IDomainEvent>
+		var history = new HistoricEvent[]
 		{
-			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "first" },
-			new TestEvent { AggregateId = id.ToString(), Version = 1, Data = "second" }
+			new(new TestEvent { Data = "first" }, 0),
+			new(new TestEvent { Data = "second" }, 1)
 		};
 
 		// Act
-		aggregate.LoadFromHistory(events);
+		aggregate.LoadFromHistory(history);
 
 		// Assert
 		aggregate.State.ShouldBe("second");
@@ -467,15 +471,15 @@ public sealed class AggregateRootGenericKeyShould
 	{
 		// Arrange
 		var id = Guid.NewGuid();
-		var events = new List<IDomainEvent>
+		var history = new HistoricEvent[]
 		{
-			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "first" },
-			new TestEvent { AggregateId = id.ToString(), Version = 1, Data = "second" },
-			new TestEvent { AggregateId = id.ToString(), Version = 2, Data = "third" }
+			new(new TestEvent { Data = "first" }, 0),
+			new(new TestEvent { Data = "second" }, 1),
+			new(new TestEvent { Data = "third" }, 2)
 		};
 
 		// Act
-		var aggregate = FactoryAggregate.FromEvents(id, events);
+		var aggregate = FactoryAggregate.FromEvents(id, history);
 
 		// Assert
 		_ = aggregate.ShouldNotBeNull();
@@ -490,10 +494,10 @@ public sealed class AggregateRootGenericKeyShould
 	{
 		// Arrange
 		var id = Guid.NewGuid();
-		var events = Array.Empty<IDomainEvent>();
+		var history = Array.Empty<HistoricEvent>();
 
 		// Act
-		var aggregate = FactoryAggregate.FromEvents(id, events);
+		var aggregate = FactoryAggregate.FromEvents(id, history);
 
 		// Assert
 		_ = aggregate.ShouldNotBeNull();
@@ -508,13 +512,13 @@ public sealed class AggregateRootGenericKeyShould
 		// Arrange - This is a critical behavior test
 		// Events loaded via FromEvents should NOT be treated as new changes
 		var id = Guid.NewGuid();
-		var events = new List<IDomainEvent>
+		var history = new HistoricEvent[]
 		{
-			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "historical" }
+			new(new TestEvent { Data = "historical" }, 0)
 		};
 
 		// Act
-		var aggregate = FactoryAggregate.FromEvents(id, events);
+		var aggregate = FactoryAggregate.FromEvents(id, history);
 
 		// Assert
 		aggregate.GetUncommittedEvents().ShouldBeEmpty();
@@ -526,9 +530,9 @@ public sealed class AggregateRootGenericKeyShould
 	{
 		// Arrange
 		var id = Guid.NewGuid();
-		var historyEvents = new List<IDomainEvent>
+		var historyEvents = new HistoricEvent[]
 		{
-			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "historical" }
+			new(new TestEvent { Data = "historical" }, 0)
 		};
 
 		// Act
@@ -580,7 +584,7 @@ public sealed class AggregateRootGenericKeyShould
 		// Static factory methods required by IAggregateRoot<TAggregate, TKey>
 		public static FactoryAggregate Create(Guid id) => new(id);
 
-		public static FactoryAggregate FromEvents(Guid id, IEnumerable<IDomainEvent> events)
+		public static FactoryAggregate FromEvents(Guid id, IEnumerable<HistoricEvent> events)
 		{
 			var aggregate = new FactoryAggregate(id);
 			aggregate.LoadFromHistory(events);
@@ -589,13 +593,14 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
+			RaiseEvent(new TestEvent { Data = state });
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			if (@event is TestEvent e)
 				State = e.Data;
+					return true;
 		}
 	}
 

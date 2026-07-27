@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data;
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -100,13 +101,22 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresOutboxStoreOptions>, PostgresOutboxStoreOptionsValidator>());
 
+		// The fail-closed single-tenant default guarantees a non-null ITenantContext so the dep-gated
+		// AddTenantScopedStore seam resolves (GetRequiredService) rather than throwing; the multi-tenancy
+		// composition replaces it with the ambient context. The outbox honors the tenant by stamping +
+		// persisting tenant_id per message and returning it on drain.
+		builder.Services.AddDefaultTenantContext();
+
 		// Register services based on connection mode
 		if (postgresBuilder.ConfiguredDbFactory is not null)
 		{
 			var dbFactory = postgresBuilder.ConfiguredDbFactory;
 
-			// Register Postgres outbox store with IDb factory
-			builder.Services.TryAddSingleton(sp =>
+			// Register Postgres outbox store with IDb factory. AddTenantScopedStore emits the
+			// ITenantScopingCapability<IOutboxStore> marker as part of THIS registration so the marker cannot
+			// exist without the store factory (S886 rw2ull — no lying marker). The outbox honors the ambient
+			// tenant by persisting tenant_id per message and returning it on drain.
+			builder.Services.AddTenantScopedStore<IOutboxStore, PostgresOutboxStore>((sp, _) =>
 			{
 				var db = dbFactory(sp);
 				var options = sp.GetRequiredService<IOptions<PostgresOutboxStoreOptions>>();
@@ -127,8 +137,16 @@ public static class OutboxBuilderPostgresExtensions
 				return connection;
 			});
 
-			// Register Postgres outbox store
-			builder.Services.TryAddSingleton<PostgresOutboxStore>();
+			// Register Postgres outbox store (DI-constructed). AddTenantScopedStore emits the
+			// ITenantScopingCapability<IOutboxStore> marker inseparably from this registration (S886 rw2ull (B));
+			// the store reads no ambient tenant (isolation = per-message tenant_id column), so the resolved
+			// context is not threaded into construction.
+			builder.Services.AddTenantScopedStore<IOutboxStore, PostgresOutboxStore>(
+				static (sp, _) => new PostgresOutboxStore(
+					sp.GetRequiredService<IDb>(),
+					sp.GetRequiredService<IOptions<PostgresOutboxStoreOptions>>(),
+					sp.GetRequiredService<ILogger<PostgresOutboxStore>>(),
+					sp.GetService<PostgresOutboxStoreMetrics>()));
 		}
 		else
 		{
@@ -141,6 +159,11 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.AddKeyedSingleton<IOutboxStore>("postgres", (sp, _) => sp.GetRequiredService<PostgresOutboxStore>());
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("postgres"));
+
+		// The ITenantScopingCapability<IOutboxStore> marker is emitted by AddTenantScopedStore above,
+		// inseparably from the store registration (S886 rw2ull — the marker cannot exist without the store
+		// factory). The outbox honors the ambient tenant by stamping + persisting tenant_id on enqueue and
+		// returning it on drain for the processor's per-message BeginScope.
 		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<PostgresOutboxStore>());
 
 		return builder;

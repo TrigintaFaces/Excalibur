@@ -215,6 +215,42 @@ public interface IMaterializedViewBuilder<TView>
     /// Creates a new instance of the view.
     /// </summary>
     TView CreateNew() => new();
+
+    /// <summary>
+    /// Declares the delivery guarantee this projection requires from its view store.
+    /// Defaults to <see cref="ViewDeliverySemantics.ExactlyOnce"/>.
+    /// </summary>
+    ViewDeliverySemantics DeliverySemantics => ViewDeliverySemantics.ExactlyOnce;
+}
+```
+
+### Delivery semantics
+
+A projection declares the delivery guarantee it needs from its view store via `DeliverySemantics`.
+The guarantee is an intrinsic property of the `Apply` logic — whether re-applying the same event
+changes the view — so the **projection author** declares it, not the deployment.
+
+| `ViewDeliverySemantics` | Meaning | Runs on |
+|---|---|---|
+| `ExactlyOnce` (default) | Accumulating / non-idempotent — re-applying an event changes the view (e.g. a running total). | An `IAtomicMaterializedViewStore` **only** — the view and its checkpoint are persisted as one atomic operation, so a crash between the two writes cannot replay the last event and double-count. Wiring an exactly-once projection to a non-atomic store is **refused at startup**. |
+| `AtLeastOnceIdempotent` | Idempotent (upsert-by-view-id) — re-applying an event yields the same view (e.g. `status = Shipped`). | **Any** view store, including Elasticsearch and OpenSearch, which have no cross-index transaction and so cannot persist a view and its checkpoint atomically. |
+
+Declare at-least-once semantics when your `Apply` is a pure upsert, so the view can run on a
+non-atomic store that tolerates the at-least-once replay a crash may cause:
+
+```csharp
+public class OrderStatusView : IMaterializedViewBuilder<OrderStatusReadModel>
+{
+    public ViewDeliverySemantics DeliverySemantics => ViewDeliverySemantics.AtLeastOnceIdempotent;
+
+    // Apply is an idempotent upsert — replaying OrderShipped is a no-op once status is Shipped.
+    public OrderStatusReadModel Apply(OrderStatusReadModel view, IDomainEvent @event)
+    {
+        if (@event is OrderShipped) view.Status = "Shipped";
+        return view;
+    }
+
+    // ... ViewName, HandledEventTypes, GetViewId ...
 }
 ```
 
@@ -268,6 +304,65 @@ public interface IMaterializedViewStore
         CancellationToken cancellationToken);
 }
 ```
+
+### IAtomicMaterializedViewStore
+
+Exactly-once projections (`ViewDeliverySemantics.ExactlyOnce`) require a view store that can persist the
+view **and** advance its processed position as one all-or-nothing operation. That capability is a
+**separate interface**, `IAtomicMaterializedViewStore : IMaterializedViewStore`, not a virtual member on
+the base store:
+
+```csharp
+public interface IAtomicMaterializedViewStore : IMaterializedViewStore
+{
+    // True when this store instance can currently commit the view and its position as one unit.
+    bool SupportsAtomicWrites { get; }
+
+    // Persists the view and advances the position in a single durable, monotonic operation:
+    // both writes commit, or neither does. A lower position never overwrites a higher one,
+    // so a delayed or retried write cannot rewind the checkpoint and replay applied events.
+    ValueTask SaveViewAndPositionAsync<TView>(
+        string viewName,
+        string viewId,
+        TView view,
+        long position,
+        CancellationToken cancellationToken)
+        where TView : class;
+}
+```
+
+**Why a separate type rather than a default method?** Writing the view and the position as two operations
+and crashing between them replays the event on restart, which double-counts any view that accumulates
+rather than overwrites. A store with no way to commit both writes together must be **unable to express**
+the guarantee — so it simply does not implement this interface, rather than silently inheriting a default
+it cannot honour.
+
+**Capability vs. configuration — two distinct gates.** Implementing the interface says the store is
+*capable* of atomic writes; `SupportsAtomicWrites` says the current configuration *enables* them:
+
+- A store whose atomicity is unconditional returns `true` constantly.
+- A store whose atomicity requires an opt-in (a transaction mode, a replica set) returns the value of
+  that setting, so the check reads the option that actually governs the behaviour instead of a proxy
+  for it. A deployment that leaves the option off is refused at startup rather than degrading to
+  at-least-once in production.
+
+**Which first-party stores qualify:**
+
+| Store | Atomic view+position? | `SupportsAtomicWrites` |
+|---|---|---|
+| SQL Server | Yes | `true` — unconditional (single-statement `MERGE`). |
+| PostgreSQL | Yes | `true` — unconditional (`INSERT … ON CONFLICT`). |
+| MongoDB | Conditional | reflects `UseTransactions` — requires a replica set / transactions; `false` on a standalone deployment. |
+| Elasticsearch | No | — the view and its checkpoint live in different indices with no cross-index transaction, so the store does not implement the interface. |
+| OpenSearch | No | — same as Elasticsearch. |
+
+**What the startup rejection means.** Wiring an `ExactlyOnce` projection to a store that does not
+implement `IAtomicMaterializedViewStore` — or one whose `SupportsAtomicWrites` is `false` — is refused
+**at startup**, not at runtime. This is intended: the guarantee cannot be provided, so the failure is
+surfaced immediately instead of silently downgrading to at-least-once and double-counting in production.
+Resolve it by either (a) targeting an atomic store (SQL Server, PostgreSQL, or MongoDB with transactions
+enabled), or (b) declaring `ViewDeliverySemantics.AtLeastOnceIdempotent` when your `Apply` is an
+idempotent upsert (see [Delivery semantics](#delivery-semantics)), which runs on any store.
 
 ## Getting Started
 
@@ -649,7 +744,11 @@ public class DashboardDto
 
 ### 3. Use Position Tracking
 
-Position tracking ensures exactly-once processing:
+Position tracking is what lets a projection resume without reprocessing from the beginning. On its own it
+does **not** give you exactly-once — as described above, that additionally requires an
+`IAtomicMaterializedViewStore`, which persists the view and its checkpoint in one atomic operation. Without
+that atomicity, a crash between the two writes replays the last event and double-counts, whatever the
+position says:
 
 ```csharp
 // The framework handles this automatically, but for manual scenarios:

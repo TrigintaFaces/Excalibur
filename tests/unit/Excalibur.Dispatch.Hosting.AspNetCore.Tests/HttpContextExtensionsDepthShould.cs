@@ -203,7 +203,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("header-tenant");
+		tenantId.ShouldBe("header-tenant");
 	}
 
 	[Fact]
@@ -219,7 +219,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("route-tenant");
+		tenantId.ShouldBe("route-tenant");
 	}
 
 	[Fact]
@@ -237,7 +237,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("query-tenant");
+		tenantId.ShouldBe("query-tenant");
 	}
 
 	[Fact]
@@ -254,7 +254,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("claim-tenant");
+		tenantId.ShouldBe("claim-tenant");
 	}
 
 	#endregion

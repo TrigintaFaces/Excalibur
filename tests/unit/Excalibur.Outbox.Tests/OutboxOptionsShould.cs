@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox.Tests;
@@ -50,26 +50,6 @@ public sealed class OutboxOptionsShould : UnitTestBase
 
 		// Assert
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
-	}
-
-	[Fact]
-	public void BalancedPreset_HaveAutomaticCleanupEnabled()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.Balanced().Build();
-
-		// Assert
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void BalancedPreset_HaveCorrectMessageRetentionPeriod()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.Balanced().Build();
-
-		// Assert
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
 	}
 
 	[Fact]
@@ -171,16 +151,6 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		options.MaxDegreeOfParallelism.ShouldBe(1);
 	}
 
-	[Fact]
-	public void HighReliabilityPreset_HaveCorrectRetentionPeriod()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.HighReliability().Build();
-
-		// Assert
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-	}
-
 	#endregion
 
 	#region Custom Builder Tests
@@ -231,30 +201,6 @@ public sealed class OutboxOptionsShould : UnitTestBase
 
 		// Assert
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
-	}
-
-	[Fact]
-	public void Custom_AllowDisablingAutomaticCleanup()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.Custom()
-			.DisableAutomaticCleanup()
-			.Build();
-
-		// Assert
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void Custom_AllowCustomMessageRetentionPeriod()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.Custom()
-			.WithRetentionPeriod(TimeSpan.FromDays(30))
-			.Build();
-
-		// Assert
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	[Fact]
@@ -324,20 +270,6 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		options.ProcessorId.ShouldBe("custom-processor");
 		// Other preset values should be preserved
 		options.BatchSize.ShouldBe(100);
-	}
-
-	[Fact]
-	public void HighReliability_AllowOverridingRetentionPeriod()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.HighReliability()
-			.WithRetentionPeriod(TimeSpan.FromDays(90))
-			.Build();
-
-		// Assert
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(90));
-		// Other preset values should be preserved
-		options.BatchSize.ShouldBe(10);
 	}
 
 	#endregion
@@ -412,15 +344,6 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		options.Retry.ShouldNotBeNull();
 	}
 
-	[Fact]
-	public void Cleanup_SubOptionsAreInitialized()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.Balanced().Build();
-
-		// Assert
-		options.Cleanup.ShouldNotBeNull();
-	}
 
 	#endregion
 
@@ -480,48 +403,6 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		// Arrange & Act & Assert
 		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
 			OutboxOptions.Custom().WithRetryDelay(TimeSpan.FromSeconds(-1)).Build());
-	}
-
-	[Fact]
-	public void Build_ThrowsOnInvalidRetentionPeriod()
-	{
-		// Arrange & Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
-			OutboxOptions.Custom().WithRetentionPeriod(TimeSpan.Zero).Build());
-	}
-
-	[Fact]
-	public void Build_ThrowsOnInvalidCleanupInterval()
-	{
-		// Arrange & Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
-			OutboxOptions.Custom().WithCleanupInterval(TimeSpan.Zero).Build());
-	}
-
-	[Fact]
-	public void Build_ThrowsOnRetentionPeriodLessThanCleanupInterval()
-	{
-		// Arrange & Act & Assert
-		_ = Should.Throw<InvalidOperationException>(() =>
-			OutboxOptions.Custom()
-				.WithRetentionPeriod(TimeSpan.FromMinutes(30))
-				.WithCleanupInterval(TimeSpan.FromHours(1))
-				.Build());
-	}
-
-	[Fact]
-	public void Build_AllowsRetentionPeriodLessThanCleanupIntervalWhenCleanupDisabled()
-	{
-		// Arrange & Act
-		var options = OutboxOptions.Custom()
-			.WithRetentionPeriod(TimeSpan.FromMinutes(30))
-			.WithCleanupInterval(TimeSpan.FromHours(1))
-			.DisableAutomaticCleanup()
-			.Build();
-
-		// Assert - should not throw
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Fact]

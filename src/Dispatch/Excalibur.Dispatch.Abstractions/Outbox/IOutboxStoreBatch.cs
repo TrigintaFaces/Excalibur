@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Dispatch;
@@ -16,6 +16,6 @@ public interface IOutboxStoreBatch
 	/// <summary>Marks a batch of messages as failed.</summary>
 	ValueTask MarkBatchFailedAsync(IReadOnlyList<string> messageIds, string reason, int retryCount, CancellationToken cancellationToken);
 
-	/// <summary>Atomically marks message as sent and creates inbox entry for exactly-once delivery.</summary>
+	/// <summary>Atomically marks message as sent and creates the inbox entry in one transaction, so a redelivery is skipped rather than reprocessed (effectively-once processing; delivery remains at-least-once).</summary>
 	ValueTask<bool> TryMarkSentAndReceivedAsync(string messageId, InboxEntry inboxEntry, CancellationToken cancellationToken);
 }

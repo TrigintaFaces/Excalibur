@@ -42,6 +42,15 @@ public sealed class SqliteSnapshotStoreConformanceShould : SnapshotConformanceTe
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// The tenant context is required, not decoration. Without it <c>TenantScope.FromContext</c> yields
+	/// <c>None</c>, the row key omits the tenant, and every tenant collides on one row — the untenanted
+	/// path, exercised silently by a suite meant to prove the tenanted one. Supplying it also makes
+	/// multi-tenancy active, so every call must resolve a tenant or the store fails closed by design;
+	/// <c>TenantScopedConformance</c> on the base supplies that ambient tenant, which is why this needs
+	/// no change to any arm. Passed by name because <c>tenantContext</c> follows the optional
+	/// <c>table</c> parameter.
+	/// </remarks>
 	protected override Task<ISnapshotStore> CreateSnapshotStoreAsync()
 	{
 		var logger = NullLogger<SqliteSnapshotStore>.Instance;
@@ -49,7 +58,10 @@ public sealed class SqliteSnapshotStoreConformanceShould : SnapshotConformanceTe
 		// Bind the default connection-string constructor (the surface most consumers use).
 		// The store auto-creates its table on first use, so no DDL bootstrap is required.
 		return Task.FromResult<ISnapshotStore>(
-			new SqliteSnapshotStore(_fixture.ConnectionString, logger));
+			new SqliteSnapshotStore(
+				_fixture.ConnectionString,
+				logger,
+				tenantContext: CreateAmbientTenantContext()));
 	}
 
 	/// <inheritdoc/>

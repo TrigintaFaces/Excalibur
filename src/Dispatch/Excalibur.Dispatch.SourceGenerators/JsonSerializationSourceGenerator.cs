@@ -176,7 +176,15 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("/// </summary>");
 		_ = sb.AppendLine("/// <example>");
 		_ = sb.AppendLine("/// <code>");
-		_ = sb.AppendLine("/// // In consumer code, create a partial class with all discovered message types:");
+		_ = sb.AppendLine("/// // In consumer code, create a partial class with all discovered message types.");
+		_ = sb.AppendLine("/// // The [JsonSourceGenerationOptions] below is REQUIRED for wire-shape parity with the");
+		_ = sb.AppendLine("/// // reflection-based JsonEventSerializer: camelCase property names, enums as strings, and");
+		_ = sb.AppendLine("/// // omitted nulls. Diverging from it (e.g. PascalCase or enum-as-number) produces event");
+		_ = sb.AppendLine("/// // payloads that mis-read when loaded through the canonical read path (a cross-path fault).");
+		_ = sb.AppendLine("/// [JsonSourceGenerationOptions(");
+		_ = sb.AppendLine("///     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,");
+		_ = sb.AppendLine("///     UseStringEnumConverter = true,");
+		_ = sb.AppendLine("///     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]");
 
 		if (concreteTypes.Length > 0)
 		{
@@ -190,7 +198,7 @@ public sealed class JsonSerializationSourceGenerator : IIncrementalGenerator
 			_ = sb.AppendLine("/// [JsonSerializable(typeof(MyCommand))]");
 		}
 
-		_ = sb.AppendLine("/// public partial class AppJsonSerializerContext : JsonSerializerContext {{ }}");
+		_ = sb.AppendLine("/// public partial class AppJsonSerializerContext : JsonSerializerContext { }");
 		_ = sb.AppendLine("/// </code>");
 		_ = sb.AppendLine("/// </example>");
 		_ = sb.AppendLine("internal static class DiscoveredMessageTypeMetadata");

@@ -21,6 +21,7 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Routing;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Kafka;
 using Excalibur.Dispatch.Transport.RabbitMQ;
 
@@ -116,7 +117,7 @@ builder.Services.AddKafkaTransport("kafka", kafka =>
 });
 
 // Add CloudEvents support for Kafka
-builder.Services.UseCloudEventsForKafka();
+builder.Services.AddCloudEventsForKafka();
 
 // ============================================================
 // Build and start the host
@@ -146,6 +147,27 @@ logger.LogInformation("Published to RabbitMQ: {Text}", rabbitPing.Text);
 var kafkaPing = new KafkaPingEvent("hello kafka");
 _ = await dispatcher.DispatchAsync(kafkaPing, context, cancellationToken: default).ConfigureAwait(false);
 logger.LogInformation("Published to Kafka: {Text}", kafkaPing.Text);
+
+// ============================================================
+// Per-transport keyed seam (advanced, opt-in)
+// ============================================================
+// For a bespoke publishing path outside the routing rules — a custom relay,
+// a health probe, a one-off publish — resolve a specific transport's
+// ITransportSender directly, keyed by the name you passed to AddXTransport(name, …).
+// Every transport package registers a keyed ITransportSender and ITransportReceiver
+// under that name, guaranteed family-wide by a cross-transport DI regression test.
+// See docs: transports/keyed-transport-seam.md
+var rabbitSender = host.Services.GetRequiredKeyedService<ITransportSender>("rabbitmq");
+
+var healthPing = TransportMessage.FromString("health-ping");
+healthPing.Subject = "multibus.health";
+
+var sendResult = await rabbitSender.SendAsync(healthPing, cancellationToken: default).ConfigureAwait(false);
+await rabbitSender.FlushAsync(cancellationToken: default).ConfigureAwait(false);
+logger.LogInformation(
+	"Keyed RabbitMQ sender health-ping: success={IsSuccess} messageId={MessageId}",
+	sendResult.IsSuccess,
+	sendResult.MessageId);
 
 logger.LogInformation("Messages published to both transports. Press Ctrl+C to exit...");
 

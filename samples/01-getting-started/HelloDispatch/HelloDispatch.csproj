@@ -10,9 +10,8 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
-  <!-- Minimal dependencies for core Dispatch functionality -->
+  <!-- One package: Excalibur.Dispatch (Excalibur.Dispatch.Abstractions comes in transitively) -->
   <ItemGroup>
-    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
   </ItemGroup>
 </Project>

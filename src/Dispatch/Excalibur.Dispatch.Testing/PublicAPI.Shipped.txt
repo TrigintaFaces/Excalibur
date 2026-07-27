@@ -85,6 +85,7 @@ Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.TestMeterFactory() -> vo
 Excalibur.Dispatch.Testing.DispatchTestHarness
 Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureDispatch(System.Action<Excalibur.Dispatch.Configuration.IDispatchBuilder!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
 Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>! configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness!
+Excalibur.Dispatch.Testing.DispatchTestHarness.CreateAsyncScope() -> Microsoft.Extensions.DependencyInjection.AsyncServiceScope
 Excalibur.Dispatch.Testing.DispatchTestHarness.CreateScope() -> Microsoft.Extensions.DependencyInjection.IServiceScope!
 Excalibur.Dispatch.Testing.DispatchTestHarness.DispatchTestHarness() -> void
 Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatched.get -> Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog!
@@ -255,4 +256,3 @@ static Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests.
 static Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions.AddDispatchTesting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! destination = "test-destination", string! source = "test-source") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Dispatch.Testing.Polling.WaitHelpers.DefaultPollInterval -> System.TimeSpan
 virtual Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests.CreatePairedReceiverAsync() -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ITransportReceiver?>!
-Excalibur.Dispatch.Testing.DispatchTestHarness.CreateAsyncScope() -> Microsoft.Extensions.DependencyInjection.AsyncServiceScope

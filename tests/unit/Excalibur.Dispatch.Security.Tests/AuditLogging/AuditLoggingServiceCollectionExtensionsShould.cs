@@ -778,7 +778,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var auditEvent = new AuditEvent
 		{
@@ -809,7 +809,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Pre-populate the inner store
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -840,7 +840,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Pre-populate
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -872,7 +872,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 		var metaLogger = A.Fake<IAuditLogger>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger, null, metaLogger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
 
 		var auditEvent = new AuditEvent
 		{
@@ -902,7 +902,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Pre-populate
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -932,7 +932,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Act
 		var result = await rbacStore.VerifyChainIntegrityAsync(
@@ -955,7 +955,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Pre-populate
 		_ = await innerStore.StoreAsync(new AuditEvent
@@ -986,7 +986,7 @@ public sealed class AuditLoggingServiceCollectionExtensionsShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 		var logger = A.Fake<ILogger<RbacAuditStore>>();
 
-		var rbacStore = new RbacAuditStore(innerStore, roleProvider, logger);
+		var rbacStore = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var auditEvent = new AuditEvent
 		{

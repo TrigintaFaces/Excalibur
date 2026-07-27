@@ -47,7 +47,7 @@ public static class DefaultPipelineProfiles
 	/// <summary>
 	/// Creates the default pipeline profile with canonical middleware ordering. Implements requirement R7.6 baseline order.
 	/// </summary>
-	public static PipelineProfile CreateDefaultProfile()
+	public static IPipelineProfile CreateDefaultProfile()
 	{
 		var profile = new PipelineProfile(Default, MessageKinds.All)
 		{
@@ -56,22 +56,36 @@ public static class DefaultPipelineProfiles
 
 		// R7.6 Default Baseline Order
 		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
-		profile.AddMiddleware<TenantIdentityMiddleware>(1); // 1. TenantIdentityMiddleware (All)
-		profile.AddMiddleware<ContractVersionCheckMiddleware>(2); // 2. ContractVersionCheckMiddleware (Event|Document)
-		profile.AddMiddleware<ValidationMiddleware>(3); // 3. ValidationMiddleware (Action)
-		profile.AddMiddleware<AuthorizationMiddleware>(4); // 4. AuthorizationMiddleware (Action)
-		profile.AddMiddleware<TimeoutMiddleware>(5); // 5. TimeoutMiddleware (Action|Event)
-		profile.AddMiddleware<TransactionMiddleware>(6); // 6. TransactionMiddleware (Action)
-		profile.AddMiddleware<OutboxStagingMiddleware>(7); // 7. OutboxStagingMiddleware (Action|Event)
-		profile.AddMiddleware<MetricsLoggingMiddleware>(8); // 8. MetricsLoggingMiddleware (All)
+		// AuthorizationMiddleware is intentionally NOT in the Default profile: it is a security-sensitive
+		// middleware that depends on consumer-supplied authorization services. Because profile materialization
+		// null-skips any middleware whose services are unregistered (Microsoft fail-open), including it here
+		// would silently no-op when a consumer selects "Default" without wiring auth — a silent authorization
+		// bypass. Authorization is opt-in via the Strict profile, which the consumer deliberately selects.
+		// Every entry states its criticality EXPLICITLY, for the same reason as the strict profile: a
+		// shipped profile must not depend on the MiddlewareEntry default.
+		//
+		// All seven are Optional, and that is not a weakening. This profile is what a consumer gets from
+		// a bare registration with no configuration at all, and it declares no security boundary — the
+		// comment above records that AuthorizationMiddleware is deliberately absent precisely so that
+		// selecting "default" cannot look like authorization. Marking these Required would stop every
+		// zero-configuration host from starting while protecting nothing, because the protection a
+		// consumer must opt into is not declared here in the first place.
+		profile.AddMiddleware<TenantIdentityMiddleware>(1, MiddlewareCriticality.Optional); // 1. TenantIdentityMiddleware (All)
+		profile.AddMiddleware<ContractVersionCheckMiddleware>(2, MiddlewareCriticality.Optional); // 2. ContractVersionCheckMiddleware (Event|Document)
+		profile.AddMiddleware<ValidationMiddleware>(3, MiddlewareCriticality.Optional); // 3. ValidationMiddleware (Action)
+		profile.AddMiddleware<TimeoutMiddleware>(4, MiddlewareCriticality.Optional); // 4. TimeoutMiddleware (Action|Event)
+		profile.AddMiddleware<TransactionMiddleware>(5, MiddlewareCriticality.Optional); // 5. TransactionMiddleware (Action)
+		profile.AddMiddleware<OutboxStagingMiddleware>(6, MiddlewareCriticality.Optional); // 6. OutboxStagingMiddleware (Action|Event)
+		profile.AddMiddleware<MetricsLoggingMiddleware>(7, MiddlewareCriticality.Optional); // 7. MetricsLoggingMiddleware (All)
 
 		return profile;
 	}
 
 	/// <summary>
-	/// Creates the strict pipeline profile for external/partner inputs. Includes full validation, authentication, authorization, and rate limiting.
+	/// Creates the strict pipeline profile for external/partner inputs. Includes authentication, authorization, tenant isolation, input
+	/// sanitization and rate limiting, each of which the pipeline refuses to build without.
 	/// </summary>
-	public static PipelineProfile CreateStrictProfile()
+	public static IPipelineProfile CreateStrictProfile()
 	{
 		var profile = new PipelineProfile(Strict, MessageKinds.Action | MessageKinds.Event)
 		{
@@ -80,19 +94,28 @@ public static class DefaultPipelineProfiles
 
 		// Order matters - security checks first
 		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
-		profile.AddMiddleware<ThrottlingMiddleware>(1);
-		profile.AddMiddleware<AuthenticationMiddleware>(2);
-		profile.AddMiddleware<TenantIdentityMiddleware>(3);
-		profile.AddMiddleware<InputSanitizationMiddleware>(4);
-		profile.AddMiddleware<ValidationMiddleware>(5);
-		profile.AddMiddleware<AuthorizationMiddleware>(6);
-		profile.AddMiddleware<ContractVersionCheckMiddleware>(7);
-		profile.AddMiddleware<TimeoutMiddleware>(8);
-		profile.AddMiddleware<CircuitBreakerMiddleware>(9);
-		profile.AddMiddleware<TransactionMiddleware>(10);
-		profile.AddMiddleware<OutboxStagingMiddleware>(11);
-		profile.AddMiddleware<AuditLoggingMiddleware>(12);
-		profile.AddMiddleware<MetricsLoggingMiddleware>(13);
+		// Every entry states its criticality EXPLICITLY. A shipped profile must not depend on the
+		// MiddlewareEntry default, so a future change to that default cannot silently alter what the
+		// framework ships. The default governs consumer-authored entries only.
+		//
+		// The five Required entries are the protections a consumer is deliberately asking for when they
+		// select "strict" for external and partner traffic. If one of them cannot be materialized, the
+		// build fails and names it, rather than serving hostile traffic through a pipeline that silently
+		// lacks it. The remainder are infrastructure whose absence degrades behaviour without removing a
+		// security boundary, so they are skipped and logged as before.
+		profile.AddMiddleware<ThrottlingMiddleware>(1, MiddlewareCriticality.Required);
+		profile.AddMiddleware<AuthenticationMiddleware>(2, MiddlewareCriticality.Required);
+		profile.AddMiddleware<TenantIdentityMiddleware>(3, MiddlewareCriticality.Required);
+		profile.AddMiddleware<InputSanitizationMiddleware>(4, MiddlewareCriticality.Required);
+		profile.AddMiddleware<ValidationMiddleware>(5, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<AuthorizationMiddleware>(6, MiddlewareCriticality.Required);
+		profile.AddMiddleware<ContractVersionCheckMiddleware>(7, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<TimeoutMiddleware>(8, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<CircuitBreakerMiddleware>(9, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<TransactionMiddleware>(10, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<OutboxStagingMiddleware>(11, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<AuditLoggingMiddleware>(12, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<MetricsLoggingMiddleware>(13, MiddlewareCriticality.Optional);
 
 		return profile;
 	}
@@ -100,7 +123,7 @@ public static class DefaultPipelineProfiles
 	/// <summary>
 	/// Creates the internal event pipeline profile. Minimal overhead for trusted internal event processing.
 	/// </summary>
-	public static PipelineProfile CreateInternalEventProfile()
+	public static IPipelineProfile CreateInternalEventProfile()
 	{
 		var profile = new PipelineProfile(InternalEvent, MessageKinds.Event)
 		{
@@ -109,11 +132,15 @@ public static class DefaultPipelineProfiles
 
 		// Minimal middleware for internal events
 		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
-		profile.AddMiddleware<TenantIdentityMiddleware>(1);
-		profile.AddMiddleware<ContractVersionCheckMiddleware>(2);
-		profile.AddMiddleware<TimeoutMiddleware>(3);
-		profile.AddMiddleware<OutboxStagingMiddleware>(4);
-		profile.AddMiddleware<MetricsLoggingMiddleware>(5);
+		// Explicit criticality, as with every shipped profile: none of these may depend on the
+		// MiddlewareEntry default. Internal events are already inside the trust boundary and this profile
+		// declares no security middleware, so an unresolvable entry degrades behaviour rather than
+		// removing a protection the consumer asked for.
+		profile.AddMiddleware<TenantIdentityMiddleware>(1, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<ContractVersionCheckMiddleware>(2, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<TimeoutMiddleware>(3, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<OutboxStagingMiddleware>(4, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<MetricsLoggingMiddleware>(5, MiddlewareCriticality.Optional);
 
 		return profile;
 	}
@@ -121,7 +148,7 @@ public static class DefaultPipelineProfiles
 	/// <summary>
 	/// Creates the batch/backfill pipeline profile. Optimized for high-throughput batch processing.
 	/// </summary>
-	public static PipelineProfile CreateBatchProfile()
+	public static IPipelineProfile CreateBatchProfile()
 	{
 		var profile = new PipelineProfile(Batch, MessageKinds.All)
 		{
@@ -130,8 +157,10 @@ public static class DefaultPipelineProfiles
 
 		// Minimal middleware for batch processing
 		// Note: CorrelationMiddleware removed in Sprint 70 - correlation now handled at Dispatcher level
-		profile.AddMiddleware<UnifiedBatchingMiddleware>(1);
-		profile.AddMiddleware<MetricsLoggingMiddleware>(2);
+		// Explicit criticality, as with every shipped profile. Batch processing declares no security
+		// middleware, so neither entry gates a protection a consumer opted into.
+		profile.AddMiddleware<UnifiedBatchingMiddleware>(1, MiddlewareCriticality.Optional);
+		profile.AddMiddleware<MetricsLoggingMiddleware>(2, MiddlewareCriticality.Optional);
 
 		return profile;
 	}
@@ -144,7 +173,7 @@ public static class DefaultPipelineProfiles
 	/// Correlation and context management is handled directly in the Dispatcher,
 	/// allowing direct profiles to have zero middleware overhead while still maintaining message tracing.
 	/// </remarks>
-	public static PipelineProfile CreateDirectProfile()
+	public static IPipelineProfile CreateDirectProfile()
 	{
 		var profile = new PipelineProfile(Direct, MessageKinds.All)
 		{
@@ -173,7 +202,7 @@ public static class DefaultPipelineProfiles
 	private static void RegisterIfMissing(
 		IPipelineProfileRegistry registry,
 		string profileName,
-		Func<PipelineProfile> profileFactory)
+		Func<IPipelineProfile> profileFactory)
 	{
 		if (registry.GetProfile(profileName) is null)
 		{

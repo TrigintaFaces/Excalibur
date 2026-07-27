@@ -1,9 +1,12 @@
 #nullable enable
 Excalibur.Inbox.DependencyInjection.IInboxBuilder
 Excalibur.Inbox.DependencyInjection.IInboxBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Inbox.IInboxSchemaValidator
+Excalibur.Inbox.IInboxSchemaValidator.ValidateSchemaAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.Observability.InboxActivities
 Excalibur.Inbox.Observability.InboxActivitySource
 Excalibur.Inbox.Observability.InboxTags
+Microsoft.Extensions.DependencyInjection.InboxSchemaValidationServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions
 const Excalibur.Inbox.Observability.InboxActivities.Cleanup = "inbox.cleanup" -> string!
 const Excalibur.Inbox.Observability.InboxActivities.CreateEntry = "inbox.create_entry" -> string!
@@ -21,4 +24,5 @@ static Excalibur.Inbox.Observability.InboxActivitySource.StartCreateEntryActivit
 static Excalibur.Inbox.Observability.InboxActivitySource.StartExistsActivity(string! messageId, string! handlerType) -> System.Diagnostics.Activity?
 static Excalibur.Inbox.Observability.InboxActivitySource.StartMarkFailedActivity(string! messageId, string! handlerType) -> System.Diagnostics.Activity?
 static Excalibur.Inbox.Observability.InboxActivitySource.StartMarkProcessedActivity(string! messageId, string! handlerType) -> System.Diagnostics.Activity?
+static Microsoft.Extensions.DependencyInjection.InboxSchemaValidationServiceCollectionExtensions.AddInboxSchemaValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions.AddExcaliburInbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.DependencyInjection.IInboxBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -60,10 +60,10 @@ internal sealed class CloudMonitoringExporter : IDisposable
 		}
 
 		_metricClient = MetricServiceClient.Create();
-		_projectName = ProjectName.FromProject(_options.ProjectId);
+		_projectName = ProjectName.FromProject(_options.Connection.ProjectId);
 
 		// Configure resource labels
-		_resource = new GoogleApi.MonitoredResource { Type = "global", Labels = { ["project_id"] = _options.ProjectId } };
+		_resource = new GoogleApi.MonitoredResource { Type = "global", Labels = { ["project_id"] = _options.Connection.ProjectId } };
 
 		// Add custom resource labels if configured
 		foreach (var label in _options.Telemetry.TelemetryResourceLabels)
@@ -98,7 +98,7 @@ internal sealed class CloudMonitoringExporter : IDisposable
 
 		_logger.LogInformation(
 			"Cloud Monitoring exporter initialized for project {ProjectId} with {Interval}s export interval",
-			_options.ProjectId,
+			_options.Connection.ProjectId,
 			_options.Telemetry.TelemetryExportIntervalSeconds);
 	}
 
@@ -209,9 +209,9 @@ internal sealed class CloudMonitoringExporter : IDisposable
 		var metricLabels = new Dictionary<string, string>
 			(StringComparer.Ordinal)
 		{
-			["subscription"] = _options.SubscriptionId,
-			["topic"] = _options.TopicId,
-			["project"] = _options.ProjectId,
+			["subscription"] = _options.Connection.SubscriptionId,
+			["topic"] = _options.Connection.TopicId,
+			["project"] = _options.Connection.ProjectId,
 		};
 
 		foreach (var tag in tags)

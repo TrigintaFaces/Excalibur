@@ -21,7 +21,15 @@ public static class DbConnectionExtensions
 	/// <param name="connection"> The database connection to use for the request. </param>
 	/// <param name="dataRequest"> The request to execute, including the command and resolver. </param>
 	/// <returns> The result of the request execution as an instance of <typeparamref name="TModel" />. </returns>
-	/// <exception cref="OperationFailedException"> Thrown if an error occurs while executing the request. </exception>
+	/// <remarks>
+	/// This is the execute path over an <see cref="IDb"/> connection. An <see cref="ApiException"/> raised by the
+	/// resolver — including a <see cref="ConcurrencyException"/> signalling an optimistic-concurrency conflict —
+	/// surfaces to the caller <em>unchanged</em>, preserving its type and metadata so the caller can react to the
+	/// conflict (for example, reload and retry). Only a non-<see cref="ApiException"/> infrastructure fault is
+	/// wrapped as an <see cref="OperationFailedException"/>.
+	/// </remarks>
+	/// <exception cref="ConcurrencyException"> Propagated unchanged when the resolver reports an optimistic-concurrency conflict. </exception>
+	/// <exception cref="OperationFailedException"> Thrown when a non-application (infrastructure) error occurs while executing the request. </exception>
 	public static async Task<TModel> ResolveAsync<TModel>(this IDbConnection connection, IDataRequest<IDbConnection, TModel> dataRequest)
 	{
 		ArgumentNullException.ThrowIfNull(dataRequest);

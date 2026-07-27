@@ -4,6 +4,7 @@
 using Consul;
 
 using Excalibur.Dispatch.LeaderElection;
+using Excalibur.Dispatch.LeaderElection.Fencing;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,10 +18,12 @@ namespace Excalibur.LeaderElection.Consul;
 /// <param name="options"> The Consul leader election options. </param>
 /// <param name="consulClient"> Optional Consul client to use. </param>
 /// <param name="loggerFactory"> The logger factory. </param>
+/// <param name="fencingTokenProvider"> Optional monotonic fencing token provider (opt-in). </param>
 public sealed class ConsulLeaderElectionFactory(
 	IOptions<ConsulLeaderElectionOptions> options,
 	IConsulClient? consulClient = null,
-	ILoggerFactory? loggerFactory = null) : ILeaderElectionFactory
+	ILoggerFactory? loggerFactory = null,
+	IFencingTokenProvider? fencingTokenProvider = null) : ILeaderElectionFactory
 {
 	private readonly IOptions<ConsulLeaderElectionOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
 
@@ -56,7 +59,8 @@ public sealed class ConsulLeaderElectionFactory(
 			resourceName,
 			optionsCopy,
 			consulClient,
-			loggerFactory?.CreateLogger<ConsulLeaderElection>());
+			loggerFactory?.CreateLogger<ConsulLeaderElection>(),
+			fencingTokenProvider);
 	}
 
 	/// <inheritdoc />
@@ -93,6 +97,7 @@ public sealed class ConsulLeaderElectionFactory(
 			resourceName,
 			optionsCopy,
 			consulClient,
-			loggerFactory?.CreateLogger<ConsulLeaderElection>());
+			loggerFactory?.CreateLogger<ConsulLeaderElection>(),
+			fencingTokenProvider);
 	}
 }

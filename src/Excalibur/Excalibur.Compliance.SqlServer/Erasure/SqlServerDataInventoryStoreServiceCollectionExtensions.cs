@@ -38,6 +38,7 @@ public static class SqlServerDataInventoryStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerDataInventoryStoreOptions>,
 				SqlServerDataInventoryStoreOptionsValidator>());
 
+		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
 		services.TryAddSingleton<SqlServerDataInventoryStore>();
 		services.TryAddSingleton<IDataInventoryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());
 		services.TryAddSingleton<IDataInventoryQueryStore>(sp => sp.GetRequiredService<SqlServerDataInventoryStore>());

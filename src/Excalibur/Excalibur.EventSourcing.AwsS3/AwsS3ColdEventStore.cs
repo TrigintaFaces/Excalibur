@@ -10,6 +10,8 @@ using Amazon.S3.Model;
 
 using Microsoft.Extensions.Logging;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.AwsS3;
 
 /// <summary>
@@ -17,7 +19,10 @@ namespace Excalibur.EventSourcing.AwsS3;
 /// </summary>
 /// <remarks>
 /// Events are stored as gzip-compressed JSON objects, one object per aggregate.
-/// Key pattern: <c>{keyPrefix}/{aggregateId}/events.json.gz</c>.
+/// Key pattern: <c>{keyPrefix}/{tenantSegment}/{aggregateSegment}/events.json.gz</c>, and
+/// <c>{tenantSegment}/{aggregateSegment}/events.json.gz</c> when no key prefix is configured. Both segments
+/// are Base64Url-encoded, so neither appears verbatim: write lifecycle rules and IAM prefix conditions
+/// against the encoded form, never against a raw tenant or aggregate identifier.
 /// </remarks>
 internal sealed class AwsS3ColdEventStore : IColdEventStore
 {
@@ -43,24 +48,26 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 		_bucketName = bucketName;
 		_keyPrefix = keyPrefix ?? "";
 		_logger = logger;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 	}
 
 	/// <inheritdoc />
-	public async Task WriteAsync(
+	public async Task<long> WriteAsync(
+		KeyedTenantPartition tenant,
 		string aggregateId,
 		IReadOnlyList<StoredEvent> events,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
 		ArgumentNullException.ThrowIfNull(events);
 
 		if (events.Count == 0)
 		{
-			return;
+			return -1;
 		}
 
-		var key = GetObjectKey(aggregateId);
+		var key = GetObjectKey(tenant, aggregateId);
 
 		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite (lost
 		// update). We capture the source object's ETag on read and write conditionally (IfMatch for an
@@ -71,16 +78,26 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 			var (existingEvents, etag) = await TryDownloadForUpdateAsync(key, cancellationToken)
 				.ConfigureAwait(false);
 
-			var maxExistingVersion = existingEvents.Count > 0 ? existingEvents[^1].Version : -1;
-			var newEvents = events.Where(e => e.Version > maxExistingVersion).ToList();
+			// Membership, not maximum. Selecting by "version greater than the existing max" silently DROPS a
+			// submitted version that falls into a gap below it — cold holding {0,1,5} would discard a
+			// submitted {2,3,4} as already-present. Presence is a set question, so ask it as one.
+			var existingVersions = existingEvents.Select(e => e.Version).ToHashSet();
+			var newEvents = events.Where(e => !existingVersions.Contains(e.Version)).ToList();
 
 			if (newEvents.Count == 0)
 			{
 				_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
-				return;
+				// Every submitted version is already present, but "present" is not "safe to delete up to":
+				// the caller may delete only across a CONTIGUOUS durable prefix, so report what is actually
+				// contiguous in cold rather than the submitted maximum.
+				return ContiguousDurablePrefix(existingEvents);
 			}
 
 			existingEvents.AddRange(newEvents);
+
+			// A gap-filling batch appends out of order ({1,2} + {5,6} then {3,4}), and every downstream
+			// reader — including the watermark below — assumes ascending order.
+			existingEvents.Sort(static (left, right) => left.Version.CompareTo(right.Version));
 
 			try
 			{
@@ -89,7 +106,10 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 				_logger.LogDebug(
 					"Archived {NewCount} events for {AggregateId} to S3 (total {TotalCount})",
 					newEvents.Count, aggregateId, existingEvents.Count);
-				return;
+				// The conditional upload has been awaited and acknowledged by S3, so the merged set is durable
+				// — but durability is not contiguity. Report the prefix actually present, so a caller holding
+				// the only other copy of a gap never deletes across it.
+				return ContiguousDurablePrefix(existingEvents);
 			}
 			catch (AmazonS3Exception ex) when (
 				(ex.StatusCode == HttpStatusCode.PreconditionFailed || ex.StatusCode == HttpStatusCode.Conflict)
@@ -105,12 +125,14 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
+		KeyedTenantPartition tenant,
 		string aggregateId,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
 
-		var key = GetObjectKey(aggregateId);
+		var key = GetObjectKey(tenant, aggregateId);
 		if (!await ObjectExistsAsync(key, cancellationToken).ConfigureAwait(false))
 		{
 			return Array.Empty<StoredEvent>();
@@ -121,29 +143,76 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
+		KeyedTenantPartition tenant,
 		string aggregateId,
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
-		var allEvents = await ReadAsync(aggregateId, cancellationToken).ConfigureAwait(false);
+		var allEvents = await ReadAsync(tenant, aggregateId, cancellationToken).ConfigureAwait(false);
 		return allEvents.Where(e => e.Version > fromVersion).ToList();
 	}
 
 	/// <inheritdoc />
 	public async Task<bool> HasArchivedEventsAsync(
+		KeyedTenantPartition tenant,
 		string aggregateId,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
-		return await ObjectExistsAsync(GetObjectKey(aggregateId), cancellationToken).ConfigureAwait(false);
+		return await ObjectExistsAsync(GetObjectKey(tenant, aggregateId), cancellationToken).ConfigureAwait(false);
 	}
 
-	private string GetObjectKey(string aggregateId)
+	/// <summary>
+	/// Returns the highest version <c>V</c> such that every version from the aggregate's lowest archived
+	/// version through <c>V</c> is present in <paramref name="ascendingEvents"/>, or <c>-1</c> when nothing
+	/// is archived.
+	/// </summary>
+	/// <remarks>
+	/// The interface promises a <strong>contiguous</strong> durable prefix, and a maximum is not a prefix.
+	/// Reporting the maximum over a set containing a gap authorizes the caller to delete hot events across
+	/// that gap — destroying the only surviving copy of versions cold never stored. Scanning for the first
+	/// discontinuity is what makes the returned watermark mean what the contract says it means.
+	/// </remarks>
+	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents)
 	{
-		var safeName = aggregateId.Replace('\\', '_');
+		if (ascendingEvents.Count == 0)
+		{
+			return -1;
+		}
+
+		var watermark = ascendingEvents[0].Version;
+		for (var i = 1; i < ascendingEvents.Count; i++)
+		{
+			var version = ascendingEvents[i].Version;
+			if (version == watermark)
+			{
+				// A duplicate version neither extends nor breaks the run.
+				continue;
+			}
+
+			if (version != watermark + 1)
+			{
+				break;
+			}
+
+			watermark = version;
+		}
+
+		return watermark;
+	}
+
+	private string GetObjectKey(KeyedTenantPartition tenant, string aggregateId)
+	{
+		// BOTH components are Base64Url-encoded (injective, alphabet excludes '/' and '\'), so the key is a
+		// function of the whole (tenant, aggregate) pair and distinct pairs cannot share an object. Encoding
+		// the aggregate term is load-bearing, not belt-and-braces: the Replace-based sanitation this
+		// supersedes was many-to-one, so 'a\b' and 'a_b' addressed the SAME object within one tenant.
+		var tenantSegment = ColdStorageKey.TenantSegment(tenant);
+		var aggregateSegment = ColdStorageKey.AggregateSegment(aggregateId);
 		return string.IsNullOrEmpty(_keyPrefix)
-			? $"{safeName}/events.json.gz"
-			: $"{_keyPrefix}/{safeName}/events.json.gz";
+			? $"{tenantSegment}/{aggregateSegment}/events.json.gz"
+			: $"{_keyPrefix}/{tenantSegment}/{aggregateSegment}/events.json.gz";
 	}
 
 	private async Task<bool> ObjectExistsAsync(string key, CancellationToken cancellationToken)

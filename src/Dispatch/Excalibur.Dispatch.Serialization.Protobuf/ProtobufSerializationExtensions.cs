@@ -7,8 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.Protobuf;
 
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -50,23 +48,7 @@ public static class ProtobufSerializationExtensions
 
 		var serializer = new ProtobufSerializer();
 
-		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
-		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
-		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
-		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
-		services.RemoveAll<ISerializer>();
-		services.AddSingleton<ISerializer>(serializer);
-
-		_ = services.AddOptions<PluggableSerializationOptions>()
-			.ValidateOnStart();
-
-		services.PostConfigure<PluggableSerializationOptions>(options =>
-		{
-			options.AddRegistration(registry => registry.Register(SerializerIds.Protobuf, serializer));
-			options.CurrentSerializerName = "Protobuf";
-		});
-
-		return services;
+		return services.SetCurrentSerializer(SerializerIds.Protobuf, serializer, "Protobuf");
 	}
 
 	/// <summary>
@@ -91,22 +73,6 @@ public static class ProtobufSerializationExtensions
 
 		var serializer = new ProtobufSerializer(options);
 
-		// Single source of truth (bd-fbd23t): direct ISerializer resolution must agree with the
-		// PluggableSerializationOptions.CurrentSerializerName / registry path, which is last-registration-wins.
-		// TryAdd would be first-wins and silently diverge from CurrentSerializerName when more than one
-		// AddXSerializer() is called, so replace any prior registration to make BOTH paths last-wins.
-		services.RemoveAll<ISerializer>();
-		services.AddSingleton<ISerializer>(serializer);
-
-		_ = services.AddOptions<PluggableSerializationOptions>()
-			.ValidateOnStart();
-
-		services.PostConfigure<PluggableSerializationOptions>(opts =>
-		{
-			opts.AddRegistration(registry => registry.Register(SerializerIds.Protobuf, serializer));
-			opts.CurrentSerializerName = "Protobuf";
-		});
-
-		return services;
+		return services.SetCurrentSerializer(SerializerIds.Protobuf, serializer, "Protobuf");
 	}
 }

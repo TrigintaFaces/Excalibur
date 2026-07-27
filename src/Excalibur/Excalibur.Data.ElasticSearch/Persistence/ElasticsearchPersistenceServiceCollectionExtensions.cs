@@ -8,6 +8,7 @@ using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -44,6 +45,8 @@ public static class ElasticsearchPersistenceServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchPersistenceOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchPersistenceOptions>, ElasticsearchPersistenceOptionsValidator>());
 
 		services.TryAddSingleton<ElasticsearchPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("elasticsearch",
@@ -80,6 +83,8 @@ public static class ElasticsearchPersistenceServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchPersistenceOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchPersistenceOptions>, ElasticsearchPersistenceOptionsValidator>());
 
 		services.TryAddSingleton<ElasticsearchPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("elasticsearch",

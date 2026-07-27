@@ -15,8 +15,20 @@ namespace Excalibur.Saga.Abstractions;
 /// timeout metadata to durable storage (e.g., SQL Server, Redis, MongoDB).
 /// </para>
 /// <para>
-/// The <see cref="GetDueTimeoutsAsync"/> method is called periodically by a background
-/// service to poll for timeouts ready for delivery.
+/// The <see cref="ClaimDueTimeoutsAsync"/> method is called periodically by a background
+/// service to poll for timeouts ready for delivery. It atomically leases due timeouts to the
+/// calling processor so that, under a multi-instance deployment, each due timeout is claimed
+/// and delivered by exactly one processor at a time.
+/// </para>
+/// <para>
+/// <see cref="GetDueTimeoutsAsync"/> and <see cref="ClaimDueTimeoutsAsync"/> are deliberately
+/// distinct operations. <see cref="GetDueTimeoutsAsync"/> is a read-only diagnostic query used
+/// by monitoring and dashboard tooling to observe due timeouts without side effects; it never
+/// leases or mutates state. <see cref="ClaimDueTimeoutsAsync"/> is the delivery-path operation
+/// that atomically leases timeouts so exactly one processor delivers each one. Callers driving
+/// delivery must use <see cref="ClaimDueTimeoutsAsync"/>, never <see cref="GetDueTimeoutsAsync"/>.
+/// A future <c>ISagaTimeoutStoreAdmin</c> split could separate the diagnostic surface from the
+/// delivery surface if the interface grows further.
 /// </para>
 /// </remarks>
 public interface ISagaTimeoutStore
@@ -55,14 +67,51 @@ public interface ISagaTimeoutStore
 	Task CancelAllTimeoutsAsync(string sagaId, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Retrieves all timeouts that are due for delivery as of the specified time.
+	/// Atomically claims up to <paramref name="batchSize"/> timeouts that are due for delivery
+	/// as of the specified time, leasing them to this processor so that no other processor can
+	/// claim the same timeout while the lease is held.
+	/// </summary>
+	/// <param name="asOf">The reference time for determining which timeouts are due.</param>
+	/// <param name="batchSize">The maximum number of timeouts to claim in this call.</param>
+	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+	/// <returns>
+	/// A read-only list of newly claimed timeouts where <see cref="SagaTimeout.DueAt"/> is less
+	/// than or equal to <paramref name="asOf"/>, ordered by <see cref="SagaTimeout.DueAt"/>
+	/// ascending. Only timeouts that were unclaimed, or whose previous lease has expired, are
+	/// returned.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// A claimed timeout is leased to the calling processor for an implementation-defined lease
+	/// duration. Two concurrent calls to this method, from the same or different processor
+	/// instances, never return the same timeout while its lease is active -- this is what makes
+	/// delivery exactly-once-at-a-time under a multi-instance deployment.
+	/// </para>
+	/// <para>
+	/// If the processor crashes (or otherwise fails to call <see cref="MarkDeliveredAsync"/>)
+	/// after claiming a timeout, the lease expires and another processor may re-claim and
+	/// re-deliver it. This preserves the store's documented at-least-once delivery guarantee --
+	/// consumers of delivered timeouts must remain idempotent.
+	/// </para>
+	/// </remarks>
+	Task<IReadOnlyList<SagaTimeout>> ClaimDueTimeoutsAsync(DateTimeOffset asOf, int batchSize, CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Returns the timeouts that are due for delivery as of the specified time, without leasing
+	/// or claiming them.
 	/// </summary>
 	/// <param name="asOf">The reference time for determining which timeouts are due.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>
-	/// A read-only list of timeouts where <see cref="SagaTimeout.DueAt"/> is less than
-	/// or equal to <paramref name="asOf"/>, ordered by <see cref="SagaTimeout.DueAt"/> ascending.
+	/// A read-only list of timeouts where <see cref="SagaTimeout.DueAt"/> is less than or equal
+	/// to <paramref name="asOf"/>, ordered by <see cref="SagaTimeout.DueAt"/> ascending.
 	/// </returns>
+	/// <remarks>
+	/// This is a read-only diagnostic query intended for monitoring and dashboard tooling to
+	/// observe stuck or overdue timeouts. It does not lease or mutate any state, and repeated
+	/// calls may return the same timeouts. Callers driving delivery must use
+	/// <see cref="ClaimDueTimeoutsAsync"/> instead.
+	/// </remarks>
 	Task<IReadOnlyList<SagaTimeout>> GetDueTimeoutsAsync(DateTimeOffset asOf, CancellationToken cancellationToken);
 
 	/// <summary>

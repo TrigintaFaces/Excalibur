@@ -142,11 +142,16 @@ public sealed record RecoveryToken
 					nameof(tokens));
 		}
 
-		// Create a combined token with all share data concatenated
-		// The actual Shamir reconstruction happens in the escrow service
-		var combinedShareData = tokenList
-			.OrderBy(t => t.ShareIndex)
-			.SelectMany(t => BitConverter.GetBytes(t.ShareIndex).Concat(t.ShareData))
+		// Self-describing combined pack: [presentedShareCount (4 bytes)] followed by each presented
+		// share's data concatenated (ordered by ShareIndex). The count of PRESENTED shares travels IN
+		// the pack so the escrow-service parser derives the record geometry from the pack itself and
+		// NEVER from TotalShares — TotalShares stays original-scheme metadata (e.g. 5) while a partial
+		// quorum (M < TotalShares, e.g. 3-of-5) still reconstructs. Each Shamir share carries its own
+		// index in its header, so no per-share index prefix is needed. The Shamir reconstruction happens
+		// in the escrow service.
+		var orderedTokens = tokenList.OrderBy(t => t.ShareIndex).ToList();
+		var combinedShareData = BitConverter.GetBytes(orderedTokens.Count)
+			.Concat(orderedTokens.SelectMany(t => t.ShareData))
 			.ToArray();
 
 		return new RecoveryToken

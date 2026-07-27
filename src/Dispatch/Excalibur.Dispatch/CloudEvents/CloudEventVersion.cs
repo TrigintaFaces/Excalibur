@@ -130,17 +130,10 @@ public static class CloudEventVersion
 			return false;
 		}
 
-		// If we have a schema registry, use it for compatibility checking
-		if (registry != null)
-		{
-			return registry.IsCompatible(
-				cloudEvent.Type!,
-				currentVersion!,
-				targetVersion,
-				compatibility);
-		}
-
-		// Basic version comparison without registry
+		// Version compatibility is a single semantic-version comparison (the one canonical implementation).
+		// The optional registry is reserved for schema-payload validation (a separate concern handled by
+		// CloudEventMiddleware), not version-compat, so it no longer duplicates this semver logic.
+		_ = registry;
 		return IsVersionCompatible(currentVersion!, targetVersion, compatibility);
 	}
 

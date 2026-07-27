@@ -21,6 +21,9 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Compliance.Tests" />
+    <!-- The SqlServer escrow provider delegates to the internal QuorumRecoverySeam so the M-of-N
+         quorum invariant lives in exactly one place across both first-party provider assemblies. -->
+    <InternalsVisibleTo Include="Excalibur.Compliance.SqlServer" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Benchmarks" />
     <InternalsVisibleTo Include="Excalibur.Compliance.Benchmarks" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />

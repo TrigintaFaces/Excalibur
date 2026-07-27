@@ -13,11 +13,21 @@ namespace Excalibur.Compliance;
 /// Key escrow enables disaster recovery while maintaining security through:
 /// </para>
 /// <list type="bullet">
-///   <item>Encrypted key storage (keys encrypted with master key)</item>
-///   <item>Shamir's Secret Sharing for split-knowledge recovery</item>
+///   <item>Encrypted key storage — the escrowed key is encrypted with the master key</item>
+///   <item>A Shamir threshold (M-of-N) <b>authorization</b> quorum that gates recovery</item>
 ///   <item>Time-limited recovery tokens</item>
 ///   <item>Full audit logging for all operations</item>
 /// </list>
+/// <para>
+/// <b>Recovery guarantee — read carefully.</b> Recovery requires a combined quorum of at least the
+/// configured threshold of custodian shares and <b>fails closed</b> below that threshold, or on a
+/// tampered or forged share set: no key material is released. This threshold is an <b>authorization</b>
+/// control over the recovery workflow. It is <b>not</b> an information-theoretic split of the key itself:
+/// the escrowed key is encrypted with the master key, so the master key — not the share quorum — is the
+/// cryptographic protection of the stored material. A holder of the master key can therefore decrypt the
+/// escrowed key without assembling the quorum. Treat the quorum as fail-closed recovery authorization; do
+/// not rely on it as split-knowledge protection of the key.
+/// </para>
 /// <para>
 /// This service is designed for user-level and tenant-level encryption keys.
 /// For master key backup, see <see cref="IMasterKeyBackupService"/>.
@@ -28,6 +38,20 @@ public interface IKeyEscrowService
 	/// <summary>
 	/// Creates an encrypted backup of a key in escrow storage.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Recovery is gated by an M-of-N custodian quorum <b>only once recovery tokens have been generated</b>
+	/// (see <see cref="GenerateRecoveryTokensAsync"/>). A key that has been backed up but has <b>no recovery
+	/// tokens yet</b> is recoverable with the escrow master key alone — there is no custodian quorum to enforce
+	/// until custodians are provisioned.
+	/// </para>
+	/// <para>
+	/// Generating recovery tokens binds the key to the quorum (each token batch wraps the key under a
+	/// key-encryption key derived from that batch's quorum secret) and removes the master-only copy, after
+	/// which the master key alone can no longer recover the key. Provision custodians (generate recovery
+	/// tokens) as part of setup to activate quorum-gated recovery.
+	/// </para>
+	/// </remarks>
 	/// <param name="keyId">The unique identifier of the key to backup.</param>
 	/// <param name="keyMaterial">The raw key material to backup (will be encrypted).</param>
 	/// <param name="options">Configuration options for the escrow operation.</param>
@@ -46,7 +70,11 @@ public interface IKeyEscrowService
 	/// Recovers a key from escrow storage using a valid recovery token.
 	/// </summary>
 	/// <param name="keyId">The unique identifier of the key to recover.</param>
-	/// <param name="token">A valid recovery token (from Shamir's Secret Sharing reconstruction).</param>
+	/// <param name="token">
+	/// A combined recovery token assembled from at least the threshold number of custodian shares (see
+	/// <see cref="RecoveryToken.Combine"/>). A single-custodian or below-threshold token fails closed and
+	/// recovers nothing.
+	/// </param>
 	/// <param name="cancellationToken">A token to cancel the operation.</param>
 	/// <returns>The recovered key material.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when <paramref name="keyId"/> or <paramref name="token"/> is null.</exception>
@@ -58,7 +86,8 @@ public interface IKeyEscrowService
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Generates recovery tokens using Shamir's Secret Sharing scheme.
+	/// Generates the per-custodian recovery tokens for the M-of-N recovery-authorization quorum
+	/// (genuine Shamir threshold shares of a fresh quorum secret).
 	/// </summary>
 	/// <param name="keyId">The unique identifier of the escrowed key.</param>
 	/// <param name="custodianCount">Total number of custodians (shares to generate). Default is 5.</param>

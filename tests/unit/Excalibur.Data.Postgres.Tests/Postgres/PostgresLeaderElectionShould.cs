@@ -27,6 +27,31 @@ public sealed class PostgresLeaderElectionShould
 			pgOptions, electionOptions, EnabledTestLogger.Create<PostgresLeaderElection>());
 	}
 
+	/// <summary>
+	///     Binds a private method by its exact signature.
+	/// </summary>
+	/// <remarks>
+	///     Reflection binds by string, so the compiler cannot police this call site: a private member's arity may drift
+	///     while every consumer still compiles. Binding by explicit parameter types turns that drift into a resolution
+	///     failure with a self-describing message here, instead of an opaque
+	///     <see cref="System.Reflection.TargetParameterCountException" /> raised at invoke time.
+	/// </remarks>
+	private static System.Reflection.MethodInfo GetPrivateMethod(string name, params Type[] parameterTypes)
+	{
+		var method = typeof(PostgresLeaderElection).GetMethod(
+			name,
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+			binder: null,
+			types: parameterTypes,
+			modifiers: null);
+
+		method.ShouldNotBeNull(
+			$"PostgresLeaderElection.{name}({string.Join(", ", parameterTypes.Select(static t => t.Name))}) was not found. "
+			+ "The private signature changed; this reflection-bound test must be updated in lockstep.");
+
+		return method;
+	}
+
 	[Fact]
 	public void ThrowWhenPgOptionsIsNull()
 	{
@@ -165,14 +190,16 @@ public sealed class PostgresLeaderElectionShould
 			args.NewLeaderId.ShouldBe(election.CandidateId);
 		};
 
-		var becomeLeader = typeof(PostgresLeaderElection).GetMethod(
-			"BecomeLeader",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+		const long fencingToken = 4242L;
 
-		becomeLeader.Invoke(election, null);
+		var becomeLeader = GetPrivateMethod("BecomeLeader", typeof(long));
+
+		_ = becomeLeader.Invoke(election, [fencingToken]);
 
 		election.IsLeader.ShouldBeTrue();
 		election.CurrentLeaderId.ShouldBe(election.CandidateId);
+		election.CurrentLeadership.ShouldNotBeNull();
+		election.CurrentLeadership!.Value.FencingToken.ShouldBe(fencingToken);
 		becameLeaderRaised.ShouldBeTrue();
 		leaderChangedRaised.ShouldBeTrue();
 	}
@@ -185,15 +212,22 @@ public sealed class PostgresLeaderElectionShould
 
 		election.BecameLeader += (_, _) => becameLeaderCount++;
 
-		var becomeLeader = typeof(PostgresLeaderElection).GetMethod(
-			"BecomeLeader",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+		const long firstToken = 7L;
+		const long secondToken = 99L;
 
-		becomeLeader.Invoke(election, null);
-		becomeLeader.Invoke(election, null);
+		var becomeLeader = GetPrivateMethod("BecomeLeader", typeof(long));
+
+		_ = becomeLeader.Invoke(election, [firstToken]);
+		_ = becomeLeader.Invoke(election, [secondToken]);
 
 		becameLeaderCount.ShouldBe(1);
 		election.IsLeader.ShouldBeTrue();
+
+		// Idempotence must protect the fencing token too: a second acquisition attempt by an already-elected
+		// candidate must not silently re-stamp leadership with a newer token, or a stale writer could be fenced
+		// out by a token its own leader had quietly advanced past.
+		election.CurrentLeadership.ShouldNotBeNull();
+		election.CurrentLeadership!.Value.FencingToken.ShouldBe(firstToken);
 	}
 
 	[Fact]
@@ -205,10 +239,8 @@ public sealed class PostgresLeaderElectionShould
 
 		election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
-		var becomeLeader = typeof(PostgresLeaderElection).GetMethod(
-			"BecomeLeader",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-		becomeLeader.Invoke(election, null);
+		var becomeLeader = GetPrivateMethod("BecomeLeader", typeof(long));
+		_ = becomeLeader.Invoke(election, [11L]);
 
 		election.LeaderChanged += (_, args) =>
 		{
@@ -216,13 +248,12 @@ public sealed class PostgresLeaderElectionShould
 			args.NewLeaderId.ShouldBeNull();
 		};
 
-		var loseLeadership = typeof(PostgresLeaderElection).GetMethod(
-			"LoseLeadershipAsync",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+		var loseLeadership = GetPrivateMethod("LoseLeadershipAsync");
 		await ((Task)loseLeadership.Invoke(election, null)!).ConfigureAwait(false);
 
 		election.IsLeader.ShouldBeFalse();
 		election.CurrentLeaderId.ShouldBeNull();
+		election.CurrentLeadership.ShouldBeNull();
 		lostLeadershipRaised.ShouldBeTrue();
 		leaderChangedRaised.ShouldBeTrue();
 	}
@@ -234,9 +265,7 @@ public sealed class PostgresLeaderElectionShould
 		var lostLeadershipRaised = false;
 		election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
-		var loseLeadership = typeof(PostgresLeaderElection).GetMethod(
-			"LoseLeadershipAsync",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+		var loseLeadership = GetPrivateMethod("LoseLeadershipAsync");
 		await ((Task)loseLeadership.Invoke(election, null)!).ConfigureAwait(false);
 
 		election.IsLeader.ShouldBeFalse();

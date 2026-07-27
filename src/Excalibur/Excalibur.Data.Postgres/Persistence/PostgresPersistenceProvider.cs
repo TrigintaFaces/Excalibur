@@ -407,11 +407,10 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 				tableInfoQuery,
 				new { TableName = tableName, SchemaName = effectiveSchema }).ConfigureAwait(false);
 
-			if (tableInfo == null)
-			{
-				schemaInfo["error"] = $"Table '{effectiveSchema}.{tableName}' not found";
-				return schemaInfo;
-			}
+			// Fail closed: a missing table is a not-found, not a success. Returning a success-shaped
+			// dictionary carrying an "error" key lets a caller that does not know to probe for that key
+			// receive a value, no exception, and conclude the call succeeded against a table that is absent.
+			tableInfo = tableInfo ?? throw new ResourceNotFoundException("Table", $"{effectiveSchema}.{tableName}");
 
 			schemaInfo["table_name"] = tableName;
 			schemaInfo["schema_name"] = effectiveSchema;
@@ -493,6 +492,12 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			_logger.LogDebug(
 				"Retrieved schema information for table {Schema}.{Table}",
 				effectiveSchema, tableName);
+		}
+		catch (ResourceNotFoundException)
+		{
+			// Fail closed: a missing table must propagate as a not-found rather than being swallowed into
+			// the success-shaped error-key dictionary below.
+			throw;
 		}
 		catch (Exception ex)
 		{

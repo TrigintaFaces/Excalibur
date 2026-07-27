@@ -19,22 +19,49 @@ namespace Excalibur.Tests.Cdc.Processing;
 public sealed class CdcProcessingDiRegistrationShould : UnitTestBase
 {
 	[Fact]
-	public void EnableBackgroundProcessing_RegistersHostedServiceDescriptor()
+	public void EnableBackgroundProcessing_WithProvider_RegistersHostedServiceDescriptor()
 	{
-		// Arrange & Act
+		// Arrange & Act — new contract (bsiqh1): CdcProcessingHostedService is registered ONLY when a
+		// provider supplies an ICdcBackgroundProcessor. A provider (UseSqlServer) is required.
 		_ = Services.AddCdcProcessor(cdc =>
 		{
-			_ = cdc.EnableBackgroundProcessing();
+			_ = cdc.UseSqlServer(sql => sql.ConnectionString("Server=localhost;Database=test;Trusted_Connection=true;"))
+			   .EnableBackgroundProcessing();
 		});
 
-		// Assert — the hosted service descriptor should be registered
+		// Assert — with a processor present, the hosted service descriptor should be registered
 		var hostedServiceDescriptors = Services
 			.Where(d => d.ServiceType == typeof(IHostedService))
 			.ToList();
 
 		hostedServiceDescriptors
 			.ShouldContain(d => d.ImplementationType == typeof(CdcProcessingHostedService),
-				"EnableBackgroundProcessing() should register CdcProcessingHostedService as IHostedService");
+				"EnableBackgroundProcessing() with a background-processing provider must register CdcProcessingHostedService as IHostedService");
+	}
+
+	[Fact]
+	public void EnableBackgroundProcessing_WithoutProvider_RegistersStartupValidatorAndHostedService()
+	{
+		// Arrange & Act — current contract (cs3948, order-independent): without a provider, BOTH the startup
+		// validator AND CdcProcessingHostedService are registered. The host takes IServiceProvider and
+		// resolves ICdcBackgroundProcessor lazily at StartAsync (so a provider registered AFTER
+		// AddCdcProcessor() is still picked up); when no processor is registered at all it fails LOUD and
+		// no-ops rather than validate-green-and-silently-skip. The startup validator runs first and throws
+		// the actionable message at host start.
+		_ = Services.AddCdcProcessor(cdc =>
+		{
+			_ = cdc.EnableBackgroundProcessing();
+		});
+
+		var hostedServiceImpls = Services
+			.Where(d => d.ServiceType == typeof(IHostedService))
+			.Select(d => d.ImplementationType)
+			.ToList();
+
+		hostedServiceImpls.ShouldContain(typeof(CdcBackgroundProcessingStartupValidator),
+			"EnableBackgroundProcessing() without a provider must register the startup validator that fails fast");
+		hostedServiceImpls.ShouldContain(typeof(CdcProcessingHostedService),
+			"CdcProcessingHostedService is registered unconditionally (order-independent); it resolves the processor lazily and fails loud at runtime when none is registered");
 	}
 
 	[Fact]

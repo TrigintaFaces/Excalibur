@@ -196,14 +196,23 @@ public class SqlServerSagaStoreBenchmarks
 				EXEC('CREATE SCHEMA dispatch');
 
 			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'sagas' AND schema_id = SCHEMA_ID('dispatch'))
+			-- Mirrors the shipped Scripts/01-SagaSchema.sql column-for-column. This benchmark drives the REAL
+			-- SqlServerSagaStore, so every column its SQL touches must exist here or each operation throws
+			-- "Invalid column name" instead of measuring anything. The previous shape declared StateData,
+			-- Completed, CreatedAt and UpdatedAt and omitted StateJson, IsCompleted, CompletedAt, TenantId and
+			-- Version entirely -- none of which the production store can write.
 			CREATE TABLE [dispatch].[sagas] (
-				[SagaId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+				[SagaId] UNIQUEIDENTIFIER NOT NULL,
 				[SagaType] NVARCHAR(500) NOT NULL,
-				[StateData] NVARCHAR(MAX) NOT NULL,
-				[Completed] BIT NOT NULL DEFAULT 0,
-				[CreatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				[UpdatedAt] DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				[RowVersion] ROWVERSION NOT NULL
+				[StateJson] NVARCHAR(MAX) NOT NULL,
+				[IsCompleted] BIT NOT NULL DEFAULT 0,
+				[CompletedAt] DATETIMEOFFSET(7) NULL,
+				[TenantId] NVARCHAR(200) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
+				[Version] BIGINT NOT NULL DEFAULT 0,
+				[CreatedUtc] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+				[UpdatedUtc] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+				[RowVersion] ROWVERSION NOT NULL,
+				CONSTRAINT [PK_dispatch_sagas] PRIMARY KEY CLUSTERED ([TenantId], [SagaId])
 			);
 			""", connection);
 

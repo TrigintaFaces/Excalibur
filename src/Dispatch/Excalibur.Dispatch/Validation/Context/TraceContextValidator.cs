@@ -19,7 +19,6 @@ namespace Excalibur.Dispatch.Validation.Context;
 /// This validator ensures that distributed tracing context is properly maintained throughout the message processing pipeline, detecting
 /// breaks in the trace chain.
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="TraceContextValidator" /> class. </remarks>
 /// <param name="logger"> The logger for diagnostic output. </param>
 internal sealed partial class TraceContextValidator(ILogger<TraceContextValidator> logger) : IContextValidator
 {

@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Middleware.Outbox;
+using Excalibur.Dispatch.Middleware.Versioning;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Transport;
 
@@ -64,37 +65,62 @@ public static class DispatchConfigurationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds default Dispatch pipelines with common configurations.
+	/// Adds Dispatch pipelines with a working, non-strict default configuration.
 	/// </summary>
+	/// <remarks>
+	/// The default profile does not declare its security middleware as required, so the pipeline builds and
+	/// dispatches out of the box without the consumer having to register authentication, authorization, or
+	/// validation. Call <see cref="AddStrictDispatchPipelines"/> instead when those security controls must run
+	/// and their absence should fail the build rather than be silently skipped.
+	/// </remarks>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection AddDefaultDispatchPipelines(this IServiceCollection services)
+	public static IServiceCollection AddDefaultDispatchPipelines(this IServiceCollection services) =>
+		AddDispatchPipelines(services, strict: false);
+
+	/// <summary>
+	/// Adds Dispatch pipelines including the strict security profile.
+	/// </summary>
+	/// <remarks>
+	/// The strict profile declares authentication, authorization, and validation as <b>required</b>, so it is
+	/// fail-closed: if those security middleware are not registered, the pipeline build fails loudly rather than
+	/// silently omitting a security control. Opt into this configuration when security middleware must run; use
+	/// <see cref="AddDefaultDispatchPipelines"/> for the non-strict working default.
+	/// </remarks>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddStrictDispatchPipelines(this IServiceCollection services) =>
+		AddDispatchPipelines(services, strict: true);
+
+	private static IServiceCollection AddDispatchPipelines(IServiceCollection services, bool strict)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Register default middleware components
 		_ = RegisterDefaultMiddleware(services);
 
-		return services.AddDispatchWithInfrastructure(static builder =>
+		return services.AddDispatchWithInfrastructure(builder =>
 		{
 			// Configure default pipeline. UseProfile (the constants, not string literals)
 			// so selection and registration share one symbol and can never case-drift:
 			// the registered profile keys are lowercase/hyphenated
 			// (DefaultPipelineProfiles.Default/"default", .Strict/"strict",
-			// .InternalEvent/"internal-event"). Previously "Default" only called
-			// ForMessageKinds(All) with no UseProfile, so it resolved zero middleware,
-			// and the Strict/Events call-sites used capitalized literals that matched the
-			// now-removed empty shells. UseProfile throws on any key miss.
+			// .InternalEvent/"internal-event"). UseProfile throws on any key miss.
 			_ = builder.ConfigurePipeline(
 				"Default",
 				static pipeline => pipeline
 					.ForMessageKinds(MessageKinds.All)
 					.UseProfile(DefaultPipelineProfiles.Default));
 
-			// Configure strict pipeline for commands
-			_ = builder.ConfigurePipeline(
-				"Strict",
-				static pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Strict));
+			// The strict security profile declares authentication/authorization/validation as Required, so it
+			// fails the build when they are unregistered (fail-closed). It is wired only when the caller opts
+			// into the strict configuration, so AddDefaultDispatchPipelines builds clean out of the box.
+			if (strict)
+			{
+				_ = builder.ConfigurePipeline(
+					"Strict",
+					static pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Strict));
+			}
 
 			// Configure lightweight pipeline for events
 			_ = builder.ConfigurePipeline(
@@ -256,11 +282,19 @@ public static class DispatchConfigurationServiceCollectionExtensions
 		services.TryAddScoped<InboxMiddleware>();
 		services.TryAddSingleton<IInMemoryDeduplicator, InMemoryDeduplicator>();
 
+		// Register contract-version-check middleware and a default version service so the
+		// advertised versioning control on the Default/Strict/InternalEvent profiles is actually
+		// wired (UseProfile null-skips unregistered middleware, so an unregistered middleware is
+		// silently inert). DefaultContractVersionService is permissive until a consumer configures
+		// SupportedVersions or registers a richer IContractVersionService (both TryAdd => overridable).
+		services.TryAddScoped<ContractVersionCheckMiddleware>();
+		services.TryAddSingleton<IContractVersionService, DefaultContractVersionService>();
+
 		// Register Outbox middleware and its dependencies (R5)
 		services.TryAddScoped<OutboxStagingMiddleware>();
-		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<Excalibur.Dispatch.Options.Middleware.OutboxMiddlewareOptions>,
-				Excalibur.Dispatch.Options.Middleware.OutboxMiddlewareOptionsValidator>());
+
+		// Cascade middleware stages handler-returned follow-up messages (ICascade) into the outbox.
+		services.TryAddScoped<CascadeMiddleware>();
 
 		// Register IOutboxWriter -- default is DeferredOutboxWriter (eventually-consistent mode).
 		// TransactionalOutboxWriter is registered by Excalibur.Outbox provider extensions

@@ -12,6 +12,7 @@ using Amazon.Runtime;
 
 using Excalibur.Data;
 using Excalibur.Data.DynamoDb.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -41,6 +42,8 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	private readonly DynamoDbSagaOptions _options;
 	private readonly ILogger<DynamoDbSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
+
+	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly bool _ownsClient;
 	private IAmazonDynamoDB? _client;
@@ -54,10 +57,15 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. It is accepted so the
+	/// store can DETECT a tenant scope it cannot honour and refuse it, rather than silently ignoring one.
+	/// </param>
 	public DynamoDbSagaStore(
 		IOptions<DynamoDbSagaOptions> options,
 		ILogger<DynamoDbSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -67,6 +75,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		_options.Validate();
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 		_ownsClient = true;
 	}
 
@@ -77,11 +86,16 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. It is accepted so the
+	/// store can DETECT a tenant scope it cannot honour and refuse it, rather than silently ignoring one.
+	/// </param>
 	public DynamoDbSagaStore(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbSagaOptions> options,
 		ILogger<DynamoDbSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -92,6 +106,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		_options = options.Value;
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 		_initialized = true;
 		_ownsClient = false;
 	}
@@ -121,6 +136,14 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		var response = await _client!.GetItemAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.Item == null || response.Item.Count == 0)
+		{
+			return null;
+		}
+
+		// A saga owned by another tenant is "not found" from this scope. GetItem cannot carry a predicate, so
+		// the item crosses the wire before it is discarded — weaker than a filtered query, and the strongest
+		// control available on a key-addressed read.
+		if (!OwnedByCurrentScope(response.Item))
 		{
 			return null;
 		}
@@ -207,6 +230,19 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			now,
 			_options.DefaultTtlSeconds);
 
+		// Ownership is assigned at creation and CARRIED OVER on update, never recomputed from the ambient
+		// scope on an existing item — recomputing would let a save under a different scope re-home a saga.
+		var scope = TenantScope.FromContext(_tenantContext);
+		var owner = existing.Item?.Count > 0
+			&& existing.Item.TryGetValue(DynamoDbSagaDocument.TenantId, out var ownerAttr)
+				? ownerAttr.S
+				: scope.IsScoped ? scope.TenantId : sagaState.TenantId;
+
+		if (!string.IsNullOrEmpty(owner))
+		{
+			document[DynamoDbSagaDocument.TenantId] = new AttributeValue { S = owner };
+		}
+
 		var putRequest = new PutItemRequest
 		{
 			TableName = _options.TableName,
@@ -223,15 +259,27 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		}
 		else
 		{
-			putRequest.ConditionExpression = "#v = :expectedVersion";
+			// The tenant is part of the CONDITION, not merely of the item. DynamoDB evaluates this server-side,
+			// so a save carrying another tenant's key is REJECTED by the database rather than discarded by us —
+			// strictly stronger than the read-side check above, and the reason a cross-tenant OVERWRITE is
+			// impossible here even though a cross-tenant READ has to be filtered client-side.
+			putRequest.ConditionExpression = scope.IsScoped
+				? "#v = :expectedVersion AND #t = :tenantId"
+				: "#v = :expectedVersion AND attribute_not_exists(#t)";
 			putRequest.ExpressionAttributeNames = new Dictionary<string, string>
 			{
-				["#v"] = DynamoDbSagaDocument.Version
+				["#v"] = DynamoDbSagaDocument.Version,
+				["#t"] = DynamoDbSagaDocument.TenantId
 			};
 			putRequest.ExpressionAttributeValues = new Dictionary<string, AttributeValue>
 			{
-				[":expectedVersion"] = new() { N = expectedVersion.ToString(CultureInfo.InvariantCulture) }
+				[":expectedVersion"] = new() { N = expectedVersion.ToString(CultureInfo.InvariantCulture) },
+			
 			};
+			if (scope.IsScoped)
+			{
+				putRequest.ExpressionAttributeValues[":tenantId"] = new AttributeValue { S = scope.TenantId };
+			}
 		}
 
 		try
@@ -257,6 +305,115 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		sagaState.Version = newVersion;
 
 		LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
+	}
+
+	/// <inheritdoc/>
+	public Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		// This store has no tenant discriminator: it persists the saga state as a serialized blob, so the
+		// tenant travels INSIDE the document rather than as a queryable field. It cannot build a server-side
+		// tenant predicate, which makes it an untenanted-only store -- a coherent, supported shape under the
+		// settled semantics, where every row it owns lives in the untenanted partition.
+		//
+		// So an unscoped purge is correct and proceeds. A SCOPED purge is refused rather than serviced,
+		// because the only thing this store could do with a tenant is ignore it -- and ignoring it here means
+		// deleting every OTHER tenant's completed sagas while reporting success. This is a range delete with
+		// no reachability gate: unlike a point load, the caller needs nothing but a timestamp to destroy
+		// another tenant's data. Failing loud is the one honest answer available to it.
+		var scope = TenantScope.FromContext(_tenantContext);
+		if (scope.IsScoped)
+		{
+			throw new TenantScopeNotSupportedException(
+				$"This saga store cannot purge within a tenant scope. Store type: '{GetType().FullName}'. " +
+				"It persists saga state as a serialized document, so the tenant is not a queryable field and " +
+				"no tenant predicate can be applied. Servicing the call would delete every tenant's completed " +
+				"sagas. Use a store that discriminates by tenant (SQL Server, Postgres, Oracle), or call " +
+				"PurgeAllTenantsCompletedBeforeAsync if an estate-wide sweep is what you intended.");
+		}
+
+		return PurgeAllTenantsCompletedBeforeAsync(threshold, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// The estate-wide sweep, and the only purge this store can perform. It is identical to the unscoped
+	/// path above because a store with no tenant discriminator cannot distinguish the two — which is exactly
+	/// why the scoped call refuses instead of silently landing here.
+	/// </remarks>
+	public async Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// DynamoDB has no native "delete where" — Scan with a FilterExpression, then batch-delete the matches.
+		// attribute_exists(#c) excludes running sagas (which have no completedAt), so only completed sagas older
+		// than the threshold are removed. The completedAt attribute is a round-trip UTC "O" string, so a string
+		// comparison against the same-encoded cutoff is a valid chronological range.
+		var cutoff = threshold.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
+		var removed = 0;
+		Dictionary<string, AttributeValue>? lastKey = null;
+
+		do
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			var scan = new ScanRequest
+			{
+				TableName = _options.TableName,
+				FilterExpression = "attribute_exists(#c) AND #c < :cutoff",
+				ExpressionAttributeNames = new Dictionary<string, string> { ["#c"] = DynamoDbSagaDocument.CompletedAt },
+				ExpressionAttributeValues = new Dictionary<string, AttributeValue> { [":cutoff"] = new() { S = cutoff } },
+				ProjectionExpression = "#pk, #sk",
+				ExclusiveStartKey = lastKey,
+
+				// Eventual consistency is sufficient for a periodic retention sweep (a just-completed saga can
+				// wait for the next cycle) and halves the RCU cost vs a strongly-consistent scan.
+				ConsistentRead = false,
+			};
+			scan.ExpressionAttributeNames["#pk"] = DynamoDbSagaDocument.PK;
+			scan.ExpressionAttributeNames["#sk"] = DynamoDbSagaDocument.SK;
+
+			var response = await _client!.ScanAsync(scan, cancellationToken).ConfigureAwait(false);
+
+			// Delete matched items in batches of 25 (BatchWriteItem's per-request cap).
+			for (var i = 0; i < response.Items.Count; i += 25)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				var chunk = response.Items.GetRange(i, Math.Min(25, response.Items.Count - i));
+				var writes = chunk.Select(item => new WriteRequest
+				{
+					DeleteRequest = new DeleteRequest
+					{
+						Key = new Dictionary<string, AttributeValue>
+						{
+							[DynamoDbSagaDocument.PK] = item[DynamoDbSagaDocument.PK],
+							[DynamoDbSagaDocument.SK] = item[DynamoDbSagaDocument.SK],
+						},
+					},
+				}).ToList();
+
+				var batch = new Dictionary<string, List<WriteRequest>> { [_options.TableName] = writes };
+
+				// Drain UnprocessedItems (throttling) so every matched item is actually deleted before it counts.
+				do
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					var batchResponse = await _client!
+						.BatchWriteItemAsync(new BatchWriteItemRequest { RequestItems = batch }, cancellationToken)
+						.ConfigureAwait(false);
+					batch = batchResponse.UnprocessedItems is { Count: > 0 } ? batchResponse.UnprocessedItems : [];
+				} while (batch.Count > 0);
+
+				removed += chunk.Count;
+			}
+
+			lastKey = response.LastEvaluatedKey is { Count: > 0 } ? response.LastEvaluatedKey : null;
+		} while (lastKey is not null);
+
+		LogSagasPurged(removed, threshold);
+		return removed;
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -316,7 +473,15 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				BillingMode = BillingMode.PAY_PER_REQUEST
 			};
 
-			_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			}
+			catch (ResourceInUseException)
+			{
+				// Multi-instance cold-start race: another instance created (or is creating) the table
+				// between our DescribeTable and CreateTable. Benign — fall through to wait-for-active.
+			}
 
 			// Wait for table to be active
 			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };
@@ -407,6 +572,22 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Returns whether an item belongs to the store's current scope.
+	/// </summary>
+	/// <remarks>
+	/// A DynamoDB <c>GetItem</c> addresses an item by primary key; there is no predicate to attach, so a read's
+	/// ownership is established after the fetch. WRITES are different and stronger — <c>PutItem</c> accepts a
+	/// ConditionExpression, so the tenant is enforced server-side there and a cross-tenant write cannot land
+	/// even if this check were bypassed.
+	/// </remarks>
+	private bool OwnedByCurrentScope(Dictionary<string, AttributeValue> item)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		var owner = item.TryGetValue(DynamoDbSagaDocument.TenantId, out var attr) ? attr.S : null;
+		return string.Equals(owner, scope.IsScoped ? scope.TenantId : null, StringComparison.Ordinal);
+	}
+
 	[LoggerMessage(DataDynamoDbEventId.SagaStoreInitialized, LogLevel.Information,
 		"Initialized DynamoDB saga store with table '{TableName}'")]
 	private partial void LogInitialized(string tableName);
@@ -416,4 +597,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 	[LoggerMessage(DataDynamoDbEventId.SagaSaved, LogLevel.Debug, "Saved saga {SagaType}/{SagaId}, Completed={IsCompleted}")]
 	private partial void LogSagaSaved(string sagaType, Guid sagaId, bool isCompleted);
+
+	[LoggerMessage(DataDynamoDbEventId.SagasPurged, LogLevel.Debug, "Purged {PurgedCount} completed sagas older than {Threshold}")]
+	private partial void LogSagasPurged(int purgedCount, DateTimeOffset threshold);
 }

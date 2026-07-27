@@ -19,6 +19,7 @@ namespace Excalibur.LeaderElection.InMemory;
 /// </summary>
 public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection, IDisposable, IAsyncDisposable
 {
+	private readonly TimeProvider _timeProvider;
 	private readonly ConcurrentDictionary<string, string?> _leaders;
 	private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CandidateHealth>> _candidates;
 	private readonly string _resourceName;
@@ -28,6 +29,12 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	private readonly CancellationTokenSource _cancellationTokenSource = new();
 	private volatile int _state; // 0 = stopped, 1 = running
 	private volatile bool _disposed;
+	// 3g58kl: UTC ticks of the instant this candidate most recently acquired leadership, accessed via
+	// Interlocked lock-free. No fencing-token provider exists for this single-process implementation, so
+	// CurrentLeadership always carries a null fencing token (fencing is genuinely unavailable here — there
+	// is no distributed store to mint a monotonic token against). null, never an in-band 0: a 0 would read
+	// as a valid low token and could be presented to a fencing store, defeating split-brain (4cyuud).
+	private long _leadershipAcquiredAtTicks;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryLeaderElection" /> class.
@@ -36,15 +43,21 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	/// <param name="options"> The leader election options. </param>
 	/// <param name="logger"> Optional logger for diagnostic output. </param>
 	/// <param name="sharedState"> Optional shared state for coordinating multiple instances in the same process. </param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
+	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
+	/// </param>
 	public InMemoryLeaderElection(
 		string resourceName,
 		IOptions<LeaderElectionOptions> options,
 		ILogger<InMemoryLeaderElection>? logger,
-		InMemoryLeaderElectionSharedState? sharedState = null)
+		InMemoryLeaderElectionSharedState? sharedState = null,
+		TimeProvider? timeProvider = null)
 	{
 		_resourceName = resourceName ?? throw new ArgumentNullException(nameof(resourceName));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger<InMemoryLeaderElection>.Instance;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		var state = sharedState ?? InMemoryLeaderElectionSharedState.Default;
 		_leaders = state.Leaders;
 		_candidates = state.Candidates;
@@ -67,10 +80,28 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
 	/// <inheritdoc />
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+	/// <inheritdoc />
 	public string CandidateId { get; }
 
 	/// <inheritdoc />
 	public bool IsLeader => _leaders.TryGetValue(_resourceName, out var leaderId) && string.Equals(leaderId, CandidateId, StringComparison.Ordinal);
+
+	/// <inheritdoc />
+	public Leadership? CurrentLeadership
+	{
+		get
+		{
+			if (!IsLeader)
+			{
+				return null;
+			}
+
+			var acquiredAtTicks = Interlocked.Read(ref _leadershipAcquiredAtTicks);
+			return new Leadership(FencingToken: null, new DateTimeOffset(acquiredAtTicks, TimeSpan.Zero));
+		}
+	}
 
 	/// <inheritdoc />
 	public string? CurrentLeaderId => _leaders.GetValueOrDefault(_resourceName);
@@ -281,12 +312,34 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 
 		if (acquired && !wasLeader)
 		{
+			Interlocked.Exchange(ref _leadershipAcquiredAtTicks, _timeProvider.GetUtcNow().UtcTicks);
 			LogAcquiredLeadership(_resourceName);
 			BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
 			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(currentLeader, CandidateId, _resourceName));
 		}
+		else if (!acquired)
+		{
+			// Another candidate already holds leadership for this resource — lost the race.
+			RaiseAcquisitionFailed("lost the acquisition race", exception: null);
+		}
 
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
+	/// can never break the acquisition/renewal loop.
+	/// </summary>
+	private void RaiseAcquisitionFailed(string reason, Exception? exception)
+	{
+		try
+		{
+			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _resourceName, reason, _timeProvider.GetUtcNow(), exception));
+		}
+		catch (Exception)
+		{
+			// A throwing subscriber must never break the acquire loop.
+		}
 	}
 
 	private void RenewLeaseCallback(object? state)

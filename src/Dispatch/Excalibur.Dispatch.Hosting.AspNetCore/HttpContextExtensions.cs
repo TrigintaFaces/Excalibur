@@ -40,7 +40,7 @@ public static class HttpContextExtensions
 		identity.UserId = user.Identity is { IsAuthenticated: true }
 			? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous"
 			: "anonymous";
-		identity.TenantId = httpContext.TenantId()?.Value;
+		identity.TenantId = httpContext.TenantId();
 
 		// Set routing feature properties
 		context.GetOrCreateRoutingFeature().Source = "WebRequest";
@@ -123,29 +123,29 @@ public static class HttpContextExtensions
 	/// </summary>
 	/// <param name="httpContext"> The current HTTP context. </param>
 	/// <returns> The tenant ID if resolved; otherwise, <see langword="null"/>. </returns>
-	public static ITenantId? TenantId(this HttpContext httpContext)
+	public static string? TenantId(this HttpContext httpContext)
 	{
 		ArgumentNullException.ThrowIfNull(httpContext);
 
 		if (httpContext.Request.Headers.TryGetValue(WellKnownHeaderNames.TenantId, out var tenantId))
 		{
-			return new TenantId(tenantId);
+			return tenantId.ToString();
 		}
 
 		if (httpContext.Request.RouteValues.TryGetValue("tenantId", out var routeTenantId))
 		{
-			return new TenantId(routeTenantId?.ToString());
+			return routeTenantId?.ToString();
 		}
 
 		if (httpContext.Request.Query.TryGetValue("tenantId", out var queryTenantId))
 		{
-			return new TenantId(queryTenantId);
+			return queryTenantId.ToString();
 		}
 
 		var tenantClaim = httpContext.User.FindFirst("tenant_id")?.Value;
 		if (!string.IsNullOrWhiteSpace(tenantClaim))
 		{
-			return new TenantId(tenantClaim);
+			return tenantClaim;
 		}
 
 		var host = httpContext.Request.Host.Host;
@@ -154,7 +154,7 @@ public static class HttpContextExtensions
 			var subdomain = host.Split('.')[0];
 			if (subdomain is not "www" and not "app")
 			{
-				return new TenantId(subdomain);
+				return subdomain;
 			}
 		}
 

@@ -11,12 +11,11 @@ using FakeItEasy;
 
 using Microsoft.AspNetCore.Authorization;
 
-using A3AuthorizationMiddleware = Excalibur.A3.Authorization.AuthorizationMiddleware;
 
 namespace Excalibur.Tests.A3.Authorization.Conditions;
 
 /// <summary>
-/// Integration tests for condition expression evaluation through the AuthorizationMiddleware.
+/// Integration tests for condition expression evaluation through the A3AuthorizationMiddleware.
 /// Exercises the full path: [RequirePermission(When = "...")] -> middleware -> cache -> evaluator.
 /// Addresses SoftwareArchitect residual risk #1 from Sprint 727 review.
 /// </summary>

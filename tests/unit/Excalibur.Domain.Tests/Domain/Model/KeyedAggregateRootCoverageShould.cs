@@ -85,10 +85,15 @@ public sealed class KeyedAggregateRootCoverageShould
         public void RaiseTestEvent(string value) =>
             RaiseEvent(new TestKeyedEvent { Value = value });
 
-        protected override void ApplyEventInternal(IDomainEvent @event)
+        protected override bool ApplyEventInternal(IDomainEvent @event)
         {
             if (@event is TestKeyedEvent e)
+            {
                 _orderNumber = e.Value;
+                return true;
+            }
+
+            return false;
         }
     }
 

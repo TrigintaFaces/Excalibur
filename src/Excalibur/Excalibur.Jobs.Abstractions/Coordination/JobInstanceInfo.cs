@@ -80,14 +80,23 @@ public sealed class JobInstanceInfo(string instanceId, string hostName, JobInsta
 	/// <summary>
 	/// Updates the heartbeat timestamp to indicate the instance is still alive.
 	/// </summary>
-	public void UpdateHeartbeat() => LastHeartbeat = DateTimeOffset.UtcNow;
+	/// <param name="timeProvider"> The time provider used to read the current time. </param>
+	public void UpdateHeartbeat(TimeProvider timeProvider)
+	{
+		ArgumentNullException.ThrowIfNull(timeProvider);
+		LastHeartbeat = timeProvider.GetUtcNow();
+	}
 
 	/// <summary>
 	/// Checks if this instance is considered healthy based on the heartbeat timeout.
 	/// </summary>
 	/// <param name="heartbeatTimeout"> The maximum time allowed since the last heartbeat. </param>
+	/// <param name="timeProvider"> The time provider used to read the current time. </param>
 	/// <returns> True if the instance is healthy, false otherwise. </returns>
-	public bool IsHealthy(TimeSpan heartbeatTimeout) =>
-		Status == JobInstanceStatus.Active &&
-		DateTimeOffset.UtcNow - LastHeartbeat <= heartbeatTimeout;
+	public bool IsHealthy(TimeSpan heartbeatTimeout, TimeProvider timeProvider)
+	{
+		ArgumentNullException.ThrowIfNull(timeProvider);
+		return Status == JobInstanceStatus.Active &&
+			timeProvider.GetUtcNow() - LastHeartbeat <= heartbeatTimeout;
+	}
 }

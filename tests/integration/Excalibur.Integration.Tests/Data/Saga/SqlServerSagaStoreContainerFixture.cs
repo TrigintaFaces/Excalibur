@@ -12,21 +12,32 @@ using Tests.Shared.Fixtures;
 namespace Excalibur.Integration.Tests.Data.Saga;
 
 /// <summary>
-/// Shared fixture for SQL Server SagaStore TestContainers.
+/// Shared fixture for SQL Server SagaStore TestContainers, provisioned from the <b>shipped</b>
+/// <c>Excalibur.Saga.SqlServer/Scripts/01-SagaSchema.sql</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Creates and manages a SQL Server container for the saga store. Despite the task brief, the
-/// <c>SqlServerSagaStore</c> does NOT auto-create its table — its Save/Load Dapper requests issue
-/// <c>MERGE</c>/<c>SELECT</c> directly against the qualified table name with no DDL bootstrap. This
-/// fixture therefore creates the <c>[dispatch].[sagas]</c> table whose columns mirror exactly what the
-/// store's requests reference (SagaId, SagaType, StateJson, IsCompleted, Version, CreatedUtc, UpdatedUtc),
-/// matching <c>Scripts/01-SagaSchema.sql</c>.
+/// The <c>SqlServerSagaStore</c> does NOT auto-create its table — its Save/Load Dapper requests issue
+/// <c>MERGE</c>/<c>SELECT</c> directly against the qualified table name with no DDL bootstrap. The schema
+/// therefore has to come from somewhere, and it comes from the script the package ships to consumers.
+/// </para>
+/// <para>
+/// This fixture previously carried an inline copy of that DDL, and its own comment described it as one that
+/// <em>"mirrors <c>Scripts/01-SagaSchema.sql</c>"</em>. A mirror cannot detect a defect in the thing it
+/// reflects. The copy declared <c>CompletedAt DATETIME2</c> — the exact offset-discarding column that
+/// silently deletes sagas before their retention window closes — and every test in this suite passed
+/// against it, because they all ran on the copy and none on the script. Correcting the shipped script would
+/// not have turned a single test red.
+/// </para>
+/// <para>
+/// So the schema is created by executing the shipped script. If the script is wrong these tests fail; if it
+/// changes they follow. That is the only arrangement in which a green here is a statement about what a
+/// consumer receives.
 /// </para>
 /// <para>
 /// The schema/table names match the store's default <c>SqlServerSagaStoreOptions</c>
-/// (<c>SchemaName = "dispatch"</c>, <c>TableName = "sagas"</c>), so the simple
-/// <c>new SqlServerSagaStore(connectionString, logger, serializer)</c> constructor resolves to
+/// (<c>SchemaName = "dispatch"</c>, <c>TableName = "sagas"</c>), which is what the script hardcodes, so the
+/// simple <c>new SqlServerSagaStore(connectionString, logger, serializer)</c> constructor resolves to
 /// <c>[dispatch].[sagas]</c>.
 /// </para>
 /// </remarks>
@@ -67,7 +78,7 @@ public sealed class SqlServerSagaStoreContainerFixture : ContainerFixtureBase
 	}
 
 	/// <summary>
-	/// Ensures the saga store schema and table are initialized.
+	/// Ensures the saga store schema and table are initialized, by executing the shipped DDL script.
 	/// </summary>
 	public async Task EnsureInitializedAsync()
 	{
@@ -79,43 +90,80 @@ public sealed class SqlServerSagaStoreContainerFixture : ContainerFixtureBase
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Mirrors Scripts/01-SagaSchema.sql — the columns the SqlServerSagaStore Save/Load requests reference.
-		var createSchemaSql = $"""
-			IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{SchemaName}')
-			BEGIN
-				EXEC('CREATE SCHEMA [{SchemaName}]');
-			END
-			""";
-
-		await using (var schemaCommand = new SqlCommand(createSchemaSql, connection))
+		foreach (var batch in ReadShippedSchemaBatches())
 		{
-			_ = await schemaCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
-		}
-
-		var createTableSql = $"""
-			IF NOT EXISTS (SELECT * FROM sys.objects
-				WHERE object_id = OBJECT_ID(N'[{SchemaName}].[{TableName}]') AND type = N'U')
-			BEGIN
-				CREATE TABLE [{SchemaName}].[{TableName}] (
-					SagaId UNIQUEIDENTIFIER NOT NULL,
-					SagaType NVARCHAR(500) NOT NULL,
-					StateJson NVARCHAR(MAX) NOT NULL,
-					IsCompleted BIT NOT NULL DEFAULT 0,
-					Version BIGINT NOT NULL DEFAULT 0,
-					CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-					UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-					RowVersion ROWVERSION NOT NULL,
-					CONSTRAINT PK_{SchemaName}_{TableName} PRIMARY KEY CLUSTERED (SagaId)
-				);
-			END
-			""";
-
-		await using (var tableCommand = new SqlCommand(createTableSql, connection))
-		{
-			_ = await tableCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
+			await using var command = new SqlCommand(batch, connection);
+			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
 		_initialized = true;
+	}
+
+	/// <summary>
+	/// Reads the shipped DDL and splits it into batches on the <c>GO</c> separator.
+	/// </summary>
+	/// <remarks>
+	/// <c>GO</c>, not <c>;</c>. This script's <c>CREATE TABLE</c> and its three <c>CREATE INDEX</c> statements
+	/// live inside one <c>BEGIN…END</c> block and are separated by semicolons; splitting on <c>;</c> would cut
+	/// the block open and submit its fragments as batches. <c>GO</c> is the batch separator SQL Server's own
+	/// tooling uses, and it is what the script is written against.
+	/// </remarks>
+	private static IEnumerable<string> ReadShippedSchemaBatches()
+	{
+		var batches = new List<string>();
+		var current = new List<string>();
+
+		foreach (var line in File.ReadAllLines(ResolveShippedScriptPath()))
+		{
+			if (line.Trim().Equals("GO", StringComparison.OrdinalIgnoreCase))
+			{
+				AppendBatch(batches, current);
+				current.Clear();
+			}
+			else
+			{
+				current.Add(line);
+			}
+		}
+
+		AppendBatch(batches, current);
+
+		return batches;
+
+		static void AppendBatch(List<string> batches, List<string> lines)
+		{
+			var batch = string.Join('\n', lines);
+			if (!string.IsNullOrWhiteSpace(batch))
+			{
+				batches.Add(batch);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Locates the shipped script by walking up to the repository root. Fails loudly rather than falling back
+	/// to an inline copy: a missing product script is the defect, not a licence to invent a schema.
+	/// </summary>
+	private static string ResolveShippedScriptPath()
+	{
+		const string RelativePath = "src/Excalibur/Excalibur.Saga.SqlServer/Scripts/01-SagaSchema.sql";
+
+		var directory = new DirectoryInfo(AppContext.BaseDirectory);
+		while (directory is not null)
+		{
+			var candidate = Path.Combine(directory.FullName, RelativePath.Replace('/', Path.DirectorySeparatorChar));
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+
+			directory = directory.Parent;
+		}
+
+		throw new FileNotFoundException(
+			$"The shipped SQL Server saga DDL was not found by walking up from '{AppContext.BaseDirectory}' "
+			+ $"looking for '{RelativePath}'. This fixture provisions its schema from the script the package "
+			+ "ships; it deliberately does not carry its own copy.");
 	}
 
 	/// <summary>

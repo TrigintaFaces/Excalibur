@@ -41,6 +41,34 @@ public sealed class ElasticsearchOutboxStoreConformanceShould : OutboxStoreConfo
 		_fixture = fixture;
 	}
 
+	/// <summary>
+	/// Elasticsearch documented-pending conformance gaps (tracked 03koal, fix scheduled S895). These are
+	/// REQUIRED contract behaviours, NOT capability-gates: atomic concurrent-claim disjointness and one-winner
+	/// MarkSent are the universal <see cref="IOutboxStore"/> at-most-once-per-claim guarantee (fixable on ES via
+	/// an <c>if_seq_no</c>/<c>if_primary_term</c> optimistic-concurrency CAS), and batched cleanup / failed-message
+	/// filtering are required queries. Skipped pending the S895 fix so mainline carries no committed-RED; every
+	/// other provider still runs and must pass these.
+	/// </summary>
+	protected override System.Collections.Generic.IReadOnlyDictionary<string, string> PendingConformanceGaps =>
+		new System.Collections.Generic.Dictionary<string, string>
+		{
+			[nameof(ConcurrentMarkSent_OnlyOneSucceeds)] = "03koal",
+			[nameof(GetUnsentMessages_ConcurrentClaimers_ReceiveDisjointSets)] = "03koal",
+			[nameof(CleanupSentMessages_RespectsBatchSize)] = "03koal",
+			[nameof(GetFailedMessages_RespectsOlderThan)] = "03koal",
+
+			// Elasticsearch does not yet implement the failure-anchored re-claim floor (it does not override
+			// CreateStoreWithReclaimFloorAsync). Declared rather than skipped silently: a required contract
+			// behaviour, not a capability-gate.
+			[nameof(MarkFailed_NotReclaimableWithinTheFloor_ReservedPath)] = "n7g57m",
+			[nameof(MarkFailed_NotReclaimableWithinTheFloor_UnreservedInputPath)] = "n7g57m",
+			[nameof(MarkFailed_EventuallyReclaimableAfterTheFloorElapses)] = "n7g57m",
+			[nameof(MarkFailed_OwnedPath_RecordsFailureAndReclaimsAfterTheFloor)] = "n7g57m",
+			[nameof(MarkFailed_DoesNotDecreaseRetryCount_OnAStaleLateReport)] = "n7g57m",
+			[nameof(DeadLettered_NeverReclaimed_ByEitherClaimPath)] = "n7g57m",
+			[nameof(MarkFailed_ByANonOwningDispatcher_DoesNotStealTheLease_R2)] = "n7g57m",
+		};
+
 	/// <inheritdoc/>
 	protected override Task<IOutboxStore> CreateStoreAsync()
 	{

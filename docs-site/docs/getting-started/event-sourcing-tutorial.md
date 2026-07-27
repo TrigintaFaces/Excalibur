@@ -43,30 +43,18 @@ namespace OrderSystem.Domain;
 public record OrderCreated(
     Guid OrderId,
     string CustomerId,
-    List<OrderLineData> Lines) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    List<OrderLineData> Lines) : DomainEvent;
 
 public record OrderLineAdded(
     Guid OrderId,
     string ProductId,
     string ProductName,
     decimal Price,
-    int Quantity) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+    int Quantity) : DomainEvent;
 
-public record OrderConfirmed(Guid OrderId, decimal Total) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderConfirmed(Guid OrderId, decimal Total) : DomainEvent;
 
-public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent
-{
-    public override string AggregateId => OrderId.ToString();
-}
+public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 
 // Shared data record for order lines (not an event)
 public record OrderLineData(string ProductId, string ProductName, decimal Price, int Quantity);
@@ -133,13 +121,13 @@ public class OrderAggregate : AggregateRoot<Guid>
 
     // --- Event application (pattern matching, no business logic here) ---
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => Apply(e),
         OrderLineAdded e => Apply(e),
         OrderConfirmed e => Apply(e),
         OrderCancelled e => Apply(e),
-        _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+        _ => false
     };
 
     private bool Apply(OrderCreated e)

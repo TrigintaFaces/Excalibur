@@ -16,14 +16,16 @@ Key operations:
 
 ### Outbox Pattern (Transactional Outbox)
 
-The Outbox pattern ensures **reliable exactly-once** message publishing. Messages are staged in the outbox within the same transaction as business state changes, then a background processor publishes them to the message broker.
+The Outbox pattern makes publishing **reliable**: messages are staged within the same transaction as the business state change, so a message can never be lost because the broker was unreachable. A background processor then publishes them.
+
+Delivery is **at-least-once, not exactly-once** — a crash or retry between publishing and marking a message sent can deliver it more than once. That is what the Inbox half of this sample is for: consumers deduplicate on receipt, and handlers must be idempotent.
 
 Key operations:
 - `StageMessageAsync` -- Stage a message for later delivery
 - `GetUnsentMessagesAsync` -- Retrieve pending messages for publishing
 - `MarkSentAsync` -- Confirm successful delivery
 - `GetStatisticsAsync` -- Monitor outbox health
-- `CleanupSentMessagesAsync` -- Remove old sent messages
+- `CleanupAllTenantsSentMessagesAsync` -- Remove old sent messages
 
 ## When to Use Elasticsearch vs SQL Server
 

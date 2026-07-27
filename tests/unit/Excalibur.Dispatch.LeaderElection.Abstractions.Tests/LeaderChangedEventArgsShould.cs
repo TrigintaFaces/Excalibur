@@ -59,4 +59,25 @@ public sealed class LeaderChangedEventArgsShould : UnitTestBase
 		// Assert
 		args.ShouldBeAssignableTo<EventArgs>();
 	}
+
+	[Fact]
+	public void Constructor_CarriesFencingToken_WhenProvided()
+	{
+		// Act — the minted fencing token is carried on the event so subscribers capture the exact
+		// token issued at the transition (no TOCTOU re-read on rapid re-election).
+		var args = new LeaderChangedEventArgs("old", "new", "resource", fencingToken: 42L);
+
+		// Assert
+		args.FencingToken.ShouldBe(42L);
+	}
+
+	[Fact]
+	public void Constructor_LeavesFencingTokenNull_WhenNotProvided()
+	{
+		// Act — no provider configured / leadership relinquished => no token.
+		var args = new LeaderChangedEventArgs("old", "new", "resource");
+
+		// Assert
+		args.FencingToken.ShouldBeNull();
+	}
 }

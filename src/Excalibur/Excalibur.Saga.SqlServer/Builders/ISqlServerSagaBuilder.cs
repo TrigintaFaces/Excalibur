@@ -12,7 +12,7 @@ namespace Excalibur.Saga.SqlServer;
 /// <para>
 /// Provides the canonical 4 connection overloads plus subsystem-specific configuration
 /// for saga schema and table names. Follows the builder pattern established by
-/// <see cref="Excalibur.EventSourcing.SqlServer.ISqlServerEventSourcingBuilder"/>.
+/// <c>ISqlServerEventSourcingBuilder</c>.
 /// </para>
 /// <para>
 /// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection

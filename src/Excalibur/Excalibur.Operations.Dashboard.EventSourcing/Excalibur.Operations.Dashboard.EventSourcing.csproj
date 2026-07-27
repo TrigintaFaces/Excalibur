@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>$(AssemblyName)</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- AOT/trim-safe minimal APIs: emit interceptors for Map* delegates instead of runtime reflection. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <Description>Event-sourcing add-on for the Excalibur operational dashboard: adds the projection/CDC-lag read panel (per-subscription lag against the global stream head). Opt-in via AddProjectionLagDashboard(); keeps the base dashboard package free of an event-sourcing dependency.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>excalibur;dashboard;operations;observability;event-sourcing;projection;cdc-lag</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Operations.Dashboard\Excalibur.Operations.Dashboard.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.EventSourcing" VersionOverride="$(ExcaliburPackageVersion)" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ExcaliburPackageVersion Condition="'$(ExcaliburPackageVersion)' == ''">0.0.0-local</ExcaliburPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Operations.Dashboard.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

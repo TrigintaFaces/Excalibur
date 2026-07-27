@@ -11,6 +11,7 @@ using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.DynamoDb;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -91,6 +92,8 @@ public static class EventSourcingBuilderDynamoDbExtensions
 
 		// Register ValidateOnStart
 		builder.Services.AddOptions<DynamoDbEventStoreOptions>().ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DynamoDbEventStoreOptions>, DynamoDbEventStoreOptionsValidator>());
 
 		// Register IAmazonDynamoDB based on connection path
 		if (hasBuilderClient)

@@ -26,8 +26,8 @@ public sealed class OpenTelemetryExtensionsShould
 		"Excalibur.Dispatch.Pipeline",
 		"Excalibur.Dispatch.TimePolicy",
 		"Excalibur.Dispatch.Transport",
-		"Excalibur.Dispatch.DeadLetterQueue",
-		"Excalibur.Dispatch.CircuitBreaker",
+		"Excalibur.Dispatch.PoisonMessage.Middleware",
+		"Excalibur.Dispatch.CircuitBreakerMiddleware",
 		"Excalibur.Dispatch.Streaming",
 		"Excalibur.Compliance",
 		"Excalibur.Compliance.Erasure",
@@ -111,6 +111,42 @@ public sealed class OpenTelemetryExtensionsShould
 		{
 			name.ShouldNotBeNullOrWhiteSpace("AllMeterNames contains a null or empty meter name");
 		}
+	}
+
+	/// <summary>
+	/// The dead Observability CB/DLQ facade meter names — cut in 63elhi. <c>AllMeterNames</c> used to
+	/// register these facade-only meters (which nothing emitted), instead of the real emitter meters. The
+	/// repoint replaced them with <c>Meters.CircuitBreakerMiddleware</c> + <c>Meters.PoisonMessage</c>
+	/// (asserted present by <see cref="RegisterAllExpectedMeterNames"/>). This list must stay ABSENT.
+	/// </summary>
+	private static readonly string[] CutFacadeMeterNames =
+	[
+		"Excalibur.Dispatch.CircuitBreaker",   // facade CB meter (real emitter is ".CircuitBreakerMiddleware")
+		"Excalibur.Dispatch.DeadLetterQueue",  // facade DLQ meter (real emitter is ".PoisonMessage")
+	];
+
+	[Fact]
+	public void NotRegisterCutFacadeMeterNames_AfterOTelRepoint()
+	{
+		// 63elhi: the OTel meter repoint removed the dead CB/DLQ facade meter names from AllMeterNames and
+		// pointed AddDispatchInstrumentation() at the REAL emitters. A facade name reappearing here means the
+		// repoint regressed — AddAllDispatchMetrics() would subscribe to a meter nothing emits (the original
+		// "CB/DLQ metrics never actually export" gap) while the real emitter goes unsubscribed.
+		var allMeterNames = GetPrivateStaticField<string[]>("AllMeterNames");
+
+		foreach (var dead in CutFacadeMeterNames)
+		{
+			allMeterNames.ShouldNotContain(dead,
+				$"AllMeterNames still registers the cut facade meter '{dead}'. The 63elhi repoint must point at " +
+				"the real emitters ('Excalibur.Dispatch.CircuitBreakerMiddleware' + 'Excalibur.Dispatch.PoisonMessage'), " +
+				"not the facade meters that nothing emits.");
+		}
+
+		// And the real emitters the repoint points at MUST be present (the other half of the repoint).
+		// NOTE: the real poison/DLQ METER is Meters.PoisonMessage = "Excalibur.Dispatch.PoisonMessage.Middleware"
+		// ("Excalibur.Dispatch.PoisonMessage" is the ActivitySource name, not a meter).
+		allMeterNames.ShouldContain("Excalibur.Dispatch.CircuitBreakerMiddleware");
+		allMeterNames.ShouldContain("Excalibur.Dispatch.PoisonMessage.Middleware");
 	}
 
 	#endregion

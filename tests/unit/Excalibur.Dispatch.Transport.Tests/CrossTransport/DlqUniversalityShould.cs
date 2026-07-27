@@ -12,27 +12,31 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// from Transport.Abstractions.
 /// </summary>
 /// <remarks>
-/// All 5 transports implement the Transport.Abstractions <see cref="IDeadLetterQueueManager"/>:
-/// Kafka, Azure SB, AWS SQS, RabbitMQ, and Google PubSub.
-/// Google PubSub was aligned in Sprint 526 (S526.7).
+/// DLQ-universality applies to the 4 MANAGED transports, which implement the
+/// Transport.Abstractions <see cref="IDeadLetterQueueManager"/>: Kafka, Azure SB,
+/// RabbitMQ, and Google PubSub.
+/// AWS SQS deliberately has NO <see cref="IDeadLetterQueueManager"/> implementation —
+/// it uses the native SQS redrive-policy (maxReceiveCount → SQS DLQ) instead of a
+/// managed DLQ manager.
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Transport)]
 public sealed class DlqUniversalityShould
 {
+	private const string AwsSqsAssemblyName = "Excalibur.Dispatch.Transport.AwsSqs";
+
 	private static readonly string[] TransportAssemblyNames =
 	[
 		"Excalibur.Dispatch.Transport.Kafka",
 		"Excalibur.Dispatch.Transport.AzureServiceBus",
-		"Excalibur.Dispatch.Transport.AwsSqs",
 		"Excalibur.Dispatch.Transport.RabbitMQ",
 		"Excalibur.Dispatch.Transport.GooglePubSub",
 	];
 
 	[Fact]
-	public void FiveTransports_ImplementIDeadLetterQueueManager()
+	public void FourTransports_ImplementIDeadLetterQueueManager()
 	{
-		// Arrange — ensure all transport assemblies are loaded
+		// Arrange — ensure all managed transport assemblies are loaded
 		foreach (var assemblyName in TransportAssemblyNames)
 		{
 			Assembly.Load(assemblyName);
@@ -51,12 +55,12 @@ public sealed class DlqUniversalityShould
 			.OrderBy(n => n, StringComparer.Ordinal)
 			.ToList();
 
-		// Assert — 5 implementations (Kafka, Azure SB, AWS, RabbitMQ, Google PubSub)
-		implementations.Count.ShouldBeGreaterThanOrEqualTo(5,
-			$"Expected 5+ IDeadLetterQueueManager implementations, found {implementations.Count}: " +
+		// Assert — 4 implementations (Kafka, Azure SB, RabbitMQ, Google PubSub)
+		implementations.Count.ShouldBeGreaterThanOrEqualTo(4,
+			$"Expected 4+ IDeadLetterQueueManager implementations, found {implementations.Count}: " +
 			string.Join(", ", implementations));
 
-		// Verify each transport assembly contributes at least one implementation
+		// Verify each MANAGED transport assembly contributes at least one implementation
 		foreach (var assemblyName in TransportAssemblyNames)
 		{
 			var assembly = AppDomain.CurrentDomain.GetAssemblies()
@@ -69,6 +73,26 @@ public sealed class DlqUniversalityShould
 			transportImpls.Count.ShouldBeGreaterThan(0,
 				$"Transport assembly '{assemblyName}' should have at least one IDeadLetterQueueManager implementation");
 		}
+	}
+
+	[Fact]
+	public void AwsSqs_HasNoIDeadLetterQueueManager_ByDesign()
+	{
+		// Arrange — AWS SQS uses the native SQS redrive-policy, not a managed DLQ manager.
+		var awsAssembly = Assembly.Load(AwsSqsAssemblyName);
+
+		// Act — find any IDeadLetterQueueManager implementations in the AWS SQS assembly
+		var awsDlqImpls = awsAssembly.GetTypes()
+			.Where(t => t.IsClass && !t.IsAbstract && typeof(IDeadLetterQueueManager).IsAssignableFrom(t))
+			.Select(t => t.FullName)
+			.ToList();
+
+		// Assert — AWS SQS deliberately has ZERO IDeadLetterQueueManager implementations;
+		// dead-lettering is delegated to the native SQS redrive-policy (maxReceiveCount → SQS DLQ).
+		awsDlqImpls.Count.ShouldBe(0,
+			"AWS SQS must have NO IDeadLetterQueueManager implementation by design — it uses the " +
+			"native SQS redrive-policy (maxReceiveCount → SQS DLQ), not a managed DLQ manager. Found: " +
+			string.Join(", ", awsDlqImpls));
 	}
 
 	[Fact]

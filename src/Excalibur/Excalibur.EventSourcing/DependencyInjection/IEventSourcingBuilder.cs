@@ -92,4 +92,38 @@ public interface IEventSourcingBuilder
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TEventStore>()
 		where TEventStore : class, IEventStore;
+
+	/// <summary>
+	/// Registers <typeparamref name="TEvent"/> in the secure event-type allow-list consulted by the
+	/// default serializer, at the event-sourcing wiring call site.
+	/// </summary>
+	/// <typeparam name="TEvent"> The event type to register. </typeparam>
+	/// <returns> The builder for fluent configuration. </returns>
+	/// <remarks>
+	/// The default serializer rejects unregistered event types for security; registering them here gives it
+	/// a secure and functional resolution path (mirrors <c>JsonSerializerContext</c> opt-in). Equivalent to
+	/// <c>services.AddEventTypes&lt;TEvent&gt;()</c>, discoverable at the builder.
+	/// </remarks>
+	IEventSourcingBuilder RegisterEventTypes<TEvent>();
+
+	/// <summary>
+	/// Registers the specified event types in the secure event-type allow-list.
+	/// </summary>
+	/// <param name="eventTypes"> The event types to register. </param>
+	/// <returns> The builder for fluent configuration. </returns>
+	IEventSourcingBuilder RegisterEventTypes(params Type[] eventTypes);
+
+	/// <summary>
+	/// Registers every <see cref="Excalibur.Dispatch.IDomainEvent"/> type in <paramref name="assembly"/>
+	/// in the secure event-type allow-list.
+	/// </summary>
+	/// <param name="assembly"> The assembly to scan (typically <c>typeof(Program).Assembly</c>). </param>
+	/// <returns> The builder for fluent configuration. </returns>
+	/// <remarks>
+	/// A compile-time-known, consumer-controlled DI-time scan — categorically different from the runtime
+	/// reflection scan the serializer rejects by default. The security guarantee is unchanged; this removes
+	/// the risk of hand-listing and missing an event type.
+	/// </remarks>
+	[RequiresUnreferencedCode("Scans the assembly for IDomainEvent types via reflection, which is not trim-safe. Use RegisterEventTypes<TEvent>() or RegisterEventTypes(params Type[]) for a trim/AOT-safe path.")]
+	IEventSourcingBuilder RegisterEventTypesFromAssembly(System.Reflection.Assembly assembly);
 }

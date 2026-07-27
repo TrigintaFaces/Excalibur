@@ -23,10 +23,10 @@ public sealed class AuthorizationPolicyWildcardPerformanceShould
 {
 	private const string Tenant = "tenant-1";
 
-	private static ITenantId CreateTenantId()
+	private static ITenantContext CreateTenantId()
 	{
-		var tid = A.Fake<ITenantId>();
-		A.CallTo(() => tid.Value).Returns(Tenant);
+		var tid = A.Fake<ITenantContext>();
+		A.CallTo(() => tid.TenantId).Returns(Tenant);
 		return tid;
 	}
 

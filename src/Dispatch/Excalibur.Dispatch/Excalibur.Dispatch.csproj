@@ -102,8 +102,21 @@
     <!-- ADR-295: MemoryPack ProjectReference removed; opt-in via Excalibur.Dispatch.Serialization.MemoryPack package -->
     <!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
     <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <!-- Diagnostic analyzers (DISP001-006) run on this project's own build AND are bundled into this package
+         (see the pack ItemGroup below), so every Excalibur.Dispatch consumer gets the message-type-contract
+         diagnostics with zero extra install and zero runtime weight (analyzer-only, ReferenceOutputAssembly=false). -->
+    <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators.Analyzers\Excalibur.Dispatch.SourceGenerators.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <!-- NOTE: Excalibur.Requirements.Generator reference removed to maintain architectural boundaries.
 		     Requirements generation should be handled at solution level, not within individual components. -->
+  </ItemGroup>
+  <ItemGroup>
+    <!-- BUNDLE the analyzer DLL into this package at analyzers/dotnet/cs (Microsoft pattern, as
+         System.Text.Json bundles its generator) so DISP001-006 auto-flow to consumers of Excalibur.Dispatch.
+         ONE delivery path: this package carries its own copy; do NOT also add a package dependency on the
+         standalone analyzer package (double delivery = duplicate-diagnostic). The ProjectReference above
+         builds the analyzer before pack, so this output DLL exists. -->
+    <None Include="..\Excalibur.Dispatch.SourceGenerators.Analyzers\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.SourceGenerators.Analyzers.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Messaging\Resources\ErrorMessages.Designer.cs">
@@ -228,4 +241,9 @@
     </AssemblyAttribute>
   </ItemGroup>
   <!-- PublicAPI baseline files for breaking change detection -->
+  <ItemGroup>
+    <!-- Shipped schema: a consumer cannot obtain this DDL unless it is packed, and the
+         framework does not auto-create tables. Glob matches where the .sql actually lives. -->
+    <None Include="ErrorHandling\PoisonMessage\*.sql" Pack="true" PackagePath="scripts\" />
+  </ItemGroup>
 </Project>

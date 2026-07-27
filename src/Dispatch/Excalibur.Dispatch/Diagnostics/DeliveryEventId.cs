@@ -125,10 +125,10 @@ public static class DeliveryEventId
 	/// <summary>No handlers registered for event type.</summary>
 	public const int NoHandlersForEvent = 40207;
 
-	/// <summary>Streaming/Progress dispatch path bypasses registered pipeline middleware (ec132p).</summary>
+	/// <summary>Streaming/Progress dispatch path bypasses registered pipeline middleware.</summary>
 	public const int StreamingPipelineMiddlewareBypassed = 40208;
 
-	/// <summary>Error detecting streaming pipeline middleware bypass (ec132p).</summary>
+	/// <summary>Error detecting streaming pipeline middleware bypass.</summary>
 	public const int StreamingPipelineBypassDetectionError = 40209;
 
 	// ========================================
@@ -302,11 +302,14 @@ public static class DeliveryEventId
 	/// <summary>Dead letter cleanup completed.</summary>
 	public const int DeadLetterCleanupCompleted = 40487;
 
-	/// <summary>An exhausted in-process dispatch was routed to the dead-letter queue (8o3c3p).</summary>
+	/// <summary>An exhausted in-process dispatch was routed to the dead-letter queue.</summary>
 	public const int DeadLetterOnExhaustionEnqueued = 40488;
 
 	/// <summary>Best-effort dead-letter-on-exhaustion enqueue failed; the original exhausted result still flows up (fail-open).</summary>
 	public const int DeadLetterOnExhaustionEnqueueFailed = 40489;
+
+	/// <summary>An exhausted dispatch was discarded because the host opted in to the no-op dead-letter queue.</summary>
+	public const int DeadLetterOnExhaustionDiscarded = 40490;
 
 	// ========================================
 	// 40500-40599: Scheduling Core
@@ -507,4 +510,7 @@ public static class DeliveryEventId
 
 	/// <summary>SendAsync not supported on cron timer (trigger-only transport).</summary>
 	public const int CronTimerSendNotSupported = 40906;
+
+	/// <summary>Cron timer catch-up firing missed occurrences.</summary>
+	public const int CronTimerCatchUp = 40907;
 }

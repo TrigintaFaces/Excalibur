@@ -58,7 +58,7 @@ public sealed class DynamoDbEventStoreConformanceShould : EventStoreConformanceT
 		{
 			EventsTableName = _tableName,
 			CreateTableIfNotExists = true,
-			UseOnDemandCapacity = true,
+			Throughput = { UseOnDemandCapacity = true },
 			EnableStreams = true
 		});
 

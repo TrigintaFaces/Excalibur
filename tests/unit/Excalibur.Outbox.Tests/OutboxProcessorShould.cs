@@ -27,7 +27,7 @@ using DispatchMessageResult = Excalibur.Dispatch.MessageResult;
 using DeliveryMessageMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
 using DeliveryGuaranteeOptions = Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions;
 using DeliveryOutboxDeliveryGuarantee = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryGuarantee;
-using DeliveryOutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using DeliveryOutboxMessage = Excalibur.Outbox.OutboxMessage;
 using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests;
@@ -669,44 +669,6 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			.MustNotHaveHappened();
 	}
 
-	[Fact]
-	public async Task DispatchPendingMessagesAsync_TransactionalGuarantee_UsesTransactionalMarkSent_WhenStoreSupportsTransactions()
-	{
-		// Arrange
-		var transactionalStore = A.Fake<ITransactionalOutboxStore>();
-		await using var scenario = await CreateTransactionalDispatchScenarioAsync(transactionalStore, supportsTransactions: true);
-
-		// Act
-		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
-
-		// Assert
-		processed.ShouldBe(1);
-		A.CallTo(() => transactionalStore.MarkSentTransactionalAsync(
-				A<IReadOnlyList<string>>.That.Matches(ids =>
-					ids.Count == 1 && ids[0] == "message-transactional"),
-				A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => transactionalStore.MarkSentAsync("message-transactional", A<CancellationToken>._))
-			.MustNotHaveHappened();
-	}
-
-	[Fact]
-	public async Task DispatchPendingMessagesAsync_TransactionalGuarantee_FallsBackToMarkSent_WhenStoreDoesNotSupportTransactions()
-	{
-		// Arrange
-		var transactionalStore = A.Fake<ITransactionalOutboxStore>();
-		await using var scenario = await CreateTransactionalDispatchScenarioAsync(transactionalStore, supportsTransactions: false);
-
-		// Act
-		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
-
-		// Assert
-		processed.ShouldBe(1);
-		A.CallTo(() => transactionalStore.MarkSentAsync("message-transactional", A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => transactionalStore.MarkSentTransactionalAsync(A<IReadOnlyList<string>>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
-	}
 
 	[Fact]
 	public async Task DispatchPendingMessagesAsync_DoesNotCalculateBackoff_WhenAutomaticRetryIsDisabled()
@@ -880,20 +842,6 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		});
 	}
 
-	private static IOptions<DeliveryOutboxOptions> CreateTransactionalOptions()
-	{
-		return Options.Create(new DeliveryOutboxOptions
-		{
-			QueueCapacity = 8,
-			ProducerBatchSize = 1,
-			ConsumerBatchSize = 1,
-			PerRunTotal = 1,
-			MaxAttempts = 3,
-			BatchProcessing = { ParallelProcessingDegree = 2 },
-			EnableBatchDatabaseOperations = false,
-			DeliveryGuarantee = DeliveryOutboxDeliveryGuarantee.TransactionalWhenApplicable
-		});
-	}
 
 	private static IOptions<DeliveryOutboxOptions> CreateParallelBatchDatabaseOptions(
 		int maxAttempts,
@@ -1006,55 +954,6 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		return new DispatchScenario(processor, outboxStore, deadLetterQueue, serviceProvider, dispatcher);
 	}
 
-	private static async Task<DispatchScenario> CreateTransactionalDispatchScenarioAsync(
-		ITransactionalOutboxStore transactionalStore,
-		bool supportsTransactions)
-	{
-		var messageType = typeof(TestOutboxIntegrationEvent).Name;
-		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
-
-		var outboundMessage = CreateOutboundMessageWithEnvelope(
-			"message-transactional",
-			messageType,
-			new TestOutboxIntegrationEvent("transactional"));
-
-		var fetchCount = 0;
-		_ = A.CallTo(() => transactionalStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				fetchCount++;
-				IEnumerable<OutboundMessage> batch = fetchCount <= 2
-					? [outboundMessage]
-					: [];
-				return new ValueTask<IEnumerable<OutboundMessage>>(batch);
-			});
-		_ = A.CallTo(() => transactionalStore.SupportsTransactions).Returns(supportsTransactions);
-		_ = A.CallTo(() => transactionalStore.MarkSentTransactionalAsync(A<IReadOnlyList<string>>._, A<CancellationToken>._))
-			.Returns(Task.CompletedTask);
-
-		// Use real DispatchJsonSerializer -- DispatchJsonSerializer is sealed and cannot be faked
-		var serializer = new DispatchJsonSerializer();
-
-		var dispatcher = A.Fake<IDispatcher>();
-		_ = A.CallTo(() => dispatcher.DispatchAsync(
-				A<IDispatchMessage>._,
-				A<IMessageContext>._,
-				A<CancellationToken>._))
-			.Returns(Task.FromResult<IMessageResult>(DispatchMessageResult.Success()));
-
-		var deadLetterQueue = CreateDeadLetterQueue();
-		var serviceProvider = CreateServiceProvider(dispatcher);
-		var processor = CreateProcessor(
-			options: CreateTransactionalOptions(),
-			outboxStore: transactionalStore,
-			serializer: serializer,
-			serviceProvider: serviceProvider,
-			deadLetterQueue: deadLetterQueue);
-		processor.Init("dispatcher-transactional");
-
-		await Task.CompletedTask;
-		return new DispatchScenario(processor, transactionalStore, deadLetterQueue, serviceProvider, dispatcher);
-	}
 
 	private static async Task<EnvelopeDispatchScenario> CreateEnvelopeDispatchScenarioAsync()
 	{
@@ -1298,7 +1197,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			messageId,
 			messageType,
 			messageMetadata: metadataJson,
-			messageBody: eventJson,
+			messageBody: System.Text.Encoding.UTF8.GetBytes(eventJson),
 			createdAt: DateTimeOffset.UtcNow);
 
 		var deliveryRecordJson = JsonSerializer.Serialize(deliveryRecord, s_testJsonOptions);
@@ -1409,7 +1308,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			messageId,
 			messageType,
 			messageMetadata: metadataJson,
-			messageBody: eventJson,
+			messageBody: System.Text.Encoding.UTF8.GetBytes(eventJson),
 			createdAt: DateTimeOffset.UtcNow);
 
 		var envelopeJson = JsonSerializer.Serialize(envelope, s_testJsonOptions);

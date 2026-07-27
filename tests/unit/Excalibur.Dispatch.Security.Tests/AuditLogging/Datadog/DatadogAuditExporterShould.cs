@@ -587,106 +587,104 @@ public sealed class DatadogAuditExporterShould : IDisposable
 
 	#region Retry Logic Tests
 
+	// Transient-fault retry is NOT hand-rolled in the exporter — it is delegated to the standard
+	// Polly-backed resilience pipeline (AddStandardResilienceHandler) wired in AddDatadogAuditExporter
+	// (bd-b7i6rh). A test that constructs a bare `new HttpClient(handler)` therefore exercises NO retry:
+	// the resilience handler only exists on the DI-registered typed client. These tests build the exporter
+	// through its real DI registration with a mock primary handler injected UNDER the resilience handler,
+	// so the assertions actually drive the pipeline's retry — non-vacuous: RED if AddStandardResilienceHandler
+	// (or its retry) is removed, because the single transient failure/exception would surface as
+	// result.Success == false and RequestCount == 1.
+
 	[Fact]
 	public async Task ExportAsync_RetriesOnTransientFailure_ThenSucceeds()
 	{
-		// Arrange - Use a handler that fails once then succeeds
+		// Arrange - one transient 503 then Accepted, injected under the DI resilience handler.
 		var retryHandler = new RetryMockHttpMessageHandler(
 			new[] { HttpStatusCode.ServiceUnavailable },
 			HttpStatusCode.Accepted);
-		using var client = new HttpClient(retryHandler);
 
-			var retryOptions = new DatadogExporterOptions
-			{
-				ApiKey = CreateNonSecretApiKey(),
-				Retry = new DatadogExporterRetryOptions
-				{
-					MaxRetryAttempts = 2,
-					RetryBaseDelay = TimeSpan.FromMilliseconds(10),
-				}
-		};
-
-		var exporter = new DatadogAuditExporter(
-			client,
-			Microsoft.Extensions.Options.Options.Create(retryOptions),
-			CreateEnabledLogger());
-
-		var auditEvent = CreateTestAuditEvent();
+		using var provider = BuildResilientExporterProvider(retryHandler, maxRetryAttempts: 2);
+		var exporter = provider.GetRequiredService<DatadogAuditExporter>();
 
 		// Act
-		var result = await exporter.ExportAsync(auditEvent, CancellationToken.None);
+		var result = await exporter.ExportAsync(CreateTestAuditEvent(), CancellationToken.None);
 
-		// Assert
+		// Assert - the resilience pipeline retried the 503 into a success.
 		result.Success.ShouldBeTrue();
-		retryHandler.RequestCount.ShouldBe(2); // 1 failure + 1 success
+		retryHandler.RequestCount.ShouldBe(2); // 1 transient failure + 1 success (proves retry fired)
 	}
 
 	[Fact]
 	public async Task ExportAsync_ReturnsFailure_WhenAllRetriesExhausted()
 	{
-		// Arrange - all attempts fail with transient status
+		// Arrange - every attempt is transient 503; the pipeline must exhaust its retries then give up.
 		var retryHandler = new RetryMockHttpMessageHandler(
 			new[] { HttpStatusCode.ServiceUnavailable, HttpStatusCode.ServiceUnavailable, HttpStatusCode.ServiceUnavailable },
 			HttpStatusCode.ServiceUnavailable);
-		using var client = new HttpClient(retryHandler);
 
-			var retryOptions = new DatadogExporterOptions
-			{
-				ApiKey = CreateNonSecretApiKey(),
-				Retry = new DatadogExporterRetryOptions
-				{
-					MaxRetryAttempts = 2,
-					RetryBaseDelay = TimeSpan.FromMilliseconds(1),
-				}
-		};
-
-		var exporter = new DatadogAuditExporter(
-			client,
-			Microsoft.Extensions.Options.Options.Create(retryOptions),
-			CreateEnabledLogger());
-
-		var auditEvent = CreateTestAuditEvent();
+		using var provider = BuildResilientExporterProvider(retryHandler, maxRetryAttempts: 2);
+		var exporter = provider.GetRequiredService<DatadogAuditExporter>();
 
 		// Act
-		var result = await exporter.ExportAsync(auditEvent, CancellationToken.None);
+		var result = await exporter.ExportAsync(CreateTestAuditEvent(), CancellationToken.None);
 
-		// Assert - should return the last transient failure
+		// Assert - after exhausting retries the last transient failure surfaces (never a silent success),
+		// and the pipeline made MORE than one attempt (proves it retried the 503, not gave up on the first).
+		// Asserted as ">1" rather than an exact count: the retry budget is owned by the standard resilience
+		// handler, so coupling to its precise attempt count is brittle — the load-bearing property is that
+		// retry fired (RED if AddStandardResilienceHandler is removed → RequestCount would be 1) AND the
+		// exhausted result is a transient failure (never a silent success).
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
+		retryHandler.RequestCount.ShouldBeGreaterThan(1); // initial attempt + at least one retry
 	}
 
 	[Fact]
 	public async Task ExportAsync_RetriesOnHttpRequestException_ThenSucceeds()
 	{
-		// Arrange - handler throws HttpRequestException once then succeeds
+		// Arrange - one HttpRequestException then Accepted, injected under the DI resilience handler.
 		var handler = new ExceptionThenSuccessHandler(
 			exceptionsToThrow: 1,
 			successCode: HttpStatusCode.Accepted);
-		using var client = new HttpClient(handler);
 
-			var retryOptions = new DatadogExporterOptions
-			{
-				ApiKey = CreateNonSecretApiKey(),
-				Retry = new DatadogExporterRetryOptions
-				{
-					MaxRetryAttempts = 2,
-					RetryBaseDelay = TimeSpan.FromMilliseconds(1),
-				}
-		};
-
-		var exporter = new DatadogAuditExporter(
-			client,
-			Microsoft.Extensions.Options.Options.Create(retryOptions),
-			CreateEnabledLogger());
-
-		var auditEvent = CreateTestAuditEvent();
+		using var provider = BuildResilientExporterProvider(handler, maxRetryAttempts: 2);
+		var exporter = provider.GetRequiredService<DatadogAuditExporter>();
 
 		// Act
-		var result = await exporter.ExportAsync(auditEvent, CancellationToken.None);
+		var result = await exporter.ExportAsync(CreateTestAuditEvent(), CancellationToken.None);
 
-		// Assert
+		// Assert - the resilience pipeline retried the connection failure into a success.
 		result.Success.ShouldBeTrue();
-		handler.RequestCount.ShouldBe(2); // 1 exception + 1 success
+		handler.RequestCount.ShouldBe(2); // 1 exception + 1 success (proves retry fired)
+	}
+
+	// Builds the exporter through its REAL DI registration (AddDatadogAuditExporter → typed HttpClient +
+	// AddStandardResilienceHandler), then injects <paramref name="primaryHandler"/> as the typed client's
+	// PRIMARY handler so the mock sits BELOW the resilience handler and the pipeline's retry is exercised.
+	private static ServiceProvider BuildResilientExporterProvider(
+		HttpMessageHandler primaryHandler, int maxRetryAttempts)
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+		_ = services.AddDatadogAuditExporter(dd => dd
+			.ApiKey(CreateNonSecretApiKey())
+			.Site("datadoghq.com"));
+
+		// Override retry to the test values (short delay so the test is fast; the resilience options are
+		// bound from these DatadogExporterOptions, so this flows into the pipeline).
+		_ = services.Configure<DatadogExporterOptions>(o => o.Retry = new DatadogExporterRetryOptions
+		{
+			MaxRetryAttempts = maxRetryAttempts,
+			RetryBaseDelay = TimeSpan.FromMilliseconds(1),
+		});
+
+		// Inject the mock as the typed client's primary handler — it lands UNDER the standard resilience
+		// handler registered by AddDatadogAuditExporter on the same typed client, so retries flow through it.
+		_ = services.AddHttpClient<DatadogAuditExporter>()
+			.ConfigurePrimaryHttpMessageHandler(() => primaryHandler);
+
+		return services.BuildServiceProvider();
 	}
 
 	[Theory]

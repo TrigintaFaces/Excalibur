@@ -199,6 +199,7 @@ Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.Dispose
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryCursorAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, string? cursor, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.CursorPagedResult<TProjection!>!>!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.QueryPagedAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, int pageNumber, int pageSize, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.PagedResult<TProjection!>!>!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions
@@ -221,7 +222,7 @@ Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.PartitionKeyP
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.PartitionKeyPath.set -> void
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.Validate() -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore
-Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.CosmosDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore!>! logger) -> void
+Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.CosmosDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.Dispose() -> void
@@ -334,6 +335,7 @@ const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.RequestRateTooHigh
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.RequestUnitsConsumed = 102500 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.RetryPolicyConfigured = 102004 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.SagaStateLoaded = 103101 -> int
+const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.SagaStatePurged = 103103 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.SagaStateSaved = 103102 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.SagaStoreInitialized = 103100 -> int
 const Excalibur.Data.CosmosDb.Diagnostics.DataCosmosDbEventId.ServiceUnavailable = 102603 -> int

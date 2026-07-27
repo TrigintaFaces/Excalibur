@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Compliance.SqlServer</PackageId>
-    <Description>SQL Server implementation of IKeyEscrowService for the Excalibur framework. Provides key escrow storage with Shamir's Secret Sharing for split-knowledge key recovery using Dapper per ADR-052.</Description>
+    <Description>SQL Server implementation of IKeyEscrowService for the Excalibur framework. Provides key escrow storage with Shamir's Secret Sharing for split-knowledge key recovery using Dapper.</Description>
     <PackageTags>compliance;sql-server;dapper;key-escrow;shamir;secret-sharing;encryption;soc2</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>

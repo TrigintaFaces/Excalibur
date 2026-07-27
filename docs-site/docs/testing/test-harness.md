@@ -46,10 +46,8 @@ await using var harness = new DispatchTestHarness()
         dispatch.AddHandlersFromAssembly(typeof(CreateOrderHandler).Assembly);
     });
 
-var context = new MessageContextBuilder().Build();
 var result = await harness.Dispatcher.DispatchAsync(
     new CreateOrderAction("customer-123", ["item-a"]),
-    context,
     CancellationToken.None);
 
 harness.Dispatched.Any<CreateOrderAction>().ShouldBeTrue();

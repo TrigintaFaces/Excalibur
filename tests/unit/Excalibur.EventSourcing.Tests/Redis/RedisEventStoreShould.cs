@@ -57,23 +57,28 @@ public sealed class RedisEventStoreShould : UnitTestBase
 
 		result.Success.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(7);
-		result.FirstEventPosition.ShouldBe(0);
+		result.FirstEventPosition.ShouldBeNull();
 	}
 
 	[Fact]
 	public void ParseStreamEntries_ReturnStoredEvents()
 	{
+		// The store serializes stream entries with the canonical options (camelCase), so the read path must
+		// deserialize with the SAME options — a default-serialized (PascalCase) envelope would fail to bind.
+		// Serialize the fixture with the canonical factory to mirror the production write contract exactly.
+		var canonicalOptions = EventSerializationDefaults.CreateCanonicalOptions();
+
 		var stored = new StoredEvent(
 			EventId: "evt-1",
 			AggregateId: "agg-1",
 			AggregateType: "Order",
 			EventType: "OrderPlaced",
-			EventData: JsonSerializer.SerializeToUtf8Bytes(new { Id = 42 }),
+			EventData: JsonSerializer.SerializeToUtf8Bytes(new { Id = 42 }, canonicalOptions),
 			Metadata: null,
 			Version: 5,
 			Timestamp: DateTimeOffset.UtcNow);
 
-		var json = JsonSerializer.Serialize(stored);
+		var json = JsonSerializer.Serialize(stored, canonicalOptions);
 		var entries = new[]
 		{
 			new StreamEntry("1-0", [new NameValueEntry("evt-1", json)])
@@ -82,7 +87,7 @@ public sealed class RedisEventStoreShould : UnitTestBase
 		var method = typeof(RedisEventStore).GetMethod("ParseStreamEntries", BindingFlags.NonPublic | BindingFlags.Static);
 		method.ShouldNotBeNull();
 
-		var parsed = (List<StoredEvent>)method!.Invoke(null, [entries])!;
+		var parsed = (List<StoredEvent>)method!.Invoke(null, [entries, canonicalOptions])!;
 		parsed.Count.ShouldBe(1);
 		parsed[0].EventId.ShouldBe("evt-1");
 		parsed[0].AggregateId.ShouldBe("agg-1");
@@ -93,6 +98,8 @@ public sealed class RedisEventStoreShould : UnitTestBase
 	[Fact]
 	public void ParseStreamEntries_SkipNullPayloadAndOnlyReadFirstField()
 	{
+		var canonicalOptions = EventSerializationDefaults.CreateCanonicalOptions();
+
 		var entries = new[]
 		{
 			new StreamEntry("1-0", [new NameValueEntry("evt-1", "null"), new NameValueEntry("evt-ignored", "{}")])
@@ -101,7 +108,7 @@ public sealed class RedisEventStoreShould : UnitTestBase
 		var method = typeof(RedisEventStore).GetMethod("ParseStreamEntries", BindingFlags.NonPublic | BindingFlags.Static);
 		method.ShouldNotBeNull();
 
-		var parsed = (List<StoredEvent>)method!.Invoke(null, [entries])!;
+		var parsed = (List<StoredEvent>)method!.Invoke(null, [entries, canonicalOptions])!;
 		parsed.ShouldBeEmpty();
 	}
 

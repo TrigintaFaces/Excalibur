@@ -51,6 +51,18 @@ public interface IMessageResult
 	/// </summary>
 	/// <value> The problem details when the operation fails; otherwise, <see langword="null" />. </value>
 	IMessageProblemDetails? ProblemDetails { get; }
+
+	/// <summary>
+	/// Gets the return value as an untyped object, or <see langword="null" /> when the result carries no value.
+	/// </summary>
+	/// <remarks>
+	/// Provides a non-generic accessor to the typed <see cref="IMessageResult{T}.ReturnValue" />. Because
+	/// <see cref="IMessageResult{T}" /> is covariant only for reference types, a value-type result
+	/// (e.g. <c>IMessageResult&lt;int&gt;</c>) is not assignable to <c>IMessageResult&lt;object&gt;</c>;
+	/// this accessor lets consumers read the (boxed) return value without knowing <c>T</c>.
+	/// </remarks>
+	/// <value> The boxed return value, or <see langword="null" /> when there is none. </value>
+	object? UntypedReturnValue => null;
 }
 
 /// <summary>
@@ -64,4 +76,7 @@ public interface IMessageResult<out T> : IMessageResult
 	/// </summary>
 	/// <value> The return value or <see langword="null" />. </value>
 	T? ReturnValue { get; }
+
+	/// <inheritdoc />
+	object? IMessageResult.UntypedReturnValue => ReturnValue;
 }

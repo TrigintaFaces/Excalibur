@@ -110,6 +110,36 @@ public sealed class SqlServerLeaderElectionFencingShould : IntegrationTestBase
 	}
 
 	[Fact]
+	public async Task IssueDistinctTokens_UnderConcurrentMint_AtomicSequence()
+	{
+		// pblbmb (wj6b10) — the fencing-token mint must be ATOMIC under concurrency: N PARALLEL
+		// IssueTokenAsync calls against a fresh per-resource SEQUENCE yield N DISTINCT tokens (no two
+		// concurrent callers ever share one). The across-handover facts above prove SEQUENTIAL monotonicity;
+		// this proves CONCURRENT atomicity — the split-brain-critical property a non-atomic read-modify-write
+		// mint would violate.
+		// NON-VACUITY: a non-atomic mint (read-then-write) lets two concurrent callers observe the same value
+		// → Distinct().Count() < N → RED. SQL Server's NEXT VALUE FOR on a real SEQUENCE is atomic.
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"pblbmb concurrent fencing-token atomicity is a split-brain safety control — this real-SqlServer lock must never be skipped");
+
+		var resourceId = $"pblbmb-atomic-{Guid.NewGuid():N}";
+		var services = new ServiceCollection();
+		_ = services.AddSqlServerFencingTokenProvider(_fixture.ConnectionString);
+		await using var serviceProvider = services.BuildServiceProvider();
+		var provider = serviceProvider.GetRequiredService<IFencingTokenProvider>();
+
+		const int issuances = 40;
+		var tasks = Enumerable.Range(0, issuances)
+			.Select(_ => Task.Run(
+				async () => await provider.IssueTokenAsync(resourceId, TestCancellationToken), TestCancellationToken));
+		var tokens = await Task.WhenAll(tasks);
+
+		tokens.Distinct().Count().ShouldBe(
+			issuances,
+			"pblbmb: every concurrently-minted fencing token must be unique — an atomic SEQUENCE mint never issues a duplicate to two racing callers.");
+	}
+
+	[Fact]
 	public async Task RelinquishWithoutBecomingLeaderWhenFencingMintFails()
 	{
 		// nxmjpm fact 2 — fail-CLOSED: a fencing-enabled candidate that cannot mint its fence must NOT lead,

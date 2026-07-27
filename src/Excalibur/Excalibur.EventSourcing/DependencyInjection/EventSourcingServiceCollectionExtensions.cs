@@ -41,11 +41,34 @@ public static class EventSourcingServiceCollectionExtensions
 		// ADR-078: Register Dispatch primitives first (IDispatcher, IMessageBus, etc.)
 		_ = services.AddDispatch();
 
+		// The startup validators below are IHostedService singletons that take an ILogger<T>. Registering them
+		// without the logging services makes the IHostedService enumerable unresolvable for any consumer who
+		// has not separately called AddLogging(). Add it here, as Microsoft's own AddHttpClient does, so this
+		// entry point is self-sufficient; AddLogging is idempotent and adds no providers.
+		_ = services.AddLogging();
+
 		// Register default snapshot strategy (no snapshots)
 		services.TryAddSingleton<ISnapshotStrategy>(NoSnapshotStrategy.Instance);
 
 		// bd-x6rg45: fail loud at host start if the consumer forgot to pick an event store.
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventSourcingPrerequisiteValidator>());
+
+		// Fail host start when GDPR crypto-shredding is configured but the event store is not wired for
+		// at-rest field encryption (consumer configured crypto-shred but omitted AddEventSourcingCryptoShredding()).
+		// Always-on so the silent-inert PII gap fails closed even when the opt-in wiring is forgotten.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, CryptoShreddingWiringValidator>());
+
+		// Sibling always-on guards for the inbox and outbox surfaces: fail host start when crypto-shredding is
+		// configured but a registered inbox/outbox store is NOT wired for at-rest field encryption. Registered
+		// here (not inside AddInboxEncryption/AddOutboxEncryption) precisely because the fault they catch is the
+		// SKIPPED wire — a guard living inside the wire would be skipped alongside it. Each probes its store
+		// KEYED (the "default" registration), so a keyed-only store is not mistaken for absent.
+		_ = services.AddStoreEncryptionWiringGuards();
+
+		// Fail loud at host start when the default type-rejecting JSON serializer is paired with an empty
+		// event-type registry — a configuration that bricks every aggregate replay at runtime. Converts a
+		// silent runtime failure into an honest startup failure that names the fix (RegisterEventTypes*).
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Hosting.IHostedService, EventTypeRegistrationValidator>());
 
 		// us5tfv (ADR-336 clause 2): fail fast at startup when OutboxStagingStrategy.Transactional is explicitly
 		// selected without the transactional infrastructure (ITransactionalOutboxWriter + a transactional event

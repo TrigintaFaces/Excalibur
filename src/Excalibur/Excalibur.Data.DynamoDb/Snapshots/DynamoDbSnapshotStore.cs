@@ -10,6 +10,7 @@ using Amazon.Runtime;
 using Excalibur.Data.DynamoDb.Diagnostics;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
@@ -38,6 +39,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 {
 	private readonly DynamoDbSnapshotStoreOptions _options;
 	private readonly ILogger<DynamoDbSnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly bool _ownsClient;
 	private IAmazonDynamoDB? _client;
@@ -49,12 +51,18 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot partition key.
+	/// </param>
 	public DynamoDbSnapshotStore(
 		IOptions<DynamoDbSnapshotStoreOptions> options,
-		ILogger<DynamoDbSnapshotStore> logger)
+		ILogger<DynamoDbSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
@@ -68,14 +76,20 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	/// <param name="client">The DynamoDB client.</param>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot partition key.
+	/// </param>
 	public DynamoDbSnapshotStore(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbSnapshotStoreOptions> options,
-		ILogger<DynamoDbSnapshotStore> logger)
+		ILogger<DynamoDbSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		_tenantContext = tenantContext;
 
 		_client = client;
 		_options = options.Value;
@@ -137,7 +151,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(aggregateType);
 
 		var request = new GetItemRequest
@@ -209,7 +223,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(snapshot.AggregateId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(snapshot.AggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(snapshot.AggregateType);
 
 		// First, check if a snapshot already exists to perform version check
@@ -245,7 +259,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 			// Put with conditional expression - version must still be lower OR not exist
 #pragma warning disable IL2026
-			var document = DynamoDbSnapshotDocument.FromSnapshot(snapshot, _options.DefaultTtlSeconds);
+			var document = DynamoDbSnapshotDocument.FromSnapshot(snapshot, _options.DefaultTtlSeconds, TenantScope.FromContext(_tenantContext).TenantId);
 #pragma warning restore IL2026
 
 			var putRequest = new PutItemRequest
@@ -313,7 +327,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(aggregateType);
 
 		var request = new DeleteItemRequest
@@ -373,7 +387,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId);
+		var pk = DynamoDbSnapshotDocument.CreatePK(aggregateId, TenantScope.FromContext(_tenantContext).TenantId);
 		var sk = DynamoDbSnapshotDocument.CreateSK(aggregateType);
 
 		// First read the snapshot to check its version
@@ -529,7 +543,15 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				BillingMode = BillingMode.PAY_PER_REQUEST
 			};
 
-			_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			}
+			catch (ResourceInUseException)
+			{
+				// Multi-instance cold-start race: another instance created (or is creating) the table
+				// between our DescribeTable and CreateTable. Benign — fall through to wait-for-active.
+			}
 
 			// Wait for table to be active
 			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };

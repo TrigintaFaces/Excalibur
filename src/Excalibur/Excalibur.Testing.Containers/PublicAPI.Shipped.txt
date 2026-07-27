@@ -1,0 +1,59 @@
+#nullable enable
+Excalibur.Testing.Containers.ContainerFixtureBase
+Excalibur.Testing.Containers.ContainerFixtureBase.ContainerFixtureBase() -> void
+Excalibur.Testing.Containers.ContainerFixtureBase.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Testing.Containers.ContainerFixtureBase.DockerAvailable.get -> bool
+Excalibur.Testing.Containers.ContainerFixtureBase.InitializationError.get -> string?
+Excalibur.Testing.Containers.ContainerFixtureBase.InitializeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Testing.Containers.ContainerFixtureBase.MarkUnavailable(string! reason) -> void
+Excalibur.Testing.Containers.ContainerTimeouts
+Excalibur.Testing.Containers.CosmosDbContainerFixture
+Excalibur.Testing.Containers.CosmosDbContainerFixture.ConnectionString.get -> string!
+Excalibur.Testing.Containers.CosmosDbContainerFixture.CosmosDbContainerFixture() -> void
+Excalibur.Testing.Containers.DatabaseEngine
+Excalibur.Testing.Containers.DatabaseEngine.Postgres = 1 -> Excalibur.Testing.Containers.DatabaseEngine
+Excalibur.Testing.Containers.DatabaseEngine.SqlServer = 0 -> Excalibur.Testing.Containers.DatabaseEngine
+Excalibur.Testing.Containers.IDatabaseContainerFixture
+Excalibur.Testing.Containers.IDatabaseContainerFixture.ConnectionString.get -> string!
+Excalibur.Testing.Containers.IDatabaseContainerFixture.CreateDbConnection() -> System.Data.IDbConnection!
+Excalibur.Testing.Containers.IDatabaseContainerFixture.DockerAvailable.get -> bool
+Excalibur.Testing.Containers.IDatabaseContainerFixture.Engine.get -> Excalibur.Testing.Containers.DatabaseEngine
+Excalibur.Testing.Containers.IDatabaseContainerFixture.InitializationError.get -> string?
+Excalibur.Testing.Containers.PostgresContainerFixture
+Excalibur.Testing.Containers.PostgresContainerFixture.ConnectionString.get -> string!
+Excalibur.Testing.Containers.PostgresContainerFixture.CreateDbConnection() -> System.Data.IDbConnection!
+Excalibur.Testing.Containers.PostgresContainerFixture.Engine.get -> Excalibur.Testing.Containers.DatabaseEngine
+Excalibur.Testing.Containers.PostgresContainerFixture.PostgresContainerFixture() -> void
+Excalibur.Testing.Containers.RabbitMqContainerFixture
+Excalibur.Testing.Containers.RabbitMqContainerFixture.ConnectionString.get -> string!
+Excalibur.Testing.Containers.RabbitMqContainerFixture.RabbitMqContainerFixture() -> void
+Excalibur.Testing.Containers.RedisContainerFixture
+Excalibur.Testing.Containers.RedisContainerFixture.ConnectionString.get -> string!
+Excalibur.Testing.Containers.RedisContainerFixture.RedisContainerFixture() -> void
+Excalibur.Testing.Containers.SqlServerContainerFixture
+Excalibur.Testing.Containers.SqlServerContainerFixture.ConnectionString.get -> string!
+Excalibur.Testing.Containers.SqlServerContainerFixture.CreateDbConnection() -> System.Data.IDbConnection!
+Excalibur.Testing.Containers.SqlServerContainerFixture.Engine.get -> Excalibur.Testing.Containers.DatabaseEngine
+Excalibur.Testing.Containers.SqlServerContainerFixture.SqlServerContainerFixture() -> void
+abstract Excalibur.Testing.Containers.ContainerFixtureBase.DisposeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.Testing.Containers.ContainerFixtureBase.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.CosmosDbContainerFixture.DisposeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.CosmosDbContainerFixture.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.PostgresContainerFixture.DisposeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.PostgresContainerFixture.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.RabbitMqContainerFixture.DisposeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.RabbitMqContainerFixture.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.RedisContainerFixture.DisposeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.RedisContainerFixture.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.SqlServerContainerFixture.DisposeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Testing.Containers.SqlServerContainerFixture.InitializeContainerAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Testing.Containers.ContainerTimeouts.ContainerDispose.get -> System.TimeSpan
+static Excalibur.Testing.Containers.ContainerTimeouts.ContainerStart.get -> System.TimeSpan
+virtual Excalibur.Testing.Containers.ContainerFixtureBase.AllowGracefulDegradation.get -> bool
+virtual Excalibur.Testing.Containers.ContainerFixtureBase.ContainerDisposeTimeout.get -> System.TimeSpan
+virtual Excalibur.Testing.Containers.ContainerFixtureBase.ContainerStartTimeout.get -> System.TimeSpan
+virtual Excalibur.Testing.Containers.CosmosDbContainerFixture.Image.get -> string!
+virtual Excalibur.Testing.Containers.PostgresContainerFixture.Image.get -> string!
+virtual Excalibur.Testing.Containers.RabbitMqContainerFixture.Image.get -> string!
+virtual Excalibur.Testing.Containers.RedisContainerFixture.Image.get -> string!
+virtual Excalibur.Testing.Containers.SqlServerContainerFixture.Image.get -> string!

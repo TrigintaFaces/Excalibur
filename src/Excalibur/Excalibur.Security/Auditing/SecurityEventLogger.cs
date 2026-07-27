@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.Extensions.Hosting;
@@ -21,6 +22,7 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 {
 	private readonly ILogger<SecurityEventLogger> _logger;
 	private readonly ISecurityEventStore _eventStore;
+	private readonly ITelemetrySanitizer _sanitizer;
 	private readonly Channel<SecurityEvent> _eventChannel;
 	private readonly CancellationTokenSource _shutdownTokenSource;
 	private Task? _processingTask;
@@ -31,12 +33,15 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 	/// </summary>
 	/// <param name="logger">The logger used to emit diagnostics.</param>
 	/// <param name="eventStore">The store that persists security events.</param>
+	/// <param name="sanitizer">The telemetry sanitizer used to redact PII (user id, source IP) before logging.</param>
 	public SecurityEventLogger(
 		ILogger<SecurityEventLogger> logger,
-		ISecurityEventStore eventStore)
+		ISecurityEventStore eventStore,
+		ITelemetrySanitizer sanitizer)
 	{
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
+		_sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
 
 		// Use bounded channel to prevent DoS via auth flood
 		_eventChannel = Channel.CreateBounded<SecurityEvent>(new BoundedChannelOptions(10_000)
@@ -279,9 +284,9 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 		"Security event processing loop failed")]
 	private partial void LogProcessingLoopFailed(Exception ex);
 
-	[LoggerMessage(SecurityEventId.SecurityEventLoggedWithDetails, LogLevel.Information,
-		"Security Event: {EventType} - {Description} [Severity: {Severity}, User: {UserId}, IP: {SourceIp}]")]
-	private partial void LogSecurityEvent(SecurityEventType eventType, string description, SecuritySeverity severity,
+	[LoggerMessage(EventId = SecurityEventId.SecurityEventLoggedWithDetails,
+		Message = "Security Event: {EventType} - {Description} [Severity: {Severity}, User: {UserId}, IP: {SourceIp}]")]
+	private partial void LogSecurityEvent(LogLevel level, SecurityEventType eventType, string description, SecuritySeverity severity,
 		string userId, string sourceIp);
 
 	private async Task ProcessEventsAsync(CancellationToken cancellationToken)
@@ -387,8 +392,10 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 
 	private void LogToStandardLogger(SecurityEvent securityEvent)
 	{
-		// Use pre-compiled logging for security events with dynamic log level support
-		_ = securityEvent.Severity switch
+		// Emit at the severity-derived level so Critical/High audit events are not filtered out by a
+		// production logger configured at Warning+ (the source-generated method takes the level as a
+		// parameter — a fixed Information level previously hid every high-severity security event).
+		var level = securityEvent.Severity switch
 		{
 			SecuritySeverity.Critical => LogLevel.Critical,
 			SecuritySeverity.High => LogLevel.Error,
@@ -397,11 +404,29 @@ internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHoste
 			_ => LogLevel.Information,
 		};
 
+		// Redact PII before it reaches the log sink, matching the auth middleware's telemetry hardening.
+		var userId = ResolveSanitizedTag("auth.user_id", securityEvent.UserId);
+		var sourceIp = ResolveSanitizedTag("auth.source_ip", securityEvent.SourceIp);
+
 		LogSecurityEvent(
+			level,
 			securityEvent.EventType,
 			securityEvent.Description,
 			securityEvent.Severity,
-			securityEvent.UserId ?? "Unknown",
-			securityEvent.SourceIp ?? "Unknown");
+			userId,
+			sourceIp);
+	}
+
+	// Distinguishes a genuinely-absent value (no data present -> "Unknown") from a deliberate sanitizer
+	// suppression of a present value (-> "[redacted]"). Conflating the two would report suppressed PII as
+	// if the field were simply unknown, hiding that a value existed and was intentionally withheld.
+	private string ResolveSanitizedTag(string tagName, string? rawValue)
+	{
+		if (rawValue is null)
+		{
+			return "Unknown";
+		}
+
+		return _sanitizer.SanitizeTag(tagName, rawValue) ?? "[redacted]";
 	}
 }

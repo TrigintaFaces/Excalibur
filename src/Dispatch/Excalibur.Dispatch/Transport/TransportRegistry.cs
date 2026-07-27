@@ -48,15 +48,16 @@ internal sealed class TransportRegistry : ITransportRegistry
 	/// <param name="name"> The transport name. </param>
 	/// <param name="adapter"> The transport adapter. </param>
 	/// <param name="transportType"> The transport type. </param>
+	/// <param name="locality"> Whether the transport delivers in-process or across a network boundary. </param>
 	/// <param name="options"> Optional transport options. </param>
 	/// <exception cref="InvalidOperationException"></exception>
-	public void RegisterTransport(string name, ITransportAdapter adapter, string transportType, Dictionary<string, object>? options = null)
+	public void RegisterTransport(string name, ITransportAdapter adapter, string transportType, TransportLocality locality, Dictionary<string, object>? options = null)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 		ArgumentNullException.ThrowIfNull(adapter);
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportType);
 
-		RegisterTransportCore(name, adapter, transportType, options, updateNamesSnapshot: true);
+		RegisterTransportCore(name, adapter, transportType, locality, options, updateNamesSnapshot: true);
 	}
 
 	/// <summary>
@@ -200,6 +201,7 @@ internal sealed class TransportRegistry : ITransportRegistry
 	/// </summary>
 	/// <param name="name"> The transport name. </param>
 	/// <param name="transportType"> The transport type identifier. </param>
+	/// <param name="locality"> Whether the transport delivers in-process or across a network boundary. </param>
 	/// <param name="factory"> Factory function to create the adapter at runtime. </param>
 	/// <exception cref="InvalidOperationException"> Thrown when a transport or factory with the same name is already registered. </exception>
 	/// <remarks>
@@ -213,6 +215,7 @@ internal sealed class TransportRegistry : ITransportRegistry
 	public void RegisterTransportFactory(
 		string name,
 		string transportType,
+		TransportLocality locality,
 		Func<IServiceProvider, ITransportAdapter> factory)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -224,7 +227,7 @@ internal sealed class TransportRegistry : ITransportRegistry
 			throw new InvalidOperationException($"A transport with name '{name}' is already registered");
 		}
 
-		var registration = new TransportFactoryRegistration(transportType, factory);
+		var registration = new TransportFactoryRegistration(transportType, locality, factory);
 
 		if (!_factories.TryAdd(name, registration))
 		{
@@ -239,6 +242,11 @@ internal sealed class TransportRegistry : ITransportRegistry
 	/// </summary>
 	/// <returns> Collection of factory names that have not been initialized. </returns>
 	public IEnumerable<string> GetPendingFactoryNames() => _factories.Keys;
+
+	/// <inheritdoc />
+	public bool HasRemoteTransport =>
+		_transports.Values.Any(static registration => registration.Locality == TransportLocality.Remote)
+		|| _factories.Values.Any(static factory => factory.Locality == TransportLocality.Remote);
 
 	/// <summary>
 	/// Initializes all pending transport factories using the provided service provider.
@@ -270,7 +278,7 @@ internal sealed class TransportRegistry : ITransportRegistry
 			if (_factories.TryRemove(name, out var factoryReg))
 			{
 				var adapter = factoryReg.Factory(serviceProvider);
-				RegisterTransportCore(name, adapter, factoryReg.TransportType, options: null, updateNamesSnapshot: false);
+				RegisterTransportCore(name, adapter, factoryReg.TransportType, factoryReg.Locality, options: null, updateNamesSnapshot: false);
 				count++;
 			}
 		}
@@ -317,10 +325,11 @@ internal sealed class TransportRegistry : ITransportRegistry
 		string name,
 		ITransportAdapter adapter,
 		string transportType,
+		TransportLocality locality,
 		Dictionary<string, object>? options,
 		bool updateNamesSnapshot)
 	{
-		var registration = new TransportRegistration(adapter, transportType, options ?? []);
+		var registration = new TransportRegistration(adapter, transportType, locality, options ?? []);
 
 		if (!_transports.TryAdd(name, registration))
 		{
@@ -338,7 +347,9 @@ internal sealed class TransportRegistry : ITransportRegistry
 /// Registration record for factory-based transport creation.
 /// </summary>
 /// <param name="TransportType"> The transport type identifier. </param>
+/// <param name="Locality"> Whether the transport delivers in-process or across a network boundary. </param>
 /// <param name="Factory"> Factory function to create the adapter. </param>
 public sealed record TransportFactoryRegistration(
 	string TransportType,
+	TransportLocality Locality,
 	Func<IServiceProvider, ITransportAdapter> Factory);

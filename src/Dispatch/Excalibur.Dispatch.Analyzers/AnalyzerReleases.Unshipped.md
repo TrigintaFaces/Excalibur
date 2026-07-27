@@ -10,6 +10,6 @@ Rule ID  | Category                       | Severity | Notes
 DISP101  | Excalibur.Dispatch.Naming      | Warning  | DI extension class in wrong namespace (should be Microsoft.Extensions.DependencyInjection)
 DISP102  | Excalibur.Dispatch.Naming      | Warning  | Extension class uses interface-style 'I' prefix
 DISP103  | Excalibur.Dispatch.Design      | Warning  | CancellationToken has default value in interface method
-DISP104  | Excalibur.Dispatch.Naming      | Warning  | Namespace contains '.Core.' segment (ADR-075 violation)
+DISP104  | Excalibur.Dispatch.Naming      | Warning  | Namespace contains '.Core.' segment
 DISP105  | Excalibur.Dispatch.Design      | Warning  | Missing ConfigureAwait(false) in library code
 DISP106  | Excalibur.Dispatch.Design      | Warning  | Blocking call (.Result/.Wait()/.GetResult()) in async method

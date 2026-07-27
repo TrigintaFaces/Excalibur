@@ -8,15 +8,15 @@
 // This sample shows how to run Excalibur event sourcing in a multi-tenant
 // configuration with:
 //
-//   1. A per-tenant shard map (ITenantShardMap)
-//   2. Per-tenant database routing (UseSqlServerTenantEventStore)
-//   3. Tenant-scoped aggregate operations (IEventSourcedRepository is scoped
-//      per-request, the routing decorator picks the right shard)
+// 1. A per-tenant shard map (ITenantShardMap)
+// 2. Per-tenant database routing (UseSqlServerTenantEventStore)
+// 3. Tenant-scoped aggregate operations (IEventSourcedRepository is scoped
+// per-request, the routing decorator picks the right shard)
 //
 // Isolation models available:
-//   * Database per tenant   -- full isolation, simplest compliance story
-//   * Schema per tenant     -- same database, different schema  (sample default)
-//   * Row-level (tenant id) -- single schema, tenantId column discriminator
+// * Database per tenant -- full isolation, simplest compliance story
+// * Schema per tenant -- same database, different schema (sample default)
+// * Row-level (tenant id) -- single schema, tenantId column discriminator
 //
 // Tradeoffs are in the README.
 //
@@ -49,20 +49,20 @@ var builder = WebApplication.CreateBuilder(args);
 var shards = new Dictionary<string, ShardInfo>(StringComparer.OrdinalIgnoreCase)
 {
 	["shard-eu-1"] = new ShardInfo(
-		ShardId:          "shard-eu-1",
-		ConnectionString: "Server=localhost,1434;Database=EventStore_EU;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True",
-		SchemaName:       "dbo",
-		Region:           "eu-west-1"),
+ ShardId: "shard-eu-1",
+ ConnectionString: "Server=localhost,1434;Database=EventStore_EU;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True",
+ SchemaName: "dbo",
+ Region: "eu-west-1"),
 	["shard-us-1"] = new ShardInfo(
-		ShardId:          "shard-us-1",
-		ConnectionString: "Server=localhost,1434;Database=EventStore_US;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True",
-		SchemaName:       "dbo",
-		Region:           "us-east-1")
+ ShardId: "shard-us-1",
+ ConnectionString: "Server=localhost,1434;Database=EventStore_US;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True",
+ SchemaName: "dbo",
+ Region: "us-east-1")
 };
 
 var tenantToShardId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 {
-	["tenant-acme"]   = "shard-us-1",
+	["tenant-acme"] = "shard-us-1",
 	["tenant-contoso"] = "shard-eu-1",
 	["tenant-globex"] = "shard-us-1"
 };
@@ -77,28 +77,19 @@ builder.Services.AddSingleton<ITenantShardMap>(
 // CreateTenantOrderHandler is discovered.
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
-// c6wd6f: register event types for secure-by-default resolution
+// register event types for secure-by-default resolution
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
-// HTTP context is required so the scoped ITenantId resolver can read the
-// X-Tenant-Id header from the inbound request.
-builder.Services.AddHttpContextAccessor();
-
-// Per-request ITenantId is resolved from the X-Tenant-Id header. The routing
-// decorator (TenantRoutingEventStore) reads this value on every IEventStore
+// Register the ambient ITenantContext. The per-request tenant is established
+// from the X-Tenant-Id header by the BeginScope middleware below; the routing
+// decorator (TenantRoutingEventStore) reads ITenantContext on every IEventStore
 // operation and picks the matching shard via ITenantStoreResolver<IEventStore>.
-builder.Services.TryAddTenantId(sp =>
-{
-	var http = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
-	return http?.Request.Headers["X-Tenant-Id"].FirstOrDefault()
-		?? string.Empty;
-});
+builder.Services.AddTenantContext();
 
 // Audit pipeline — commands mark IAmAuditable, AuditMiddleware builds
 // ActivityAudited records with TenantId flowing end-to-end, publisher writes
-// to InMemoryAuditStore so GET /audit/recent is observable. The earlier
-// TryAddTenantId(sp => header) registration wins via TryAdd precedence, so
-// the per-request tenant still flows into every audit record.
+// to InMemoryAuditStore so GET /audit/recent is observable. The ambient tenant
+// established per request flows into every audit record via ITenantContext.
 builder.Services.AddExcalibur(excalibur => excalibur.AddAudit());
 builder.Services.AddSingleton<InMemoryAuditStore>();
 builder.Services.AddSingleton<IAuditMessagePublisher, InMemoryAuditMessagePublisher>();
@@ -133,6 +124,17 @@ builder.Services.AddExcalibur(excalibur =>
 
 var app = builder.Build();
 
+// Establish the ambient tenant for the request from the X-Tenant-Id header.
+// ITenantContext (and every tenant-aware component) reads this via BeginScope.
+app.Use(async (context, next) =>
+{
+	var tenant = context.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+	using (TenantContextHolder.BeginScope(tenant))
+	{
+		await next().ConfigureAwait(false);
+	}
+});
+
 // ----------------------------------------------------------------------------
 // 3. Example: inspect the tenant-to-shard mapping
 // ----------------------------------------------------------------------------
@@ -153,7 +155,7 @@ app.MapGet("/shards/{tenantId}", (string tenantId, ITenantShardMap map) =>
 			info.ShardId,
 			info.SchemaName,
 			info.Region,
-			ConnectionStringLength = info.ConnectionString.Length  // don't leak credentials
+			ConnectionStringLength = info.ConnectionString.Length // don't leak credentials
 		});
 	}
 	catch (TenantShardNotFoundException)
@@ -166,13 +168,13 @@ app.MapGet("/shards/{tenantId}", (string tenantId, ITenantShardMap map) =>
 // 4. POST /orders — exercises TenantRoutingEventStore per-operation shard pick
 // ----------------------------------------------------------------------------
 // Flow:
-//   1. Client sends POST /orders with `X-Tenant-Id: tenant-acme` header.
-//   2. Scoped ITenantId resolver reads the header.
-//   3. IDispatcher dispatches CreateTenantOrderCommand.
-//   4. CreateTenantOrderHandler asks IEventSourcedRepository<TenantScopedOrder, Guid>
-//      to save the aggregate; internally the TenantRoutingEventStore decorator
-//      resolves ITenantShardMap[tenantId] and writes events to that shard.
-//   5. The handler logs `shard-per-operation` so the routing is observable.
+// 1. Client sends POST /orders with `X-Tenant-Id: tenant-acme` header.
+// 2. The BeginScope middleware establishes the ambient tenant from the header.
+// 3. IDispatcher dispatches CreateTenantOrderCommand.
+// 4. CreateTenantOrderHandler asks IEventSourcedRepository<TenantScopedOrder, Guid>
+// to save the aggregate; internally the TenantRoutingEventStore decorator
+// resolves ITenantShardMap[tenantId] and writes events to that shard.
+// 5. The handler logs `shard-per-operation` so the routing is observable.
 app.MapPost("/orders", async (
 	CreateOrderRequest body,
 	HttpContext context,
@@ -189,14 +191,14 @@ app.MapPost("/orders", async (
 	};
 
 	var result = await dispatcher
-		.DispatchAsync<CreateTenantOrderCommand, Guid>(command, ct)
-		.ConfigureAwait(false);
+.DispatchAsync<CreateTenantOrderCommand, Guid>(command, ct)
+.ConfigureAwait(false);
 
 	if (!result.Succeeded)
 	{
 		return result.ProblemDetails is { } problem
-			? Results.Problem(detail: problem.Detail, statusCode: problem.Status ?? 500, title: problem.Title)
-			: Results.Problem(detail: result.ErrorMessage, statusCode: 500);
+		? Results.Problem(detail: problem.Detail, statusCode: problem.Status ?? 500, title: problem.Title)
+	   : Results.Problem(detail: result.ErrorMessage, statusCode: 500);
 	}
 
 	return Results.Created($"/orders/{result.ReturnValue}", new { OrderId = result.ReturnValue });
@@ -223,19 +225,19 @@ app.MapGet("/", () => Results.Text(
 	"""
 	Multi-tenant event sourcing sample. Endpoints:
 
-	  GET  /shards                              list registered shards
-	  GET  /shards/{tenantId}                   shard mapping for a tenant
-	  POST /orders  (header X-Tenant-Id: ...)   dispatch CreateTenantOrderCommand
-	                                            -> TenantRoutingEventStore picks shard
-	                                            -> shard-per-operation logged
+	GET /shards list registered shards
+	GET /shards/{tenantId} shard mapping for a tenant
+	POST /orders (header X-Tenant-Id:...) dispatch CreateTenantOrderCommand
+	-> TenantRoutingEventStore picks shard
+	-> shard-per-operation logged
 
 	Try:
-	  curl -X POST http://localhost:5000/orders \
-	    -H 'Content-Type: application/json' \
-	    -H 'X-Tenant-Id: tenant-acme' \
-	    -d '{"total": 125.50}'
+	curl -X POST http://localhost:5000/orders \
+	-H 'Content-Type: application/json' \
+	-H 'X-Tenant-Id: tenant-acme' \
+	-d '{"total": 125.50}'
 
-	The X-Tenant-Id header drives the scoped ITenantId; the same mechanism
+	The X-Tenant-Id header drives the ambient ITenantContext; the same mechanism
 	applies to any transport — JWT claim, subdomain, gRPC metadata, etc.
 	"""));
 

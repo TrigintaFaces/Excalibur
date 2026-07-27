@@ -28,8 +28,15 @@ namespace Excalibur.Inbox.InMemory;
 internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, InboxEntry> _entries = new(StringComparer.Ordinal);
+
+	// Companion lease-expiry map (unix-ms) for the lease-based claim overload, plus a lock so the
+	// read-decide-write across both maps is a single atomic compare-and-set. A single-process store has no
+	// distributed clock skew, so the local wall clock is the authority here.
+	private readonly ConcurrentDictionary<string, long> _leaseExpiryUnixMs = new(StringComparer.Ordinal);
+	private readonly System.Threading.Lock _leaseClaimLock = new();
 	private readonly InMemoryInboxOptions _options;
 	private readonly ILogger<InMemoryInboxStore> _logger;
+	private readonly TimeProvider _timeProvider;
 	private readonly Timer? _cleanupTimer;
 	private volatile bool _disposed;
 
@@ -38,15 +45,22 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for lease-expiry and entry timestamps. Defaults to
+	/// <see cref="TimeProvider.System"/>. Inject a controllable provider to make lease expiry
+	/// deterministic in tests.
+	/// </param>
 	public InMemoryInboxStore(
 		IOptions<InMemoryInboxOptions> options,
-		ILogger<InMemoryInboxStore> logger)
+		ILogger<InMemoryInboxStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		// Only start the cleanup timer when EnableAutomaticCleanup is true
 		if (_options.EnableAutomaticCleanup)
@@ -173,7 +187,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 			MessageType = string.Empty,
 			Payload = [],
 			Status = InboxStatus.Processed,
-			ProcessedAt = DateTimeOffset.UtcNow
+			ProcessedAt = _timeProvider.GetUtcNow()
 		};
 
 		if (_entries.TryAdd(key, entry))
@@ -227,6 +241,65 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 	}
 
 	/// <inheritdoc/>
+	public ValueTask<bool> TryClaimAsync(
+		string messageId,
+		string handlerType,
+		TimeSpan leaseDuration,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
+		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var key = GetKey(messageId, handlerType);
+		var nowMs = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+
+		// Single atomic lease CAS under the lock: claim IFF absent, Received, or an expired-lease Processing
+		// entry (reclaiming a dead processor). A live Processing lease or a terminal Processed entry is denied.
+		lock (_leaseClaimLock)
+		{
+			var exists = _entries.TryGetValue(key, out var existing);
+
+			var claimable = !exists
+				|| existing!.Status == InboxStatus.Received
+				|| existing.Status == InboxStatus.Failed
+				|| (existing.Status == InboxStatus.Processing
+					&& (!_leaseExpiryUnixMs.TryGetValue(key, out var expiry) || expiry < nowMs));
+
+			if (!claimable)
+			{
+				_logger.LogDebug("Lease-claim denied (live lease or processed) for message {MessageId} and handler {HandlerType}",
+					messageId, handlerType);
+				return new ValueTask<bool>(false);
+			}
+
+			if (!exists && _options.MaxEntries > 0 && _entries.Count >= _options.MaxEntries)
+			{
+				EvictOldestEntry();
+			}
+
+			_entries[key] = new InboxEntry
+			{
+				MessageId = messageId,
+				HandlerType = handlerType,
+				MessageType = string.Empty,
+				Payload = [],
+				Status = InboxStatus.Processing,
+				ReceivedAt = existing?.ReceivedAt ?? _timeProvider.GetUtcNow(),
+				// Preserve retry history across re-admit (never reset); the shared handler-finalize path
+				// (MarkFailedAsync) is the single monotonic incrementer, so the count is exactly-once per attempt.
+				RetryCount = existing?.RetryCount ?? 0
+			};
+			_leaseExpiryUnixMs[key] = nowMs + (long)leaseDuration.TotalMilliseconds;
+
+			_logger.LogDebug("Lease-claimed inbox entry for message {MessageId} and handler {HandlerType}",
+				messageId, handlerType);
+			return new ValueTask<bool>(true);
+		}
+	}
+
+	/// <inheritdoc/>
 	public ValueTask ReleaseAsync(string messageId, string handlerType, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
@@ -237,6 +310,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 
 		// Remove the claim so a redelivery can re-admit. No-op if already removed or never claimed.
 		_ = _entries.TryRemove(key, out _);
+		_ = _leaseExpiryUnixMs.TryRemove(key, out _);
 
 		_logger.LogDebug("Released inbox claim for message {MessageId} and handler {HandlerType}",
 			messageId, handlerType);
@@ -321,7 +395,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 		entry.Status = InboxStatus.Failed;
 		entry.LastError = errorMessage;
 		entry.RetryCount = retryCount;
-		entry.LastAttemptAt = DateTimeOffset.UtcNow;
+		entry.LastAttemptAt = _timeProvider.GetUtcNow();
 
 		_logger.LogWarning("Marked inbox entry as failed for message {MessageId} and handler {HandlerType}: {Error}",
 			messageId, handlerType, errorMessage);
@@ -486,7 +560,7 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 
 		try
 		{
-			var cutoff = DateTimeOffset.UtcNow.Subtract(_options.RetentionPeriod);
+			var cutoff = _timeProvider.GetUtcNow().Subtract(_options.RetentionPeriod);
 			var count = 0;
 
 			foreach (var kvp in _entries.ToArray())
@@ -516,14 +590,40 @@ internal sealed class InMemoryInboxStore : IInboxStore, IProcessingTrackingInbox
 
 	private void EvictOldestEntry()
 	{
-		var oldestEntry = _entries.Values
-			.OrderBy(e => e.ReceivedAt)
+		// 5uajzo / Dijkstra D5 — eviction must FAIL CLOSED, never silently drop a live dedup record.
+		// (Supersedes 0yy2sp's "bounded memory takes precedence" fallback: a silently-evicted live dedup
+		// marker lets a redelivery re-admit and re-process the same message — a duplicate side-effect, the
+		// exact thing the inbox exists to prevent. Dedup correctness outranks bounded memory here.)
+		//
+		// Reclaim, in priority order, an entry whose removal CANNOT cause a duplicate:
+		//   1. the oldest NON-live entry (Received/Failed) — neither a dedup marker nor an in-flight claim;
+		//   2. else the oldest entry PAST the dedup window (a Processed marker older than RetentionPeriod no
+		//      longer protects against a duplicate — same predicate as PerformScheduledCleanup).
+		// If neither exists, every entry is a live dedup marker / in-flight claim within the window, so
+		// evicting any of them would risk a duplicate: THROW instead.
+		var reclaimable = _entries.Values
+			.Where(static e => e.Status is not (InboxStatus.Processed or InboxStatus.Processing))
+			.OrderBy(static e => e.ReceivedAt)
 			.FirstOrDefault();
 
-		if (oldestEntry != null)
+		if (reclaimable is null)
 		{
-			var oldKey = GetKey(oldestEntry.MessageId, oldestEntry.HandlerType);
-			_ = _entries.TryRemove(oldKey, out _);
+			var cutoff = _timeProvider.GetUtcNow().Subtract(_options.RetentionPeriod);
+			reclaimable = _entries.Values
+				.Where(e => e is { Status: InboxStatus.Processed, ProcessedAt: not null } && e.ProcessedAt.Value <= cutoff)
+				.OrderBy(static e => e.ReceivedAt)
+				.FirstOrDefault();
 		}
+
+		if (reclaimable is not null)
+		{
+			_ = _entries.TryRemove(GetKey(reclaimable.MessageId, reclaimable.HandlerType), out _);
+			return;
+		}
+
+		throw new InvalidOperationException(
+			$"The in-memory inbox is at capacity ({_options.MaxEntries}) and every entry is a live deduplication " +
+			"record within the retention window. Evicting one would risk re-processing a duplicate message. " +
+			"Increase MaxEntries or reduce RetentionPeriod.");
 	}
 }

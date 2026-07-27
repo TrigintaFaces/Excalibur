@@ -226,7 +226,7 @@ public class OrderService
 
 ## Nested Dispatch (Child Context)
 
-When dispatching from within a handler, use `DispatchChildAsync` to propagate context:
+When dispatching from within a handler, call `DispatchAsync` — it automatically propagates context by dispatching a child message:
 
 ```csharp
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
@@ -237,9 +237,9 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
     {
         // Create the order...
 
-        // Dispatch a child action - context is propagated
+        // Dispatch a child action - context is propagated automatically
         var notifyAction = new NotifyOrderCreatedAction(orderId);
-        await _dispatcher.DispatchChildAsync(notifyAction, ct);
+        await _dispatcher.DispatchAsync(notifyAction, ct);
     }
 }
 ```

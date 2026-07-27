@@ -49,7 +49,7 @@ public sealed class SqliteEventStore : IEventStore
 		_connectionString = connectionString;
 		_logger = logger;
 		_table = table;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 	}
 
 	/// <inheritdoc/>
@@ -58,6 +58,8 @@ public sealed class SqliteEventStore : IEventStore
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		return await LoadAsync(aggregateId, aggregateType, -1, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -68,6 +70,8 @@ public sealed class SqliteEventStore : IEventStore
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		await using var connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 		await SqliteTableInitializer.EnsureEventsTableAsync(connection, _table, cancellationToken)
@@ -106,11 +110,16 @@ public sealed class SqliteEventStore : IEventStore
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		var eventList = events as IReadOnlyCollection<IDomainEvent> ?? events.ToList();
 
 		if (eventList.Count == 0)
 		{
-			return AppendResult.CreateSuccess(expectedVersion, 0);
+			// No events appended, so there is no first-event position. Report null — the canonical
+			// "no position" sentinel shared by InMemory/SqlServer/Postgres — never a real position like 0.
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
 		}
 
 		await using var connection = CreateConnection();
@@ -166,7 +175,7 @@ public sealed class SqliteEventStore : IEventStore
 							@event.EventId,
 							AggregateId = aggregateId,
 							AggregateType = aggregateType,
-							EventType = @event.GetType().Name,
+							EventType = EventTypeNameHelper.GetEventTypeName(@event.GetType()),
 							EventData = eventData,
 							Metadata = metadata,
 							Version = version,

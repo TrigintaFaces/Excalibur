@@ -45,12 +45,6 @@ public abstract class JobBase(Guid correlationId, string? tenantId = null) : IJo
 	public string MessageType => GetType().FullName ?? GetType().Name;
 
 	/// <summary>
-	/// Gets the kind of message this job represents.
-	/// </summary>
-	/// <value> Always returns <see cref="MessageKinds.Action" /> for jobs. </value>
-	public MessageKinds Kind { get; protected init; } = MessageKinds.Action;
-
-	/// <summary>
 	/// Gets the message headers.
 	/// </summary>
 	/// <value> A read-only dictionary containing the job's metadata headers. </value>

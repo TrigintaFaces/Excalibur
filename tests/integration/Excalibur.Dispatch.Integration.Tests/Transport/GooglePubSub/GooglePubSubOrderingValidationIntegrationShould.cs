@@ -157,7 +157,7 @@ public sealed class GooglePubSubOrderingValidationIntegrationShould : IAsyncLife
 			.ProjectId(ProjectId)
 			.TopicId("abyfxr-topic") // required at registration (eager TopicName build); validator reads the subscription
 			.SubscriptionId(subscriptionId)
-			.ConfigureOptions(o => o.EnableMessageOrdering = enableMessageOrdering));
+			.ConfigureOptions(o => o.Subscriber.EnableMessageOrdering = enableMessageOrdering));
 
 		return services.BuildServiceProvider();
 	}

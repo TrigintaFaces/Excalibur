@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Queries;
@@ -241,7 +242,10 @@ public static class EventSourcingBuilderSqlServerExtensions
 		string schema,
 		string table)
 	{
-		services.TryAddSingleton(sp =>
+		services.AddDefaultTenantContext();
+		// AddTenantScopedStore builds the store (injecting ITenantContext) AND emits the
+		// ITenantScopingCapability<IEventStore> marker inseparably (S886 rw2ull).
+		services.AddTenantScopedStore<IEventStore, SqlServerEventStore>((sp, tenantContext) =>
 		{
 			var factory = connectionFactory(sp);
 			return new SqlServerEventStore(
@@ -250,7 +254,8 @@ public static class EventSourcingBuilderSqlServerExtensions
 				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>(),
 				schema,
-				table);
+				table,
+				tenantContext);
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterEventStoreTelemetryWrapper(services);

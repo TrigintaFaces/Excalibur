@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Dispatch;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -73,8 +75,13 @@ public sealed class MongoDbComplianceOptions
 /// </para>
 /// <para>
 /// Collections created: {prefix}consent_records, {prefix}erasure_logs, {prefix}subject_access_requests.
-/// Unique indexes are created on consent_records (subject_id + purpose) and
-/// subject_access_requests (request_id) for upsert semantics.
+/// </para>
+/// <para>
+/// Upsert identity comes from the document key, not from a secondary index. The consent key is the
+/// tenant, subject and purpose together; the subject-access key is the tenant and request identifier.
+/// The tenant participates in both because those keys are the upsert conflict targets: without it, two
+/// tenants recording data for the same subject would collapse onto one document and the later write
+/// would overwrite the earlier tenant's record.
 /// </para>
 /// </remarks>
 public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposable
@@ -82,6 +89,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	private readonly MongoDbComplianceOptions _options;
 	private readonly ILogger<MongoDbComplianceStore> _logger;
 	private readonly bool _ownsClient;
+	private readonly ITenantContext? _tenantContext;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<ConsentDocument>? _consentCollection;
@@ -94,9 +102,13 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	/// Initializes a new instance of the <see cref="MongoDbComplianceStore"/> class.
 	/// </summary>
 	/// <param name="options">The MongoDB compliance options.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.
+	/// </param>
 	/// <param name="logger">The logger.</param>
 	public MongoDbComplianceStore(
 		IOptions<MongoDbComplianceOptions> options,
+		ITenantContext? tenantContext,
 		ILogger<MongoDbComplianceStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -104,6 +116,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		_options = options.Value;
 		_logger = logger;
+		_tenantContext = tenantContext;
 		_ownsClient = true;
 	}
 
@@ -113,10 +126,14 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	/// </summary>
 	/// <param name="client">An existing MongoDB client.</param>
 	/// <param name="options">The MongoDB compliance options.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.
+	/// </param>
 	/// <param name="logger">The logger.</param>
 	public MongoDbComplianceStore(
 		IMongoClient client,
 		IOptions<MongoDbComplianceOptions> options,
+		ITenantContext? tenantContext,
 		ILogger<MongoDbComplianceStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(client);
@@ -125,12 +142,30 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		_options = options.Value;
 		_logger = logger;
+		_tenantContext = tenantContext;
 		_ownsClient = false;
 		_client = client;
 		_database = client.GetDatabase(_options.DatabaseName);
 		_consentCollection = _database.GetCollection<ConsentDocument>(_options.ConsentCollectionName);
 		_erasureLogCollection = _database.GetCollection<ErasureLogDocument>(_options.ErasureLogsCollectionName);
 		_subjectAccessCollection = _database.GetCollection<SubjectAccessDocument>(_options.SubjectAccessCollectionName);
+	}
+
+	/// <summary>
+	/// Gets the tenant value written to and filtered on by every operation, resolved for the current call.
+	/// </summary>
+	/// <remarks>
+	/// Never empty. An unscoped store uses the reserved framework sentinel rather than an empty string, so a
+	/// tenant term is always present in the document key and a missing tenant can never read as "matches
+	/// anything". Resolved per operation because this store outlives any single tenant's request.
+	/// </remarks>
+	private string TenantValue
+	{
+		get
+		{
+			var scope = TenantScope.FromContext(_tenantContext);
+			return scope.IsScoped ? scope.TenantId! : TenantScope.Untenanted.TenantId!;
+		}
 	}
 
 	/// <inheritdoc />
@@ -142,7 +177,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = ConsentDocument.FromRecord(record);
+		var document = ConsentDocument.FromRecord(record, TenantValue);
 
 		var filter = Builders<ConsentDocument>.Filter.Eq(d => d.Id, document.Id);
 
@@ -166,7 +201,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var id = ConsentDocument.CreateId(subjectId, purpose);
+		var id = ConsentDocument.CreateId(TenantValue, subjectId, purpose);
 		var filter = Builders<ConsentDocument>.Filter.Eq(d => d.Id, id);
 
 		var document = await _consentCollection!
@@ -193,6 +228,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 		var document = new ErasureLogDocument
 		{
 			Id = $"{subjectId}_{erasedAt:O}_{Guid.NewGuid():N}",
+			TenantId = TenantValue,
 			SubjectId = subjectId,
 			Details = details ?? string.Empty,
 			ErasedAt = erasedAt
@@ -212,7 +248,7 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = SubjectAccessDocument.FromResult(result);
+		var document = SubjectAccessDocument.FromResult(result, TenantValue);
 
 		var filter = Builders<SubjectAccessDocument>.Filter.Eq(d => d.Id, document.Id);
 
@@ -270,9 +306,11 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 		}
 
 		// Create unique index on erasure logs for subject_id queries
+		// Tenant-first compound index: every read of this collection is tenant-scoped, so leading with the
+		// tenant lets a scoped scan use the index prefix instead of scanning other tenants' documents.
 		var erasureIndexBuilder = Builders<ErasureLogDocument>.IndexKeys;
 		var subjectIdIndex = new CreateIndexModel<ErasureLogDocument>(
-			erasureIndexBuilder.Ascending(d => d.SubjectId));
+			erasureIndexBuilder.Ascending(d => d.TenantId).Ascending(d => d.SubjectId));
 
 		_ = await _erasureLogCollection!.Indexes
 			.CreateOneAsync(subjectIdIndex, cancellationToken: cancellationToken)
@@ -294,6 +332,15 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	{
 		[BsonId] public string Id { get; set; } = string.Empty;
 
+		/// <summary>
+		/// Gets or sets the owning tenant, or the reserved framework sentinel when unscoped.
+		/// </summary>
+		/// <remarks>
+		/// Never empty. Persisted as its own element so every read can filter by tenant directly and so the
+		/// owning tenant is legible to an operator inspecting a document.
+		/// </remarks>
+		[BsonElement("tenant_id")] public string TenantId { get; set; } = string.Empty;
+
 		[BsonElement("subject_id")] public string SubjectId { get; set; } = string.Empty;
 
 		[BsonElement("purpose")] public string Purpose { get; set; } = string.Empty;
@@ -308,12 +355,31 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		[BsonElement("withdrawn_at")] public DateTimeOffset? WithdrawnAt { get; set; }
 
-		public static string CreateId(string subjectId, string purpose)
-			=> $"{subjectId}:{purpose}";
+		/// <summary>
+		/// Builds the document key for a tenant's consent record.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// The tenant participates in the key because this <c>_id</c> is the upsert conflict target: without
+		/// it, two tenants recording consent for the same subject and purpose produce the same key, and the
+		/// second tenant's write silently overwrites the first tenant's — a cross-tenant write, not merely a
+		/// read leak.
+		/// </para>
+		/// <para>
+		/// Each part is length-prefixed rather than simply delimited. A plain <c>tenant:subject:purpose</c>
+		/// join is ambiguous when a value may itself contain the delimiter — tenant <c>"a:b"</c> with subject
+		/// <c>"c"</c> and tenant <c>"a"</c> with subject <c>"b:c"</c> collapse to the same string — which would
+		/// reintroduce the very collision this key exists to prevent, for any consumer whose tenant
+		/// identifiers contain a colon. Length prefixes make the encoding injective for arbitrary inputs.
+		/// </para>
+		/// </remarks>
+		public static string CreateId(string tenantId, string subjectId, string purpose)
+			=> $"{tenantId.Length}:{tenantId}:{subjectId.Length}:{subjectId}:{purpose}";
 
-		public static ConsentDocument FromRecord(ConsentRecord record) => new()
+		public static ConsentDocument FromRecord(ConsentRecord record, string tenantId) => new()
 		{
-			Id = CreateId(record.SubjectId, record.Purpose),
+			Id = CreateId(tenantId, record.SubjectId, record.Purpose),
+			TenantId = tenantId,
 			SubjectId = record.SubjectId,
 			Purpose = record.Purpose,
 			GrantedAt = record.GrantedAt,
@@ -342,6 +408,15 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	{
 		[BsonId] public string Id { get; set; } = string.Empty;
 
+		/// <summary>
+		/// Gets or sets the owning tenant, or the reserved framework sentinel when unscoped.
+		/// </summary>
+		/// <remarks>
+		/// Never empty. Persisted as its own element so every read can filter by tenant directly and so the
+		/// owning tenant is legible to an operator inspecting a document.
+		/// </remarks>
+		[BsonElement("tenant_id")] public string TenantId { get; set; } = string.Empty;
+
 		[BsonElement("subject_id")] public string SubjectId { get; set; } = string.Empty;
 
 		[BsonElement("details")] public string Details { get; set; } = string.Empty;
@@ -357,15 +432,34 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	{
 		[BsonId] public string Id { get; set; } = string.Empty;
 
+		/// <summary>
+		/// Gets or sets the owning tenant, or the reserved framework sentinel when unscoped.
+		/// </summary>
+		[BsonElement("tenant_id")] public string TenantId { get; set; } = string.Empty;
+
 		[BsonElement("status")] public int Status { get; set; }
 
 		[BsonElement("deadline")] public DateTimeOffset? Deadline { get; set; }
 
 		[BsonElement("fulfilled_at")] public DateTimeOffset? FulfilledAt { get; set; }
 
-		public static SubjectAccessDocument FromResult(SubjectAccessResult result) => new()
+		/// <summary>
+		/// Builds the document key for a tenant's subject-access request.
+		/// </summary>
+		/// <remarks>
+		/// The request identifier alone is not a safe key: it is supplied by the caller, so two tenants can
+		/// legitimately present the same one, and this <c>_id</c> is the upsert conflict target — the second
+		/// tenant's write would overwrite the first tenant's request. Length-prefixed for the same reason as
+		/// the consent key: a plain delimiter join is ambiguous when a tenant identifier may contain the
+		/// delimiter.
+		/// </remarks>
+		public static string CreateId(string tenantId, string requestId)
+			=> $"{tenantId.Length}:{tenantId}:{requestId}";
+
+		public static SubjectAccessDocument FromResult(SubjectAccessResult result, string tenantId) => new()
 		{
-			Id = result.RequestId,
+			Id = CreateId(tenantId, result.RequestId),
+			TenantId = tenantId,
 			Status = (int)result.Status,
 			Deadline = result.Deadline,
 			FulfilledAt = result.FulfilledAt

@@ -54,9 +54,44 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 	[Theory]
 	[InlineData("wait_for")]
 	[InlineData("false")]
-	[InlineData("anything-unrecognized")]
 	public void ElasticNeverForceTrueRefreshUnlessExplicitlyRequested(string policy)
 		=> InvokeElasticGetRefresh(policy).ShouldNotBe(Refresh.True);
+
+	// An unrecognized RefreshPolicy is now rejected at validation (fail-fast), rather than silently
+	// safe-defaulting — the options only accept {wait_for, true, false}.
+	[Theory]
+	[InlineData("anything-unrecognized")]
+	[InlineData("yes")]
+	[InlineData("")]
+	public void ElasticRejectUnrecognizedRefreshPolicy(string policy)
+	{
+		var options = new ElasticSearchMaterializedViewStoreOptions
+		{
+			NodeUri = "http://localhost:9200",
+			ViewsIndexName = "views",
+			PositionsIndexName = "positions",
+			RefreshPolicy = policy,
+		};
+
+		Should.Throw<InvalidOperationException>(options.Validate);
+	}
+
+	[Theory]
+	[InlineData("anything-unrecognized")]
+	[InlineData("yes")]
+	[InlineData("")]
+	public void OpenSearchRejectUnrecognizedRefreshPolicy(string policy)
+	{
+		var options = new OpenSearchMaterializedViewStoreOptions
+		{
+			NodeUri = "http://localhost:9200",
+			ViewsIndexName = "views",
+			PositionsIndexName = "positions",
+			RefreshPolicy = policy,
+		};
+
+		Should.Throw<InvalidOperationException>(options.Validate);
+	}
 
 	[Theory]
 	[InlineData("true")]

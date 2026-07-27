@@ -15,8 +15,6 @@ internal sealed class ProvisioningStepApproved : IDomainEvent
 	public required ApprovalOutcome Outcome { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => RequestId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(ProvisioningStepApproved);
 	public IDictionary<string, object>? Metadata { get; init; }

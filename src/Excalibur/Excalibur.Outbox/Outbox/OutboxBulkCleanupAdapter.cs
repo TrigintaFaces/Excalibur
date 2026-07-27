@@ -27,7 +27,7 @@ public sealed partial class OutboxBulkCleanupAdapter(
 	private readonly ILogger<OutboxBulkCleanupAdapter> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public async ValueTask<int> BulkCleanupSentMessagesAsync(
+	public async ValueTask<int> BulkCleanupAllTenantsSentMessagesAsync(
 		DateTimeOffset olderThan,
 		int batchSize,
 		CancellationToken cancellationToken)
@@ -39,7 +39,7 @@ public sealed partial class OutboxBulkCleanupAdapter(
 
 		do
 		{
-			batchDeleted = await _admin.CleanupSentMessagesAsync(olderThan, batchSize, cancellationToken)
+			batchDeleted = await _admin.CleanupAllTenantsSentMessagesAsync(olderThan, batchSize, cancellationToken)
 				.ConfigureAwait(false);
 			totalDeleted += batchDeleted;
 
@@ -51,48 +51,6 @@ public sealed partial class OutboxBulkCleanupAdapter(
 		while (batchDeleted == batchSize && !cancellationToken.IsCancellationRequested);
 
 		LogCleanupCompleted("sent", totalDeleted);
-		return totalDeleted;
-	}
-
-	/// <inheritdoc />
-	public async ValueTask<int> BulkCleanupFailedMessagesAsync(
-		int maxRetries,
-		DateTimeOffset olderThan,
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-
-		var totalDeleted = 0;
-
-		// Get failed messages in batches and process them
-		var failedMessages = await _admin.GetFailedMessagesAsync(maxRetries, olderThan, batchSize, cancellationToken)
-			.ConfigureAwait(false);
-
-		var batch = failedMessages.ToList();
-		while (batch.Count > 0 && !cancellationToken.IsCancellationRequested)
-		{
-			// Cleanup by re-invoking the admin cleanup for the time window
-			_ = await _admin.CleanupSentMessagesAsync(olderThan, batch.Count, cancellationToken)
-				.ConfigureAwait(false);
-			totalDeleted += batch.Count;
-
-			if (batch.Count > 0)
-			{
-				LogBatchCleanup("failed", batch.Count, totalDeleted);
-			}
-
-			if (batch.Count < batchSize)
-			{
-				break;
-			}
-
-			failedMessages = await _admin.GetFailedMessagesAsync(maxRetries, olderThan, batchSize, cancellationToken)
-				.ConfigureAwait(false);
-			batch = failedMessages.ToList();
-		}
-
-		LogCleanupCompleted("failed", totalDeleted);
 		return totalDeleted;
 	}
 

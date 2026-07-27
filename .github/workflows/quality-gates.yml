@@ -1,6 +1,13 @@
 name: Quality Gates
 
 on:
+  # This repo integrates by pushing to main, not by pull request: exactly two PRs
+  # have ever been opened. A pull_request-only trigger therefore meant every gate
+  # declared below had effectively never executed -- declared-in-CI is not run-in-CI.
+  # Every step already handles the non-PR case (`github.sha` and `HEAD^` fallbacks),
+  # so the workflow was push-ready by construction; only the trigger was missing.
+  push:
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
@@ -24,7 +31,7 @@ jobs:
       core_perf: ${{ steps.filter.outputs.core_perf }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -66,7 +73,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -81,7 +88,7 @@ jobs:
           docker system prune -af || true
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -89,7 +96,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -100,6 +107,31 @@ jobs:
         run: |
           dotnet restore --verbosity quiet
           dotnet build --configuration Release --no-restore --verbosity quiet -warnaserror /p:TreatWarningsAsErrors=true
+
+      # ADVISORY — surfaces candidate hand-rolled reinventions of BCL/first-party primitives on the diff so
+      # the "What Would Microsoft Do?" / BCL-first presumption is visible in CI. Heuristic (expected false
+      # positives) → prints candidates for two-prong triage (microsoft-first.md §C); NEVER fails the build.
+      - name: WWMD BCL-reinvention smell scan (advisory)
+        shell: bash
+        run: |
+          base="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'HEAD~1' }}"
+          bash eng/ci/wwmd-reinvention-smells.sh --base "$base" || true
+
+      # BLOCKING. A single /// doc block carrying two <summary>/<remarks>/<value> ships HALF a member's
+      # documented contract: the XML doc generator keeps one element and drops the rest, with ZERO
+      # compiler warnings, so the loss reaches the published .xml and IntelliSense unannounced.
+      #
+      # This runs the gate against the real source tree. The harness battery separately proves the gate
+      # is non-vacuous on fixtures — that proves the INSTRUMENT works, not that the TREE is clean, and
+      # only this step asserts the latter. The local pre-commit hook checks the staged subset, but
+      # core.hooksPath is machine-local config that no tracked file can set, so a fresh clone installs
+      # no hooks and this step is the only thing standing between a duplicate tag and the package.
+      #
+      # Exit contract: 0 clean · 1 duplicate tag(s) → FAIL · 2 no C# found → FAIL (an unevaluated tree
+      # is not a clean one; a silent skip here would be indistinguishable from a pass).
+      - name: Duplicate XML doc tags (shipped source)
+        shell: bash
+        run: bash eng/ci/duplicate-xml-doc-tags.sh src
 
   # Code coverage quality gate (sharded, self-contained)
   coverage-shards:
@@ -116,14 +148,14 @@ jobs:
           - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -131,7 +163,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -145,7 +177,9 @@ jobs:
 
       - name: Run shard tests with coverage
         run: |
-          dotnet test ${{ matrix.shard.filter }} \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ matrix.shard.test_filter }}" -- \
+            ${{ matrix.shard.filter }} \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
@@ -153,7 +187,6 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --settings tests/coverage.runsettings \
             --results-directory ./coverage \
-            --filter "${{ matrix.shard.test_filter }}" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload shard coverage artifact
@@ -171,7 +204,7 @@ jobs:
     needs: coverage-shards
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -236,13 +269,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -250,7 +283,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -264,9 +297,10 @@ jobs:
 
       - name: Run deterministic unit and DI tests
         run: |
-          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
+            eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build \
             --blame-hang-timeout 5m \
-            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             --logger "trx;LogFileName=test-results.trx" \
             --logger "console;verbosity=minimal" \
             --results-directory ./test-results
@@ -304,13 +338,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -318,7 +352,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -332,11 +366,12 @@ jobs:
 
       - name: Run transport conformance suite
         run: |
-          dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "Category=TransportConformance" -- \
+            tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 10m \
-            --filter "Category=TransportConformance" \
             --logger "trx;LogFileName=transport-conformance.trx" \
             --logger "console;verbosity=minimal" \
             --results-directory ./transport-conformance-results
@@ -349,20 +384,20 @@ jobs:
           path: ./transport-conformance-results
           retention-days: 7
 
-  # Solution governance gate (Sprint 506)
+  # Solution governance gate
   governance:
     name: Solution Governance
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -390,13 +425,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -404,7 +439,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -447,8 +482,8 @@ jobs:
             echo "Architecture test project not found, skipping..."
           fi
 
-      - name: Run boundary tests (Sprint 506)
-        # ARCH_ENFORCE=true makes the architecture boundary gate ENFORCING (Sprint 848 / A2 / 87h7t8):
+      - name: Run boundary tests
+        # ARCH_ENFORCE=true makes the architecture boundary gate ENFORCING:
         # a real boundary violation (banned provider/framework in abstractions/core, etc.) FAILS the
         # build instead of being report-only. Local runs without the flag remain report-only (opt-out).
         env:
@@ -467,14 +502,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -494,12 +529,42 @@ jobs:
           path: management/reports/ApiCompatReport
           retention-days: 7
 
+  # Harness gate battery -- CI-authoritative gate self-tests + wiring meta-checks, run through ONE
+  # generic orchestrator script so this shipped/mirrored workflow never names a private script token.
+  # The orchestrator (eng/ci/harness-gates-ci.sh) runs the whole battery inside eng/ci, and its exit
+  # reflects the real pass/fail of every gate (a failing gate -> job red). Pure bash, fast.
+  #
+  # eng/ IS copied downstream -- confirmed by the repo owner. An earlier revision of this comment said
+  # "(not mirrored)", which was false and cost three people an hour: it implies every eng/ci step here
+  # is unresolvable downstream, and this workflow references six of them. Stated because a comment that
+  # contradicts the shipping reality is worse than no comment -- it is read as evidence.
+  harness-gates:
+    name: Harness Gate Battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+          fetch-depth: 0
+
+      # Prove the orchestrator's exit is HONEST (a failing gate makes it exit 1) before trusting its
+      # verdict -- the control runs in the SAME environment as the gate it proves.
+      - name: Prove the gate orchestrator exit is honest
+        run: bash eng/ci/harness-gates-ci.test.sh
+
+      # Run the full CI-authoritative gate battery. Any gate/lock/assert failure -> exit 1 -> job red.
+      - name: Run the CI-authoritative gate battery
+        run: bash eng/ci/harness-gates-ci.sh
+
   # Summary gate -- blocking vs advisory split
   summary:
     name: Quality Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, api-compatibility]
+    needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, api-compatibility, harness-gates]
     if: always()
     steps:
       - name: Check all gates
@@ -527,6 +592,7 @@ jobs:
           check_blocking "governance" "${{ needs.governance.result }}"
           check_blocking "architecture" "${{ needs.architecture.result }}"
           check_blocking "api-compatibility" "${{ needs.api-compatibility.result }}"
+          check_blocking "harness-gates" "${{ needs.harness-gates.result }}"
 
           # --- Advisory gates ---
           conformance_result="${{ needs.transport-conformance.result }}"
@@ -546,6 +612,7 @@ jobs:
           echo "| Governance | ${{ needs.governance.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Architecture | ${{ needs.architecture.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| API Compatibility | ${{ needs.api-compatibility.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Harness Gate Battery | ${{ needs.harness-gates.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Transport Conformance | ${{ needs.transport-conformance.result }} | advisory |" >> "$GITHUB_STEP_SUMMARY"
 
           if [ -n "$blocking_failures" ]; then

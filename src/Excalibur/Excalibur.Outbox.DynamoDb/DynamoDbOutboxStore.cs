@@ -27,7 +27,7 @@ namespace Excalibur.Outbox.DynamoDb;
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Cloud outbox implementations inherently couple with many SDK and abstraction types.")]
-public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyncDisposable
+public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, IAsyncDisposable
 {
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -794,7 +794,15 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 				};
 			}
 
-			_ = await _client!.CreateTableAsync(request, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _client!.CreateTableAsync(request, cancellationToken).ConfigureAwait(false);
+			}
+			catch (ResourceInUseException)
+			{
+				// Multi-instance cold-start race: another instance created (or is creating) the table
+				// between our DescribeTable and CreateTable. Benign — fall through to wait-for-active.
+			}
 
 			// Wait for table to become active
 			var timeout = DateTimeOffset.UtcNow.AddMinutes(2);
@@ -880,6 +888,11 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			item["tenantId"] = new() { S = message.TenantId };
 		}
 
+		if (!string.IsNullOrEmpty(message.Destination))
+		{
+			item["destination"] = new() { S = message.Destination };
+		}
+
 		if (message.PublishedAt.HasValue)
 		{
 			item["publishedAt"] = new() { S = message.PublishedAt.Value.ToString("o") };
@@ -910,6 +923,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,
 			CausationId = item.TryGetValue("causationId", out var causId) ? causId.S : null,
 			TenantId = item.TryGetValue("tenantId", out var tenId) ? tenId.S : null,
+			Destination = item.TryGetValue("destination", out var dest) ? dest.S : null,
 			CreatedAt = DateTimeOffset.Parse(item["createdAt"].S, CultureInfo.InvariantCulture),
 			PublishedAt = item.TryGetValue("publishedAt", out var pubAt) && !string.IsNullOrEmpty(pubAt.S)
 				? DateTimeOffset.Parse(pubAt.S, CultureInfo.InvariantCulture)

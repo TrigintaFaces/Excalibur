@@ -164,7 +164,7 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("tenant-123");
+		tenantId.ShouldBe("tenant-123");
 	}
 
 	[Fact]
@@ -179,7 +179,7 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("route-tenant");
+		tenantId.ShouldBe("route-tenant");
 	}
 
 	[Fact]
@@ -194,7 +194,7 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("query-tenant");
+		tenantId.ShouldBe("query-tenant");
 	}
 
 	[Fact]
@@ -211,7 +211,7 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("claim-tenant");
+		tenantId.ShouldBe("claim-tenant");
 	}
 
 	[Fact]
@@ -226,7 +226,7 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 
 		// Assert
 		tenantId.ShouldNotBeNull();
-		tenantId.Value.ShouldBe("acme");
+		tenantId.ShouldBe("acme");
 	}
 
 	[Fact]

@@ -50,6 +50,11 @@ public static class PostgresAuditExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresAuditOptions>, PostgresAuditOptionsValidator>());
 
+		// Idempotent single-tenant default: the store takes ITenantContext positionally, so without a
+		// registration it cannot be constructed — it would throw at resolve while every unit test that news
+		// it up directly still passed. TryAdd leaves a multi-tenant host's own registration untouched.
+		_ = services.AddDefaultTenantContext();
+
 		services.TryAddSingleton<PostgresAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<PostgresAuditStore>());
 

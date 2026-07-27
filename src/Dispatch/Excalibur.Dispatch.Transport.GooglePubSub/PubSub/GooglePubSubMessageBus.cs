@@ -55,7 +55,7 @@ internal sealed partial class GooglePubSubMessageBus(
 		cancellationToken.ThrowIfCancellationRequested();
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.GooglePubSub, _options.TopicId, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.GooglePubSub, _options.Connection.TopicId, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization.
 		// Write the serialized bytes directly to the binary Data field — base64 would inflate the
@@ -87,7 +87,7 @@ internal sealed partial class GooglePubSubMessageBus(
 		cancellationToken.ThrowIfCancellationRequested();
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.GooglePubSub, _options.TopicId, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.GooglePubSub, _options.Connection.TopicId, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization.
 		// Write the serialized bytes directly to the binary Data field — base64 would inflate the
@@ -119,7 +119,7 @@ internal sealed partial class GooglePubSubMessageBus(
 		cancellationToken.ThrowIfCancellationRequested();
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.GooglePubSub, _options.TopicId, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.GooglePubSub, _options.Connection.TopicId, context.MessageId);
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization.
 		// Write the serialized bytes directly to the binary Data field — base64 would inflate the

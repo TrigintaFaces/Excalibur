@@ -77,6 +77,22 @@ public sealed class MongoDbMaterializedViewStoreOptions
 	public bool UseSsl { get; set; }
 
 	/// <summary>
+	/// Gets or sets a value indicating whether view+position writes use a multi-document ACID transaction
+	/// for crash-atomic exactly-once persistence.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> to persist the view and its checkpoint in one transaction (requires a MongoDB
+	/// replica set or sharded cluster); otherwise <see langword="false"/> (the default) for the portable
+	/// at-least-once path — the view is written before the position, so a crash re-processes the event and
+	/// the idempotent builder <c>Apply</c> makes replay safe (no data loss, no double-count).
+	/// </value>
+	/// <remarks>
+	/// Left <see langword="false"/> by default so standalone MongoDB works without forcing replica-set
+	/// infrastructure. Enable it only when the deployment is a replica set / sharded cluster.
+	/// </remarks>
+	public bool UseTransactions { get; set; }
+
+	/// <summary>
 	/// Validates that required options are set.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

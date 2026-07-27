@@ -106,7 +106,8 @@ Inline projections run during `SaveAsync()` and guarantee read-after-write consi
 ```csharp
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString))
+      .AddRepository<OrderAggregate, Guid>();
 
     // Inline: updated synchronously during SaveAsync()
     es.AddProjection<OrderProjection>(p => p
@@ -125,7 +126,8 @@ For eventually-consistent projections, use `GlobalStreamProjectionHost` which pr
 ```csharp
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
-    es.AddAggregate<OrderAggregate>(agg => agg.UseSqlServerStore(connectionString));
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString))
+      .AddRepository<OrderAggregate, Guid>();
 
     // Async: updated by background host
     es.AddProjection<OrderProjection>(p => p

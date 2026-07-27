@@ -9,12 +9,10 @@ namespace Excalibur.Dispatch.Tests.Messaging.Outbox.DeliveryGuarantee;
 /// Tests for OutboxDeliveryGuarantee behaviors per AD-222-1 through AD-222-5.
 /// </summary>
 /// <remarks>
-/// Sprint 222 Task sjwm - 5 test scenarios:
+/// Test scenarios:
 /// 1. AtLeastOnce batch completion
 /// 2. MinimizedWindow individual completion
-/// 3. TransactionalWhenApplicable with SQL Server
-/// 4. TransactionalWhenApplicable fallback
-/// 5. Failure recovery behavior
+/// 3. Failure recovery behavior
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
@@ -155,148 +153,6 @@ public sealed class DeliveryGuaranteeShould
 
 	#endregion Test 2: MinimizedWindow Individual Completion
 
-	#region Test 3: TransactionalWhenApplicable with Transactional Store
-
-	/// <summary>
-	/// AD-222-2, AD-222-3: TransactionalWhenApplicable uses transaction when store supports it.
-	/// </summary>
-	[Fact]
-	public async Task TransactionalWhenApplicable_UseTransactionWhenStoreSupportsIt()
-	{
-		// Arrange
-		var store = new TrackingTransactionalOutboxStore(supportsTransactions: true);
-		var messageIds = new[] { "msg-1", "msg-2", "msg-3" };
-
-		foreach (var id in messageIds)
-		{
-			await store.StageMessageAsync(
-				CreateTestMessage(id),
-				CancellationToken.None);
-		}
-
-		// Act - Simulate TransactionalWhenApplicable with supporting store
-		// OutboxProcessor calls MarkSentTransactionalAsync for all messages
-		await store.MarkSentTransactionalAsync(
-			messageIds.ToList(),
-			CancellationToken.None);
-
-		// Assert - All marked via transactional method
-		store.TransactionalMarkSentCalled.ShouldBeTrue();
-		store.TransactionalMessageIds.Count.ShouldBe(3);
-		store.SentMessageIds.Count.ShouldBe(3);
-
-		// Individual MarkSentAsync should NOT be called
-		store.MarkSentCallCount.ShouldBe(0);
-	}
-
-	/// <summary>
-	/// AD-222-3: Transactional completion is atomic - all or nothing.
-	/// </summary>
-	[Fact]
-	public async Task TransactionalWhenApplicable_AtomicCompletion_AllOrNothing()
-	{
-		// Arrange
-		var store = new TrackingTransactionalOutboxStore(supportsTransactions: true);
-		var messageIds = new[] { "msg-1", "msg-2", "msg-3" };
-
-		foreach (var id in messageIds)
-		{
-			await store.StageMessageAsync(
-				CreateTestMessage(id),
-				CancellationToken.None);
-		}
-
-		// Configure store to fail on transactional mark
-		store.FailOnTransactionalMark = true;
-
-		// Act & Assert - Transaction should fail atomically
-		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
-		{
-			await store.MarkSentTransactionalAsync(
-				messageIds.ToList(),
-				CancellationToken.None);
-		});
-
-		// No messages should be marked (atomic rollback)
-		store.SentMessageIds.ShouldBeEmpty();
-	}
-
-	#endregion Test 3: TransactionalWhenApplicable with Transactional Store
-
-	#region Test 4: TransactionalWhenApplicable Fallback
-
-	/// <summary>
-	/// AD-222-3: TransactionalWhenApplicable falls back to MinimizedWindow when store doesn't support transactions.
-	/// </summary>
-	[Fact]
-	public async Task TransactionalWhenApplicable_FallbackToMinimizedWindow_WhenStoreDoesNotSupportTransactions()
-	{
-		// Arrange
-		var store = new TrackingTransactionalOutboxStore(supportsTransactions: false);
-		var messageIds = new[] { "msg-1", "msg-2", "msg-3" };
-
-		foreach (var id in messageIds)
-		{
-			await store.StageMessageAsync(
-				CreateTestMessage(id),
-				CancellationToken.None);
-		}
-
-		// Act - Simulate OutboxProcessor fallback logic per AD-222-3
-		if (store.SupportsTransactions)
-		{
-			await store.MarkSentTransactionalAsync(messageIds.ToList(), CancellationToken.None);
-		}
-		else
-		{
-			// Fallback to individual completion (MinimizedWindow behavior)
-			foreach (var id in messageIds)
-			{
-				await store.MarkSentAsync(id, CancellationToken.None);
-			}
-		}
-
-		// Assert - Individual marks used (fallback)
-		store.TransactionalMarkSentCalled.ShouldBeFalse();
-		store.MarkSentCallCount.ShouldBe(3);
-		store.SentMessageIds.Count.ShouldBe(3);
-	}
-
-	/// <summary>
-	/// AD-222-3: Non-transactional IOutboxStore triggers fallback.
-	/// </summary>
-	[Fact]
-	public async Task TransactionalWhenApplicable_FallbackForNonTransactionalStore()
-	{
-		// Arrange - Use regular store that doesn't implement ITransactionalOutboxStore
-		IOutboxStore store = new TrackingOutboxStore();
-		var messageIds = new[] { "msg-1", "msg-2", "msg-3" };
-
-		foreach (var id in messageIds)
-		{
-			await store.StageMessageAsync(
-				CreateTestMessage(id),
-				CancellationToken.None);
-		}
-
-		// Act - Simulate OutboxProcessor check per AD-222-3
-		// if (_outboxStore is ITransactionalOutboxStore txStore && txStore.SupportsTransactions)
-		var isTransactional = store is ITransactionalOutboxStore { SupportsTransactions: true };
-		isTransactional.ShouldBeFalse();
-
-		// Fallback to individual completion
-		foreach (var id in messageIds)
-		{
-			await store.MarkSentAsync(id, CancellationToken.None);
-		}
-
-		// Assert - Cast back to verify internal state
-		var trackingStore = (TrackingOutboxStore)store;
-		trackingStore.MarkSentCallCount.ShouldBe(3);
-		trackingStore.SentMessageIds.Count.ShouldBe(3);
-	}
-
-	#endregion Test 4: TransactionalWhenApplicable Fallback
 
 	#region Test 5: Failure Recovery Behavior
 
@@ -356,30 +212,6 @@ public sealed class DeliveryGuaranteeShould
 		store.SentMessageIds.Count.ShouldBe(3);
 	}
 
-	/// <summary>
-	/// Verify TransactionalWhenApplicable has zero redelivery when transactional.
-	/// </summary>
-	[Fact]
-	public async Task FailureRecovery_TransactionalWhenApplicable_ZeroRedeliveryWindowWhenSuccessful()
-	{
-		// Arrange
-		var store = new TrackingTransactionalOutboxStore(supportsTransactions: true);
-		var messageIds = new[] { "msg-1", "msg-2", "msg-3" };
-
-		foreach (var id in messageIds)
-		{
-			await store.StageMessageAsync(
-				CreateTestMessage(id),
-				CancellationToken.None);
-		}
-
-		// Act - Transactional mark (atomic)
-		await store.MarkSentTransactionalAsync(messageIds.ToList(), CancellationToken.None);
-
-		// Assert - Zero messages eligible for redelivery
-		var eligibleForRedelivery = await store.GetUnsentMessagesAsync(10, CancellationToken.None);
-		eligibleForRedelivery.Count().ShouldBe(0);
-	}
 
 	#endregion Test 5: Failure Recovery Behavior
 
@@ -455,97 +287,7 @@ public sealed class DeliveryGuaranteeShould
 		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) =>
 			new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) =>
-			new ValueTask<int>(0);
-
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) =>
-			new ValueTask<OutboxStatistics>(new OutboxStatistics());
-	}
-
-	/// <summary>
-	/// Tracking transactional outbox store for verifying transactional behaviors.
-	/// </summary>
-	private sealed class TrackingTransactionalOutboxStore : ITransactionalOutboxStore
-	{
-		private readonly Dictionary<string, OutboundMessage> _messages = new();
-		private readonly bool _supportsTransactions;
-
-		public TrackingTransactionalOutboxStore(bool supportsTransactions)
-		{
-			_supportsTransactions = supportsTransactions;
-		}
-
-		public bool SupportsTransactions => _supportsTransactions;
-		public HashSet<string> SentMessageIds { get; } = [];
-		public List<string> TransactionalMessageIds { get; } = [];
-		public bool TransactionalMarkSentCalled { get; private set; }
-		public int MarkSentCallCount { get; private set; }
-		public bool FailOnTransactionalMark { get; set; }
-
-		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
-		{
-			_messages[message.Id] = message;
-			return default;
-		}
-
-		public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
-		{
-			MarkSentCallCount++;
-			_ = SentMessageIds.Add(messageId);
-
-			if (_messages.TryGetValue(messageId, out var message))
-			{
-				message.Status = OutboxStatus.Sent;
-			}
-
-			return default;
-		}
-
-		public Task MarkSentTransactionalAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken)
-		{
-			if (FailOnTransactionalMark)
-			{
-				throw new InvalidOperationException("Simulated transaction failure");
-			}
-
-			TransactionalMarkSentCalled = true;
-
-			foreach (var id in messageIds)
-			{
-				TransactionalMessageIds.Add(id);
-				_ = SentMessageIds.Add(id);
-
-				if (_messages.TryGetValue(id, out var message))
-				{
-					message.Status = OutboxStatus.Sent;
-				}
-			}
-
-			return Task.CompletedTask;
-		}
-
-		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
-		{
-			var unsent = _messages.Values
-				.Where(m => m.Status != OutboxStatus.Sent)
-				.Take(batchSize);
-			return new ValueTask<IEnumerable<OutboundMessage>>(unsent);
-		}
-
-		// Not used in these tests
-		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken) =>
-			throw new NotImplementedException();
-
-		public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken) =>
-			default;
-
-		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) =>
-			new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>());
-
-		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) =>
-			new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>());
-
-		public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) =>
+		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) =>
 			new ValueTask<int>(0);
 
 		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) =>

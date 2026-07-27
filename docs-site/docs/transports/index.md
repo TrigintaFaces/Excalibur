@@ -34,6 +34,9 @@ Start with the **[Choosing a Transport](choosing-a-transport.md)** guide for a d
 | [Azure Service Bus](azure-service-bus.md) | `Excalibur.Dispatch.Transport.AzureServiceBus` | Azure-native messaging |
 | [AWS SQS](aws-sqs.md) | `Excalibur.Dispatch.Transport.AwsSqs` | AWS-native messaging |
 | [Google Pub/Sub](google-pubsub.md) | `Excalibur.Dispatch.Transport.GooglePubSub` | GCP-native messaging |
+| [Apache Pulsar](pulsar.md) | `Excalibur.Dispatch.Transport.Pulsar` | Pulsar messaging — **transport primitives only** (keyed sender/receiver; not yet pipeline-integrated) |
+| [MQTT](mqtt.md) | `Excalibur.Dispatch.Transport.Mqtt` | IoT / device messaging — **transport primitives only** (keyed sender/receiver; QoS + shared subscriptions) |
+| [IBM MQ](ibm-mq.md) | `Excalibur.Dispatch.Transport.IbmMq` | Enterprise queue messaging — **transport primitives only** (keyed sender/receiver; unit-of-work per message) |
 
 ## Quick Start
 
@@ -209,9 +212,13 @@ var sender = new TransportSenderBuilder(nativeSender)
 | `OrderingTransportSender` | Send | Set ordering key from message |
 | `DeduplicationTransportSender` | Send | Set deduplication ID |
 | `SchedulingTransportSender` | Send | Scheduled delivery time |
-| `CloudEventsTransportSender` | Send | CloudEvents envelope |
-| `CloudEventsTransportReceiver` | Receive | CloudEvents unwrapping |
 | `DeadLetterTransportReceiver` | Receive | Route failures to DLQ |
+
+:::note CloudEvents
+CloudEvents is no longer a transport decorator. Envelope↔CloudEvent mapping is handled by the
+CloudEvents bridge/middleware (`AddCloudEvents(...)`) through a single canonical emit path, with
+per-transport binding (e.g. Kafka's structured `ce_` binding) via the transport's CloudEvent adapter.
+:::
 
 ### GetService() — Raw SDK Access
 
@@ -256,8 +263,8 @@ Configure resilience per transport via the options classes:
 ```csharp
 services.Configure<RabbitMqOptions>(options =>
 {
-    options.AutomaticRecoveryEnabled = true;
-    options.NetworkRecoveryIntervalSeconds = 10;
+    options.Connection.AutomaticRecoveryEnabled = true;
+    options.Connection.NetworkRecoveryIntervalSeconds = 10;
 });
 ```
 
@@ -381,13 +388,12 @@ services.AddKafkaDeadLetterQueue(dlq =>
 
 ### AWS SQS DLQ
 
-AWS SQS DLQ support is built into the `DlqProcessor` class, which implements both `IDlqManager` (SQS-specific) and `IDeadLetterQueueManager` (transport-agnostic). Configure through `DlqOptions`:
+AWS SQS uses its own native **redrive policy**: attach a dead-letter queue to the source queue and SQS moves a message there automatically once it exceeds the maximum receive count. Configure it on the queue builder:
 
 ```csharp
-services.Configure<DlqOptions>(options =>
-{
-    options.DeadLetterQueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/...");
-});
+queue.DeadLetterQueue(dlq => dlq
+    .QueueArn("arn:aws:sqs:us-east-1:123456789012:orders-dlq")
+    .MaxReceiveCount(5));
 ```
 
 ### Azure Service Bus DLQ

@@ -93,9 +93,9 @@ public sealed class DeadLetterRecord
 	public string MessageMetadata { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets the message body.
+	/// Gets or sets the serialized message body as raw bytes.
 	/// </summary>
-	public string MessageBody { get; set; } = string.Empty;
+	public byte[] MessageBody { get; set; } = [];
 
 	/// <summary>
 	/// Gets or sets when the message was created.

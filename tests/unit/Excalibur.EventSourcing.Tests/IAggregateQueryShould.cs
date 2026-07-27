@@ -40,9 +40,10 @@ public sealed class IAggregateQueryShould
 		public UserStatus Status { get; private set; } = UserStatus.Active;
 		public UserRole Role { get; private set; } = UserRole.User;
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No-op for test purposes
+					return true;
 		}
 	}
 

@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using DeliveryMessageMetadata = Excalibur.Dispatch.Messaging.MessageMetadata;
-using DeliveryOutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using DeliveryOutboxMessage = Excalibur.Outbox.OutboxMessage;
 using DeliveryOutboxOptions = Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions;
 
 namespace Excalibur.Outbox.Tests;
@@ -253,7 +253,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			messageId,
 			messageType,
 			messageMetadata: metadataJson,
-			messageBody: eventJson,
+			messageBody: System.Text.Encoding.UTF8.GetBytes(eventJson),
 			createdAt: DateTimeOffset.UtcNow);
 
 		var envelopeJson = JsonSerializer.Serialize(envelope, s_testJsonOptions);

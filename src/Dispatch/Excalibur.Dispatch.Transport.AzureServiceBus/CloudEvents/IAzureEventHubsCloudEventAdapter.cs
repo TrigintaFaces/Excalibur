@@ -8,6 +8,6 @@ using Azure.Messaging.EventHubs;
 namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>
-/// Maps CloudEvents to <see cref="EventData" /> instances for Azure Event Hubs and vice versa./. </summary>
-/// <remarks> This will be fully implemented in a future iteration. </remarks>
+/// Maps CloudEvents to <see cref="EventData" /> instances for Azure Event Hubs and back.
+/// </summary>
 public interface IAzureEventHubsCloudEventAdapter : ICloudEventMapper<EventData>;

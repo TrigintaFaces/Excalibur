@@ -12,6 +12,11 @@
       0 = No warnings or errors
       1 = IL2xxx/IL3xxx warnings detected
       2 = Script or publish error
+      3 = REFUSE: the publish produced no analysable output, so warning absence
+          could not be distinguished from parse failure. REFUSE is not PASS.
+
+.PARAMETER SelfTest
+    Runs the verdict-logic self-test and exits without publishing.
 
 .PARAMETER Configuration
     Build configuration (default: Release).
@@ -30,11 +35,94 @@ param(
     [string]$Configuration = 'Release',
     [string]$Runtime = '',
     [string]$OutputPath = './validation-results',
-    [string]$BaselinePath = ''
+    [string]$BaselinePath = '',
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+# The verdict is derived HERE, from the publish exit code first. Parsed warnings and errors refine
+# the message; they never override a failed publish, and an unparseable log never reads as clean.
+# Kept as a function so it can be exercised directly by -SelfTest without running a real publish.
+function Get-AotVerdict {
+    param(
+        [int]$publishExitCode,
+        [int]$ErrorCount,
+        [int]$WarningCount,
+        [string]$PublishOutput
+    )
+
+    # SAFETY: a non-zero publish can never produce exit 0. A publish that failed emits no IL
+    # diagnostics because it never got far enough to emit any, so "zero warnings found" is
+    # trivially true and means nothing.
+    if ($ErrorCount -gt 0 -or $publishExitCode -ne 0) {
+        return @{ Code = 2; Verdict = 'ERROR'; Reason = "publish exit code: $publishExitCode; parsed errors: $ErrorCount" }
+    }
+
+    # REFUSE: exit 0 with a log we could not analyse is indeterminate, not clean. A changed SDK
+    # message format, a localized toolchain, or a truncated log all land here. REFUSE is not PASS.
+    if (-not (Test-AotOutputAnalysable -PublishOutput $PublishOutput)) {
+        return @{ Code = 3; Verdict = 'REFUSE'; Reason = 'publish exited 0 but produced no analysable build output; warning absence is undetermined' }
+    }
+
+    if ($WarningCount -gt 0) {
+        return @{ Code = 1; Verdict = 'WARNINGS'; Reason = "$WarningCount IL2xxx/IL3xxx warnings found" }
+    }
+
+    return @{ Code = 0; Verdict = 'PASSED'; Reason = 'zero warnings' }
+}
+
+# An analysable log is one that carries at least one line the MSBuild/publish pipeline is known to
+# emit. Absence of ALL of them means the parser had nothing to work with -- not that the build was
+# clean.
+function Test-AotOutputAnalysable {
+    param([string]$PublishOutput)
+
+    if ([string]::IsNullOrWhiteSpace($PublishOutput)) { return $false }
+
+    foreach ($line in ($PublishOutput -split "`n")) {
+        if ($line -match 'Build succeeded|Determining projects to restore|\bwarning\s+[A-Z]+\d+|\berror\s+[A-Z]+\d+|->\s+\S+') {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+if ($SelfTest) {
+    # Each case names the arm it guards. The first is RED against the pre-fix script, which exited 0
+    # for a publish that had failed with exit 1.
+    $cases = @(
+        @{ Name = 'SAFETY: failed publish (exit 1), nothing parsed, must NOT pass'; Publish = 1; Errors = 0; Warnings = 0; Output = ''; Expect = 2 }
+        @{ Name = 'SAFETY: failed publish (exit 1) with an analysable log still must NOT pass'; Publish = 1; Errors = 0; Warnings = 0; Output = 'Build succeeded.'; Expect = 2 }
+        @{ Name = 'SAFETY: parsed build errors on a zero exit'; Publish = 0; Errors = 3; Warnings = 0; Output = 'Build succeeded.'; Expect = 2 }
+        @{ Name = 'LIVENESS: clean analysable publish still PASSES with exit 0'; Publish = 0; Errors = 0; Warnings = 0; Output = "  Determining projects to restore...`n  Build succeeded.`n  app -> /out/app"; Expect = 0 }
+        @{ Name = 'LIVENESS: warnings on a successful publish still report exit 1'; Publish = 0; Errors = 0; Warnings = 4; Output = 'Build succeeded.'; Expect = 1 }
+        @{ Name = 'REFUSE: exit 0 with an empty log is undetermined, not clean'; Publish = 0; Errors = 0; Warnings = 0; Output = ''; Expect = 3 }
+        @{ Name = 'REFUSE: exit 0 with an unrecognised log format is undetermined'; Publish = 0; Errors = 0; Warnings = 0; Output = "kompilointi onnistui`nvalmis"; Expect = 3 }
+    )
+
+    $failed = 0
+    foreach ($case in $cases) {
+        $verdict = Get-AotVerdict -publishExitCode $case.Publish -ErrorCount $case.Errors -WarningCount $case.Warnings -PublishOutput $case.Output
+        if ($verdict.Code -eq $case.Expect) {
+            Write-Host "  PASS  $($case.Name) -> exit $($verdict.Code) ($($verdict.Verdict))"
+        }
+        else {
+            Write-Host "  FAIL  $($case.Name): expected exit $($case.Expect), got $($verdict.Code) ($($verdict.Verdict))" -ForegroundColor Red
+            $failed++
+        }
+    }
+
+    if ($failed -gt 0) {
+        Write-Host "Self-test FAILED: $failed of $($cases.Count) cases." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Self-test passed: $($cases.Count) of $($cases.Count) cases." -ForegroundColor Green
+    exit 0
+}
 
 # Ensure output directory exists
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
@@ -69,6 +157,46 @@ if (-not (Test-Path $aotSampleProject)) {
 }
 
 Write-Log "AOT sample project: $aotSampleProject"
+
+# On Windows, native AOT publish invokes the MSVC linker (link.exe), which MSBuild locates
+# via vswhere.exe. In dev/CI shells vswhere is frequently NOT on PATH (it lives under the
+# VS Installer dir), causing native link.exe to fail (exit 123, "vswhere.exe is not recognized").
+# Self-locate vswhere at its known install path and prepend that dir to PATH for this process
+# so the gate is robust without requiring the caller to pre-configure PATH.
+function Initialize-VsWhereOnPath {
+    # Only relevant on Windows (native AOT uses the MSVC toolchain there).
+    # $IsWindows is a PS Core automatic variable; on Windows PowerShell 5.1 it is undefined,
+    # so resolve it defensively under Set-StrictMode (5.1 is always Windows).
+    $isWin = (Get-Variable -Name 'IsWindows' -ValueOnly -ErrorAction SilentlyContinue)
+    if ($null -eq $isWin) { $isWin = ($env:OS -eq 'Windows_NT') }
+    if (-not $isWin) {
+        return
+    }
+
+    # Already discoverable — nothing to do.
+    if (Get-Command 'vswhere' -ErrorAction SilentlyContinue) {
+        Write-Log "vswhere already on PATH"
+        return
+    }
+
+    $candidateDirs = @(
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'),
+        (Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer')
+    ) | Where-Object { $_ }
+
+    foreach ($dir in $candidateDirs) {
+        $vswherePath = Join-Path $dir 'vswhere.exe'
+        if (Test-Path $vswherePath) {
+            $env:PATH = "$dir$([System.IO.Path]::PathSeparator)$env:PATH"
+            Write-Log "vswhere self-located at $vswherePath; prepended '$dir' to PATH"
+            return
+        }
+    }
+
+    Write-Log "vswhere.exe not found on PATH or at known VS Installer paths; native AOT link may fail" 'WARN'
+}
+
+Initialize-VsWhereOnPath
 
 # Build publish arguments -- PublishAot=true and TrimMode=full are set in the sample .csproj.
 # DO NOT pass -p:PublishAot=true on the command line: it cascades globally to ALL projects
@@ -317,16 +445,28 @@ if ($warningsByPackage.Count -gt 0) {
     Write-Host ""
 }
 
-# Determine exit code
-if ($errors.Count -gt 0 -or $publishExitCode -gt 1) {
-    Write-Host "AOT validation ERROR - publish failed or build errors detected." -ForegroundColor Red
-    exit 2
+# Determine exit code.
+#
+# `-ne 0`, NOT `-gt 1`. A failed `dotnet publish` exits **1** — that is the ordinary MSBuild failure
+# code, not a warning code — so `-gt 1` let every real publish failure through this guard. The rest of
+# the script then found zero IL warnings (a publish that FAILED emits none, because it never got far
+# enough to emit any) and printed "AOT validation PASSED - zero warnings", exit 0.
+#
+# That is a safety property satisfied by inaction: "no AOT warnings were found" is trivially true when
+# nothing was analysed. The summary block above printed "Publish: FAILED (exit 1)" one screen earlier
+# and the verdict discarded it. A gate must not be able to report a PASS it did not earn.
+$verdict = Get-AotVerdict `
+    -publishExitCode $publishExitCode `
+    -ErrorCount $errors.Count `
+    -WarningCount $allWarnings.Count `
+    -PublishOutput $publishOutput
+
+$verdictColour = switch ($verdict.Code) {
+    0 { 'Green' }
+    1 { 'Yellow' }
+    default { 'Red' }
 }
 
-if ($allWarnings.Count -gt 0) {
-    Write-Host "AOT validation WARNINGS - $($allWarnings.Count) IL2xxx/IL3xxx warnings found." -ForegroundColor Yellow
-    exit 1
-}
-
-Write-Host "AOT validation PASSED - zero warnings." -ForegroundColor Green
-exit 0
+Write-Host "AOT validation $($verdict.Verdict) - $($verdict.Reason)." -ForegroundColor $verdictColour
+Write-Log "Verdict: $($verdict.Verdict) (exit $($verdict.Code)) - $($verdict.Reason)"
+exit $verdict.Code

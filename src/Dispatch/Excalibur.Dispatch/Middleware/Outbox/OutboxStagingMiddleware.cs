@@ -175,6 +175,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		OutboxContext outboxContext,
 		OutboundMessageRequest outboundMessage,
 		string? traceParent,
+		string? traceState,
 		string? baggage)
 	{
 		var headers = new Dictionary<string, object>(capacity: 8, comparer: StringComparer.Ordinal)
@@ -205,6 +206,14 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			headers["traceparent"] = traceParent;
+		}
+
+		// Persist the W3C tracestate symmetric with the traceparent capture above so the staged envelope
+		// carries the producer's vendor trace state end-to-end (the consumer restores it via
+		// W3CTraceContextMiddleware). Additive and only written when present; no tracestate => no header.
+		if (!string.IsNullOrEmpty(traceState))
+		{
+			headers["tracestate"] = traceState;
 		}
 
 		// FR-B5 (r4nd4w): persist the W3C baggage so the staged envelope carries the producer's baggage
@@ -291,6 +300,12 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 		// is present, in which case no traceparent header is written (EC-A1).
 		var traceParent = context.GetTraceParent() ?? Activity.Current?.Id;
 
+		// Capture the current W3C tracestate once for this staging batch, symmetric with the traceparent
+		// capture above: the injected context item (set by W3CTraceContextInjectionMiddleware) takes
+		// precedence, falling back to the ambient Activity's tracestate. Null when neither is present, in
+		// which case no tracestate header is written.
+		var traceState = context.GetItem<string>("tracestate") ?? Activity.Current?.TraceStateString;
+
 		// Capture the current baggage once for this staging batch (FR-B5, r4nd4w), symmetric with the
 		// traceparent capture above. Null when no baggage is present, in which case no baggage header is written.
 		var baggage = GetBaggageHeader(context);
@@ -302,7 +317,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 				// Create outbound message for new store interface
 				var messageType = outboundMessage.Message.GetType().Name;
 				var payload = SerializeMessageToBytes(outboundMessage.Message);
-				var headers = CreateMessageHeaders(outboxContext, outboundMessage, traceParent, baggage);
+				var headers = CreateMessageHeaders(outboxContext, outboundMessage, traceParent, traceState, baggage);
 
 				var storeMessage = new OutboundMessage(
 					messageType,

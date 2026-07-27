@@ -136,7 +136,21 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 			});
 		}
 
-		return result;
+		return result.AsReadOnlyList();
+	}
+
+	/// <inheritdoc />
+	public async ValueTask<long> GetHeadPositionAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+#pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
+		var sql = $"SELECT ISNULL(MAX(Position), 0) FROM {_qualifiedTable}";
+#pragma warning restore CA2100
+
+		return await connection.ExecuteScalarAsync<long>(
+			new CommandDefinition(sql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
 	/// <summary>

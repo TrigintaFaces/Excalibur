@@ -181,9 +181,6 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 	/// <inheritdoc />
 	public Guid Id => EnsureId();
 
-	/// <inheritdoc />
-	public MessageKinds Kind => MessageKinds.Action;
-
 	/// <summary>
 	/// Disposes the message and returns any owned memory to the pool.
 	/// </summary>

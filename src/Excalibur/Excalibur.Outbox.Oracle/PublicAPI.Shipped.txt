@@ -1,0 +1,125 @@
+#nullable enable
+Excalibur.Outbox.Oracle.DeadLetterRecord
+Excalibur.Outbox.Oracle.DeadLetterRecord.Attempts.get -> int
+Excalibur.Outbox.Oracle.DeadLetterRecord.Attempts.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.DeadLetterRecord() -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.ErrorMessage.get -> string?
+Excalibur.Outbox.Oracle.DeadLetterRecord.ErrorMessage.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageBody.get -> byte[]!
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageBody.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageId.get -> string!
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageId.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageMetadata.get -> string!
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageMetadata.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageType.get -> string!
+Excalibur.Outbox.Oracle.DeadLetterRecord.MessageType.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.OccurredOn.get -> System.DateTimeOffset
+Excalibur.Outbox.Oracle.DeadLetterRecord.OccurredOn.set -> void
+Excalibur.Outbox.Oracle.DeadLetterRecord.Priority.get -> int
+Excalibur.Outbox.Oracle.DeadLetterRecord.Priority.set -> void
+Excalibur.Outbox.Oracle.DeleteOutboxMessage
+Excalibur.Outbox.Oracle.DeleteOutboxMessage.DeleteOutboxMessage(string! messageId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId
+Excalibur.Outbox.Oracle.GetDeadLetterMessages
+Excalibur.Outbox.Oracle.GetDeadLetterMessages.GetDeadLetterMessages(string! deadLetterTableName, int maxRetries, System.DateTimeOffset? olderThan, int batchSize, int offset, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, Excalibur.Data.IDb!>! dbFactory) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.ConnectionString(string! connectionString) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.ConnectionStringName(string! name) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.DeadLetterTableName(string! tableName) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.SchemaName(string! schema) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IOracleOutboxBuilder.TableName(string! tableName) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+Excalibur.Outbox.Oracle.IncrementOutboxMessageAttempts
+Excalibur.Outbox.Oracle.IncrementOutboxMessageAttempts.IncrementOutboxMessageAttempts(string! messageId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Oracle.InsertOutboxMessage
+Excalibur.Outbox.Oracle.InsertOutboxMessage.InsertOutboxMessage(string! messageId, string! messageType, string! messageMetadata, byte[]! messageBody, System.DateTimeOffset createdAt, string? tenantId, string? destination, string? correlationId, string? causationId, int priority, System.DateTimeOffset? scheduledAt, string? partitionKey, string? groupKey, long sequenceNumber, string? targetTransports, bool isMultiTransport, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Oracle.MoveOutboxMessageToDeadLetter
+Excalibur.Outbox.Oracle.MoveOutboxMessageToDeadLetter.MoveOutboxMessageToDeadLetter(string! messageId, string! outboxTableName, string! deadLetterTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions
+Excalibur.Outbox.Oracle.OracleOutboxStore
+Excalibur.Outbox.Oracle.OracleOutboxStore.CleanupAllTenantsSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.Oracle.OracleOutboxStore.DeleteOutboxRecord(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.DeleteOutboxRecordsBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.Dispose() -> void
+Excalibur.Outbox.Oracle.OracleOutboxStore.EnqueueAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.GetFailedMessagesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
+Excalibur.Outbox.Oracle.OracleOutboxStore.GetScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
+Excalibur.Outbox.Oracle.OracleOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
+Excalibur.Outbox.Oracle.OracleOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
+Excalibur.Outbox.Oracle.OracleOutboxStore.GetUnsentMessagesAsync(int batchSize, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
+Excalibur.Outbox.Oracle.OracleOutboxStore.IncreaseAttempts(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.IncreaseAttemptsBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.MarkSentAsync(string! messageId, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.MoveToDeadLetter(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.MoveToDeadLetterBatchAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.OracleOutboxStore(Excalibur.Data.IDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Oracle.OracleOutboxStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.Oracle.OracleOutboxStore!>! logger, Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics? metrics = null) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStore.ReserveOutboxMessagesAsync(string! dispatcherId, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IOutboxMessage!>!>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.SaveMessagesAsync(System.Collections.Generic.ICollection<Excalibur.Dispatch.IOutboxMessage!>! outboxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStore.ScheduleMessageAsync(Excalibur.Outbox.OutboxMessage! message, System.DateTimeOffset scheduledAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Outbox.Oracle.OracleOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Oracle.OracleOutboxStore.SupportsSentTracking.get -> bool
+Excalibur.Outbox.Oracle.OracleOutboxStore.UnReserveOutboxMessagesAsync(string! dispatcherId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.Dispose() -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.OracleOutboxStoreMetrics() -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordBatchDelete(double durationMs, int messageCount) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordBatchIncreaseAttempts(double durationMs, int messageCount) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordBatchMoveToDeadLetter(double durationMs, int messageCount) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordDeleteRecord(double durationMs) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordIncreaseAttempts(double durationMs) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordMoveToDeadLetter(double durationMs) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordReserveMessages(double durationMs, int messageCount) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordSaveMessages(double durationMs, int messageCount) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreMetrics.RecordUnreserveMessages(double durationMs, int messageCount) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.DeadLetterTableName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.DeadLetterTableName.set -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.FailureBackoffFloorSeconds.get -> int
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.FailureBackoffFloorSeconds.set -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.FenceTableName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.FenceTableName.set -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.OracleOutboxStoreOptions() -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.OutboxTableName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.OutboxTableName.set -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.QualifiedDeadLetterTableName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.QualifiedFenceTableName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.QualifiedOutboxTableName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.ReservationTimeout.get -> int
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.ReservationTimeout.set -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.SchemaName.get -> string!
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptions.SchemaName.set -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptionsValidator
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptionsValidator.OracleOutboxStoreOptionsValidator(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions!>! processingOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Partitioning.OutboxPartitionOptions!>! partitionOptions) -> void
+Excalibur.Outbox.Oracle.OracleOutboxStoreOptionsValidator.Validate(string? name, Excalibur.Outbox.Oracle.OracleOutboxStoreOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Outbox.Oracle.OutboxBuilderOracleExtensions
+Excalibur.Outbox.Oracle.ReserveOutboxMessages
+Excalibur.Outbox.Oracle.ReserveOutboxMessages.ReserveOutboxMessages(string! dispatcherId, int batchSize, int reservationTimeout, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Outbox.Oracle.ResetOutboxMessageReservation
+Excalibur.Outbox.Oracle.ResetOutboxMessageReservation.ResetOutboxMessageReservation(string! dispatcherId, string! outboxTableName, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.CleanedUpOldDeadLetterMessages = 102003 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.DeletedDeadLetterMessage = 102002 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.MarkedDeadLetterMessageAsReplayed = 102001 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxBatchOperation = 101906 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxCleanupSentMessagesNotNeeded = 101911 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxConvertMessageFailed = 101908 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxDeleteRecord = 101903 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxGetFailedMessagesNotSupported = 101909 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxGetScheduledMessagesNotSupported = 101910 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxGetStatisticsBasic = 101912 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxIncreaseAttempts = 101904 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxMoveToDeadLetter = 101905 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxOperationCompleted = 101907 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxReserveMessages = 101901 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxSaveMessages = 101900 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.OutboxUnreserveMessages = 101902 -> int
+const Excalibur.Outbox.Oracle.Diagnostics.OutboxOracleEventId.StoredDeadLetterMessage = 102000 -> int
+static Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions.CommandTimeout(this Excalibur.Outbox.Oracle.IOracleOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+static Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions.MaxAttempts(this Excalibur.Outbox.Oracle.IOracleOutboxBuilder! builder, int maxAttempts) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+static Excalibur.Outbox.Oracle.OracleOutboxBuilderExtensions.ReservationTimeout(this Excalibur.Outbox.Oracle.IOracleOutboxBuilder! builder, System.TimeSpan timeout) -> Excalibur.Outbox.Oracle.IOracleOutboxBuilder!
+static Excalibur.Outbox.Oracle.OutboxBuilderOracleExtensions.UseOracle(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Oracle.IOracleOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

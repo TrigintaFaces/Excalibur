@@ -303,6 +303,8 @@ public class FirestoreEventStore : IEventStore
         var batch = _db.StartBatch();
         var eventsCollection = _db.Collection("events").Document(aggregateId).Collection("events");
 
+        // The store assigns each event's stream version; the event payload no longer carries one.
+        var version = expectedVersion;
         foreach (var @event in events)
         {
             var eventDoc = eventsCollection.Document(@event.EventId.ToString());
@@ -311,7 +313,7 @@ public class FirestoreEventStore : IEventStore
                 ["aggregateId"] = aggregateId,
                 ["eventType"] = @event.EventType,
                 ["eventData"] = JsonSerializer.Serialize(@event),
-                ["version"] = @event.Version,
+                ["version"] = ++version,
                 ["occurredAt"] = Timestamp.FromDateTimeOffset(@event.OccurredAt)
             };
 

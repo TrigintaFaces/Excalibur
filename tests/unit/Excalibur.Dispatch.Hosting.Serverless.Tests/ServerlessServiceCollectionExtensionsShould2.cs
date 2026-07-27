@@ -105,27 +105,6 @@ public sealed class ServerlessServiceCollectionExtensionsShould2 : UnitTestBase
 		var factory = provider.GetService<IServerlessHostProviderFactory>();
 		factory.ShouldNotBeNull();
 	}
-
-	[Fact]
-	public void AddAwsLambdaHosting_WithOptions_ConfiguresLambdaOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging(b => b.AddProvider(NullLoggerProvider.Instance));
-
-		// Act
-		_ = services.AddAwsLambdaHosting(options =>
-		{
-			options.EnableProvisionedConcurrency = true;
-			options.ReservedConcurrency = 10;
-		});
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<IServerlessHostProviderFactory>();
-		factory.ShouldNotBeNull();
-	}
-
 	[Fact]
 	public void AddAwsLambdaHosting_ReturnsSameServiceCollection()
 	{
@@ -168,27 +147,6 @@ public sealed class ServerlessServiceCollectionExtensionsShould2 : UnitTestBase
 		var factory = provider.GetService<IServerlessHostProviderFactory>();
 		factory.ShouldNotBeNull();
 	}
-
-	[Fact]
-	public void AddAzureFunctionsHosting_WithOptions_ConfiguresAzureOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging(b => b.AddProvider(NullLoggerProvider.Instance));
-
-		// Act
-		_ = services.AddAzureFunctionsHosting(options =>
-		{
-			options.EnableDurableFunctions = true;
-			options.StorageConnectionString = "UseDevelopmentStorage=true";
-		});
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<IServerlessHostProviderFactory>();
-		factory.ShouldNotBeNull();
-	}
-
 	#endregion
 
 	#region AddGoogleCloudFunctionsHosting Tests
@@ -218,28 +176,6 @@ public sealed class ServerlessServiceCollectionExtensionsShould2 : UnitTestBase
 		var factory = provider.GetService<IServerlessHostProviderFactory>();
 		factory.ShouldNotBeNull();
 	}
-
-	[Fact]
-	public void AddGoogleCloudFunctionsHosting_WithOptions_ConfiguresGoogleOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddLogging(b => b.AddProvider(NullLoggerProvider.Instance));
-
-		// Act
-		_ = services.AddGoogleCloudFunctionsHosting(options =>
-		{
-			options.MinInstances = 2;
-			options.MaxInstances = 100;
-			options.VpcConnector = "my-vpc-connector";
-		});
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var factory = provider.GetService<IServerlessHostProviderFactory>();
-		factory.ShouldNotBeNull();
-	}
-
 	#endregion
 
 	#region AddCustomServerlessProvider Tests

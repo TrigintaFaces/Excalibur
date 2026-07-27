@@ -31,6 +31,11 @@ namespace Excalibur.Integration.Tests.TieredStorage;
 [Trait("Component", "EventStore")]
 public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 {
+	// A SCOPED tenant, not Untenanted. Untenanted compiles equally well and would leave the
+	// tenant-keyed object path unexercised -- the shape the cold-store contract exists to enforce.
+	private static readonly KeyedTenantPartition Tenant =
+		KeyedTenantPartition.Scoped("cold-store-tenant");
+
 	private const string BucketName = "cold-events-lostupdate-test";
 	private const string AggregateType = "ColdLostUpdateAggregate";
 
@@ -102,17 +107,17 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 		var ct = CancellationToken.None;
 
 		// Seed a committed prefix v0..v2.
-		await _store!.WriteAsync(aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
+		await _store!.WriteAsync(Tenant, aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
 
 		// Concurrent superset/subset archive of the same aggregate.
 		var subset = new StoredEvent[] { Event(aggregateId, 3), Event(aggregateId, 4) };
 		var superset = new StoredEvent[] { Event(aggregateId, 3), Event(aggregateId, 4), Event(aggregateId, 5), Event(aggregateId, 6) };
 
 		await Task.WhenAll(
-			_store.WriteAsync(aggregateId, subset, ct),
-			_store.WriteAsync(aggregateId, superset, ct)).ConfigureAwait(false);
+			_store.WriteAsync(Tenant, aggregateId, subset, ct),
+			_store.WriteAsync(Tenant, aggregateId, superset, ct)).ConfigureAwait(false);
 
-		var read = await _store.ReadAsync(aggregateId, ct);
+		var read = await _store.ReadAsync(Tenant, aggregateId, ct);
 
 		// The optimistic IfMatch retry merges both writers — no committed event is ever dropped.
 		read.Select(e => e.Version).ShouldBe(

@@ -239,11 +239,6 @@ public static class ErrorConstants
 	public const string ConditionMustBeSpecified = "Condition must be specified.";
 
 	/// <summary>
-	/// Error message: Connection pool not available.
-	/// </summary>
-	public const string ConnectionPoolNotAvailable = "Connection pool not available.";
-
-	/// <summary>
 	/// Error message: Connection string required.
 	/// </summary>
 	public const string ConnectionStringRequired = "Connection string required.";
@@ -1566,8 +1561,4 @@ public static class ErrorConstants
 	public const string InMemoryTransactionScopeOnlySupportsCreatingProvider =
 		"In-memory transaction scope only supports creating provider.";
 
-	/// <summary>
-	/// Error message: Redis transaction scope only supports creating provider.
-	/// </summary>
-	public const string RedisTransactionScopeOnlySupportsCreatingProvider = "Redis transaction scope only supports creating provider.";
 }

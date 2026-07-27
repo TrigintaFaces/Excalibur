@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 namespace Excalibur.AuditLogging;
 
@@ -21,20 +22,49 @@ namespace Excalibur.AuditLogging;
 /// </remarks>
 internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 {
-	private readonly ConcurrentDictionary<string, List<AuditAnnotation>> _annotationsByEvent = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<(string TenantId, string EventId), List<AuditAnnotation>> _annotationsByEvent = new();
 	private readonly IAuditActorProvider _actorProvider;
 	private readonly TimeProvider _timeProvider;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryAuditAnnotationStore"/> class.
 	/// </summary>
 	/// <param name="actorProvider">Provider for the current actor identity.</param>
 	/// <param name="timeProvider">Provider for timestamps.</param>
-	public InMemoryAuditAnnotationStore(IAuditActorProvider actorProvider, TimeProvider timeProvider)
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered.
+	/// </param>
+	public InMemoryAuditAnnotationStore(
+		IAuditActorProvider actorProvider,
+		TimeProvider timeProvider,
+		ITenantContext? tenantContext = null)
 	{
 		_actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
 		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+		_tenantContext = tenantContext;
 	}
+
+	/// <summary>
+	/// Resolves the tenant term every read and write is confined to.
+	/// </summary>
+	/// <remarks>
+	/// Taken from ambient context, never from a caller argument, and resolved through the same seam as the
+	/// persistent sibling so both stores partition on identical terms. The term is always concrete — a host
+	/// without multi-tenancy resolves the reserved untenanted partition rather than a null that would key
+	/// every tenant's annotations together.
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+
+	/// <summary>
+	/// Composes the storage key. The tenant term is part of the KEY rather than a filter applied after
+	/// lookup: a tenant-blind read is then not something a caller can express, because there is no key
+	/// that reaches another tenant's list.
+	/// </summary>
+	/// <param name="eventId">The annotated event identifier.</param>
+	/// <returns>The tenant-qualified key for that event.</returns>
+	private (string TenantId, string EventId) KeyFor(string eventId) => (CurrentTenantTerm, eventId);
 
 	/// <inheritdoc />
 	public async Task TagAsync(string eventId, IReadOnlyList<string> tags, CancellationToken cancellationToken)
@@ -45,7 +75,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 
 		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
-		var annotations = _annotationsByEvent.GetOrAdd(eventId, _ => []);
+		var annotations = _annotationsByEvent.GetOrAdd(KeyFor(eventId), _ => []);
 
 		lock (annotations)
 		{
@@ -85,7 +115,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 
 		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
-		var annotations = _annotationsByEvent.GetOrAdd(eventId, _ => []);
+		var annotations = _annotationsByEvent.GetOrAdd(KeyFor(eventId), _ => []);
 
 		lock (annotations)
 		{
@@ -115,7 +145,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 
 		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 
-		if (!_annotationsByEvent.TryGetValue(eventId, out var annotations))
+		if (!_annotationsByEvent.TryGetValue(KeyFor(eventId), out var annotations))
 		{
 			return;
 		}
@@ -138,7 +168,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
 		var id = Guid.NewGuid().ToString("N");
-		var annotations = _annotationsByEvent.GetOrAdd(eventId, _ => []);
+		var annotations = _annotationsByEvent.GetOrAdd(KeyFor(eventId), _ => []);
 
 		lock (annotations)
 		{
@@ -163,7 +193,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		if (!_annotationsByEvent.TryGetValue(eventId, out var annotations))
+		if (!_annotationsByEvent.TryGetValue(KeyFor(eventId), out var annotations))
 		{
 			return Task.FromResult(new AuditAnnotations(eventId, [], [], []));
 		}
@@ -199,9 +229,21 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 		cancellationToken.ThrowIfCancellationRequested();
 
 		var matchingEventIds = new List<string>();
+		var tenantId = CurrentTenantTerm;
 
-		foreach (var (eventId, annotations) in _annotationsByEvent)
+		foreach (var (key, annotations) in _annotationsByEvent)
 		{
+			// The tenant term is compared before the query is even evaluated. This is the site the defect
+			// lived at: the loop walked every key in the store and returned any event whose annotations
+			// matched, so a caller received other tenants' event identifiers without asking for them and
+			// with nothing in the call to suggest it had happened. Ordinal, because tenant terms are
+			// case-sensitive everywhere else in this framework and a looser comparison here would silently
+			// merge two distinct tenants.
+			if (!string.Equals(key.TenantId, tenantId, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
 			List<AuditAnnotation> snapshot;
 			lock (annotations)
 			{
@@ -213,7 +255,7 @@ internal sealed class InMemoryAuditAnnotationStore : IAuditAnnotationStore
 				continue;
 			}
 
-			matchingEventIds.Add(eventId);
+			matchingEventIds.Add(key.EventId);
 		}
 
 		IReadOnlyList<string> result = matchingEventIds

@@ -140,16 +140,17 @@ builder.Services.AddScoped(sp =>
     var db = sp.GetRequiredService<ISagaDb>();
     return new SqlServerSagaStore(
         () => (SqlConnection)db.Connection,
-        sp.GetRequiredService<ILogger<SqlServerSagaStore>>());
+        sp.GetRequiredService<ILogger<SqlServerSagaStore>>(),
+        sp.GetRequiredService<DispatchJsonSerializer>());
 });
 
-// Outbox store uses IOutboxDb
-builder.Services.AddScoped(sp =>
+// Outbox store uses IOutboxDb.
+// The outbox store is constructed internally, so register it through the typed-IDb
+// extension: it resolves IOutboxDb from DI and binds its connection for you, replacing
+// the sp => () => (SqlConnection)sp.GetRequiredService<IOutboxDb>().Connection ceremony.
+builder.Services.AddSqlServerOutboxStore<IOutboxDb>(options =>
 {
-    var db = sp.GetRequiredService<IOutboxDb>();
-    return new SqlServerOutboxStore(
-        () => (SqlConnection)db.Connection,
-        sp.GetRequiredService<ILogger<SqlServerOutboxStore>>());
+    // Configure table names, timeouts, and other outbox options here.
 });
 ```
 
@@ -538,8 +539,8 @@ When projections target a **document database** (Elasticsearch, CosmosDB, MongoD
 ```csharp
 builder.Services.Configure<ElasticSearchProjectionStoreOptions>(options =>
 {
-    options.ConnectionString = "https://search-cluster:9200";
-    options.IndexPrefix = "projections";
+    options.NodeUri = "https://search-cluster:9200";
+    options.Index.IndexPrefix = "projections";
 });
 
 builder.Services.AddScoped<IProjectionStore<OrderReadModel>,
@@ -586,8 +587,8 @@ builder.Services.AddScoped<IDomainDb>(_ =>
 // Read side: Elasticsearch for projections (no IProjectionDb needed)
 builder.Services.Configure<ElasticSearchProjectionStoreOptions>(options =>
 {
-    options.ConnectionString = "https://search-cluster:9200";
-    options.IndexPrefix = "projections";
+    options.NodeUri = "https://search-cluster:9200";
+    options.Index.IndexPrefix = "projections";
 });
 
 builder.Services.AddScoped<IProjectionStore<OrderReadModel>,

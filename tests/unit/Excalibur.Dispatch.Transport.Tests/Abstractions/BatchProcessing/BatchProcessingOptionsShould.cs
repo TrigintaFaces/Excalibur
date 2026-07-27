@@ -23,7 +23,6 @@ public sealed class BatchProcessingOptionsShould
         options.RetryPolicy.ShouldNotBeNull();
         options.EnableMetrics.ShouldBeTrue();
         options.EnableDeadLetter.ShouldBeTrue();
-        options.Collection.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Size);
         options.Collection.MinBatchSize.ShouldBe(1);
         options.Collection.CollectionTimeout.ShouldBe(TimeSpan.FromSeconds(5));
         options.PreserveOrder.ShouldBeFalse();
@@ -115,18 +114,6 @@ public sealed class BatchProcessingOptionsShould
     }
 
     [Theory]
-    [InlineData(BatchCompletionStrategy.Size)]
-    [InlineData(BatchCompletionStrategy.Time)]
-    [InlineData(BatchCompletionStrategy.SizeOrTime)]
-    public void AllowSettingCompletionStrategy(BatchCompletionStrategy strategy)
-    {
-        var options = new BatchProcessingOptions();
-        options.Collection.CompletionStrategy = strategy;
-
-        options.Collection.CompletionStrategy.ShouldBe(strategy);
-    }
-
-    [Theory]
     [InlineData(1)]
     [InlineData(10)]
     [InlineData(50)]
@@ -185,7 +172,6 @@ public sealed class BatchProcessingOptionsShould
             DefaultPriority = BatchPriority.High
         };
         options.Collection.MaxBatchSize = 200;
-        options.Collection.CompletionStrategy = BatchCompletionStrategy.Time;
         options.Collection.MinBatchSize = 5;
         options.Collection.CollectionTimeout = TimeSpan.FromSeconds(15);
 
@@ -196,7 +182,6 @@ public sealed class BatchProcessingOptionsShould
         options.ContinueOnError.ShouldBeFalse();
         options.EnableMetrics.ShouldBeFalse();
         options.EnableDeadLetter.ShouldBeFalse();
-        options.Collection.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Time);
         options.Collection.MinBatchSize.ShouldBe(5);
         options.Collection.CollectionTimeout.ShouldBe(TimeSpan.FromSeconds(15));
         options.PreserveOrder.ShouldBeTrue();

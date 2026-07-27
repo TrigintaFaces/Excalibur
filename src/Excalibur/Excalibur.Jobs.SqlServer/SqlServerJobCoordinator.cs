@@ -23,6 +23,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerJobCoordinatorOptions _options;
+	private readonly TimeProvider _timeProvider;
 	private readonly ILogger<SqlServerJobCoordinator> _logger;
 	private readonly string _schema;
 
@@ -30,13 +31,16 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 	/// Initializes a new instance of the <see cref="SqlServerJobCoordinator"/> class.
 	/// </summary>
 	/// <param name="options">The coordinator configuration options.</param>
+	/// <param name="timeProvider">The time provider used for lock-expiry and liveness decisions.</param>
 	/// <param name="logger">The logger instance.</param>
 	public SqlServerJobCoordinator(
 		IOptions<SqlServerJobCoordinatorOptions> options,
+		TimeProvider timeProvider,
 		ILogger<SqlServerJobCoordinator> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		_options = options.Value;
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_schema = _options.SchemaName;
 		_connectionFactory = () => new SqlConnection(_options.ConnectionString);
@@ -51,7 +55,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 		ArgumentException.ThrowIfNullOrWhiteSpace(jobKey);
 
 		var instanceId = Environment.MachineName + "_" + Environment.ProcessId;
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 		var expiresAt = now.Add(lockDuration);
 
 		// Attempt to insert the lock row; if it already exists and hasn't expired, skip.
@@ -84,7 +88,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 		{
 			LogLockAcquired(jobKey, instanceId);
 			return new SqlServerDistributedJobLock(
-				_connectionFactory, _schema, jobKey, instanceId, now, expiresAt, _logger);
+				_connectionFactory, _schema, jobKey, instanceId, now, expiresAt, _timeProvider, _logger);
 		}
 
 		LogLockAcquisitionFailed(jobKey, instanceId);
@@ -121,8 +125,8 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 			InstanceId = instanceId,
 			instanceInfo.HostName,
 			Data = data,
-			HeartbeatAt = DateTimeOffset.UtcNow,
-			RegisteredAt = DateTimeOffset.UtcNow
+			HeartbeatAt = _timeProvider.GetUtcNow(),
+			RegisteredAt = _timeProvider.GetUtcNow()
 		}).ConfigureAwait(false);
 
 		LogInstanceRegistered(instanceId, instanceInfo.HostName);
@@ -149,7 +153,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 	/// <inheritdoc />
 	public async Task<IEnumerable<JobInstanceInfo>> GetActiveInstancesAsync(CancellationToken cancellationToken)
 	{
-		var heartbeatCutoff = DateTimeOffset.UtcNow - _options.InstanceTtl;
+		var heartbeatCutoff = _timeProvider.GetUtcNow() - _options.InstanceTtl;
 
 		// Clean up stale instances and return active ones
 		var cleanupSql = $"""
@@ -202,7 +206,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 
 		var activeInstances = await GetActiveInstancesAsync(cancellationToken).ConfigureAwait(false);
 		var availableInstance = activeInstances
-			.Where(static i => i.IsHealthy(TimeSpan.FromMinutes(2)) &&
+			.Where(i => i.IsHealthy(TimeSpan.FromMinutes(2), _timeProvider) &&
 				i.ActiveJobCount < i.Capabilities.MaxConcurrentJobs)
 			.OrderBy(static i => i.ActiveJobCount)
 			.ThenByDescending(static i => i.Capabilities.Priority)
@@ -229,7 +233,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 			JobKey = jobKey,
 			AssignedInstance = availableInstance.InstanceId,
 			JobData = serializedData,
-			CreatedAt = DateTimeOffset.UtcNow
+			CreatedAt = _timeProvider.GetUtcNow()
 		}).ConfigureAwait(false);
 
 		LogJobDistributed(jobKey, availableInstance.InstanceId);
@@ -271,7 +275,7 @@ public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegi
 			InstanceId = instanceId,
 			Success = success,
 			ResultData = resultData,
-			CompletedAt = DateTimeOffset.UtcNow
+			CompletedAt = _timeProvider.GetUtcNow()
 		}).ConfigureAwait(false);
 
 		LogJobCompletionReported(jobKey, instanceId, success ? "Success" : "Failed");

@@ -26,6 +26,7 @@ public sealed class MongoDbComplianceStoreShould
 		Should.Throw<ArgumentNullException>(
 			() => new MongoDbComplianceStore(
 				(IOptions<MongoDbComplianceOptions>)null!,
+				null,
 				_logger));
 	}
 
@@ -37,7 +38,7 @@ public sealed class MongoDbComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new MongoDbComplianceStore(options, null!));
+			() => new MongoDbComplianceStore(options, null, null!));
 	}
 
 	[Fact]
@@ -51,6 +52,7 @@ public sealed class MongoDbComplianceStoreShould
 			() => new MongoDbComplianceStore(
 				(IMongoClient)null!,
 				options,
+				null,
 				_logger));
 	}
 
@@ -65,6 +67,7 @@ public sealed class MongoDbComplianceStoreShould
 			() => new MongoDbComplianceStore(
 				client,
 				(IOptions<MongoDbComplianceOptions>)null!,
+				null,
 				_logger));
 	}
 
@@ -77,7 +80,7 @@ public sealed class MongoDbComplianceStoreShould
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new MongoDbComplianceStore(client, options, null!));
+			() => new MongoDbComplianceStore(client, options, null, null!));
 	}
 
 	[Fact]
@@ -87,7 +90,7 @@ public sealed class MongoDbComplianceStoreShould
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
 
 		// Act
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -106,7 +109,7 @@ public sealed class MongoDbComplianceStoreShould
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
 
 		// Act
-		var store = new MongoDbComplianceStore(client, options, _logger);
+		var store = new MongoDbComplianceStore(client, options, null, _logger);
 
 		// Assert
 		store.ShouldNotBeNull();
@@ -117,7 +120,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -132,7 +135,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -147,7 +150,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -162,7 +165,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
@@ -174,7 +177,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new MongoDbComplianceOptions());
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(
@@ -186,7 +189,7 @@ public sealed class MongoDbComplianceStoreShould
 	{
 		// Arrange -- options with no connection string, no client injected
 		var options = MsOptions.Create(new MongoDbComplianceOptions { ConnectionString = null });
-		var store = new MongoDbComplianceStore(options, _logger);
+		var store = new MongoDbComplianceStore(options, null, _logger);
 		var record = new ConsentRecord
 		{
 			SubjectId = "subject-1",
@@ -199,13 +202,36 @@ public sealed class MongoDbComplianceStoreShould
 	}
 
 	[Fact]
-	public void ConsentDocumentCreateIdShouldCombineSubjectAndPurpose()
+	public void ConsentDocumentCreateIdShouldCombineTenantSubjectAndPurpose()
 	{
 		// Act
-		var id = MongoDbComplianceStore.ConsentDocument.CreateId("user-123", "marketing");
+		var id = MongoDbComplianceStore.ConsentDocument.CreateId("tenant-a", "user-123", "marketing");
 
 		// Assert
-		id.ShouldBe("user-123:marketing");
+		id.ShouldBe("8:tenant-a:8:user-123:marketing");
+	}
+
+	[Fact]
+	public void ConsentDocumentCreateIdShouldSeparateTenantsSharingASubjectAndPurpose()
+	{
+		// Act
+		var tenantA = MongoDbComplianceStore.ConsentDocument.CreateId("tenant-a", "user-123", "marketing");
+		var tenantB = MongoDbComplianceStore.ConsentDocument.CreateId("tenant-b", "user-123", "marketing");
+
+		// Assert - the key is the upsert conflict target, so equal keys here would mean tenant B's write
+		// silently overwrites tenant A's consent record for the same data subject.
+		tenantA.ShouldNotBe(tenantB);
+	}
+
+	[Fact]
+	public void ConsentDocumentCreateIdShouldNotCollideWhenATenantIdContainsTheDelimiter()
+	{
+		// Act - a plain "tenant:subject:purpose" join would render both of these as "a:b:c:marketing".
+		var delimiterInTenant = MongoDbComplianceStore.ConsentDocument.CreateId("a:b", "c", "marketing");
+		var delimiterInSubject = MongoDbComplianceStore.ConsentDocument.CreateId("a", "b:c", "marketing");
+
+		// Assert
+		delimiterInTenant.ShouldNotBe(delimiterInSubject);
 	}
 
 	[Fact]
@@ -225,10 +251,11 @@ public sealed class MongoDbComplianceStoreShould
 		};
 
 		// Act
-		var doc = MongoDbComplianceStore.ConsentDocument.FromRecord(record);
+		var doc = MongoDbComplianceStore.ConsentDocument.FromRecord(record, "tenant-a");
 
 		// Assert
-		doc.Id.ShouldBe("user-456:analytics");
+		doc.Id.ShouldBe("8:tenant-a:8:user-456:analytics");
+		doc.TenantId.ShouldBe("tenant-a");
 		doc.SubjectId.ShouldBe("user-456");
 		doc.Purpose.ShouldBe("analytics");
 		doc.GrantedAt.ShouldBe(now);
@@ -286,7 +313,7 @@ public sealed class MongoDbComplianceStoreShould
 		};
 
 		// Act
-		var doc = MongoDbComplianceStore.ConsentDocument.FromRecord(original);
+		var doc = MongoDbComplianceStore.ConsentDocument.FromRecord(original, "tenant-a");
 		var restored = doc.ToConsentRecord();
 
 		// Assert
@@ -313,10 +340,11 @@ public sealed class MongoDbComplianceStoreShould
 		};
 
 		// Act
-		var doc = MongoDbComplianceStore.SubjectAccessDocument.FromResult(result);
+		var doc = MongoDbComplianceStore.SubjectAccessDocument.FromResult(result, "tenant-a");
 
 		// Assert
-		doc.Id.ShouldBe("SAR-001");
+		doc.Id.ShouldBe("8:tenant-a:SAR-001");
+		doc.TenantId.ShouldBe("tenant-a");
 		doc.Status.ShouldBe((int)SubjectAccessRequestStatus.Fulfilled);
 		doc.Deadline.ShouldBe(now.AddDays(30));
 		doc.FulfilledAt.ShouldBe(now);
@@ -335,10 +363,11 @@ public sealed class MongoDbComplianceStoreShould
 		};
 
 		// Act
-		var doc = MongoDbComplianceStore.SubjectAccessDocument.FromResult(result);
+		var doc = MongoDbComplianceStore.SubjectAccessDocument.FromResult(result, "tenant-a");
 
 		// Assert
-		doc.Id.ShouldBe("SAR-002");
+		doc.Id.ShouldBe("8:tenant-a:SAR-002");
+		doc.TenantId.ShouldBe("tenant-a");
 		doc.Status.ShouldBe((int)SubjectAccessRequestStatus.Pending);
 		doc.Deadline.ShouldBeNull();
 		doc.FulfilledAt.ShouldBeNull();

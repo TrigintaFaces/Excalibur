@@ -16,6 +16,7 @@ public sealed class TransportRegistryFactorySnapshotShould
 		registry.RegisterTransportFactory(
 			"factory-rabbit",
 			"RabbitMQ",
+			TransportLocality.Remote,
 			static _ => A.Fake<ITransportAdapter>());
 
 		var names = registry.GetTransportNames().ToList();
@@ -30,7 +31,7 @@ public sealed class TransportRegistryFactorySnapshotShould
 		var registry = new TransportRegistry();
 		var adapter = CreateAdapter("rabbit");
 
-		registry.RegisterTransportFactory("rabbit", "RabbitMQ", _ => adapter);
+		registry.RegisterTransportFactory("rabbit", "RabbitMQ", TransportLocality.Remote, _ => adapter);
 		registry.InitializeFactories(A.Fake<IServiceProvider>());
 
 		var names = registry.GetTransportNames().ToList();
@@ -43,8 +44,8 @@ public sealed class TransportRegistryFactorySnapshotShould
 	public void RefreshSnapshot_WhenTransportIsRemoved()
 	{
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbit", CreateAdapter("rabbit"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("kafka"), "Kafka");
+		registry.RegisterTransport("rabbit", CreateAdapter("rabbit"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("kafka"), "Kafka", TransportLocality.Remote);
 
 		registry.RemoveTransport("kafka").ShouldBeTrue();
 
@@ -57,10 +58,11 @@ public sealed class TransportRegistryFactorySnapshotShould
 	public void KeepFactoryNames_WhenClearRemovesRegisteredTransports()
 	{
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbit", CreateAdapter("rabbit"), "RabbitMQ");
+		registry.RegisterTransport("rabbit", CreateAdapter("rabbit"), "RabbitMQ", TransportLocality.Remote);
 		registry.RegisterTransportFactory(
 			"factory-kafka",
 			"Kafka",
+			TransportLocality.Remote,
 			static _ => A.Fake<ITransportAdapter>());
 
 		registry.Clear();

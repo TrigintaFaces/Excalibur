@@ -171,6 +171,55 @@ public sealed class CloudEventMiddlewareShould
 	}
 
 	[Fact]
+	public async Task FailClosed_WhenValidateSchemaEnabled_ButNoRegistryRegistered()
+	{
+		// ValidateSchema requested but no ISchemaRegistry wired -> must fail closed, never silently pass.
+		var middleware = CreateMiddleware(
+			new CloudEventOptions { Schema = { ValidateSchema = true } },
+			includeSchemaRegistry: false);
+		var context = new FakeMessageContext { MessageId = "t" };
+		context.Items["cloudevent"] = new CloudEvent { Id = "ce", Source = new Uri("urn:t"), Type = "test.event.v1" };
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(() =>
+			middleware.InvokeAsync(new FakeDispatchMessage(), context, CreateSuccessDelegate(), CancellationToken.None).AsTask());
+	}
+
+	[Fact]
+	public async Task FailClosed_WhenValidateSchemaEnabled_ButEventHasNoSchemaVersion()
+	{
+		// Validation requested, registry present, but the event carries no schema version -> cannot
+		// resolve a schema -> reject (the middleware surfaces the rejection as a validation failure).
+		var middleware = CreateMiddleware(
+			new CloudEventOptions { Schema = { ValidateSchema = true } },
+			includeSchemaRegistry: true);
+		var context = new FakeMessageContext { MessageId = "t" };
+		context.Items["cloudevent"] = new CloudEvent { Id = "ce", Source = new Uri("urn:t"), Type = "test.event.v1" };
+
+		_ = await Should.ThrowAsync<InvalidOperationException>(() =>
+			middleware.InvokeAsync(new FakeDispatchMessage(), context, CreateSuccessDelegate(), CancellationToken.None).AsTask());
+	}
+
+	[Fact]
+	public async Task FailClosed_WhenValidateSchemaEnabled_AndSchemaResolved_ButPayloadValidationUnavailable()
+	{
+		// A schema resolves, but structural payload validation isn't implemented yet -> fail closed with
+		// NotSupportedException rather than rubber-stamp the event as valid.
+		A.CallTo(() => _schemaRegistry.GetSchemaAsync(A<string>._, A<string>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<string?>("{\"type\":\"object\"}"));
+
+		var middleware = CreateMiddleware(
+			new CloudEventOptions { Schema = { ValidateSchema = true } },
+			includeSchemaRegistry: true);
+		var context = new FakeMessageContext { MessageId = "t" };
+		var incomingCe = new CloudEvent { Id = "ce", Source = new Uri("urn:t"), Type = "test.event.v1" };
+		incomingCe.SetSchemaVersion("1.0");
+		context.Items["cloudevent"] = incomingCe;
+
+		_ = await Should.ThrowAsync<NotSupportedException>(() =>
+			middleware.InvokeAsync(new FakeDispatchMessage(), context, CreateSuccessDelegate(), CancellationToken.None).AsTask());
+	}
+
+	[Fact]
 	public async Task EnrichContext_WithCorrelationId_FromCloudEventExtension()
 	{
 		// Arrange
@@ -470,9 +519,11 @@ public sealed class CloudEventMiddlewareShould
 	#region Schema Validation Tests
 
 	[Fact]
-	public async Task ValidateSchema_WhenRegistryIsAvailable()
+	public async Task ValidateSchema_WhenRegistryIsAvailable_ConsultsRegistryAndFailsClosed()
 	{
-		// Arrange
+		// The registry IS consulted (GetSchemaAsync called), but because structural payload validation is
+		// not yet implemented the middleware fails closed (NotSupportedException) instead of rubber-stamping
+		// the event as valid — a validation gate must never silently pass.
 		var options = new CloudEventOptions { Schema = { ValidateSchema = true } };
 		var middleware = CreateMiddleware(options, includeSchemaRegistry: true);
 		var message = new FakeDispatchMessage();
@@ -490,11 +541,9 @@ public sealed class CloudEventMiddlewareShould
 		_ = A.CallTo(() => _schemaRegistry.GetSchemaAsync("test.event.v1", "1.0", A<CancellationToken>._))
 			.Returns(Task.FromResult<string?>("{}"));
 
-		// Act
-		var result = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
+		_ = await Should.ThrowAsync<NotSupportedException>(() =>
+			middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None).AsTask());
 
-		// Assert
-		result.IsSuccess.ShouldBeTrue();
 		_ = A.CallTo(() => _schemaRegistry.GetSchemaAsync("test.event.v1", "1.0", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}

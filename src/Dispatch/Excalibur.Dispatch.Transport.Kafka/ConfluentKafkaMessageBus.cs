@@ -32,6 +32,11 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisposable
 {
 	private readonly IProducer<string, byte[]> _producer;
+
+	// Intentional bespoke-interop deviation (NOT the event canonical STJ contract): the Kafka wire format is
+	// dictated by the Confluent Schema Registry (Avro / Protobuf / JSON-Schema with the registry's magic-byte
+	// framing + schema id), so serialization is delegated to the registry-aware Confluent serializer rather
+	// than System.Text.Json. Forcing the canonical STJ contract here would break Confluent-ecosystem interop.
 	private readonly IConfluentFormatSerializer _serializer;
 	private readonly string _topic;
 	private readonly ILogger<ConfluentKafkaMessageBus> _logger;

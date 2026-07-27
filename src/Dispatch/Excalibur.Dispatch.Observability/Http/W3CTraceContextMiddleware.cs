@@ -101,31 +101,12 @@ internal sealed class W3CTraceContextMiddleware : IDispatchMiddleware
 		return null;
 	}
 
-	private static ActivityContext ParseTraceparent(string traceparent, string? tracestate)
-	{
+	private static ActivityContext ParseTraceparent(string traceparent, string? tracestate) =>
 		// W3C traceparent format: {version}-{trace-id}-{parent-id}-{trace-flags}
 		// Example: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
-		var parts = traceparent.Split('-');
-		if (parts.Length < 4 || parts[1].Length != 32 || parts[2].Length != 16)
-		{
-			return default;
-		}
-
-		try
-		{
-			var traceId = ActivityTraceId.CreateFromString(parts[1].AsSpan());
-			var spanId = ActivitySpanId.CreateFromString(parts[2].AsSpan());
-
-			var flags = parts[3].Length >= 2 &&
-						int.TryParse(parts[3], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var flagsInt)
-				? (ActivityTraceFlags)flagsInt
-				: ActivityTraceFlags.None;
-
-			return new ActivityContext(traceId, spanId, flags, tracestate);
-		}
-		catch (ArgumentOutOfRangeException)
-		{
-			return default;
-		}
-	}
+		// Delegate to the BCL W3C parser, which validates the field lengths/hex and returns the
+		// extracted trace/span ids and flags. Fails safe to default on malformed input.
+		ActivityContext.TryParse(traceparent, tracestate, out var parentContext)
+			? parentContext
+			: default;
 }

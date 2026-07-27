@@ -35,6 +35,20 @@ internal sealed class MongoDbSagaDocument
 	public string SagaType { get; set; } = string.Empty;
 
 	/// <summary>
+	/// The tenant that owns this saga, or <see langword="null"/> for the untenanted partition.
+	/// </summary>
+	/// <remarks>
+	/// A FIRST-CLASS document field, deliberately, and not read out of <see cref="StateJson"/>. The state is
+	/// persisted as an opaque serialized string, so a tenant living only inside it cannot appear in a server-side
+	/// filter — the store would have to fetch a document before it could discover whose it was, which is the
+	/// leak rather than a defence against it. Promoting it here is what makes every keyed read and write
+	/// tenant-filterable in the query itself.
+	/// </remarks>
+	[BsonElement("tenantId")]
+	[BsonIgnoreIfNull]
+	public string? TenantId { get; set; }
+
+	/// <summary>
 	/// Gets or sets the JSON-serialized saga state.
 	/// </summary>
 	[BsonElement("stateJson")]
@@ -45,6 +59,14 @@ internal sealed class MongoDbSagaDocument
 	/// </summary>
 	[BsonElement("isCompleted")]
 	public bool IsCompleted { get; set; }
+
+	/// <summary>
+	/// Gets or sets the explicit completion instant (UTC) the retention purge keys on. Stored as a nullable
+	/// <see cref="DateTime"/> (UTC) rather than <see cref="DateTimeOffset"/> because the MongoDB LINQ provider
+	/// cannot translate <see cref="DateTimeOffset"/> comparisons; <see langword="null"/> until the saga completes.
+	/// </summary>
+	[BsonElement("completedAt")]
+	public DateTime? CompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the optimistic-concurrency version of the persisted saga state.

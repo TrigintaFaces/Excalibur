@@ -84,7 +84,9 @@ public sealed class DefaultMiddlewareExecutorShould
 				var msg = call.GetArgument<IDispatchMessage>(0);
 				var ctx = call.GetArgument<IMessageContext>(1);
 				var ct = call.GetArgument<CancellationToken>(3);
+				#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 				next(msg, ctx, ct).AsTask().Wait();
+				#pragma warning restore RS0030
 			})
 			.ReturnsLazily(_ => new ValueTask<IMessageResult>(expectedResult));
 

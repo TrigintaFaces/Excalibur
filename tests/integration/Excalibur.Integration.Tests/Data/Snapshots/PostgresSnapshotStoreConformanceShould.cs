@@ -4,18 +4,19 @@
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
 using Excalibur.EventSourcing;
-
-using Excalibur.Data.Postgres.Snapshots;
+using Excalibur.EventSourcing.Postgres;
 
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+
+using Npgsql;
 
 #pragma warning disable CA1812 // Internal class is never instantiated
 
 namespace Excalibur.Integration.Tests.Data.Snapshots;
 
 /// <summary>
-/// Conformance tests for <see cref="PostgresSnapshotStore"/> using the Snapshot Conformance Test Kit.
+/// Conformance tests for the canonical <see cref="PostgresSnapshotStore"/> (Excalibur.EventSourcing.Postgres)
+/// using the Snapshot Conformance Test Kit.
 /// </summary>
 /// <remarks>
 /// These tests verify that the Postgres implementation correctly implements the
@@ -27,6 +28,7 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformanceTestBase, IClassFixture<PostgresSnapshotStoreContainerFixture>
 {
 	private readonly PostgresSnapshotStoreContainerFixture _fixture;
+	private NpgsqlDataSource? _dataSource;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresSnapshotStoreConformanceShould"/> class.
@@ -43,22 +45,19 @@ public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformance
 		// Ensure container is ready and schema is created
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 
-		var options = Options.Create(new PostgresSnapshotStoreOptions
-		{
-			SchemaName = _fixture.SchemaName,
-			TableName = _fixture.TableName
-		});
+		_dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
 
-		var logger = NullLogger<PostgresSnapshotStore>.Instance;
-
-		// Create the store with connection factory
+		// The canonical snapshot store lives in Excalibur.EventSourcing.Postgres (snapshots are an
+		// event-sourcing persistence concern). Single-tenant construction (no ambient tenant context)
+		// exercises the general ISnapshotStore contract.
 		var excaliburStore = new PostgresSnapshotStore(
-			() => _fixture.CreateConnection(),
-			options,
-			logger);
+			_dataSource,
+			NullLogger<PostgresSnapshotStore>.Instance,
+			_fixture.SchemaName,
+			_fixture.TableName,
+			tenantContext: null);
 
-		// Adapt Excalibur.EventSourcing.ISnapshotStore to
-		// Excalibur.Dispatch.EventSourcing.ISnapshotStore for conformance testing
+		// Adapt Excalibur.EventSourcing.ISnapshotStore to the conformance-kit ISnapshotStore.
 		return new SnapshotStoreAdapter(excaliburStore);
 	}
 
@@ -67,5 +66,11 @@ public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformance
 	{
 		// Clean up test data between tests
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+
+		if (_dataSource is not null)
+		{
+			await _dataSource.DisposeAsync().ConfigureAwait(false);
+			_dataSource = null;
+		}
 	}
 }

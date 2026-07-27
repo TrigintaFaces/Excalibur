@@ -294,17 +294,14 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 
 	public record TestOrderCreated(string OrderId, string CustomerId, decimal Total) : DomainEvent
 	{
-		public override string AggregateId => OrderId;
 	}
 
 	public record TestOrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent
 	{
-		public override string AggregateId => OrderId;
 	}
 
 	public record TestOrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent
 	{
-		public override string AggregateId => OrderId;
 	}
 
 	// ── Test Snapshot ──────────────────────────────────────────────────
@@ -312,6 +309,10 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 	public record TestOrderSnapshot : ISnapshot
 	{
 		public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+		// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+		// that this double is unscoped instead of assuming it.
+		public string? TenantId { get; init; }
 		public string AggregateId { get; init; } = string.Empty;
 		public long Version { get; init; }
 		public string AggregateType { get; init; } = nameof(TestOrderAggregate);
@@ -352,7 +353,7 @@ public sealed class EventSourcingJourneyE2EShould : IAsyncDisposable
 			RaiseEvent(new TestOrderShipped(Id, DateTimeOffset.UtcNow));
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			TestOrderCreated e => ApplyCreated(e),
 			TestOrderItemAdded e => ApplyItemAdded(e),

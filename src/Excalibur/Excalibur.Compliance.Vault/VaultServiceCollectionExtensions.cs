@@ -7,6 +7,7 @@ using Excalibur.Compliance;
 using Excalibur.Compliance.Vault;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -94,5 +95,11 @@ public static class VaultServiceCollectionExtensions
 		services.TryAddSingleton<VaultKeyProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<VaultKeyProvider>());
 		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<VaultKeyProvider>());
+
+		// Fail-closed startup guard: key suspension persists a durable marker in the KV v2 mount, so that mount
+		// is a hard prerequisite. Validate it is reachable at host start rather than let suspension be silently
+		// inert at runtime (a suspended key appearing active would be a fail-open security hole).
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, VaultSuspensionMountStartupValidator>());
 	}
 }

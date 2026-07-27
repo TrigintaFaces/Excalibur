@@ -327,8 +327,8 @@ public async ValueTask<IMessageResult> InvokeAsync(
         var customerId = order.CustomerId;
     }
 
-    // Check message kind
-    if (message.Kind == MessageKinds.Event)
+    // Check message kind by the dispatch interface it implements
+    if (message is IDispatchEvent)
     {
         // Handle event-specific logic
     }
@@ -428,7 +428,7 @@ public class TimingMiddlewareTests
 
 ### Middleware runs for every dispatch -- including nested calls
 
-If you use `DispatchChildAsync` inside a handler, the child dispatch goes through the full pipeline again. This means your middleware will execute twice (once for the parent, once for the child). Design middleware to be re-entrant and avoid side effects that should only happen once per top-level request.
+If you call `DispatchAsync` inside a handler, the resulting child dispatch goes through the full pipeline again. This means your middleware will execute twice (once for the parent, once for the child). Design middleware to be re-entrant and avoid side effects that should only happen once per top-level request.
 
 **The mistake:** A logging middleware that writes an audit entry on every `InvokeAsync` -- nested dispatches create duplicate audit records.
 

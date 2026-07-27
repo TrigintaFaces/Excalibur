@@ -13,6 +13,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 using Excalibur.EventSourcing.Observability;
 using Excalibur.EventSourcing.Postgres.Requests;
+using Excalibur.EventSourcing.Sharding;
 
 using Microsoft.Extensions.Logging;
 
@@ -40,7 +41,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
+public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive
 {
 	// Format markers for envelope detection (ADR-058)
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -52,6 +53,14 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly string _schema;
 	private readonly string _table;
+	private readonly ITenantContext? _tenantContext;
+
+	/// <summary>
+	/// Clock used to evaluate age-based archive policy. Injectable so a conformance test can drive
+	/// <see cref="ArchivePolicy.MaxAge"/> deterministically instead of racing wall-clock time; internal
+	/// because the production path always uses the system clock.
+	/// </summary>
+	internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresEventStore"/> class.
@@ -60,7 +69,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?, string, string)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(string connectionString, ILogger<PostgresEventStore> logger)
@@ -76,7 +85,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?, string, string)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
@@ -96,7 +105,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?, string, string)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
@@ -120,6 +129,13 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <param name="schema">The schema name for the event store table. Default: "public".</param>
 	/// <param name="table">The event store table name. Default: "events".</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, every query is scoped to the
+	/// current tenant (row-level <c>tenant_id</c> discriminator) in the same atomic statement. When
+	/// <see langword="null"/> (the default, non-multi-tenant path) no tenant scoping is applied and behavior
+	/// is unchanged. Fail-closed enforcement (throwing when a tenant is required but absent) is provided by
+	/// the tenant-scoping store decorator registered by the multi-tenancy composition, not by this base store.
+	/// </param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -136,15 +152,17 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		ISerializer? internalSerializer = null,
 		IPayloadSerializer? payloadSerializer = null,
 		string schema = "public",
-		string table = "events")
+		string table = "events",
+		ITenantContext? tenantContext = null)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
 		_schema = schema;
 		_table = table;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -153,6 +171,8 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		return await LoadAsync(aggregateId, aggregateType, -1, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -163,6 +183,8 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		using var activity = EventSourcingActivitySource.StartLoadActivity(aggregateId, aggregateType, fromVersion);
@@ -172,7 +194,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, cancellationToken, _schema, _table))
+					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -204,6 +226,9 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		// Performance optimization: AD-250-1 - avoid ToList() when possible
@@ -213,7 +238,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		if (eventList.Count == 0)
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, 0);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -246,7 +271,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 			{
 				await using var conflictConnection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 				actualVersion = await conflictConnection.ResolveAsync(
-						new GetCurrentVersionRequest(aggregateId, aggregateType, transaction: null, cancellationToken, _schema, _table))
+						new GetCurrentVersionRequest(aggregateId, aggregateType, transaction: null, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 					.ConfigureAwait(false);
 			}
 			catch (NpgsqlException reReadEx)
@@ -293,7 +318,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 
 		// Check current version using IDataRequest
 		var currentVersion = await connection.ResolveAsync(
-				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken, _schema, _table))
+				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 
 		if (currentVersion != expectedVersion)
@@ -363,7 +388,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 			var chunk = rows.GetRange(offset, count);
 
 			var inserted = await connection.ResolveAsync(
-					new InsertEventsBatchRequest(chunk, transaction, cancellationToken, _schema, _table))
+					new InsertEventsBatchRequest(chunk, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			foreach (var row in inserted)
@@ -552,7 +577,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken, _schema, _table))
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 
@@ -565,7 +590,51 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
+			new Requests.IsErasedRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Discovery is intentionally cross-tenant: the archive service makes one pass over every tenant, so a
+	/// tenant-scoped enumeration would stall archival for all but one. The tenant is projected onto each
+	/// candidate instead, and the destructive leg below consumes it explicitly.
+	/// </remarks>
+	public async Task<IReadOnlyList<ArchiveCandidate>> GetArchiveCandidatesAsync(
+		ArchivePolicy policy,
+		int batchSize,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(policy);
+
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.GetArchiveCandidatesRequest(
+				policy, batchSize, TimeProvider.GetUtcNow(), cancellationToken, _schema, _table))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The tenant term is taken from the caller, never from ambient context. This runs under the archive
+	/// service's all-tenant pass, where no ambient tenant exists; resolving one here would delete under an
+	/// arbitrary term while the cold write was confirmed under another.
+	/// </remarks>
+	public async Task<int> DeleteEventsUpToVersionAsync(
+		KeyedTenantPartition tenant,
+		string aggregateId,
+		string aggregateType,
+		long toVersion,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(tenant);
+
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.DeleteEventsUpToVersionRequest(
+				tenant, aggregateId, aggregateType, toVersion, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 }

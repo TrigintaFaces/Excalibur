@@ -484,9 +484,6 @@
   <data name="CannotStartProcessingNoValidMinimumLsnFound" xml:space="preserve">
 	<value>Cannot start processing; no valid minimum LSN found in CDC tables.</value>
   </data>
-  <data name="RedisTransactionScopeOnlySupportsCreatingProvider" xml:space="preserve">
-	<value>Redis transaction scope only supports the creating provider.</value>
-  </data>
   <data name="InMemoryTransactionScopeOnlySupportsCreatingProvider" xml:space="preserve">
 	<value>In-memory transaction scope only supports the creating provider.</value>
   </data>
@@ -802,9 +799,6 @@
   <data name="ExceptionDuringLightModeProcessingForMessage" xml:space="preserve">
 	<value>Exception during light mode processing for message {0}</value>
   </data>
-  <data name="UnifiedConnectionPoolInitialized" xml:space="preserve">
-	<value>Unified connection pool '{0}' initialized for {1} with min={2}, max={3}</value>
-  </data>
   <data name="FailedToAcquireConnectionFromPool" xml:space="preserve">
 	<value>Failed to acquire connection from pool '{0}'</value>
   </data>
@@ -838,12 +832,6 @@
   <data name="ErrorReturningConnectionToPool" xml:space="preserve">
 	<value>Error returning connection to pool '{0}'</value>
   </data>
-  <data name="DisposingConnectionPool" xml:space="preserve">
-	<value>Disposing connection pool '{0}'</value>
-  </data>
-  <data name="ConnectionPoolDisposedSuccessfully" xml:space="preserve">
-	<value>Connection pool '{0}' disposed successfully</value>
-  </data>
   <data name="FailedToCreateConnectionDuringWarmUpForPool" xml:space="preserve">
 	<value>Failed to create connection during warm-up for pool '{0}'</value>
   </data>
@@ -852,9 +840,6 @@
   </data>
   <data name="ErrorDisposingConnectionFromPool" xml:space="preserve">
 	<value>Error disposing connection from pool '{0}'</value>
-  </data>
-  <data name="ConnectionPoolIsNotAvailable" xml:space="preserve">
-	<value>Connection pool is not available.</value>
   </data>
   <data name="CleanupFailedForPool" xml:space="preserve">
 	<value>Cleanup failed for pool '{0}'</value>
@@ -885,9 +870,6 @@
   </data>
   <data name="FailedToCreateConnectionDuringWarmUp" xml:space="preserve">
 	<value>Failed to create connection during warm-up for pool '{0}'</value>
-  </data>
-  <data name="ConnectionPoolNotAvailable" xml:space="preserve">
-	<value>Connection pool is not available.</value>
   </data>
   <data name="ErrorDuringPoisonMessageCleanup" xml:space="preserve">
 	<value>Error during poison message cleanup</value>

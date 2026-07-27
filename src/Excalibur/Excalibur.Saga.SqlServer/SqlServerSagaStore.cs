@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.SqlServer.Requests;
@@ -31,12 +32,13 @@ namespace Excalibur.Saga.SqlServer;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SqlServerSagaStore : ISagaStore
+public sealed class SqlServerSagaStore : ISagaStore, ISagaStoreAdmin
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
 	private readonly SqlServerSagaStoreOptions _options;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerSagaStore"/> class.
@@ -44,19 +46,28 @@ public sealed class SqlServerSagaStore : ISagaStore
 	/// <param name="connectionString">The SQL Server connection string.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
+	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
+	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
+	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
+	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerSagaStore(Func{SqlConnection}, ILogger{SqlServerSagaStore}, DispatchJsonSerializer)"/>
+	/// Use <see cref="SqlServerSagaStore(Func{SqlConnection}, ILogger{SqlServerSagaStore}, DispatchJsonSerializer, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerSagaStore(
 		string connectionString,
 		ILogger<SqlServerSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 		: this(CreateConnectionFactory(connectionString),
 			new SqlServerSagaStoreOptions(),
 			logger,
-			serializer)
+			serializer,
+			tenantContext)
 	{
 	}
 
@@ -67,15 +78,24 @@ public sealed class SqlServerSagaStore : ISagaStore
 	/// <param name="options">The saga store options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
+	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
+	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
+	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
+	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// </param>
 	public SqlServerSagaStore(
 		string connectionString,
 		IOptions<SqlServerSagaStoreOptions> options,
 		ILogger<SqlServerSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 		: this(CreateConnectionFactory(connectionString),
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
-			serializer)
+			serializer,
+			tenantContext)
 	{
 	}
 
@@ -88,6 +108,13 @@ public sealed class SqlServerSagaStore : ISagaStore
 	/// </param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
+	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
+	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
+	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
+	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// </param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -110,11 +137,13 @@ public sealed class SqlServerSagaStore : ISagaStore
 	public SqlServerSagaStore(
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 		: this(connectionFactory,
 			new SqlServerSagaStoreOptions(),
 			logger,
-			serializer)
+			serializer,
+			tenantContext)
 	{
 	}
 
@@ -128,15 +157,24 @@ public sealed class SqlServerSagaStore : ISagaStore
 	/// <param name="options">The saga store options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, saga load/save and keyed
+	/// summary reads are scoped to the current tenant (row-level <c>TenantId</c>) so a tenant can never load
+	/// or overwrite another tenant's saga; the retention purge remains global. When <see langword="null"/>
+	/// (the default) no tenant scoping is applied (byte-identical behavior). Fail-closed enforcement for
+	/// tenant-facing reads is provided by the tenant-scoping decorator.
+	/// </param>
 	public SqlServerSagaStore(
 		Func<SqlConnection> connectionFactory,
 		IOptions<SqlServerSagaStoreOptions> options,
 		ILogger<SqlServerSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 		: this(connectionFactory,
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
-			serializer)
+			serializer,
+			tenantContext)
 	{
 	}
 
@@ -144,13 +182,15 @@ public sealed class SqlServerSagaStore : ISagaStore
 		Func<SqlConnection> connectionFactory,
 		SqlServerSagaStoreOptions options,
 		ILogger<SqlServerSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_options.Validate();
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -165,6 +205,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 					sagaId,
 					_serializer,
 					_options.QualifiedTableName,
+					TenantScope.FromContext(_tenantContext),
 					cancellationToken))
 			.ConfigureAwait(false);
 
@@ -192,6 +233,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 					sagaState,
 					_serializer,
 					_options.QualifiedTableName,
+					TenantScope.FromContext(_tenantContext),
 					cancellationToken))
 			.ConfigureAwait(false);
 
@@ -206,6 +248,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 						sagaState.SagaId,
 						_serializer,
 						_options.QualifiedTableName,
+						TenantScope.FromContext(_tenantContext),
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -227,6 +270,82 @@ public sealed class SqlServerSagaStore : ISagaStore
 			sagaState.SagaId,
 			sagaState.Version,
 			sagaState.Completed);
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var removed = await connection.ResolveAsync(
+				new PurgeCompletedSagasRequest(
+					threshold,
+					_options.QualifiedTableName,
+					cancellationToken,
+					TenantScope.FromContext(_tenantContext)))
+			.ConfigureAwait(false);
+
+		_logger.LogDebug("Purged {Count} completed sagas older than {Threshold}", removed, threshold);
+
+		return removed;
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		var removed = await connection.ResolveAsync(
+				new PurgeCompletedSagasRequest(
+					threshold,
+					_options.QualifiedTableName,
+					cancellationToken,
+					allTenants: true))
+			.ConfigureAwait(false);
+
+		_logger.LogDebug(
+			"Purged {Count} completed sagas older than {Threshold} across all tenants", removed, threshold);
+
+		return removed;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<IReadOnlyList<SagaInstanceSummary>> QuerySagasAsync(
+		SagaQueryFilter filter,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(filter);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new QuerySagaSummariesRequest(filter, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<SagaInstanceSummary?> GetSummaryAsync(Guid sagaId, CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new GetSagaSummaryRequest(sagaId, _options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask<SagaStoreStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+				new GetSagaStatisticsRequest(_options.QualifiedTableName, TenantScope.FromContext(_tenantContext), cancellationToken))
+			.ConfigureAwait(false);
 	}
 
 	private static Func<SqlConnection> CreateConnectionFactory(string connectionString)

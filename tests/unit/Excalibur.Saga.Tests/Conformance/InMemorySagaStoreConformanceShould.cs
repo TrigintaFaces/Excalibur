@@ -42,6 +42,14 @@ public sealed class InMemorySagaStoreConformanceShould : SagaStoreConformanceTes
 	protected override bool SupportsOptimisticConcurrency => true;
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// uclyao (S865): <see cref="InMemorySagaStore"/> round-trips <see cref="SagaState.ProcessedEventIds"/>
+	/// via its deep-copy clone (<c>JsonObjectCreationHandling.Populate</c>), so it is held to the
+	/// idempotent-replay conformance (<c>IdempotentReplay_ReDeliveredEvent_IsDeduped_VersionUnchanged</c>).
+	/// </remarks>
+	protected override bool SupportsIdempotentReplay => true;
+
+	/// <inheritdoc/>
 	protected override Task<ISagaStore> CreateStoreAsync() => Task.FromResult<ISagaStore>(new InMemorySagaStore());
 
 	/// <inheritdoc/>

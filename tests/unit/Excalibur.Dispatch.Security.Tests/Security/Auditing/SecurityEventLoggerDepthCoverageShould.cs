@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
@@ -41,7 +42,8 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 
 		_sut = new SecurityEventLogger(
 			NullLogger<SecurityEventLogger>.Instance,
-			_eventStore);
+			_eventStore,
+			A.Fake<ITelemetrySanitizer>());
 	}
 
 	public void Dispose() => _sut.Dispose();
@@ -296,7 +298,8 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 		// Arrange
 		using var logger = new SecurityEventLogger(
 			NullLogger<SecurityEventLogger>.Instance,
-			_eventStore);
+			_eventStore,
+			A.Fake<ITelemetrySanitizer>());
 
 		// Act & Assert — idempotent
 		logger.Dispose();

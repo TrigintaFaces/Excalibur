@@ -263,7 +263,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void WithCachingOptions_Action_DoesNotRegisterGlobalPolicy_WhenNull()
+	public void WithCachingOptions_Action_RegistersDefaultPolicy_WhenEnabled()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -272,9 +272,9 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		// Act
 		builder.WithCachingOptions(opts => opts.Enabled = true);
 
-		// Assert — no IResultCachePolicy singleton should be registered (only from Options)
-		var sp = services.BuildServiceProvider();
-		sp.GetService<IResultCachePolicy>().ShouldBeNull();
+		// Assert — configuring caching ALSO enables it (fh3bzk pit-of-success default-on), so a default
+		// IResultCachePolicy is registered even when the action leaves GlobalPolicy null.
+		services.ShouldContain(sd => sd.ServiceType == typeof(IResultCachePolicy));
 	}
 
 	[Fact]
@@ -294,7 +294,34 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	}
 
 	[Fact]
-	public void WithCachingOptions_Action_DoesNotRegisterCacheKeyBuilder_WhenNull()
+	public void WithCachingOptions_Action_InvokesConfigureExactlyOnce()
+	{
+		// Arrange — regression: WithCachingOptions previously re-invoked the delegate on a throwaway probe
+		// to extract collaborators, so a non-idempotent configure fired twice. It must fire exactly once.
+		var services = new ServiceCollection();
+		var builder = CreateFakeDispatchBuilder(services);
+		var invocationCount = 0;
+
+		// Act
+		_ = builder.WithCachingOptions(opts =>
+		{
+			invocationCount++;
+			opts.GlobalPolicy = A.Fake<IResultCachePolicy>();
+			opts.CacheKeyBuilder = A.Fake<ICacheKeyBuilder>();
+		});
+
+		// Assert — the delegate fires once, synchronously, during registration.
+		invocationCount.ShouldBe(1);
+
+		// And the collaborators captured from that single invocation are still wired into DI.
+		var sp = services.BuildServiceProvider();
+		sp.GetRequiredService<IResultCachePolicy>().ShouldNotBeNull();
+		sp.GetRequiredService<ICacheKeyBuilder>().ShouldNotBeNull();
+		invocationCount.ShouldBe(1, "resolving options/collaborators must not re-run the delegate");
+	}
+
+	[Fact]
+	public void WithCachingOptions_Action_RegistersDefaultCacheKeyBuilder_WhenEnabled()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -303,9 +330,9 @@ public sealed class CachingDispatchBuilderExtensionsShould
 		// Act
 		builder.WithCachingOptions(opts => opts.Enabled = true);
 
-		// Assert
-		var sp = services.BuildServiceProvider();
-		sp.GetService<ICacheKeyBuilder>().ShouldBeNull();
+		// Assert — enabling caching wires the default ICacheKeyBuilder (DefaultCacheKeyBuilder, which resolves
+		// DispatchJsonSerializer from the container in real usage) even when the action leaves CacheKeyBuilder null.
+		services.ShouldContain(sd => sd.ServiceType == typeof(ICacheKeyBuilder));
 	}
 
 	[Fact]

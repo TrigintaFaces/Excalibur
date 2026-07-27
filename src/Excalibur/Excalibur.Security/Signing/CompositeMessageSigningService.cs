@@ -26,7 +26,7 @@ namespace Excalibur.Security;
 /// routing signing and verification requests to the appropriate algorithm provider.
 /// </para>
 /// <para>
-/// For asymmetric algorithms (ECDSA, Ed25519), the service appends <c>:pub</c> to the key ID
+/// For asymmetric algorithms (ECDSA, RSA), the service appends <c>:pub</c> to the key ID
 /// when resolving keys for verification, enabling asymmetric key pairs to be stored via
 /// the existing <see cref="IKeyProvider"/> interface without modification.
 /// </para>
@@ -345,7 +345,7 @@ public sealed partial class CompositeMessageSigningService : IMessageSigningServ
 	}
 
 	private static bool IsAsymmetricAlgorithm(SigningAlgorithm algorithm)
-		=> algorithm is SigningAlgorithm.ECDSASHA256 or SigningAlgorithm.Ed25519
+		=> algorithm is SigningAlgorithm.ECDSASHA256
 			or SigningAlgorithm.RSASHA256 or SigningAlgorithm.RSAPSSSHA256;
 
 	private async Task<byte[]> GetSigningKeyAsync(SigningContext context, bool forVerification, CancellationToken cancellationToken)

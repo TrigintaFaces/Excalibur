@@ -8,7 +8,7 @@ description: Choose the right Excalibur packages for your application architectu
 
 :::tip Framework Maturity
 
-**44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
+**55,000+ automated tests** | **197 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
 :::
 
 :::info Dispatch Stands Alone
@@ -82,7 +82,14 @@ These scenarios add domain modeling, persistence, or compliance packages on top 
 | Event-sourced system | + `Excalibur.EventSourcing`, `Excalibur.EventSourcing.SqlServer` |
 | CQRS with projections | + `Excalibur.Caching` |
 | Long-running workflows | + `Excalibur.Saga`, `Excalibur.Saga.SqlServer` |
-| SOC2/GDPR compliant system | + `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*` |
+| Working **toward** SOC 2 / GDPR — see the note below | + `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*` |
+
+:::caution Installing these packages does not make a system compliant
+
+They provide building blocks — consent and erasure stores, audit logging, retention — that a compliance programme can be built on. Compliance is a property of your whole system and your processes, not of a dependency list: what you collect, how you scope it per tenant, how you provision the schema, how you retain and erase it, and what you can evidence to an auditor. Some of these stores also require schema you provision yourself, and that provisioning is not shipped for every table.
+
+See [the compliance disclaimer](./legal/compliance-disclaimer.md) before relying on any of this for a regulatory obligation.
+:::
 
 ---
 
@@ -244,7 +251,7 @@ public class Order : AggregateRoot<Guid>
         RaiseEvent(new OrderConfirmedEvent(Id));
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreatedEvent e => ApplyEvent(e),
         OrderConfirmedEvent e => ApplyEvent(e),

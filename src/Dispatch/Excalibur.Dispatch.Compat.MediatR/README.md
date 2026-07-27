@@ -11,7 +11,7 @@ to the canonical Excalibur.Dispatch primitives. In most cases code compiles afte
 + using Excalibur.Dispatch.Compat.MediatR;
 ```
 
-Combined with the `Excalibur.Dispatch.Analyzers` migration code-fixes (`EXMIG####`), the swap is largely
+Combined with the `Excalibur.Dispatch.Migration.Analyzers` migration code-fixes (`EXMIG####`), the swap is largely
 mechanical. This package is an interoperability/migration aid — it is **not** a re-implementation of
 MediatR, and it does not reproduce MediatR's internals or runtime behavior beyond the published interface
 shapes consumer code depends on.
@@ -34,13 +34,10 @@ The interface shapes used by MediatR-based code, mapped to canonical Excalibur.D
 - **Separate, isolated package.** Depends on `Excalibur.Dispatch`; the canonical packages never depend on it.
 - **AOT-safe.** Registration via source generation — no reflection scan on the consumer path, no
   `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` on any consumer-facing API.
-- **Public by design.** The compatibility types are a consumer-facing migration surface (see ADR-341).
-
-See `management/architecture/adr-341-mediatr-compat-surface-policy.md` for the full policy.
+- **Public by design.** The compatibility types are a consumer-facing migration surface.
 
 ## Trademark & affiliation notice
 
-> **DRAFT — pending legal-team review (S857).**
 >
 > "MediatR" is a trademark of its respective owner. This package is **not affiliated with, sponsored by,
 > or endorsed by** the MediatR project or its owner. References to "MediatR" are used solely to describe

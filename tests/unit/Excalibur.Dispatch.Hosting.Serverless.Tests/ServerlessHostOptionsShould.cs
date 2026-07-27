@@ -28,20 +28,6 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 		options.EnvironmentVariables.ShouldBeEmpty();
 	}
 
-	[Fact]
-	public void PlatformOptions_AreIndependentlyConstructible()
-	{
-		// Act — per-platform options are registered as independent IOptions<T>,
-		// not nested on ServerlessHostOptions (ISP split bd-hv36t).
-		var aws = new AwsLambdaOptions();
-		var azure = new AzureFunctionsOptions();
-		var google = new GoogleCloudFunctionsOptions();
-
-		// Assert
-		aws.ShouldNotBeNull();
-		azure.ShouldNotBeNull();
-		google.ShouldNotBeNull();
-	}
 
 	[Fact]
 	public void Telemetry_SubOptionsAreInitialized()

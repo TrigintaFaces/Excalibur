@@ -37,16 +37,6 @@ public sealed class TypePoolOptionsShould
 	}
 
 	[Fact]
-	public void Default_ResetStrategy_IsAuto()
-	{
-		// Arrange & Act
-		var options = new TypePoolOptions();
-
-		// Assert
-		options.ResetStrategy.ShouldBe(ResetStrategy.Auto);
-	}
-
-	[Fact]
 	public void Default_PreWarm_IsFalse()
 	{
 		// Arrange & Act
@@ -97,19 +87,6 @@ public sealed class TypePoolOptionsShould
 	}
 
 	[Fact]
-	public void ResetStrategy_CanBeSet()
-	{
-		// Arrange
-		var options = new TypePoolOptions();
-
-		// Act
-		options.ResetStrategy = ResetStrategy.Interface;
-
-		// Assert
-		options.ResetStrategy.ShouldBe(ResetStrategy.Interface);
-	}
-
-	[Fact]
 	public void PreWarm_CanBeSet()
 	{
 		// Arrange
@@ -147,7 +124,6 @@ public sealed class TypePoolOptionsShould
 		{
 			MaxPoolSize = 100,
 			Enabled = false,
-			ResetStrategy = ResetStrategy.SourceGenerated,
 			PreWarm = true,
 			PreWarmCount = 25,
 		};
@@ -155,7 +131,6 @@ public sealed class TypePoolOptionsShould
 		// Assert
 		options.MaxPoolSize.ShouldBe(100);
 		options.Enabled.ShouldBeFalse();
-		options.ResetStrategy.ShouldBe(ResetStrategy.SourceGenerated);
 		options.PreWarm.ShouldBeTrue();
 		options.PreWarmCount.ShouldBe(25);
 	}
@@ -178,19 +153,6 @@ public sealed class TypePoolOptionsShould
 		// Assert
 		options.PreWarm.ShouldBeTrue();
 		options.PreWarmCount.ShouldBeGreaterThan(0);
-	}
-
-	[Fact]
-	public void Options_ForStatelessMessage_DisablesReset()
-	{
-		// Act
-		var options = new TypePoolOptions
-		{
-			ResetStrategy = ResetStrategy.None,
-		};
-
-		// Assert
-		options.ResetStrategy.ShouldBe(ResetStrategy.None);
 	}
 
 	[Fact]

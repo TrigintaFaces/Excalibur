@@ -81,7 +81,7 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 
 		result.Success.ShouldBeTrue();
 		result.NextExpectedVersion.ShouldBe(4);
-		result.FirstEventPosition.ShouldBe(0);
+		result.FirstEventPosition.ShouldBeNull();
 	}
 
 	[Fact]

@@ -67,6 +67,18 @@ internal sealed partial class TransportStartupValidator : IHostedService
 			throw new InvalidOperationException(Resources.TransportStartupValidator_NoTransportsRegistered);
 		}
 
+		// Fail-closed locality guarantee: when a remote (network) transport is required but only local
+		// in-process transports are registered, refuse to start rather than silently degrade to in-process
+		// delivery. Locality is explicit registration metadata, so this cannot be spoofed by a type string.
+		if (_options.RequireRemoteTransport && !_transportRegistry.HasRemoteTransport)
+		{
+			throw new InvalidOperationException(
+				"Transport startup validation failed: a remote (network) transport is required, but only " +
+				"local in-process transports are registered. Register a remote transport (for example " +
+				"RabbitMQ, Kafka, Azure Service Bus, AWS SQS, or Google Pub/Sub), or set " +
+				"TransportValidationOptions.RequireRemoteTransport to false.");
+		}
+
 		// Validate default transport when multiple transports are registered.
 		var hasDefault = _transportRegistry.HasDefaultTransport;
 		var defaultName = _transportRegistry.DefaultTransportName;
@@ -164,6 +176,19 @@ public sealed class TransportValidationOptions
 	/// </para>
 	/// </remarks>
 	public bool RequireAtLeastOneTransport { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether a remote (network) transport must be registered.
+	/// </summary>
+	/// <value>True to require at least one <see cref="TransportLocality.Remote"/> transport; false to allow local-only. Default is false.</value>
+	/// <remarks>
+	/// <para>
+	/// Set this to true in deployments where cross-process delivery is mandatory (for example a
+	/// distributed system that must not silently fall back to in-process delivery). When enabled, startup
+	/// fails fast if every registered transport is <see cref="TransportLocality.Local"/>.
+	/// </para>
+	/// </remarks>
+	public bool RequireRemoteTransport { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether a default transport must be configured when

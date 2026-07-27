@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 /// <b>The invariant (the bug zxb7fp fixed):</b> the breaker must trip on a <em>rolling-window</em> failure
 /// ratio, NOT a lifetime-cumulative one — old buckets that have rolled out of the sampling window must be
 /// excluded from both the count and the ratio. The open decision the breaker computes is
-/// <c>in-window attempts ≥ MinimumThroughput AND in-window failure-ratio &gt; FailureRatio</c>, and this lock
+/// <c>in-window attempts ≥ MinimumThroughput AND in-window failure-ratio ≥ FailureRatio</c>, and this lock
 /// pins the two quantities that decision consumes. RED if the windowing reverts to cumulative (the eviction /
 /// in-window filter is removed): the time-decay tests would then over-count rolled-out failures.
 /// </para>
@@ -100,10 +100,10 @@ public sealed class DistributedCircuitWindowShould
 	[Theory]
 	// below MinimumThroughput → never trips, even at a 100% in-window failure ratio
 	[InlineData(3, 3, 5, 0.5, false)]
-	// at/above MinimumThroughput AND ratio strictly above FailureRatio → trips
+	// at/above MinimumThroughput AND ratio above FailureRatio → trips
 	[InlineData(10, 6, 5, 0.5, true)]
-	// enough throughput but ratio not strictly above the threshold → does NOT trip (boundary is '>', not '>=')
-	[InlineData(10, 5, 5, 0.5, false)]
+	// enough throughput AND ratio exactly AT the threshold → trips (boundary is '>=', Polly v8 semantics)
+	[InlineData(10, 5, 5, 0.5, true)]
 	public void DriveTheDocumentedOpenCondition_FromTheInWindowQuantities(
 		int attempts, int failures, int minimumThroughput, double failureRatio, bool expectedTrip)
 	{
@@ -115,8 +115,10 @@ public sealed class DistributedCircuitWindowShould
 
 		var (windowAttempts, windowRatio) = metrics.GetWindow(now, BucketTicks, BucketCount);
 
-		// The breaker's open decision (DistributedCircuitBreaker): windowed throughput gate AND windowed ratio.
-		var trips = windowAttempts >= minimumThroughput && windowRatio > failureRatio;
+		// The breaker's open decision (DistributedCircuitBreaker): windowed throughput gate AND windowed ratio
+		// at-or-above the threshold ('>=', Polly v8 AdvancedCircuitBreaker semantics — see the SUT-level
+		// boundary lock DistributedCircuitBreakerFunctionalShould.Open_WhenWindowedFailureRatioEqualsThreshold).
+		var trips = windowAttempts >= minimumThroughput && windowRatio >= failureRatio;
 
 		trips.ShouldBe(expectedTrip);
 	}

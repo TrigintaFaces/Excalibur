@@ -7,6 +7,7 @@ using Excalibur.AuditLogging.Datadog;
 using Excalibur.Compliance;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -94,11 +95,36 @@ public static class DatadogServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DatadogExporterOptions>, DatadogExporterOptionsValidator>());
 
-		_ = services.AddHttpClient<DatadogAuditExporter>((sp, client) =>
+		// Transient-fault retry (formerly hand-rolled in the exporter) is delegated to the standard
+		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience), which retries the same
+		// transient responses (408/429/5xx + HttpRequestException/timeout) the exporter used to classify.
+		// The pipeline owns timeouts, so the HttpClient timeout is left infinite — the handler's per-attempt
+		// and total-request timeouts bound each call instead.
+		var httpClientBuilder = services.AddHttpClient<DatadogAuditExporter>(static (_, client) =>
 		{
-			var options = sp.GetRequiredService<IOptions<DatadogExporterOptions>>().Value;
-			client.Timeout = options.Retry.Timeout;
+			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
 		});
+
+		_ = httpClientBuilder.AddStandardResilienceHandler();
+
+		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
+		// retry options, so config-bound overrides flow through the DI options system.
+		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+			.Configure<IOptions<DatadogExporterOptions>>(static (resilience, exporterOptions) =>
+			{
+				var retry = exporterOptions.Value.Retry;
+
+				resilience.Retry.MaxRetryAttempts = retry.MaxRetryAttempts;
+				resilience.Retry.Delay = retry.RetryBaseDelay;
+				resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+
+				// Preserve the configured per-request timeout as the per-attempt timeout; the total-request
+				// timeout must accommodate every attempt, and the breaker sampling window must be at least
+				// twice the attempt timeout (standard-handler validation invariants).
+				resilience.AttemptTimeout.Timeout = retry.Timeout;
+				resilience.TotalRequestTimeout.Timeout = retry.Timeout * (retry.MaxRetryAttempts + 1);
+				resilience.CircuitBreaker.SamplingDuration = retry.Timeout * 2;
+			});
 
 		_ = services.AddSingleton<IAuditLogExporter, DatadogAuditExporter>();
 	}

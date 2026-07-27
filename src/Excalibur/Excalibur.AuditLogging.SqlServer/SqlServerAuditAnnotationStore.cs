@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -26,9 +27,38 @@ namespace Excalibur.AuditLogging.SqlServer;
 /// </remarks>
 internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationStore
 {
+	/// <summary>
+	/// Restricts a set of annotations to those whose <em>event</em> belongs to the ambient tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The annotations table carries no tenant column, by design: an annotation is existentially
+	/// dependent on its event, so the event's tenant is the annotation's tenant and duplicating it would
+	/// create two facts that can disagree. Every predicate therefore derives the tenant by joining the
+	/// event, which makes a mis-tenanted annotation unrepresentable rather than merely unlikely.
+	/// </para>
+	/// <para>
+	/// The comparison folds a null event tenant onto the reserved untenanted sentinel. Written the
+	/// obvious way as <c>ae.TenantId = @TenantId</c> this predicate would fail open: the events table
+	/// permits a null tenant, and <c>NULL = @TenantId</c> is never true, so every legacy untenanted row
+	/// would silently drop out of its own scope's results. Folding through the sentinel makes the
+	/// untenanted partition bind a real term like any other tenant.
+	/// </para>
+	/// <para>
+	/// The sentinel is <em>bound as a parameter</em> rather than interpolated into the statement text.
+	/// Interpolation was safe by accident — the value is a framework constant, never consumer input — but
+	/// it put a framework value into the SQL string, which is a shape that only stays safe while nobody
+	/// changes where the value comes from. Binding removes the question instead of answering it, and it
+	/// keeps this predicate byte-identical to the one the audit store emits.
+	/// </para>
+	/// </remarks>
+	private const string TenantJoinPredicate =
+		"COALESCE(ae.TenantId, @UntenantedSentinel) = @TenantId";
+
 	private readonly SqlServerAuditAnnotationStoreOptions _options;
 	private readonly IAuditActorProvider _actorProvider;
 	private readonly TimeProvider _timeProvider;
+	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<SqlServerAuditAnnotationStore> _logger;
 
 	/// <summary>
@@ -38,16 +68,32 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		IOptions<SqlServerAuditAnnotationStoreOptions> options,
 		IAuditActorProvider actorProvider,
 		TimeProvider timeProvider,
+		ITenantContext? tenantContext,
 		ILogger<SqlServerAuditAnnotationStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
 		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
+		// Optional by construction: a single-tenant host registers no ITenantContext, and that resolves to
+		// the untenanted partition — which still binds a concrete term, so the predicate is never empty.
+		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		ValidateSqlIdentifier(_options.SchemaName, nameof(SqlServerAuditAnnotationStoreOptions.SchemaName));
 		ValidateSqlIdentifier(_options.TableName, nameof(SqlServerAuditAnnotationStoreOptions.TableName));
+		ValidateSqlIdentifier(_options.EventsTableName, nameof(SqlServerAuditAnnotationStoreOptions.EventsTableName));
 	}
+
+	/// <summary>
+	/// Gets the tenant term to bind: the ambient tenant, or the reserved untenanted sentinel.
+	/// </summary>
+	/// <remarks>
+	/// Routed through <see cref="KeyedTenantPartition"/>, which has no empty inhabitant, so the value is
+	/// always concrete and a tenant-blind statement cannot be produced by omission.
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
 
 	/// <inheritdoc />
 	public async Task TagAsync(string eventId, IReadOnlyList<string> tags, CancellationToken cancellationToken)
@@ -62,6 +108,7 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 
 		var actorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
 		var now = _timeProvider.GetUtcNow();
+		var tenantId = CurrentTenantTerm;
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -70,13 +117,27 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		// concurrent TOCTOU duplicates (two transactions both seeing "no row"
 		// and both inserting). UPDLOCK + HOLDLOCK serializes the check-and-insert
 		// within a single implicit transaction scope.
+		// The duplicate probe is scoped to the ambient tenant by joining the annotated event. Without the
+		// join it matched across tenants, so one tenant's tag silently suppressed another's identical tag
+		// — and, because the caller could observe the suppression, it also answered "has any other tenant
+		// written this exact content?", an inference channel over another tenant's audit text.
+		//
+		// The insert is guarded by the same tenant term, so a tag can only ever be attached to an event
+		// the caller's own tenant owns: EXISTS proves the target event is in scope, NOT EXISTS proves the
+		// tag is not already there for that tenant.
 		var sql = $@"
 			INSERT INTO {_options.FullyQualifiedTableName}
 				(Id, EventId, AnnotationType, Content, ActorId, CreatedAt, Visibility)
 			SELECT @Id, @EventId, @AnnotationType, @Content, @ActorId, @CreatedAt, @Visibility
-			WHERE NOT EXISTS (
-				SELECT 1 FROM {_options.FullyQualifiedTableName} WITH (UPDLOCK, HOLDLOCK)
-				WHERE EventId = @EventId AND AnnotationType = @AnnotationType AND Content = @Content
+			WHERE EXISTS (
+				SELECT 1 FROM {_options.FullyQualifiedEventsTableName} ae
+				WHERE ae.EventId = @EventId AND {TenantJoinPredicate}
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM {_options.FullyQualifiedTableName} a WITH (UPDLOCK, HOLDLOCK)
+				INNER JOIN {_options.FullyQualifiedEventsTableName} ae ON ae.EventId = a.EventId
+				WHERE a.EventId = @EventId AND a.AnnotationType = @AnnotationType AND a.Content = @Content
+					AND {TenantJoinPredicate}
 			)";
 
 		foreach (var tag in tags)
@@ -94,6 +155,8 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 			parameters.Add("@ActorId", actorId);
 			parameters.Add("@CreatedAt", now);
 			parameters.Add("@Visibility", (int)AuditAnnotationVisibility.Shared);
+			parameters.Add("@TenantId", tenantId);
+			parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
 			await connection.ExecuteAsync(
 					new CommandDefinition(sql, parameters,
@@ -116,18 +179,36 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		// Replace semantics: MERGE to upsert one bookmark per actor per event
+		// Replace semantics: MERGE to upsert one bookmark per actor per event, WITHIN a tenant.
+		//
+		// The tenant term is restricted in the USING source rather than added to the ON clause, so an
+		// out-of-scope event yields an empty source: nothing matches and nothing is inserted. Putting it
+		// only in the ON clause would leave WHEN NOT MATCHED reachable, which would insert a bookmark
+		// against another tenant's event instead of refusing.
+		//
+		// Why this arm existed: the match keyed on (EventId, ActorId, AnnotationType) with no tenant, so
+		// wherever one actor identity spans tenants — a shared operator or service account, the ordinary
+		// case in multi-tenant SaaS — tenant B's bookmark took the MATCHED branch against tenant A's row
+		// and overwrote its Content. A cross-tenant write, not merely a cross-tenant read.
 		var sql = $@"
 			MERGE {_options.FullyQualifiedTableName} AS target
-			USING (SELECT @EventId AS EventId, @ActorId AS ActorId) AS source
+			USING (
+				SELECT ae.EventId AS EventId, @ActorId AS ActorId
+				FROM {_options.FullyQualifiedEventsTableName} ae
+				WHERE ae.EventId = @EventId AND {TenantJoinPredicate}
+			) AS source
 			ON target.EventId = source.EventId
 				AND target.ActorId = source.ActorId
 				AND target.AnnotationType = @AnnotationType
+				AND EXISTS (
+					SELECT 1 FROM {_options.FullyQualifiedEventsTableName} ae
+					WHERE ae.EventId = target.EventId AND {TenantJoinPredicate}
+				)
 			WHEN MATCHED THEN
 				UPDATE SET Content = @Content, CreatedAt = @CreatedAt
 			WHEN NOT MATCHED THEN
 				INSERT (Id, EventId, AnnotationType, Content, ActorId, CreatedAt, Visibility)
-				VALUES (@Id, @EventId, @AnnotationType, @Content, @ActorId, @CreatedAt, @Visibility);";
+				VALUES (@Id, source.EventId, @AnnotationType, @Content, @ActorId, @CreatedAt, @Visibility);";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", Guid.NewGuid().ToString("N"));
@@ -137,6 +218,8 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		parameters.Add("@ActorId", actorId);
 		parameters.Add("@CreatedAt", now);
 		parameters.Add("@Visibility", (int)AuditAnnotationVisibility.Personal);
+		parameters.Add("@TenantId", CurrentTenantTerm);
+		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
 		await connection.ExecuteAsync(
 				new CommandDefinition(sql, parameters,
@@ -157,16 +240,23 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// Tenant-scoped delete: a destructive statement must never resolve to a predicate that spans
+		// tenants. As with the MERGE, a shared actor identity would otherwise let one tenant remove
+		// another tenant's bookmark of the same event.
 		var sql = $@"
-			DELETE FROM {_options.FullyQualifiedTableName}
-			WHERE EventId = @EventId
-				AND ActorId = @ActorId
-				AND AnnotationType = @AnnotationType";
+			DELETE a FROM {_options.FullyQualifiedTableName} a
+			INNER JOIN {_options.FullyQualifiedEventsTableName} ae ON ae.EventId = a.EventId
+			WHERE a.EventId = @EventId
+				AND a.ActorId = @ActorId
+				AND a.AnnotationType = @AnnotationType
+				AND {TenantJoinPredicate}";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@EventId", eventId);
 		parameters.Add("@ActorId", actorId);
 		parameters.Add("@AnnotationType", (int)AuditAnnotationType.Bookmark);
+		parameters.Add("@TenantId", CurrentTenantTerm);
+		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
 		await connection.ExecuteAsync(
 				new CommandDefinition(sql, parameters,
@@ -190,10 +280,17 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// A note may only be attached to an event the caller's own tenant owns. This site carries no
+		// dedupe predicate — notes are not deduplicated — so the tenant term guards the write itself:
+		// the INSERT is conditional on the target event being in scope, and inserts nothing otherwise.
 		var sql = $@"
 			INSERT INTO {_options.FullyQualifiedTableName}
 				(Id, EventId, AnnotationType, Content, ActorId, CreatedAt, Visibility)
-			VALUES (@Id, @EventId, @AnnotationType, @Content, @ActorId, @CreatedAt, @Visibility)";
+			SELECT @Id, @EventId, @AnnotationType, @Content, @ActorId, @CreatedAt, @Visibility
+			WHERE EXISTS (
+				SELECT 1 FROM {_options.FullyQualifiedEventsTableName} ae
+				WHERE ae.EventId = @EventId AND {TenantJoinPredicate}
+			)";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", id);
@@ -203,6 +300,8 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		parameters.Add("@ActorId", actorId);
 		parameters.Add("@CreatedAt", now);
 		parameters.Add("@Visibility", (int)AuditAnnotationVisibility.Shared);
+		parameters.Add("@TenantId", CurrentTenantTerm);
+		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
 		await connection.ExecuteAsync(
 				new CommandDefinition(sql, parameters,
@@ -224,13 +323,15 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-			SELECT Id, EventId, AnnotationType, Content, ActorId, CreatedAt, Visibility
-			FROM {_options.FullyQualifiedTableName}
-			WHERE EventId = @EventId
-			ORDER BY CreatedAt ASC";
+			SELECT a.Id, a.EventId, a.AnnotationType, a.Content, a.ActorId, a.CreatedAt, a.Visibility
+			FROM {_options.FullyQualifiedTableName} a
+			INNER JOIN {_options.FullyQualifiedEventsTableName} ae ON ae.EventId = a.EventId
+			WHERE a.EventId = @EventId
+				AND {TenantJoinPredicate}
+			ORDER BY a.CreatedAt ASC";
 
 		var rows = await connection.QueryAsync<AnnotationRow>(
-				new CommandDefinition(sql, new { EventId = eventId },
+				new CommandDefinition(sql, new { EventId = eventId, TenantId = CurrentTenantTerm, UntenantedSentinel = KeyedTenantPartition.Untenanted.TenantId },
 					commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
@@ -274,9 +375,35 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 		var sb = new StringBuilder();
 		var parameters = new DynamicParameters();
 
-		sb.Append($"SELECT DISTINCT a.EventId FROM {_options.FullyQualifiedTableName} a");
+		// Every arm of this query is tenant-scoped, including the negative ones. The tenant term is seeded
+		// as a mandatory clause rather than added per-arm, so a query with no user-supplied filters is
+		// still scoped: an unfiltered call must return the caller's own events, never the estate's.
+		sb.Append($"SELECT DISTINCT a.EventId FROM {_options.FullyQualifiedTableName} a")
+			.Append($" INNER JOIN {_options.FullyQualifiedEventsTableName} ae ON ae.EventId = a.EventId");
 
-		var whereClauses = new List<string>();
+		var whereClauses = new List<string> { TenantJoinPredicate };
+		parameters.Add("@TenantId", CurrentTenantTerm);
+		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
+
+		// The bookmark/note existence arms are scoped for a second, distinct reason: unscoped, a NOT IN
+		// over the whole table let the caller's own result set change according to whether a DIFFERENT
+		// tenant had bookmarked or annotated the event — an existence oracle over another tenant's audit
+		// activity, reached without ever reading a row of theirs.
+		// They also carry an AUTHORSHIP term, and that one cannot be replaced by filtering the rows this
+		// query returns. These arms disclose through the SHAPE of the result set rather than its contents:
+		// IsBookmarked == false emits NOT IN, so an event is removed from the caller's results because an
+		// annotation they may not read exists. No post-hoc row filter can restore a row that was excluded,
+		// so the term belongs inside the subquery. An annotation counts toward existence only when the
+		// caller could read it — shared, or authored by them.
+		var currentActorId = await _actorProvider.GetCurrentActorIdAsync(cancellationToken).ConfigureAwait(false);
+		parameters.Add("@SharedVisibility", (int)AuditAnnotationVisibility.Shared);
+		parameters.Add("@CurrentActorId", currentActorId);
+
+		string ExistenceSubquery(string typeParameter) =>
+			$"SELECT sa.EventId FROM {_options.FullyQualifiedTableName} sa"
+			+ $" INNER JOIN {_options.FullyQualifiedEventsTableName} ae ON ae.EventId = sa.EventId"
+			+ $" WHERE sa.AnnotationType = {typeParameter} AND {TenantJoinPredicate}"
+			+ " AND (sa.Visibility = @SharedVisibility OR sa.ActorId = @CurrentActorId)";
 
 		if (query.Tags is { Count: > 0 })
 		{
@@ -287,23 +414,23 @@ internal sealed partial class SqlServerAuditAnnotationStore : IAuditAnnotationSt
 
 		if (query.IsBookmarked == true)
 		{
-			whereClauses.Add($"a.EventId IN (SELECT EventId FROM {_options.FullyQualifiedTableName} WHERE AnnotationType = @BookmarkType)");
+			whereClauses.Add($"a.EventId IN ({ExistenceSubquery("@BookmarkType")})");
 			parameters.Add("@BookmarkType", (int)AuditAnnotationType.Bookmark);
 		}
 		else if (query.IsBookmarked == false)
 		{
-			whereClauses.Add($"a.EventId NOT IN (SELECT EventId FROM {_options.FullyQualifiedTableName} WHERE AnnotationType = @BookmarkTypeExcl)");
+			whereClauses.Add($"a.EventId NOT IN ({ExistenceSubquery("@BookmarkTypeExcl")})");
 			parameters.Add("@BookmarkTypeExcl", (int)AuditAnnotationType.Bookmark);
 		}
 
 		if (query.HasNotes == true)
 		{
-			whereClauses.Add($"a.EventId IN (SELECT EventId FROM {_options.FullyQualifiedTableName} WHERE AnnotationType = @NoteType)");
+			whereClauses.Add($"a.EventId IN ({ExistenceSubquery("@NoteType")})");
 			parameters.Add("@NoteType", (int)AuditAnnotationType.Note);
 		}
 		else if (query.HasNotes == false)
 		{
-			whereClauses.Add($"a.EventId NOT IN (SELECT EventId FROM {_options.FullyQualifiedTableName} WHERE AnnotationType = @NoteTypeExcl)");
+			whereClauses.Add($"a.EventId NOT IN ({ExistenceSubquery("@NoteTypeExcl")})");
 			parameters.Add("@NoteTypeExcl", (int)AuditAnnotationType.Note);
 		}
 

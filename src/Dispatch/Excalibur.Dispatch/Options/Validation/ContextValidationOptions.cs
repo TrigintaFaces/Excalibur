@@ -19,40 +19,10 @@ public sealed class ContextValidationOptions
 	public ValidationMode Mode { get; set; } = ValidationMode.Lenient;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to validate required fields.
+	/// Gets the toggles controlling which context validation checks are performed.
 	/// </summary>
-	/// <value>The current <see cref="ValidateRequiredFields"/> value.</value>
-	public bool ValidateRequiredFields { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate multi-tenancy fields.
-	/// </summary>
-	/// <value>The current <see cref="ValidateMultiTenancy"/> value.</value>
-	public bool ValidateMultiTenancy { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate authentication fields.
-	/// </summary>
-	/// <value>The current <see cref="ValidateAuthentication"/> value.</value>
-	public bool ValidateAuthentication { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate distributed tracing context.
-	/// </summary>
-	/// <value>The current <see cref="ValidateTracing"/> value.</value>
-	public bool ValidateTracing { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate message versioning.
-	/// </summary>
-	/// <value>The current <see cref="ValidateVersioning"/> value.</value>
-	public bool ValidateVersioning { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate collection integrity.
-	/// </summary>
-	/// <value>The current <see cref="ValidateCollections"/> value.</value>
-	public bool ValidateCollections { get; set; } = true;
+	/// <value>The current <see cref="Checks"/> value.</value>
+	public ContextValidationChecksOptions Checks { get; init; } = new();
 
 	/// <summary>
 	/// Gets the list of required field names.
@@ -85,12 +55,6 @@ public sealed class ContextValidationOptions
 	/// The maximum allowed age for a message context.
 	/// </value>
 	public TimeSpan? MaxMessageAge { get; set; } = TimeSpan.FromDays(1);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to validate correlation chain integrity.
-	/// </summary>
-	/// <value>The current <see cref="ValidateCorrelationChain"/> value.</value>
-	public bool ValidateCorrelationChain { get; set; } = true;
 
 	/// <summary>
 	/// Gets custom validation extensions.

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security;
 
 using FakeItEasy;
@@ -26,7 +27,7 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	{
 		_logger = A.Fake<ILogger<SecurityEventLogger>>();
 		_eventStore = A.Fake<ISecurityEventStore>();
-		_sut = new SecurityEventLogger(_logger, _eventStore);
+		_sut = new SecurityEventLogger(_logger, _eventStore, A.Fake<ITelemetrySanitizer>());
 	}
 
 	public async ValueTask DisposeAsync()
@@ -77,7 +78,7 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SecurityEventLogger(null!, _eventStore));
+			new SecurityEventLogger(null!, _eventStore, A.Fake<ITelemetrySanitizer>()));
 	}
 
 	[Fact]
@@ -85,7 +86,7 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new SecurityEventLogger(_logger, null!));
+			new SecurityEventLogger(_logger, null!, A.Fake<ITelemetrySanitizer>()));
 	}
 
 	[Fact]

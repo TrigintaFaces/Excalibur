@@ -14,8 +14,6 @@ internal sealed class RoleActivityGroupsChanged : IDomainEvent
 	public required IReadOnlyList<string> ActivityGroupNames { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => RoleId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(RoleActivityGroupsChanged);
 	public IDictionary<string, object>? Metadata { get; init; }

@@ -31,6 +31,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Cdc\Excalibur.Jobs.Cdc.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.DataProcessing\Excalibur.Jobs.DataProcessing.csproj" />
+    <!-- Scheduler conformance kit (rna328/lkdfb1): wires the 3 cloud scheduler providers to SchedulerConformanceTestKit -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing.Conformance\Excalibur.Testing.Conformance.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

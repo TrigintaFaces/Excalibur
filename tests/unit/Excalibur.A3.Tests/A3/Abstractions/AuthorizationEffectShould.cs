@@ -13,8 +13,9 @@ public sealed class AuthorizationEffectShould : UnitTestBase
 	public void HaveExpectedValues()
 	{
 		// Assert
-		((int)AuthorizationEffect.Permit).ShouldBe(0);
-		((int)AuthorizationEffect.Deny).ShouldBe(1);
+		// Deny is the zero value so a default-initialized effect fails closed (39wqia).
+		((int)AuthorizationEffect.Deny).ShouldBe(0);
+		((int)AuthorizationEffect.Permit).ShouldBe(1);
 		((int)AuthorizationEffect.Indeterminate).ShouldBe(2);
 	}
 
@@ -29,18 +30,19 @@ public sealed class AuthorizationEffectShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Permit_BeDefaultValue()
+	public void Deny_BeDefaultValue()
 	{
 		// Arrange & Act
 		var defaultEffect = default(AuthorizationEffect);
 
 		// Assert
-		defaultEffect.ShouldBe(AuthorizationEffect.Permit);
+		// A default-initialized effect MUST fail closed (deny), never accidentally permit (39wqia).
+		defaultEffect.ShouldBe(AuthorizationEffect.Deny);
 	}
 
 	[Theory]
-	[InlineData(0, AuthorizationEffect.Permit)]
-	[InlineData(1, AuthorizationEffect.Deny)]
+	[InlineData(0, AuthorizationEffect.Deny)]
+	[InlineData(1, AuthorizationEffect.Permit)]
 	[InlineData(2, AuthorizationEffect.Indeterminate)]
 	public void CastFromInt_ReturnsCorrectValue(int value, AuthorizationEffect expected)
 	{

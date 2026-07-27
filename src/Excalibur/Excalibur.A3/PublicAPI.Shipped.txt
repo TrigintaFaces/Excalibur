@@ -22,7 +22,6 @@ Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.ActivityAudit(Excalibur.Domain.IActivityContext! context, TRequest request) -> void
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.ActivityName.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.ActivityName.init -> void
-Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.AggregateId.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.ApplicationName.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.ApplicationName.init -> void
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Body.get -> object!
@@ -39,8 +38,6 @@ Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Features.get -> Excalibur.
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Id.get -> System.Guid
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Id.init -> void
-Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Kind.get -> Excalibur.Dispatch.MessageKinds
-Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Kind.init -> void
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Login.get -> string?
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Login.init -> void
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.MessageId.get -> string!
@@ -61,8 +58,6 @@ Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserId.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserId.init -> void
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserName.get -> string!
 Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.UserName.init -> void
-Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Version.get -> long
-Excalibur.A3.Audit.ActivityAudit<TRequest, TResponse>.Version.init -> void
 Excalibur.A3.Audit.AuditMiddleware
 Excalibur.A3.Audit.AuditMiddleware.AuditMiddleware(Excalibur.Domain.IActivityContext! activityContext, Excalibur.A3.Audit.IAuditMessagePublisher! auditMessagePublisher, Microsoft.Extensions.Logging.ILogger<Excalibur.A3.Audit.AuditMiddleware!>! logger, Excalibur.Dispatch.IOutboxDispatcher! outbox) -> void
 Excalibur.A3.Audit.AuditMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
@@ -196,7 +191,7 @@ Excalibur.A3.Authorization.ActivityGroupService.SyncActivityGroupsAsync(System.T
 Excalibur.A3.Authorization.ActivityGroupService.SyncAllActivityGroupGrantsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Authorization.AuthorizationCacheKey
 Excalibur.A3.Authorization.AuthorizationPolicy
-Excalibur.A3.Authorization.AuthorizationPolicy.AuthorizationPolicy(System.Collections.Generic.IDictionary<string!, object!>! grants, System.Collections.Generic.IDictionary<string!, object!>! activityGroups, Excalibur.Dispatch.ITenantId! tenantId, string! userId) -> void
+Excalibur.A3.Authorization.AuthorizationPolicy.AuthorizationPolicy(System.Collections.Generic.IDictionary<string!, object!>! grants, System.Collections.Generic.IDictionary<string!, object!>! activityGroups, Excalibur.Dispatch.ITenantContext! tenantContext, string! userId) -> void
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! activityName) -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant(string! resourceType, string! resourceId) -> bool
 Excalibur.A3.Authorization.AuthorizationPolicy.HasGrant<TActivity>() -> bool
@@ -363,6 +358,7 @@ Excalibur.A3.IAccessToken.UserId.get -> string!
 Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.GrantAuthorizationServiceCollectionExtensions
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsError = 181501 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGrantsRetrieved = 181503 -> int
 const Excalibur.A3.Diagnostics.A3EventId.ActivityGroupsError = 181500 -> int
@@ -402,6 +398,7 @@ static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.Ad
 static Microsoft.Extensions.DependencyInjection.A3ServiceCollectionExtensions.AddExcaliburA3(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Excalibur.A3.IA3Builder!
 static Microsoft.Extensions.DependencyInjection.AuditExcaliburBuilderExtensions.AddAudit(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
 static Microsoft.Extensions.DependencyInjection.AuthorizationServiceCollectionExtensions.AddExcaliburAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GrantAuthorizationServiceCollectionExtensions.AddGrantAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! policyName, string! activityName, string![]! resourceTypes, string? resourceId = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.A3.Authentication.AuthClaims.Email -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.FamilyName -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.GivenName -> string!

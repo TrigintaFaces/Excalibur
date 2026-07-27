@@ -230,7 +230,30 @@ public sealed record DataLocationRegistration
 	/// <summary>
 	/// Gets an optional tenant ID column.
 	/// </summary>
+	/// <remarks>
+	/// This is the NAME of a column in the consumer's own table — it records where that table keeps its
+	/// tenant identifier. It does not associate this registration with a tenant and it never restricts
+	/// which registrations a caller may read. Use <see cref="TenantId"/> for that; the two are easy to
+	/// confuse and the confusion is what made data-inventory reads estate-wide while appearing scoped.
+	/// </remarks>
 	public string? TenantIdColumn { get; init; }
+
+	/// <summary>
+	/// Gets the tenant that owns this registration.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The tenant VALUE, as distinct from <see cref="TenantIdColumn"/>'s column name. This participates in
+	/// the primary key of the stored registration, so two tenants registering the same table and field are
+	/// two distinct rows rather than one overwriting the other.
+	/// </para>
+	/// <para>
+	/// A registration that genuinely belongs to no tenant carries the reserved untenanted sentinel rather
+	/// than <see langword="null"/> once stored: a nullable tenant makes "global" and "the caller forgot"
+	/// indistinguishable, and the store cannot tell which one it is holding.
+	/// </para>
+	/// </remarks>
+	public string? TenantId { get; init; }
 
 	/// <summary>
 	/// Gets a description of this data location.

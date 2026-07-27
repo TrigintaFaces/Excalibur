@@ -28,6 +28,13 @@ public static class MessageContextExtensions
 	private const string ReceivedTimestampUtcKey = "__ReceivedTimestampUtc";
 	private const string SentTimestampUtcKey = "__SentTimestampUtc";
 
+	/// <summary>
+	/// Items key under which the inbox middleware stashes the provider-native
+	/// <see cref="IInboxTransactionScope"/> during scoped transactional processing. Shared with the middleware
+	/// (which writes it) so both read and write the same key.
+	/// </summary>
+	internal const string InboxTransactionScopeKey = "Excalibur.Dispatch.Inbox.TransactionScope";
+
 	// ===== Items dictionary helpers (moved from IMessageContext methods) =====
 
 	/// <summary>
@@ -91,6 +98,31 @@ public static class MessageContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		context.Items[key] = value!;
+	}
+
+	/// <summary>
+	/// Gets the provider-native inbox transaction scope for the message currently being processed, or
+	/// <see langword="null"/> when the message is not being processed under a scoped transactional inbox store.
+	/// </summary>
+	/// <param name="context">The message context.</param>
+	/// <returns>
+	/// The opaque <see cref="IInboxTransactionScope"/> the inbox handler can enlist its own writes in
+	/// (<c>context.GetInboxTransactionScope()?.AsMongoSession()</c> for MongoDB, <c>?.AsCosmosBatch()</c> for
+	/// Cosmos DB), or <see langword="null"/> when there is no scoped transaction — meaning the handler runs
+	/// under the at-least-once idempotent claim path and should use its own connection/session (its writes are
+	/// then NOT atomic with the inbox processed-mark; the handler must be idempotent).
+	/// </returns>
+	/// <remarks>
+	/// This is the consumer enlistment API for exactly-once document-store inbox processing. A
+	/// non-<see langword="null"/> scope means the store handed the middleware a native transaction (a MongoDB
+	/// session / a Cosmos DB <c>TransactionalBatch</c>); writes the handler enlists on it commit atomically with
+	/// the processed-mark. A <see langword="null"/> result is the normal, expected signal that the current store
+	/// or configuration does not support scoped transactional processing.
+	/// </remarks>
+	public static IInboxTransactionScope? GetInboxTransactionScope(this IMessageContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+		return context.GetItem<IInboxTransactionScope>(InboxTransactionScopeKey);
 	}
 
 	// ===== Property helpers =====
@@ -315,6 +347,24 @@ public static class MessageContextExtensions
 	/// </summary>
 	public static void ReplyTo(this IMessageContext context, string? value) =>
 		context.SetProperty(ReplyToKey, value);
+
+	/// <summary>
+	/// Gets the routing destination for this message.
+	/// </summary>
+	/// <param name="context"> The message context. </param>
+	/// <returns> The destination, or <see langword="null"/> if not set. </returns>
+	public static string? GetDestination(this IMessageContext context) =>
+		context.GetProperty<string>(MetadataPropertyKeys.Destination);
+
+	/// <summary>
+	/// Sets the routing destination for this message. Uses the canonical
+	/// <see cref="MetadataPropertyKeys.Destination"/> key so the value flows through
+	/// <c>ExtractMetadata</c> to the persisted message's destination.
+	/// </summary>
+	/// <param name="context"> The message context. </param>
+	/// <param name="value"> The destination to set. </param>
+	public static void SetDestination(this IMessageContext context, string? value) =>
+		context.SetProperty(MetadataPropertyKeys.Destination, value);
 
 	/// <summary>
 	/// Gets metadata dictionary.

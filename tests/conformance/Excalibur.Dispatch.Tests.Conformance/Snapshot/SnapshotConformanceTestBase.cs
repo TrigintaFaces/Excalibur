@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text;
+
 using Excalibur.Dispatch;
 
 using Excalibur.Domain.Model;
@@ -38,6 +40,7 @@ namespace Excalibur.Dispatch.Tests.Conformance.Snapshot;
 /// }
 /// </code>
 /// </remarks>
+[TenantScopedConformance]
 public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 {
 	/// <summary>
@@ -49,6 +52,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	/// Gets the snapshot strategy under test.
 	/// </summary>
 	protected ISnapshotStrategy? SnapshotStrategy { get; private set; }
+
 
 	/// <inheritdoc />
 	public async ValueTask InitializeAsync()
@@ -82,6 +86,21 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	/// </summary>
 	protected abstract Task DisposeSnapshotStoreAsync();
 
+	// NOTE: there is deliberately NO CreateSnapshotStoreForTenantAsync seam here.
+	//
+	// An earlier revision added one, on the theory that tenant isolation needs two differently-scoped
+	// stores. It does not, and that shape was wrong in a way worth recording so nobody re-adds it:
+	//
+	//   production registers the store as a SINGLETON and resolves the tenant PER CALL from an ambient
+	//   context (InMemorySnapshotStore.GetKey -> TenantScope.FromContext). One store serves every
+	//   tenant. Building two stores builds two universes, and on a store whose state is per-instance
+	//   the isolation arms then pass without exercising anything at all.
+	//
+	// The arms below therefore use ONE store — the one every provider already supplies — and vary the
+	// AMBIENT scope, which is exactly what OutboxProcessor does on its own drain path. Mirroring the
+	// production topology is not a stylistic preference here; it is the difference between an arm that
+	// can fail and an arm that cannot.
+
 	/// <summary>
 	/// Creates a test snapshot with the given parameters.
 	/// Override to customize snapshot creation for your store.
@@ -93,7 +112,7 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 		byte[] data,
 		SnapshotMetadata? metadata = null)
 	{
-		return new TestSnapshot(
+		return new ConformanceSnapshot(
 			Guid.NewGuid().ToString(),
 			aggregateId,
 			aggregateType,
@@ -108,6 +127,197 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 				["SerializerVersion"] = metadata.SerializerVersion
 			} : null);
 	}
+
+	/// <summary>
+	/// Conformance arms this provider has a tracked, documented-pending gap for, keyed by test name
+	/// with the provider's own tracking id as the value.
+	/// </summary>
+	/// <remarks>
+	/// Ported from the outbox conformance base, which has carried this for eight arms while this suite
+	/// had none. The point is not convenience — it is that SILENCE IS NOT AN OPTION. A provider that
+	/// cannot yet satisfy an arm has exactly two honest moves: fail it, or declare it here and be named
+	/// in the output alongside its own bead. Neither is quiet. A suite without this mechanism offers a
+	/// third move that looks like neither, which is how a gap survives a green build.
+	/// </remarks>
+	protected virtual IReadOnlyDictionary<string, string> PendingConformanceGaps =>
+		new Dictionary<string, string>(StringComparer.Ordinal);
+
+	/// <summary>
+	/// Skips <paramref name="testName"/> ONLY for a provider that declares it in
+	/// <see cref="PendingConformanceGaps"/>, citing that provider's own tracking id. Every
+	/// non-declaring provider runs the arm, so the contract stays covered where it is implemented.
+	/// </summary>
+	/// <param name="testName">The conformance arm's own name (pass <c>nameof(...)</c>).</param>
+	private void SkipIfPending(string testName)
+	{
+		if (PendingConformanceGaps.TryGetValue(testName, out var trackingId))
+		{
+			Assert.Skip(
+				$"pending {trackingId} — {GetType().Name} has a tracked, documented-pending conformance gap " +
+				$"for '{testName}' (required contract; NOT a capability-gate).");
+		}
+	}
+
+	#region Tenant Isolation
+
+	// Two tenants can legitimately hold the SAME aggregate id. Every arm shares one id between two
+	// tenants on purpose — that collision is the property under test, not an edge case.
+	//
+	// ONE store, TWO ambient scopes: the topology production actually runs. See the note above
+	// CreateTestSnapshot for why a store-per-tenant seam was removed rather than kept.
+
+	/// <summary>
+	/// A higher-versioned save by another tenant MUST NOT overwrite this tenant's snapshot.
+	/// </summary>
+	[Fact]
+	public virtual async Task Should_Not_Let_Another_Tenants_Higher_Version_Overwrite_This_Tenant()
+	{
+		SkipIfPending(nameof(Should_Not_Let_Another_Tenants_Higher_Version_Overwrite_This_Tenant));
+
+		var sharedAggregateId = Guid.NewGuid().ToString();
+		var store = SnapshotStore!;
+
+		using (TenantContextHolder.BeginScope("tenant-a"))
+		{
+			await store.SaveSnapshotAsync(
+				CreateTenantSnapshot(sharedAggregateId, 5, "A-data", "tenant-a"),
+				CancellationToken.None).ConfigureAwait(false);
+		}
+
+		// B's version is HIGHER. An upsert keyed only on the aggregate matches A's row and updates it.
+		using (TenantContextHolder.BeginScope("tenant-b"))
+		{
+			await store.SaveSnapshotAsync(
+				CreateTenantSnapshot(sharedAggregateId, 7, "B-data", "tenant-b"),
+				CancellationToken.None).ConfigureAwait(false);
+		}
+
+		ISnapshot? readByA;
+		using (TenantContextHolder.BeginScope("tenant-a"))
+		{
+			readByA = await store.GetLatestSnapshotAsync(
+				sharedAggregateId, "TestAggregate", CancellationToken.None).ConfigureAwait(false);
+		}
+
+		_ = readByA.ShouldNotBeNull(
+			"tenant A's snapshot must still exist after tenant B saved a higher version for the same aggregate id");
+		Encoding.UTF8.GetString(readByA.Data.ToArray()).ShouldBe(
+			"A-data",
+			"tenant A read tenant B's data: a save keyed only on the aggregate OVERWROTE another tenant's row");
+		readByA.Version.ShouldBe(
+			5,
+			"tenant A's version was replaced by tenant B's — the rows were merged rather than kept distinct");
+	}
+
+	/// <summary>
+	/// A lower-versioned save by another tenant MUST NOT be silently discarded.
+	/// </summary>
+	[Fact]
+	public virtual async Task Should_Not_Silently_Discard_A_Tenants_Save_Behind_Another_Tenants_Version()
+	{
+		SkipIfPending(nameof(Should_Not_Silently_Discard_A_Tenants_Save_Behind_Another_Tenants_Version));
+
+		var sharedAggregateId = Guid.NewGuid().ToString();
+		var store = SnapshotStore!;
+
+		using (TenantContextHolder.BeginScope("tenant-a"))
+		{
+			await store.SaveSnapshotAsync(
+				CreateTenantSnapshot(sharedAggregateId, 5, "A-data", "tenant-a"),
+				CancellationToken.None).ConfigureAwait(false);
+		}
+
+		// B's version is LOWER. A version-guarded upsert matches A's row, fails the guard, and does
+		// nothing — reporting success. This is the nastier direction: the save API returns normally and
+		// B's data is simply gone. A round-trip written from A's point of view never sees it.
+		using (TenantContextHolder.BeginScope("tenant-b"))
+		{
+			await store.SaveSnapshotAsync(
+				CreateTenantSnapshot(sharedAggregateId, 3, "B-data", "tenant-b"),
+				CancellationToken.None).ConfigureAwait(false);
+		}
+
+		ISnapshot? readByB;
+		using (TenantContextHolder.BeginScope("tenant-b"))
+		{
+			readByB = await store.GetLatestSnapshotAsync(
+				sharedAggregateId, "TestAggregate", CancellationToken.None).ConfigureAwait(false);
+		}
+
+		_ = readByB.ShouldNotBeNull(
+			"tenant B's save was reported successful and then returned nothing: a silent write-loss");
+		Encoding.UTF8.GetString(readByB.Data.ToArray()).ShouldBe(
+			"B-data",
+			"tenant B read tenant A's data — B's own save was discarded behind A's higher version");
+	}
+
+	/// <summary>
+	/// LIVENESS: both tenants' snapshots coexist and each reads its own.
+	/// </summary>
+	[Fact]
+	public virtual async Task Should_Serve_Each_Tenant_Its_Own_Snapshot_For_A_Shared_Aggregate_Id()
+	{
+		SkipIfPending(nameof(Should_Serve_Each_Tenant_Its_Own_Snapshot_For_A_Shared_Aggregate_Id));
+
+		// Not ceremony. Any fix that scopes reads on a column nothing populates — or fails closed on a
+		// null tenant — satisfies BOTH arms above perfectly, by returning nothing to anybody. A store
+		// that has stopped working is trivially "isolated".
+		var sharedAggregateId = Guid.NewGuid().ToString();
+		var store = SnapshotStore!;
+
+		using (TenantContextHolder.BeginScope("tenant-a"))
+		{
+			await store.SaveSnapshotAsync(
+				CreateTenantSnapshot(sharedAggregateId, 5, "A-data", "tenant-a"),
+				CancellationToken.None).ConfigureAwait(false);
+		}
+
+		using (TenantContextHolder.BeginScope("tenant-b"))
+		{
+			await store.SaveSnapshotAsync(
+				CreateTenantSnapshot(sharedAggregateId, 3, "B-data", "tenant-b"),
+				CancellationToken.None).ConfigureAwait(false);
+		}
+
+		ISnapshot? readByA;
+		ISnapshot? readByB;
+		using (TenantContextHolder.BeginScope("tenant-a"))
+		{
+			readByA = await store.GetLatestSnapshotAsync(
+				sharedAggregateId, "TestAggregate", CancellationToken.None).ConfigureAwait(false);
+		}
+
+		using (TenantContextHolder.BeginScope("tenant-b"))
+		{
+			readByB = await store.GetLatestSnapshotAsync(
+				sharedAggregateId, "TestAggregate", CancellationToken.None).ConfigureAwait(false);
+		}
+
+		_ = readByA.ShouldNotBeNull("LIVENESS: tenant A must still be served its own snapshot");
+		_ = readByB.ShouldNotBeNull("LIVENESS: tenant B must still be served its own snapshot");
+		Encoding.UTF8.GetString(readByA.Data.ToArray()).ShouldBe("A-data", "LIVENESS: A must read A");
+		Encoding.UTF8.GetString(readByB.Data.ToArray()).ShouldBe("B-data", "LIVENESS: B must read B");
+	}
+
+	/// <summary>
+	/// Builds a snapshot owned by a specific tenant, sharing an aggregate id with other tenants.
+	/// </summary>
+	private static ISnapshot CreateTenantSnapshot(
+		string aggregateId,
+		long version,
+		string state,
+		string tenantId) =>
+		new ConformanceSnapshot(
+			SnapshotId: Guid.NewGuid().ToString(),
+			AggregateId: aggregateId,
+			AggregateType: "TestAggregate",
+			Version: version,
+			CreatedAt: DateTimeOffset.UtcNow,
+			Data: Encoding.UTF8.GetBytes(state),
+			Metadata: null,
+			TenantId: tenantId);
+
+	#endregion
 
 	#region R26.27 Snapshot Versioning Tests
 
@@ -522,12 +732,60 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	/// <summary>
 	/// Test snapshot implementation for conformance testing.
 	/// </summary>
-	protected sealed record TestSnapshot(
+	/// <remarks>
+	/// Named <c>ConformanceSnapshot</c>, not <c>TestSnapshot</c>, deliberately. A public
+	/// <c>Excalibur.Testing.Conformance.TestSnapshot</c> also implements <see cref="ISnapshot"/>, and
+	/// while this type carried that simple name an unqualified <c>new ConformanceSnapshot { … }</c> inside
+	/// this class bound HERE rather than there — silently, with no diagnostic, because both satisfy
+	/// the same interface. That is not a hazard worth documenting; it is one worth removing, and a
+	/// distinct name removes it at the root. Do not rename this back.
+	/// </remarks>
+	protected sealed record ConformanceSnapshot(
 		string SnapshotId,
 		string AggregateId,
 		string AggregateType,
 		long Version,
 		DateTimeOffset CreatedAt,
 		ReadOnlyMemory<byte> Data,
-		IDictionary<string, object>? Metadata) : ISnapshot;
+		IDictionary<string, object>? Metadata,
+		string? TenantId = null) : ISnapshot;
+
+	/// <summary>
+	/// Creates the <see cref="ITenantContext"/> a provider fixture must pass to its store for the
+	/// tenant-isolation arms to exercise the tenanted path.
+	/// </summary>
+	/// <returns>A context reading the ambient tenant established by <see cref="TenantContextHolder"/>.</returns>
+	/// <remarks>
+	/// <para>
+	/// Exists because the framework ships <b>no public</b> <see cref="ITenantContext"/> implementation —
+	/// both <c>AmbientTenantContext</c> and <c>SingleTenantContext</c> are <c>internal</c>, reachable only
+	/// from assemblies on the <c>InternalsVisibleTo</c> list. A provider fixture living outside that list
+	/// therefore cannot construct one, even though the store constructors accept the public interface.
+	/// Rather than widen production visibility or add friend entries per test assembly — neither of which
+	/// a fixture's convenience justifies — this reads the ambient tenant through <see cref="TenantContextHolder"/>,
+	/// which is public. Any fixture in any assembly can use it.
+	/// </para>
+	/// <para>
+	/// It implements <see cref="ITenantContext"/> <b>directly</b>, inheriting no first-party base. A fixture
+	/// that reached the contract through a framework base would re-test that base rather than the interface,
+	/// and would keep passing for an implementation the real providers get wrong.
+	/// </para>
+	/// </remarks>
+	protected static ITenantContext CreateAmbientTenantContext() => new ConformanceTenantContext();
+
+	/// <summary>
+	/// A read-only view over the ambient tenant, equivalent to the framework's internal default.
+	/// </summary>
+	private sealed class ConformanceTenantContext : ITenantContext
+	{
+		/// <inheritdoc />
+		public string? TenantId => TenantContextHolder.Current;
+
+		/// <inheritdoc />
+		/// <remarks>
+		/// Kept consistent with <see cref="TenantId"/> — true exactly when the id is non-null and
+		/// non-empty — because the interface states that as an invariant a subtype may not weaken.
+		/// </remarks>
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
+	}
 }

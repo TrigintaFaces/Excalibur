@@ -35,14 +35,14 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 	{
 		public OrderAggregate() { }
 		public OrderAggregate(string id) : base(id) { }
-		protected override void ApplyEventInternal(IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 	}
 
 	internal sealed class CustomerAggregate : AggregateRoot<Guid>
 	{
 		public CustomerAggregate() { }
 		public CustomerAggregate(Guid id) : base(id) { }
-		protected override void ApplyEventInternal(IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 	}
 
 	internal sealed class ProductAggregate : AggregateRoot<Guid>, IAggregateRoot<ProductAggregate, Guid>
@@ -50,13 +50,13 @@ public sealed class ExcaliburEventSourcingBuilderExtendedShould
 		public ProductAggregate() { }
 		public ProductAggregate(Guid id) : base(id) { }
 		public static ProductAggregate Create(Guid id) => new(id);
-		public static ProductAggregate FromEvents(Guid id, IEnumerable<IDomainEvent> events)
+		public static ProductAggregate FromEvents(Guid id, IEnumerable<HistoricEvent> events)
 		{
 			var agg = new ProductAggregate(id);
 			agg.LoadFromHistory(events);
 			return agg;
 		}
-		protected override void ApplyEventInternal(IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 	}
 
 	#endregion

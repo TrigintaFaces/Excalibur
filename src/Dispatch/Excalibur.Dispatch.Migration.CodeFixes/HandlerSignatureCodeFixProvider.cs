@@ -21,9 +21,11 @@ namespace Excalibur.Dispatch.Migration.CodeFixes;
 /// Excalibur.Dispatch compat handler shape.
 /// </summary>
 /// <remarks>
-/// Implements FR-13 / AC-16 of EPIC w2zq7d. Only the deterministic method-name delta
-/// (<c>HandleAsync</c> → <c>Handle</c>) is auto-fixed; other signature deltas are surfaced by the
-/// diagnostic message for manual migration (no silent skip).
+/// Only the deterministic method-name delta (<c>HandleAsync</c> → <c>Handle</c>) is auto-fixed; other
+/// signature deltas are surfaced by the diagnostic message for manual migration (no silent skip). This
+/// is a syntactic rename of the method declaration only — it does not rewrite other references to the
+/// old name within the same document (e.g. a handler that recursively self-calls <c>HandleAsync</c>),
+/// so such call sites require a manual follow-up edit to compile after the fix.
 /// </remarks>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(HandlerSignatureCodeFixProvider))]
 [Shared]

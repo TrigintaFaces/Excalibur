@@ -337,6 +337,47 @@ public sealed class DistributedCircuitBreakerShould : UnitTestBase, IAsyncDispos
 		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException("Test"));
 	}
 
+	// gt2x7g (j604qc-a / thkygd): the persisted LastFailureReason MUST be the exception TYPE name, never the
+	// raw message. The metrics blob is written to a shared IDistributedCache (at rest, cross-instance), so a
+	// message carrying PII (user input, credentials, connection strings, record ids) would leak. RED on a
+	// mutant that persists exception.Message instead of exception.GetType().Name (DistributedCircuitBreaker.cs:232).
+	[Fact]
+	public async Task RecordFailureAsync_PersistsExceptionTypeName_NotRawMessage_ForPiiSafety()
+	{
+		// Arrange
+		var cb = CreateCircuitBreaker();
+		A.CallTo(() => _cache!.GetAsync(A<string>._, A<CancellationToken>._))
+			.Returns((byte[]?)null);
+
+		byte[]? savedMetrics = null;
+		A.CallTo(() => _cache!.SetAsync(
+				A<string>.That.Contains("metrics"), A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+			.Invokes(call => savedMetrics = call.GetArgument<byte[]>(1));
+
+		// A message deliberately laden with PII/secret-shaped content that must NOT reach the cache.
+		const string piiMessage = "login failed for user alice@example.com token=hunter2 record-id=42";
+
+		// Act
+		await cb.RecordFailureAsync(CancellationToken.None, new InvalidOperationException(piiMessage));
+
+		// Assert — the reason is the TYPE name…
+		savedMetrics.ShouldNotBeNull("RecordFailureAsync must persist the metrics blob to the cache.");
+		var metrics = JsonSerializer.Deserialize(savedMetrics, DistributedCircuitJsonContext.Default.DistributedCircuitMetrics);
+		metrics.ShouldNotBeNull();
+		metrics!.LastFailureReason.ShouldBe(
+			nameof(InvalidOperationException),
+			"LastFailureReason must persist the exception TYPE name (PII-safe diagnostic), not the raw message.");
+
+		// …and none of the message's PII fragments are anywhere in the persisted blob.
+		var persistedJson = System.Text.Encoding.UTF8.GetString(savedMetrics);
+		persistedJson.ShouldNotContain("alice@example.com", Case.Insensitive,
+			"the raw exception message (PII) must never be written to the shared distributed cache.");
+		persistedJson.ShouldNotContain("hunter2", Case.Insensitive,
+			"secret-shaped content from the exception message must never be persisted.");
+		persistedJson.ShouldNotContain("record-id=42", Case.Insensitive,
+			"record identifiers from the exception message must never be persisted.");
+	}
+
 	#endregion
 
 	#region ResetAsync Tests

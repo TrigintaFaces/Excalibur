@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Migration.Analyzers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implements FR-10 / AC-9 of EPIC w2zq7d (migration tooling). Detection is syntax-based on the
+/// Detection is syntax-based on the
 /// invoked method's simple name (<c>AddMediatR</c>) so the diagnostic fires whether or not the
 /// MediatR assembly is still referenced — the realistic state of code mid-migration off the
 /// now-commercial package.

@@ -490,13 +490,26 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 			IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dispatch].[sagas]') AND type in (N'U'))
 			BEGIN
 			    CREATE TABLE dispatch.sagas (
-			        SagaId UNIQUEIDENTIFIER PRIMARY KEY,
+			        SagaId UNIQUEIDENTIFIER NOT NULL,
 			        SagaType NVARCHAR(500) NOT NULL,
 			        StateJson NVARCHAR(MAX) NOT NULL,
 			        IsCompleted BIT NOT NULL DEFAULT 0,
+			        -- DATETIMEOFFSET(7), not DATETIME2: CompletedAt is a consumer-supplied DateTimeOffset
+			        -- (SagaState.CompletedAt) and the retention purge keys on it; DATETIME2 would discard
+			        -- the offset. Mirrors the shipped Scripts/01-SagaSchema.sql column that production
+			        -- SaveSaga writes, QuerySagaSummaries reads, and PurgeCompletedSagas filters on.
+			        CompletedAt DATETIMEOFFSET(7) NULL,
+			        -- Mirrors the shipped schema exactly: NOT NULL with the reserved untenanted sentinel, and
+			        -- BIN2 so in-engine equality on the tenant term is case-sensitive like .NET's Ordinal.
+			        TenantId NVARCHAR(200) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
 			        Version BIGINT NOT NULL DEFAULT 0,
 			        CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-			        UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+			        UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+			        -- The tenant term is part of the key, matching Scripts/01-SagaSchema.sql. This is not
+			        -- cosmetic for a fixture: with SagaId as the sole key, two tenants CANNOT hold the same
+			        -- SagaId, so the cross-tenant-overwrite case is not merely untested but INEXPRESSIBLE --
+			        -- a safety arm written against the old fixture would pass by being unable to set up.
+			        CONSTRAINT PK_dispatch_sagas PRIMARY KEY CLUSTERED (TenantId, SagaId)
 			    );
 			END
 			""";

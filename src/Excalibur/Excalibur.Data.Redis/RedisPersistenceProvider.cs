@@ -125,44 +125,33 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 	}
 
 	/// <inheritdoc />
-	public async Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
+	/// <remarks>
+	/// Redis does not support multi-key client transactions through this provider. Atomicity is
+	/// achieved server-side via Lua <c>ScriptEvaluate</c> in the individual stores (e.g. the outbox
+	/// mark-sent script), not a client-side <c>MULTI</c>/<c>EXEC</c> scope. Because the underlying
+	/// request executes immediately, a post-write rollback would be a no-op — so this method fails
+	/// fast rather than advertise a transactional guarantee it cannot honor.
+	/// </remarks>
+	/// <exception cref="NotSupportedException">Always thrown — Redis client transactions are unsupported.</exception>
+	public Task<TResult> ExecuteInTransactionAsync<TConnection, TResult>(
 		IDataRequest<TConnection, TResult> request,
 		ITransactionScope transactionScope,
 		CancellationToken cancellationToken)
 		where TConnection : IDisposable
-	{
-		ArgumentNullException.ThrowIfNull(request);
-		ArgumentNullException.ThrowIfNull(transactionScope);
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		LogExecutingRequestInTransaction(_logger, request.GetType().Name);
-
-		try
-		{
-			var connection = (TConnection)GetDatabase();
-			var result = await DataRequestExtensions.ResolveAsync(request, connection, cancellationToken).ConfigureAwait(false);
-
-			// Commit transaction if successful
-			await transactionScope.CommitAsync(cancellationToken).ConfigureAwait(false);
-			return result;
-		}
-		catch (Exception ex)
-		{
-			// Rollback transaction on error
-			await transactionScope.RollbackAsync(cancellationToken).ConfigureAwait(false);
-			LogTransactionExecutionFailed(_logger, ex, request.GetType().Name);
-			throw;
-		}
-	}
+		=> throw new NotSupportedException(
+			"Redis does not support client-side transactions; use server-side Lua atomicity in the stores instead.");
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Redis client transactions are not supported by this provider (see
+	/// <see cref="ExecuteInTransactionAsync"/>); use the stores' server-side Lua atomicity instead.
+	/// </remarks>
+	/// <exception cref="NotSupportedException">Always thrown — Redis client transactions are unsupported.</exception>
 	public ITransactionScope CreateTransactionScope(
 		IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
 		TimeSpan? timeout = null)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		return new RedisTransactionScope(this, isolationLevel, timeout);
-	}
+		=> throw new NotSupportedException(
+			"Redis does not support client-side transactions; use server-side Lua atomicity in the stores instead.");
 
 	/// <inheritdoc />
 	public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken)
@@ -377,12 +366,6 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 
 	[LoggerMessage(DataRedisEventId.ExecutionFailed, LogLevel.Error, "Failed to execute Redis data request of type {RequestType}")]
 	private static partial void LogExecutionFailed(ILogger logger, Exception exception, string requestType);
-
-	[LoggerMessage(DataRedisEventId.ExecutingRequestInTransaction, LogLevel.Debug, "Executing Redis data request of type {RequestType} in transaction")]
-	private static partial void LogExecutingRequestInTransaction(ILogger logger, string requestType);
-
-	[LoggerMessage(DataRedisEventId.TransactionExecutionFailed, LogLevel.Error, "Failed to execute Redis data request of type {RequestType} in transaction")]
-	private static partial void LogTransactionExecutionFailed(ILogger logger, Exception exception, string requestType);
 
 	[LoggerMessage(DataRedisEventId.ConnectionTestSuccessful, LogLevel.Information, "Redis connection test successful")]
 	private static partial void LogConnectionTestSuccessful(ILogger logger);

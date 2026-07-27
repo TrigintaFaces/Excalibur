@@ -77,33 +77,20 @@ public sealed class ElasticsearchAuditExporterShould : IDisposable
 	}
 
 	[Fact]
-	public async Task Retry_transient_status_then_succeed()
+	public async Task Send_once_without_internal_retry_on_transient_status()
 	{
-		_options.MaxRetryAttempts = 2;
-		_options.RetryBaseDelay = TimeSpan.Zero;
-		_handler.EnqueueResponse(HttpStatusCode.ServiceUnavailable, "busy");
-		_handler.EnqueueResponse(HttpStatusCode.OK);
+		// The exporter no longer retries internally: transient-fault retry now lives in the HttpClient
+		// resilience pipeline (standard resilience handler). Built directly against a bare handler, the
+		// exporter must issue exactly one request per export and surface the transient failure.
+		_options.MaxRetryAttempts = 3;
+		_handler.SetResponse(HttpStatusCode.ServiceUnavailable, "busy");
 		var sut = CreateExporter();
 
 		var result = await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None).ConfigureAwait(false);
 
-		result.Success.ShouldBeTrue();
-		_handler.RequestCount.ShouldBe(2);
-	}
-
-	[Fact]
-	public async Task Retry_http_request_exception_then_succeed()
-	{
-		_options.MaxRetryAttempts = 2;
-		_options.RetryBaseDelay = TimeSpan.Zero;
-		_handler.EnqueueException(new HttpRequestException("transient network"));
-		_handler.EnqueueResponse(HttpStatusCode.OK);
-		var sut = CreateExporter();
-
-		var result = await sut.ExportAsync(CreateAuditEvent(), CancellationToken.None).ConfigureAwait(false);
-
-		result.Success.ShouldBeTrue();
-		_handler.RequestCount.ShouldBe(2);
+		result.Success.ShouldBeFalse();
+		result.IsTransientError.ShouldBeTrue();
+		_handler.RequestCount.ShouldBe(1);
 	}
 
 	[Fact]
@@ -118,6 +105,7 @@ public sealed class ElasticsearchAuditExporterShould : IDisposable
 		result.Success.ShouldBeFalse();
 		result.IsTransientError.ShouldBeTrue();
 		result.ErrorMessage!.ShouldBe("Connection refused");
+		_handler.RequestCount.ShouldBe(1);
 	}
 
 	[Fact]

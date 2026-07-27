@@ -6,7 +6,7 @@
 
 This package provides bridge extension methods that let consumers configure
 GDPR compliance services inside a single
-`services.AddExcalibur(excalibur => ...)` composition root, per ADR-321.
+`services.AddExcalibur(excalibur => ...)` composition root.
 
 Keeping the bridge in a separate package (rather than inside `Excalibur.Hosting`)
 avoids pulling the heavy compliance transitive dependencies — MongoDB.Driver,
@@ -24,8 +24,4 @@ services.AddExcalibur(excalibur => excalibur
 
 ## Related
 
-- ADR-321 — Single composition root
-- ADR-324 — Compliance package placement decision
 - `Excalibur.Compliance` — the actual compliance service implementations
-  (physical package rename to `Excalibur.Compliance` deferred to S795 per
-  ADR-324 §Open-Questions §2)

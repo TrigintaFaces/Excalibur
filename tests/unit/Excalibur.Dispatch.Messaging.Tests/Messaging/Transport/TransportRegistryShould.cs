@@ -23,7 +23,7 @@ public sealed class TransportRegistryShould
 		var adapter = CreateAdapter("rabbitmq");
 
 		// Act
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		// Assert
 		registry.GetTransportAdapter("rabbitmq").ShouldBe(adapter);
@@ -38,7 +38,7 @@ public sealed class TransportRegistryShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			registry.RegisterTransport(null!, adapter, "Test"));
+			registry.RegisterTransport(null!, adapter, "Test", TransportLocality.Local));
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class TransportRegistryShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			registry.RegisterTransport("", adapter, "Test"));
+			registry.RegisterTransport("", adapter, "Test", TransportLocality.Local));
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class TransportRegistryShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			registry.RegisterTransport("   ", adapter, "Test"));
+			registry.RegisterTransport("   ", adapter, "Test", TransportLocality.Local));
 	}
 
 	[Fact]
@@ -73,7 +73,7 @@ public sealed class TransportRegistryShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			registry.RegisterTransport("test", null!, "Test"));
+			registry.RegisterTransport("test", null!, "Test", TransportLocality.Local));
 	}
 
 	[Fact]
@@ -85,7 +85,7 @@ public sealed class TransportRegistryShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			registry.RegisterTransport("test", adapter, null!));
+			registry.RegisterTransport("test", adapter, null!, TransportLocality.Local));
 	}
 
 	[Fact]
@@ -95,11 +95,11 @@ public sealed class TransportRegistryShould
 		var registry = new TransportRegistry();
 		var adapter1 = CreateAdapter("adapter1");
 		var adapter2 = CreateAdapter("adapter2");
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
 
 		// Act & Assert
 		var ex = Should.Throw<InvalidOperationException>(() =>
-			registry.RegisterTransport("rabbitmq", adapter2, "RabbitMQ"));
+			registry.RegisterTransport("rabbitmq", adapter2, "RabbitMQ", TransportLocality.Remote));
 		ex.Message.ShouldContain("rabbitmq");
 		ex.Message.ShouldContain("already registered");
 	}
@@ -114,9 +114,9 @@ public sealed class TransportRegistryShould
 		var adapter3 = CreateAdapter("adapter3");
 
 		// Act
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
-		registry.RegisterTransport("servicebus", adapter3, "ServiceBus");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
+		registry.RegisterTransport("servicebus", adapter3, "ServiceBus", TransportLocality.Remote);
 
 		// Assert
 		registry.GetTransportNames().Count().ShouldBe(3);
@@ -135,7 +135,7 @@ public sealed class TransportRegistryShould
 		};
 
 		// Act
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", options);
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote, options);
 
 		// Assert
 		var registration = registry.GetTransportRegistration("rabbitmq");
@@ -154,7 +154,7 @@ public sealed class TransportRegistryShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateAdapter("rabbitmq");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		// Act
 		var result = registry.GetTransportAdapter("rabbitmq");
@@ -197,7 +197,7 @@ public sealed class TransportRegistryShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateAdapter("rabbitmq");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 
 		// Act
 		var result = registry.GetTransportRegistration("rabbitmq");
@@ -243,8 +243,8 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
 
 		// Act
 		var result = registry.GetTransportNames().ToList();
@@ -279,8 +279,8 @@ public sealed class TransportRegistryShould
 		var registry = new TransportRegistry();
 		var adapter1 = CreateAdapter("1");
 		var adapter2 = CreateAdapter("2");
-		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ");
-		registry.RegisterTransport("kafka", adapter2, "Kafka");
+		registry.RegisterTransport("rabbitmq", adapter1, "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", adapter2, "Kafka", TransportLocality.Remote);
 
 		// Act
 		var result = registry.GetAllTransports();
@@ -300,7 +300,7 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
 
 		// Act
 		var result = registry.RemoveTransport("rabbitmq");
@@ -332,8 +332,8 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		// Act
@@ -373,7 +373,7 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
 
 		// Act
 		registry.SetDefaultTransport("rabbitmq");
@@ -388,7 +388,7 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("kafka", CreateAdapter("1"), "Kafka");
+		registry.RegisterTransport("kafka", CreateAdapter("1"), "Kafka", TransportLocality.Remote);
 
 		// Act & Assert
 		var ex = Should.Throw<InvalidOperationException>(() =>
@@ -414,8 +414,8 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		// Act
@@ -431,7 +431,7 @@ public sealed class TransportRegistryShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateAdapter("1");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		// Act
@@ -446,7 +446,7 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
 
 		// Act
 		var result = registry.GetDefaultTransportAdapter();
@@ -461,7 +461,7 @@ public sealed class TransportRegistryShould
 		// Arrange
 		var registry = new TransportRegistry();
 		var adapter = CreateAdapter("1");
-		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", adapter, "RabbitMQ", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 
 		// Act
@@ -499,7 +499,7 @@ public sealed class TransportRegistryShould
 			.ToArray();
 		var tasks = registrations
 			.Select(registration => Task.Run(() =>
-				registry.RegisterTransport(registration.Name, registration.Adapter, "Type")))
+				registry.RegisterTransport(registration.Name, registration.Adapter, "Type", TransportLocality.Local)))
 			.ToArray();
 
 		// Act

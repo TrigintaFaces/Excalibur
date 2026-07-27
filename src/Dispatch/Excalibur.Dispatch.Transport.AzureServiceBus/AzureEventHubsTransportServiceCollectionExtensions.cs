@@ -241,6 +241,7 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			AzureEventHubsTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<AzureEventHubsTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)

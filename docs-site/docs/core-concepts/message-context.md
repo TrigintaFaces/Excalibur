@@ -234,27 +234,24 @@ context.SetOrderId("ORD-12345");
 var orderId = context.GetOrderId();
 ```
 
-:::info Tenant ID as a DI Service
+:::info Ambient Tenant Context
 
-In addition to the identity feature, `ITenantId` is available as a scoped DI service registered via `TryAddTenantId()`. When no tenant is explicitly configured, the framework uses `TenantDefaults.DefaultTenantId` (`"Default"`) automatically — single-tenant applications work without any tenant setup.
+The current tenant is exposed as the ambient `ITenantContext` (registered via `AddTenantContext()`, which `AddExcaliburA3()` calls for you). Its `TenantId` reads the tenant established for the current execution flow by `TenantContextHolder.BeginScope`. The configured default is `TenantContextOptions.DefaultTenantId` (`"Default"`).
 
 ```csharp
-// Single-tenant: ITenantId.Value is "Default" automatically
 services.AddExcaliburA3()
     .UsePostgres();
 
-// Multi-tenant: resolve per-request before A3
-services.TryAddTenantId(sp =>
+// Multi-tenant: establish the ambient tenant per request before dispatching.
+// Excalibur.Hosting.Web wires this middleware automatically; to scope manually:
+var tenantId = httpContext?.Request.Headers["X-Tenant-ID"].FirstOrDefault();
+using (TenantContextHolder.BeginScope(tenantId))
 {
-    var httpContext = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
-    return httpContext?.Request.Headers["X-Tenant-ID"].FirstOrDefault()
-        ?? TenantDefaults.DefaultTenantId;
-});
-services.AddExcaliburA3()
-    .UsePostgres();
+    // ITenantContext.TenantId resolves to this tenant here.
+}
 ```
 
-The `TenantIdentityMiddleware` in the pipeline sets the context-level tenant from HTTP headers, message properties, or a configured default. The DI-registered `ITenantId` is used by A3 authorization, grants, and audit logging.
+Web apps built on `Excalibur.Hosting.Web` establish the ambient tenant per request automatically (from HTTP headers / message properties, falling back to the configured default). The ambient `ITenantContext` is used by A3 authorization, grants, and audit search — which **fail closed** when no tenant is resolved. Audit retrieval by event ID is not tenant-scoped; see [Audit Logging](../compliance/audit-logging.md#multi-tenant-isolation).
 :::
 
 ## Correlation ID
@@ -272,7 +269,7 @@ await dispatcher.DispatchAsync(action, cancellationToken);
 
 ### Preserving Correlation
 
-When dispatching from within a handler, use `DispatchChildAsync` to preserve correlation:
+When dispatching from within a handler, call `DispatchAsync` — it automatically preserves correlation by dispatching a child message:
 
 ```csharp
 public class OrderHandler : IActionHandler<CreateOrderAction>
@@ -280,7 +277,7 @@ public class OrderHandler : IActionHandler<CreateOrderAction>
     public async Task HandleAsync(CreateOrderAction action, CancellationToken ct)
     {
         // Child dispatch - same CorrelationId
-        await _dispatcher.DispatchChildAsync(new NotifyAction(), ct);
+        await _dispatcher.DispatchAsync(new NotifyAction(), ct);
     }
 }
 ```

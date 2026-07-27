@@ -240,11 +240,6 @@ public class OutboxDeliveryOptions
 	/// <description>Lower throughput with individual completion. Smaller failure window
 	/// where only one message may be redelivered.</description>
 	/// </item>
-	/// <item>
-	/// <term><see cref="OutboxDeliveryGuarantee.TransactionalWhenApplicable"/></term>
-	/// <description>Exactly-once when transport supports transactional publish with the
-	/// same database. Falls back to MinimizedWindow otherwise.</description>
-	/// </item>
 	/// </list>
 	/// </remarks>
 	public OutboxDeliveryGuarantee DeliveryGuarantee { get; set; } = OutboxDeliveryGuarantee.AtLeastOnce;
@@ -254,6 +249,42 @@ public class OutboxDeliveryOptions
 	/// </summary>
 	/// <value>The batch processing options.</value>
 	public OutboxBatchProcessingOptions BatchProcessing { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the maximum stored-payload length, in bytes, enforced when the outbox re-reads a
+	/// staged message for publication — before the payload is handed to the transport (defense-in-depth
+	/// DoS hardening at the outbox-read ingress). An over-limit stored payload is rejected before dispatch.
+	/// </summary>
+	/// <value>
+	/// The maximum payload length in bytes. Default is 4 MiB (bounded by default so the guard is never
+	/// inert). Set to <see langword="null"/> to opt out (unbounded) for larger legitimate payloads.
+	/// </value>
+	[Range(1, int.MaxValue)]
+	public int? MaxPayloadBytes { get; set; } = PayloadSizeGuard.DefaultMaxPayloadBytes;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether this instance is the single active writer of the outbox and
+	/// therefore takes responsibility for the exactly-once guarantee itself, opting out of leadership fencing.
+	/// </summary>
+	/// <value>
+	/// <see langword="false"/> (the safe default). When a leader election is registered, the outbox is fenced
+	/// by default; on stores that record the fencing high-water durably (PostgreSQL, Oracle, MongoDB) a
+	/// superseded leader cannot claim and complete messages it no longer owns. The SQL Server store derives its
+	/// high-water from the outbox rows, so a cleanup that purges sent rows resets it and the advance overwrites
+	/// rather than taking the maximum — treat its leadership fence as best-effort; the per-message lease still
+	/// prevents two processors claiming the same message. Set to
+	/// <see langword="true"/> — via the outbox builder's <c>AsSingleWriter()</c> — to assert that exactly one
+	/// process drains this outbox (a topology the caller owns), which runs the drain unfenced even when a
+	/// leader election is registered for other resources. The opt-out is logged at startup so the downgrade is
+	/// observable, never silent.
+	/// </value>
+	/// <remarks>
+	/// This is a positive topology assertion ("I am the single active writer"), not a switch that disables a
+	/// safety check. It only affects the outbox drain; a registered leader election still governs any other
+	/// resources (leases, scheduled jobs). Enabling it in a genuinely multi-writer deployment reopens the
+	/// split-brain window fencing exists to close, so it must reflect a real single-active-writer topology.
+	/// </remarks>
+	public bool SingleActiveWriter { get; set; }
 
 	#endregion
 

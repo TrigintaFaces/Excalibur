@@ -139,7 +139,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(tenantAStore);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
 		// Act
@@ -163,7 +163,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-b")).Returns(tenantBStore);
 
-		var tenantId = new TenantId { Value = "tenant-b" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-b" };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
 		// Act
@@ -186,7 +186,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(store);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
 		// Act
@@ -203,7 +203,7 @@ public sealed class TenantShardRoutingShould
 	{
 		// Arrange
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
-		var tenantId = new TenantId { Value = string.Empty };
+		var tenantId = new MutableTenantContext { TenantId = string.Empty };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
 		// Act & Assert
@@ -215,7 +215,7 @@ public sealed class TenantShardRoutingShould
 	public void ThrowWhenTenantIdIsNull()
 	{
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
-		var tenantId = new TenantId { Value = null! };
+		var tenantId = new MutableTenantContext { TenantId = null! };
 		var routingStore = new TenantRoutingEventStore(resolver, tenantId);
 
 		Should.ThrowAsync<InvalidOperationException>(
@@ -225,7 +225,7 @@ public sealed class TenantShardRoutingShould
 	[Fact]
 	public void ThrowOnNullResolverInConstructor()
 	{
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		Should.Throw<ArgumentNullException>(
 			() => new TenantRoutingEventStore(null!, tenantId));
 	}
@@ -253,7 +253,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(projStore);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
 		// Act
@@ -272,7 +272,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-b")).Returns(projStore);
 
-		var tenantId = new TenantId { Value = "tenant-b" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-b" };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
 		// Act
@@ -290,7 +290,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(projStore);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
 		await routingStore.DeleteAsync("proj-1", CancellationToken.None);
@@ -309,7 +309,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(projStore);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
 		var results = await routingStore.QueryAsync(null, null, CancellationToken.None);
@@ -327,7 +327,7 @@ public sealed class TenantShardRoutingShould
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(projStore);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
 		var count = await routingStore.CountAsync(null, CancellationToken.None);
@@ -339,7 +339,7 @@ public sealed class TenantShardRoutingShould
 	public void ThrowWhenProjectionStoreTenantIdIsEmpty()
 	{
 		var resolver = A.Fake<ITenantStoreResolver<IProjectionStore<TestProjection>>>();
-		var tenantId = new TenantId { Value = string.Empty };
+		var tenantId = new MutableTenantContext { TenantId = string.Empty };
 		var routingStore = new TenantRoutingProjectionStore<TestProjection>(resolver, tenantId);
 
 		Should.ThrowAsync<InvalidOperationException>(
@@ -395,7 +395,7 @@ public sealed class TenantSagaAndHealthCheckShould
 		var resolver = A.Fake<ITenantStoreResolver<ISagaStore>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(sagaStore);
 
-		var tenantId = new TenantId { Value = "tenant-a" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-a" };
 		var routingStore = new TenantRoutingSagaStore(resolver, tenantId);
 
 		var sagaId = Guid.NewGuid();
@@ -412,7 +412,7 @@ public sealed class TenantSagaAndHealthCheckShould
 		var resolver = A.Fake<ITenantStoreResolver<ISagaStore>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-b")).Returns(sagaStore);
 
-		var tenantId = new TenantId { Value = "tenant-b" };
+		var tenantId = new MutableTenantContext { TenantId = "tenant-b" };
 		var routingStore = new TenantRoutingSagaStore(resolver, tenantId);
 
 		var state = new TestSagaState();
@@ -426,7 +426,7 @@ public sealed class TenantSagaAndHealthCheckShould
 	public void ThrowWhenSagaTenantIdIsEmpty()
 	{
 		var resolver = A.Fake<ITenantStoreResolver<ISagaStore>>();
-		var tenantId = new TenantId { Value = string.Empty };
+		var tenantId = new MutableTenantContext { TenantId = string.Empty };
 		var routingStore = new TenantRoutingSagaStore(resolver, tenantId);
 
 		Should.ThrowAsync<InvalidOperationException>(
@@ -449,7 +449,7 @@ public sealed class TenantSagaAndHealthCheckShould
 	[Fact]
 	public void ThrowOnNullSagaResolver()
 	{
-		var tenantId = new TenantId { Value = "t" };
+		var tenantId = new MutableTenantContext { TenantId = "t" };
 		Should.Throw<ArgumentNullException>(() => new TenantRoutingSagaStore(null!, tenantId));
 	}
 

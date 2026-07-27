@@ -10,7 +10,7 @@
 
 ## Cause
 
-A type was used as a type argument to `IDispatcher.DispatchAsync<T>()` but does not implement any of the dispatch marker interfaces (`IDispatchAction<TResponse>`, `IDispatchEvent`, or `IDispatchMessage`). The dispatcher uses these interfaces for routing decisions -- without them, the message may not be delivered correctly.
+A type was used as a type argument to `IDispatcher.DispatchAsync<T>()` but does not implement any of the dispatch marker interfaces (`IDispatchAction<TResponse>`, `IDispatchEvent`, `IDispatchMessage`, `IDomainEvent`, or `IDispatchDocument`). The dispatcher uses these interfaces for routing decisions -- without them, the message may not be delivered correctly.
 
 ## Examples
 
@@ -48,6 +48,7 @@ Add the appropriate dispatch interface to your message type:
 | Fire-and-forget command | `IDispatchAction<Unit>` | `IActionHandler<TAction>` |
 | Event (multiple handlers) | `IDispatchEvent` | `IEventHandler<TEvent>` |
 | Domain event | `IDomainEvent` | `IEventHandler<TEvent>` |
+| Document / bulk payload | `IDispatchDocument` | `IDocumentHandler<TDocument>` |
 
 ## When to Suppress
 

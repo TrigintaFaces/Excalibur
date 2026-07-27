@@ -7,6 +7,8 @@ using Excalibur.Jobs.Coordination;
 using Excalibur.Jobs.SqlServer;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -38,6 +40,11 @@ public static class SqlServerJobCoordinatorServiceCollectionExtensions
 		_ = services.AddOptions<SqlServerJobCoordinatorOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<SqlServerJobCoordinatorOptions>, SqlServerJobCoordinatorOptionsValidator>());
+
+		services.TryAddSingleton(TimeProvider.System);
 
 		_ = services.AddSingleton<SqlServerJobCoordinator>();
 		_ = services.AddSingleton<IJobLockProvider>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
@@ -71,6 +78,11 @@ public static class SqlServerJobCoordinatorServiceCollectionExtensions
 		_ = services.AddOptions<SqlServerJobCoordinatorOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<SqlServerJobCoordinatorOptions>, SqlServerJobCoordinatorOptionsValidator>());
+
+		services.TryAddSingleton(TimeProvider.System);
 
 		_ = services.AddSingleton<SqlServerJobCoordinator>();
 		_ = services.AddSingleton<IJobLockProvider>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());

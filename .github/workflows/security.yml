@@ -35,7 +35,7 @@ jobs:
     continue-on-error: ${{ inputs.event-name == 'pull_request' }}
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -181,7 +181,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
 
@@ -291,7 +291,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -332,11 +332,49 @@ jobs:
           )
           if ($vulnRecords.Count -gt 0) {
             Write-Host "Detected vulnerable packages in $($vulnRecords.Count) project(s)."
-            if (Test-Path 'management/security/cve-allowlist.yaml') {
-              Write-Host "Vulnerabilities found, but allowlist present. Non-blocking."
+
+            # Each detected advisory blocks unless ITS OWN id is allowlisted. The allowlist is matched by
+            # CONTENTS, never by existence: an empty or unrelated allowlist must not waive anything, and an
+            # unreadable one must not waive anything either. Every branch below either allowlists a specific
+            # id or fails the step.
+            $detectedIds = @(
+              $vulnRecords
+              | ForEach-Object { [regex]::Matches([string]$_.Output, '(?i)\b(GHSA-[0-9A-Za-z-]+|CVE-\d{4}-\d+)\b') }
+              | ForEach-Object { $_.Value.ToUpperInvariant() }
+              | Sort-Object -Unique
+            )
+
+            $allowlistPath = 'management/security/cve-allowlist.yaml'
+            $allowedIds = @()
+            if (Test-Path $allowlistPath) {
+              try {
+                $allowlistText = Get-Content $allowlistPath -Raw -ErrorAction Stop
+              } catch {
+                Write-Error "Allowlist '$allowlistPath' exists but could not be read: $($_.Exception.Message). Failing closed."
+                exit 1
+              }
+              $allowedIds = @(
+                [regex]::Matches($allowlistText, '(?i)\b(GHSA-[0-9A-Za-z-]+|CVE-\d{4}-\d+)\b')
+                | ForEach-Object { $_.Value.ToUpperInvariant() }
+                | Sort-Object -Unique
+              )
+              Write-Host "Allowlist lists $($allowedIds.Count) advisory id(s)."
             } else {
-              Write-Error "Vulnerabilities found and no allowlist present. Failing per policy."
+              Write-Host "No allowlist present; every detected advisory blocks."
             }
+
+            if ($detectedIds.Count -eq 0) {
+              Write-Error "Vulnerable packages detected but no advisory id could be parsed from the audit output. Failing closed — an unidentifiable advisory cannot be allowlisted."
+              exit 1
+            }
+
+            $unallowed = @($detectedIds | Where-Object { $allowedIds -notcontains $_ })
+            if ($unallowed.Count -gt 0) {
+              Write-Error "Vulnerabilities not covered by the allowlist: $($unallowed -join ', '). Failing per policy. Add each id to $allowlistPath to waive it deliberately."
+              exit 1
+            }
+
+            Write-Host "All $($detectedIds.Count) detected advisory id(s) are individually allowlisted. Non-blocking."
           } else {
             Write-Host "No vulnerabilities detected."
           }
@@ -353,7 +391,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -389,7 +427,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1

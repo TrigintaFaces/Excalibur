@@ -13,5 +13,6 @@ using Excalibur.Dispatch.LeaderElection;
 [assembly: TypeForwardedTo(typeof(IHealthBasedLeaderElection))]
 [assembly: TypeForwardedTo(typeof(LeaderElectionOptions))]
 [assembly: TypeForwardedTo(typeof(LeaderElectionEventArgs))]
+[assembly: TypeForwardedTo(typeof(LeaderElectionAcquisitionFailedEventArgs))]
 [assembly: TypeForwardedTo(typeof(LeaderChangedEventArgs))]
 [assembly: TypeForwardedTo(typeof(CandidateHealth))]

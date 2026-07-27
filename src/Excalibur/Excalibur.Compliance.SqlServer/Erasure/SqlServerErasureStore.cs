@@ -30,6 +30,7 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCertificateStore, IErasureQueryStore
 {
 	private readonly SqlServerErasureStoreOptions _options;
+	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<SqlServerErasureStore> _logger;
 	private volatile bool _initialized;
 
@@ -38,9 +39,11 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	/// </summary>
 	public SqlServerErasureStore(
 		IOptions<SqlServerErasureStoreOptions> options,
+		IDataSubjectHasher dataSubjectHasher,
 		ILogger<SqlServerErasureStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
@@ -450,8 +453,8 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		return null;
 	}
 
-	private static string HashDataSubjectId(string dataSubjectId) =>
-		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+	private string HashDataSubjectId(string dataSubjectId) =>
+		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
 	private static VerificationSummary CreateDefaultVerificationSummary() => new()
 	{
@@ -483,8 +486,47 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
+		else
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		_initialized = true;
+	}
+
+	/// <summary>
+	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// </summary>
+	/// <remarks>
+	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
+	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
+	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
+	{
+		const string ExistsSql = "SELECT CASE WHEN OBJECT_ID(@TableName, 'U') IS NULL THEN 0 ELSE 1 END";
+
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullRequestsTableName, _options.FullCertificatesTableName })
+		{
+			var exists = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!exists)
+			{
+				throw new InvalidOperationException(
+					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
+					$"Either create the schema out of band, or set {nameof(SqlServerErasureStoreOptions)}."
+					+ $"{nameof(SqlServerErasureStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+			}
+		}
 	}
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)

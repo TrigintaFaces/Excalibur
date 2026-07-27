@@ -41,6 +41,7 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	private readonly PostgresLeaderElectionOptions _pgOptions;
 	private readonly PostgresHealthBasedLeaderElectionOptions _healthOptions;
 	private readonly ILogger<PostgresHealthBasedLeaderElection> _logger;
+	private readonly TimeProvider _timeProvider;
 	private volatile bool _disposed;
 	private bool _tableCreated;
 
@@ -57,13 +58,19 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	/// <see cref="PostgresLeaderElection"/> for fail-closed fencing-token issuance on acquisition. Defaults to
 	/// <see langword="null"/> (no fencing).
 	/// </param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for health-record expiration decisions. Defaults to
+	/// <see cref="TimeProvider.System"/>. Inject a controllable provider to make expiration decisions
+	/// deterministic in tests.
+	/// </param>
 	public PostgresHealthBasedLeaderElection(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
 		IOptions<PostgresHealthBasedLeaderElectionOptions> healthOptions,
 		ILogger<PostgresHealthBasedLeaderElection> logger,
 		ILogger<PostgresLeaderElection> innerLogger,
-		IFencingTokenProvider? fencingTokenProvider = null)
+		IFencingTokenProvider? fencingTokenProvider = null,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(electionOptions);
@@ -74,6 +81,7 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 		_pgOptions = pgOptions.Value;
 		_healthOptions = healthOptions.Value;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		ValidateIdentifier(_healthOptions.SchemaName, nameof(_healthOptions.SchemaName));
 		ValidateIdentifier(_healthOptions.TableName, nameof(_healthOptions.TableName));
@@ -103,10 +111,20 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 	}
 
 	/// <inheritdoc/>
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed
+	{
+		add => _inner.AcquisitionFailed += value;
+		remove => _inner.AcquisitionFailed -= value;
+	}
+
+	/// <inheritdoc/>
 	public string CandidateId => _inner.CandidateId;
 
 	/// <inheritdoc/>
 	public bool IsLeader => _inner.IsLeader;
+
+	/// <inheritdoc/>
+	public Leadership? CurrentLeadership => _inner.CurrentLeadership;
 
 	/// <inheritdoc/>
 	public string? CurrentLeaderId => _inner.CurrentLeaderId;
@@ -174,7 +192,7 @@ public sealed partial class PostgresHealthBasedLeaderElection : IHealthBasedLead
 
 		var results = new List<CandidateHealth>();
 		var qualifiedTableName = $"\"{_healthOptions.SchemaName}\".\"{_healthOptions.TableName}\"";
-		var expirationThreshold = DateTimeOffset.UtcNow.AddSeconds(-_healthOptions.HealthExpirationSeconds);
+		var expirationThreshold = _timeProvider.GetUtcNow().AddSeconds(-_healthOptions.HealthExpirationSeconds);
 
 		await using var connection = new NpgsqlConnection(_pgOptions.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);

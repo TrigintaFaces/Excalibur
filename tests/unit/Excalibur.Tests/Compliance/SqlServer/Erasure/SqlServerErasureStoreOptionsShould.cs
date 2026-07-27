@@ -24,7 +24,7 @@ public sealed class SqlServerErasureStoreOptionsShould : UnitTestBase
 		options.RequestsTableName.ShouldBe("ErasureRequests");
 		options.CertificatesTableName.ShouldBe("ErasureCertificates");
 		options.CommandTimeoutSeconds.ShouldBe(30);
-		options.AutoCreateSchema.ShouldBeTrue();
+		options.AutoCreateSchema.ShouldBeFalse();
 	}
 
 	[Fact]

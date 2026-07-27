@@ -25,29 +25,30 @@ public sealed class DomainIsolationTests
     [Fact]
     public void Domain_MustBe_MessagingAgnostic()
     {
-        // Arrange
-        var prohibitedMessagingDependencies = new[]
-        {
-            "Excalibur.Dispatch",
-            "Excalibur.Dispatch.Abstractions",
-            "MediatR",
-            "MassTransit",
-            "NServiceBus",
-            "Rebus"
-        };
+        var domainAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Domain");
 
-        // Act
-        var result = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Domain")
-            .ShouldNot().HaveDependencyOnAny(prohibitedMessagingDependencies)
-            .GetResult();
+        _ = domainAssembly.ShouldNotBeNull(
+            "The Excalibur.Domain assembly is not loaded — the module initializer force-loads it, so its " +
+            "absence means drift, not a pass.");
 
-        // Assert
-        result.IsSuccessful.ShouldBeTrue(
-            "Domain layer must be messaging-agnostic per DDD principles. " +
-            "Domain should contain pure business logic without infrastructure coupling. " +
-            "Move messaging concerns to Application or Patterns layer. " +
-            $"Violations: {string.Join(", ", result.FailingTypeNames ?? Array.Empty<string>())}");
+        // Domain MAY reference Excalibur.Dispatch.Abstractions (for IDomainEvent/IIntegrationEvent); it must
+        // not reference the concrete Excalibur.Dispatch (or .Patterns) implementation, nor any third-party
+        // messaging framework. Assembly-identity, exact concrete-vs-Abstractions distinction.
+        var thirdPartyMessaging = new[] { "MediatR", "MassTransit", "NServiceBus", "Rebus" };
+
+        var violations = domainAssembly.GetReferencedAssemblies()
+            .Select(a => a.Name)
+            .Where(n => n is not null
+                        && ((n.StartsWith("Excalibur.Dispatch", StringComparison.Ordinal)
+                             && !n.EndsWith(".Abstractions", StringComparison.Ordinal))
+                            || thirdPartyMessaging.Any(f => n.StartsWith(f, StringComparison.Ordinal))))
+            .ToList();
+
+        violations.ShouldBeEmpty(
+            "Domain layer must be messaging-agnostic per DDD principles — it may reference " +
+            "Excalibur.Dispatch.Abstractions only, never the concrete Dispatch implementation or a third-party " +
+            "messaging framework. Violations: " + string.Join(", ", violations));
     }
 
     /// <summary>
@@ -172,23 +173,11 @@ public sealed class DomainIsolationTests
     /// Domain entities and value objects should be immutable where possible.
     /// This test verifies that domain types don't expose public setters (DDD best practice).
     /// </summary>
-    [Fact]
-    public void Domain_ValueObjects_ShouldBeImmutable()
-    {
-        // Act
-        var mutableValueObjects = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Domain")
-            .And().HaveNameEndingWith("ValueObject")
-            .And().AreClasses()
-            .Should().BeImmutable()
-            .GetResult();
-
-        // Assert
-        mutableValueObjects.IsSuccessful.ShouldBeTrue(
-            "Value Objects should be immutable per DDD principles. " +
-            "Consider using init-only setters or constructor-based initialization. " +
-            $"Mutable types: {string.Join(", ", mutableValueObjects.FailingTypeNames ?? Array.Empty<string>())}");
-    }
+    // REMOVED (bh0syy): Domain_ValueObjects_ShouldBeImmutable. Per SoftwareArchitect's ruling — dead
+    // convention: no Excalibur.Domain type uses the `*ValueObject` suffix (this framework's value objects are
+    // records, whose immutability the compiler already enforces), so the filter matched nothing and the guard
+    // passed vacuously. There is no reliable structural marker to repoint to (a record is not necessarily a
+    // value object). Deleted.
 
     /// <summary>
     /// Domain layer SHOULD only reference foundational libraries.
@@ -208,27 +197,32 @@ public sealed class DomainIsolationTests
             "Medo.Uuid7" // UUID generation - acceptable for identifiers
         };
 
-        // Act
-        var domainTypes = Types.InCurrentDomain()
-            .That().ResideInNamespace("Excalibur.Domain")
-            .GetTypes();
+        var domainAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Excalibur.Domain");
 
-        // This is informational - document what Domain currently depends on
-        var actualDependencies = domainTypes
-            .SelectMany(t => t.Assembly.GetReferencedAssemblies())
+        _ = domainAssembly.ShouldNotBeNull(
+            "The Excalibur.Domain assembly is not loaded — the module initializer force-loads it, so its " +
+            "absence means drift, not a pass.");
+
+        var actualDependencies = domainAssembly.GetReferencedAssemblies()
             .Select(a => a.Name)
             .Where(name => name is not null)
             .Distinct()
-            .Where(name => !name!.StartsWith("System.") &&
-                           !name.StartsWith("mscorlib") &&
-                           !name.StartsWith("netstandard") &&
-                           !name.Equals("Excalibur.Domain", StringComparison.Ordinal))
-            .OrderBy(name => name)
+            .Where(name => !name!.StartsWith("System", StringComparison.Ordinal) &&
+                           !name.StartsWith("mscorlib", StringComparison.Ordinal) &&
+                           !name.StartsWith("netstandard", StringComparison.Ordinal) &&
+                           !name.Equals("Excalibur.Domain", StringComparison.Ordinal) &&
+                           // Domain may reference the foundational abstractions layers (per the dependency
+                           // diagram: Domain -> {Data.Abstractions, Dispatch.Abstractions}).
+                           !name.EndsWith(".Abstractions", StringComparison.Ordinal) &&
+                           !allowedNamespaces.Any(allowed => name.StartsWith(allowed, StringComparison.Ordinal)))
+            .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
 
-        // Report-only - Document findings without failing
-        Console.WriteLine(
-            "Domain layer current dependencies documented (report-only). " +
-            $"Review for DDD compliance: {string.Join(", ", actualDependencies)}");
+        actualDependencies.ShouldBeEmpty(
+            "Excalibur.Domain (pure DDD layer) must reference only the BCL, the allow-listed foundational " +
+            "utilities, and *.Abstractions contract layers. Unexpected dependencies (each is either debt to " +
+            "remove, or a legitimate foundational dependency to add to the allow-list with a justification): " +
+            string.Join(", ", actualDependencies));
     }
 }

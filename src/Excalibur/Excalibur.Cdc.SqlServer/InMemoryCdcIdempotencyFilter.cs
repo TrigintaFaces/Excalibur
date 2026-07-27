@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
+
+using Excalibur.Data.SqlServer.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -35,6 +38,16 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 	/// </summary>
 	internal const int DefaultCapacity = 10_000;
 
+	/// <summary>
+	/// Counter incremented whenever the filter reaches capacity and deduplication degrades — either a
+	/// not-yet-seen event fails closed in <see cref="IsProcessedAsync"/>, or a processed event cannot be
+	/// tracked in <see cref="MarkProcessedAsync"/>. The canonical, alertable cross-module degradation signal.
+	/// </summary>
+	private static readonly Counter<long> CapacityExceededCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
+		CdcTelemetryConstants.MetricNames.IdempotencyCapacityExceeded,
+		"event",
+		"Count of times the in-memory CDC idempotency filter reached capacity and deduplication degraded.");
+
 	private readonly ConcurrentDictionary<string, DateTimeOffset> _processedEvents = new(StringComparer.Ordinal);
 	private readonly int _capacity;
 	private readonly ILogger _logger;
@@ -62,37 +75,65 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 	}
 
 	/// <inheritdoc />
-	public Task<bool> IsProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, CancellationToken cancellationToken)
+	public Task<bool> IsProcessedAsync(
+		string tableName,
+		byte[] lsn,
+		byte[] seqVal,
+		string consumerId,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
 
-		var key = BuildKey(tableName, lsn, seqVal);
+		var key = BuildKey(tableName, lsn, seqVal, consumerId);
 		var isProcessed = _processedEvents.ContainsKey(key);
 
 		if (isProcessed)
 		{
 			LogDuplicateEventSkipped(tableName, CdcChangeDetector.ByteArrayToHex(lsn), CdcChangeDetector.ByteArrayToHex(seqVal));
+			return Task.FromResult(true);
 		}
 
-		return Task.FromResult(isProcessed);
+		// Fail-closed pre-process gate: a not-yet-seen event at capacity cannot be tracked, so we cannot
+		// guarantee it will be deduplicated on a later redelivery. Throwing here (BEFORE the handler runs)
+		// causes the batch to be redelivered rather than processed un-tracked — the only safe point to fail
+		// closed. (MarkProcessedAsync, which runs AFTER the handler, must never throw — that would double-
+		// process an event whose side effects already happened.)
+		if (_processedEvents.Count >= _capacity)
+		{
+			CapacityExceededCounter.Add(1);
+			LogCapacityReached(_capacity);
+			throw new CdcIdempotencyCapacityExceededException(_capacity);
+		}
+
+		return Task.FromResult(false);
 	}
 
 	/// <inheritdoc />
-	public Task MarkProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, CancellationToken cancellationToken)
+	public Task MarkProcessedAsync(
+		string tableName,
+		byte[] lsn,
+		byte[] seqVal,
+		string consumerId,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
 
+		// Best-effort by contract: MarkProcessedAsync runs AFTER the handler has already executed, so it must
+		// never throw (that would re-run a completed event on redelivery). At capacity we skip tracking and
+		// emit the degradation signal; the pre-process gate in IsProcessedAsync is the fail-closed point. In
+		// practice a new key rarely reaches here at saturation because that gate already failed it closed.
 		if (_processedEvents.Count >= _capacity)
 		{
+			CapacityExceededCounter.Add(1);
 			LogCapacityReached(_capacity);
 			return Task.CompletedTask;
 		}
 
-		var key = BuildKey(tableName, lsn, seqVal);
+		var key = BuildKey(tableName, lsn, seqVal, consumerId);
 		_ = _processedEvents.TryAdd(key, DateTimeOffset.UtcNow);
 
 		return Task.CompletedTask;
@@ -108,16 +149,21 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 	/// </summary>
 	/// <remarks>
 	/// Uses hex encoding of LSN and seqVal to avoid byte[] equality issues.
-	/// Format: <c>{tableName}:{hexLsn}:{hexSeqVal}</c>.
+	/// Format: <c>{consumerId}:{tableName}:{hexLsn}:{hexSeqVal}</c>. The consumer leads the key so a
+/// prefix scan is per consumer, and so two consumers of the same table can never collide.
 	/// </remarks>
-	private static string BuildKey(string tableName, byte[] lsn, byte[] seqVal)
+	private static string BuildKey(string tableName, byte[] lsn, byte[] seqVal, string consumerId)
 		=> string.Create(
-			tableName.Length + 1 + (lsn.Length * 2) + 1 + (seqVal.Length * 2),
-			(tableName, lsn, seqVal),
+			consumerId.Length + 1 + tableName.Length + 1 + (lsn.Length * 2) + 1 + (seqVal.Length * 2),
+			(tableName, lsn, seqVal, consumerId),
 			static (span, state) =>
 			{
-				state.tableName.AsSpan().CopyTo(span);
-				var pos = state.tableName.Length;
+				state.consumerId.AsSpan().CopyTo(span);
+				var pos = state.consumerId.Length;
+				span[pos++] = ':';
+
+				state.tableName.AsSpan().CopyTo(span[pos..]);
+				pos += state.tableName.Length;
 				span[pos++] = ':';
 
 				var lsnHex = Convert.ToHexString(state.lsn);

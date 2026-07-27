@@ -26,20 +26,14 @@ public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 	private bool _initialized;
 
 	/// <summary>
-	/// Static constructor to configure Dapper and Npgsql.
+	/// Static constructor to configure Dapper.
 	/// </summary>
 	/// <remarks>
-	/// Enables:
-	/// - Npgsql legacy timestamp behavior: TIMESTAMPTZ columns map to DateTimeOffset instead of DateTime
-	/// - Dapper underscore name matching: snake_case column names map to PascalCase properties
-	/// These must be set before any connections are opened.
+	/// Enables Dapper underscore name matching so snake_case column names map to PascalCase properties.
+	/// Must be set before any connections are opened.
 	/// </remarks>
 	static PostgresSnapshotStoreContainerFixture()
 	{
-		// Enable legacy timestamp behavior so TIMESTAMPTZ maps to DateTimeOffset
-		// This is required for Dapper to materialize Snapshot records correctly
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-
 		// Enable Dapper's underscore to PascalCase name matching
 		// Required because Postgres uses snake_case column names (e.g., aggregate_id)
 		// but DTOs use PascalCase properties (e.g., AggregateId)
@@ -92,19 +86,20 @@ public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 		await using var connection = CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		// Create snapshot store table with required schema
-		// Uses composite primary key (aggregate_id, aggregate_type) for single-snapshot-per-aggregate pattern
+		// Matches the canonical Excalibur.EventSourcing.Postgres snapshot store's shipped schema
+		// (Scripts/001_CreateSnapshotSchema.sql): snapshot_id is TEXT, metadata is a nullable BYTEA, and
+		// there is no snapshot_type column. tenant_id participates in the primary key.
 		var createTableSql = $"""
 			CREATE TABLE IF NOT EXISTS {SchemaName}.{TableName} (
-				snapshot_id UUID NOT NULL,
+				snapshot_id TEXT NOT NULL,
 				aggregate_id VARCHAR(255) NOT NULL,
 				aggregate_type VARCHAR(255) NOT NULL,
 				version BIGINT NOT NULL,
-				snapshot_type VARCHAR(500) NOT NULL,
 				data BYTEA NOT NULL,
 				metadata BYTEA,
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				PRIMARY KEY (aggregate_id, aggregate_type)
+				tenant_id VARCHAR(255) NOT NULL DEFAULT '',
+				PRIMARY KEY (aggregate_id, aggregate_type, tenant_id)
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_snapshots_version

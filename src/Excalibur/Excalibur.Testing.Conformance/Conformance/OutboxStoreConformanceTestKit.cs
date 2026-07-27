@@ -33,8 +33,12 @@ namespace Excalibur.Testing.Conformance;
 /// {
 ///     private readonly SqlServerFixture _fixture;
 ///
-///     protected override IOutboxStore CreateStore() =>
-///         new SqlServerOutboxStore(_fixture.ConnectionString);
+///     protected override IOutboxStore CreateStore()
+///     {
+///         var services = new ServiceCollection();
+///         services.AddSqlServerOutboxStore(o =&gt; o.ConnectionString = _fixture.ConnectionString);
+///         return services.BuildServiceProvider().GetRequiredService&lt;IOutboxStore&gt;();
+///     }
 ///
 ///     protected override async Task CleanupAsync() =>
 ///         await _fixture.CleanupAsync();
@@ -49,17 +53,6 @@ public abstract class OutboxStoreConformanceTestKit
 	/// </summary>
 	/// <returns>An IOutboxStore implementation to test.</returns>
 	protected abstract IOutboxStore CreateStore();
-
-	/// <summary>
-	/// Creates the admin interface for the outbox store.
-	/// </summary>
-	/// <remarks>
-	/// The default implementation casts <see cref="CreateStore"/> to <see cref="IOutboxStoreAdmin"/>.
-	/// Override if the admin interface is registered separately.
-	/// </remarks>
-	/// <returns>An IOutboxStoreAdmin implementation to test, or null if not supported.</returns>
-	protected virtual IOutboxStoreAdmin? CreateAdminStore()
-		=> CreateStore() as IOutboxStoreAdmin;
 
 	/// <summary>
 	/// Optional cleanup after each test.
@@ -191,8 +184,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task StageMessageAsync_WithScheduledAt_ShouldStoreCorrectly()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -371,8 +363,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task MarkFailedAsync_ShouldSetErrorMessage()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -405,8 +396,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task MarkFailedAsync_ShouldSetRetryCount()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -437,8 +427,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task GetFailedMessagesAsync_ShouldRespectMaxRetries()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -471,8 +460,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task GetFailedMessagesAsync_ShouldRespectOlderThan()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -504,8 +492,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task GetScheduledMessagesAsync_ShouldReturnScheduledBeforeThreshold()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -536,8 +523,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task GetScheduledMessagesAsync_ShouldNotReturnImmediateMessages()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -565,13 +551,12 @@ public abstract class OutboxStoreConformanceTestKit
 	#region Cleanup Tests
 
 	/// <summary>
-	/// Verifies that CleanupSentMessagesAsync removes old sent messages.
+	/// Verifies that CleanupAllTenantsSentMessagesAsync removes old sent messages.
 	/// </summary>
-	public virtual async Task CleanupSentMessagesAsync_ShouldRemoveOldMessages()
+	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldRemoveOldMessages()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -583,25 +568,24 @@ public abstract class OutboxStoreConformanceTestKit
 
 		// Cleanup with future threshold - should remove our just-sent message
 		var futureThreshold = DateTimeOffset.UtcNow.AddHours(1);
-		var removed = await admin.CleanupSentMessagesAsync(futureThreshold, 100, CancellationToken.None)
+		var removed = await admin.CleanupAllTenantsSentMessagesAsync(futureThreshold, 100, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Should have removed at least 1 message
 		if (removed < 1)
 		{
 			throw new TestFixtureAssertionException(
-				"Expected CleanupSentMessagesAsync to remove at least 1 message with future threshold");
+				"Expected CleanupAllTenantsSentMessagesAsync to remove at least 1 message with future threshold");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that CleanupSentMessagesAsync respects batch size.
+	/// Verifies that CleanupAllTenantsSentMessagesAsync respects batch size.
 	/// </summary>
-	public virtual async Task CleanupSentMessagesAsync_ShouldRespectBatchSize()
+	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldRespectBatchSize()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -616,7 +600,7 @@ public abstract class OutboxStoreConformanceTestKit
 
 		// Cleanup with batch size of 2
 		var futureThreshold = DateTimeOffset.UtcNow.AddHours(1);
-		var removed = await admin.CleanupSentMessagesAsync(futureThreshold, 2, CancellationToken.None)
+		var removed = await admin.CleanupAllTenantsSentMessagesAsync(futureThreshold, 2, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (removed > 2)
@@ -636,8 +620,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task GetStatisticsAsync_ShouldReflectMessageCounts()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}
@@ -688,8 +671,7 @@ public abstract class OutboxStoreConformanceTestKit
 	public virtual async Task GetStatisticsAsync_AfterOperations_ShouldUpdateAccurately()
 	{
 		var store = CreateStore();
-		var admin = store as IOutboxStoreAdmin ?? CreateAdminStore();
-		if (admin is null)
+		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
 		{
 			return; // Admin interface not supported
 		}

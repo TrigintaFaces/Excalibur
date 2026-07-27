@@ -32,6 +32,15 @@ public sealed class SqlServerKeyEscrowOptions
 	public string TokensTableName { get; set; } = "RecoveryTokens";
 
 	/// <summary>
+	/// Gets or sets the name of the per-batch key-wrap table. Defaults to "KeyEscrowWrap".
+	/// </summary>
+	/// <remarks>
+	/// Holds one row per recovery-token batch: the escrowed key wrapped under a KEK derived from that batch's
+	/// quorum secret (multi-recipient envelope). Recovery cannot unwrap the key with the master key alone.
+	/// </remarks>
+	public string WrapTableName { get; set; } = "KeyEscrowWrap";
+
+	/// <summary>
 	/// Gets the fully qualified table name for the key escrow table.
 	/// </summary>
 	public string FullyQualifiedTableName => $"[{Schema}].[{TableName}]";
@@ -40,6 +49,11 @@ public sealed class SqlServerKeyEscrowOptions
 	/// Gets the fully qualified table name for the recovery tokens table.
 	/// </summary>
 	public string FullyQualifiedTokensTableName => $"[{Schema}].[{TokensTableName}]";
+
+	/// <summary>
+	/// Gets the fully qualified table name for the per-batch key-wrap table.
+	/// </summary>
+	public string FullyQualifiedWrapTableName => $"[{Schema}].[{WrapTableName}]";
 
 	/// <summary>
 	/// Gets or sets the command timeout in seconds. Defaults to 30.

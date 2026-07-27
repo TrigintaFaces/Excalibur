@@ -73,15 +73,6 @@ public sealed class MemoryMessageShould
 	}
 
 	[Fact]
-	public void ReturnActionKind()
-	{
-		var owner = MemoryPool<byte>.Shared.Rent(10);
-		using var message = new MemoryMessage(owner);
-
-		message.Kind.ShouldBe(MessageKinds.Action);
-	}
-
-	[Fact]
 	public void ParseMessageIdAsGuid()
 	{
 		var owner = MemoryPool<byte>.Shared.Rent(10);

@@ -6,7 +6,7 @@ This sample demonstrates the **transactional outbox pattern** for reliable messa
 
 1. **Guaranteed Delivery** - Messages stored atomically with business data
 2. **At-Least-Once Semantics** - Automatic retry on failure
-3. **Configurable Policies** - Batch size, retry, cleanup options
+3. **Configurable Policies** - Batch size, retry, and parallelism options
 4. **Inbox Deduplication** - Prevent duplicate message processing
 
 ## The Transactional Outbox Pattern
@@ -58,7 +58,7 @@ builder.Services.AddDispatch(dispatch =>
 
 ### Outbox Configuration
 
-Uses the builder pattern to configure storage, processing, and cleanup:
+Uses the builder pattern to configure storage and processing:
 
 ```csharp
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
@@ -70,12 +70,6 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
                 .PollingInterval(TimeSpan.FromSeconds(2))   // Check for messages every 2 seconds
                 .MaxRetryCount(3)                           // Retry failed messages up to 3 times
                 .RetryDelay(TimeSpan.FromSeconds(10));      // Wait 10 seconds between retries
-        })
-        .WithCleanup(cleanup =>
-        {
-            cleanup.EnableAutoCleanup(true)
-                .RetentionPeriod(TimeSpan.FromHours(1))     // Keep messages for 1 hour
-                .CleanupInterval(TimeSpan.FromMinutes(5));  // Run cleanup every 5 minutes
         })
         .EnableBackgroundProcessing();                      // Start the background processor hosted service
 }));
@@ -108,7 +102,6 @@ The outbox pattern ensures reliable message delivery:
   1. Save message to outbox (same transaction as business data)
   2. Background processor publishes messages
   3. Retry on failure with configurable policy
-  4. Auto-cleanup of old messages
 
 Placing order: ORD-20260121-001
   -> OrderPlacedEvent dispatched to outbox
@@ -135,9 +128,6 @@ Placing order: ORD-20260121-001
 | `PollingInterval` | 5 seconds | Time between processing cycles |
 | `MaxRetryCount` | 3 | Maximum retry attempts |
 | `RetryDelay` | 5 minutes | Delay between retries |
-| `MessageRetentionPeriod` | 7 days | How long to keep processed messages |
-| `EnableAutomaticCleanup` | true | Auto-delete old messages |
-| `CleanupInterval` | 1 hour | Time between cleanup runs |
 | `EnableParallelProcessing` | false | Process messages in parallel |
 | `MaxDegreeOfParallelism` | 4 | Max parallel message handlers |
 
@@ -158,7 +148,7 @@ This is essential for at-least-once delivery systems where messages may be redel
 1. **Atomic Transactions**: Always save outbox messages in the same transaction as business data
 2. **Idempotent Handlers**: Design handlers to be safe for repeated execution
 3. **Monitor Queue Depth**: Watch outbox size to detect delivery issues
-4. **Configure Retention**: Balance compliance needs with storage costs
+4. **Plan for Retention**: Sent outbox entries are retained until you remove them - automatic cleanup is not implemented, so schedule your own deletion job and size storage for the volume you keep
 5. **Use Parallel Processing**: Enable for high-throughput scenarios
 
 ## Production Deployment
@@ -193,7 +183,7 @@ CREATE TABLE dbo.OutboxMessages (
     LastAttemptAt    DATETIMEOFFSET NULL,
     CorrelationId    NVARCHAR(255)  NULL,
     CausationId      NVARCHAR(255)  NULL,
-    TenantId         NVARCHAR(255)  NULL,
+    TenantId         NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
     Priority         INT            NOT NULL DEFAULT 0,
     TargetTransports NVARCHAR(MAX)  NULL,
     IsMultiTransport BIT            NOT NULL DEFAULT 0,
@@ -203,11 +193,37 @@ CREATE TABLE dbo.OutboxMessages (
     GroupKey         NVARCHAR(256)  NULL,   -- logical message grouping
     SequenceNumber   BIGINT         NOT NULL DEFAULT 0, -- monotonic ordering key
     NextAttemptAt    DATETIMEOFFSET NULL,   -- retry backoff: not re-claimed until this time
+    FencingToken     BIGINT         NULL,   -- token of the leader that claimed the row; drain/mark SQL name it unconditionally
     INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
     INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 );
 
--- Inbox table (default: dbo.inbox_messages) — keyed by (MessageId, HandlerType)
+-- Leadership-fence control table (default: dbo.OutboxFence) — REQUIRED, including for a
+-- single-instance outbox that never elects a leader.
+--
+-- The drain statement names this table unconditionally, and SQL Server resolves object names when
+-- it compiles the statement — not when a predicate happens to evaluate. So if the table is absent
+-- the drain fails on every attempt with "Msg 208, Invalid object name 'dbo.OutboxFence'", and
+-- nothing is ever delivered. Create it even if you do not run leader-fenced processing.
+--
+-- It holds ONE row per outbox table (keyed by the qualified outbox table name) recording the highest
+-- fencing token ever accepted. It is deliberately separate from OutboxMessages so routine cleanup,
+-- which deletes sent token-bearing rows, can never lower the recorded high-water mark — a superseded
+-- leader's stale token stays rejected after cleanup. Cleanup must not reference this table.
+CREATE TABLE dbo.OutboxFence (
+    OutboxTable    NVARCHAR(512) NOT NULL PRIMARY KEY,
+    HighWaterToken BIGINT        NOT NULL
+);
+
+-- Inbox table (default: dbo.inbox_messages) — SINGLE-TENANT schema.
+--
+-- DEPLOYMENT MODE: the inbox is column-agnostic by deployment. This sample is single-tenant, so
+-- the dedup/claim key is the pair (MessageId, HandlerType) and there is NO TenantId column — a
+-- single-tenant consumer pays nothing for a tenant discriminator it never uses. If you opt into
+-- multi-tenancy (AddMultiTenancy()), use the MULTI-TENANT inbox schema instead — key
+-- (MessageId, HandlerType, TenantId), TenantId NOT NULL — shipped as the provider's
+-- 001_CreateInboxSchema.MultiTenant.sql. The store verifies the physical schema matches the
+-- registered mode at startup and fails fast on a mismatch.
 CREATE TABLE dbo.inbox_messages (
     MessageId     NVARCHAR(255)  NOT NULL,
     HandlerType   NVARCHAR(500)  NOT NULL,
@@ -217,15 +233,20 @@ CREATE TABLE dbo.inbox_messages (
     ReceivedAt    DATETIMEOFFSET NOT NULL,
     ProcessedAt   DATETIMEOFFSET NULL,
     Status        INT            NOT NULL DEFAULT 0,
+    LeaseExpiresAtUtc DATETIMEOFFSET NULL,         -- REQUIRED: backs the atomic lease-based claim
     LastError     NVARCHAR(MAX)  NULL,
     RetryCount    INT            NOT NULL DEFAULT 0,
     LastAttemptAt DATETIMEOFFSET NULL,
     NextAttemptAt DATETIMEOFFSET NULL,
     CorrelationId NVARCHAR(255)  NULL,
-    TenantId      NVARCHAR(255)  NULL,
     Source        NVARCHAR(255)  NULL,
+    -- Single-tenant: the dedup/claim key is the pair. No TenantId column.
     CONSTRAINT PK_inbox_messages PRIMARY KEY CLUSTERED (MessageId, HandlerType)
 );
+
+-- To grow into multi-tenancy later (single-tenant -> multi-tenant), run the provider's
+-- 002_MigrateToMultiTenant.sql: it adds TenantId NOT NULL DEFAULT '__untenanted__' (anchoring
+-- existing rows to the reserved sentinel) and rebuilds the key as (MessageId, HandlerType, TenantId).
 ```
 
 ## Project Structure

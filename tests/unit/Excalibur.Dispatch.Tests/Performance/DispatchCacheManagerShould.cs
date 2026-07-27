@@ -48,7 +48,6 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		HandlerInvokerRegistry.ClearCache();
 		HandlerActivator.ClearCache();
 		FinalDispatchHandler.ClearResultFactoryCache();
-		MiddlewareApplicabilityEvaluator.ClearCache();
 	}
 
 	#region Initial State Tests (2 tests)
@@ -71,7 +70,6 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		status.HandlerRegistryFrozen.ShouldBeFalse();
 		status.HandlerActivatorFrozen.ShouldBeFalse();
 		status.ResultFactoryFrozen.ShouldBeFalse();
-		status.MiddlewareEvaluatorFrozen.ShouldBeFalse();
 		status.ProfileSelectionFrozen.ShouldBeTrue(); // True when no registry injected (vacuously true)
 		status.FrozenAt.ShouldBeNull();
 		status.AllFrozen.ShouldBeFalse();
@@ -93,7 +91,6 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		status.HandlerRegistryFrozen.ShouldBeTrue();
 		status.HandlerActivatorFrozen.ShouldBeTrue();
 		status.ResultFactoryFrozen.ShouldBeTrue();
-		status.MiddlewareEvaluatorFrozen.ShouldBeTrue();
 		status.ProfileSelectionFrozen.ShouldBeTrue();
 		status.AllFrozen.ShouldBeTrue();
 	}
@@ -209,7 +206,6 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		unfrozen.HandlerRegistryFrozen.ShouldBeFalse();
 		unfrozen.HandlerActivatorFrozen.ShouldBeFalse();
 		unfrozen.ResultFactoryFrozen.ShouldBeFalse();
-		unfrozen.MiddlewareEvaluatorFrozen.ShouldBeFalse();
 		unfrozen.ProfileSelectionFrozen.ShouldBeFalse();
 		unfrozen.FrozenAt.ShouldBeNull();
 		unfrozen.AllFrozen.ShouldBeFalse();
@@ -237,10 +233,7 @@ public sealed class DispatchCacheManagerShould : IDisposable
 
 			FinalDispatchHandler.FreezeResultFactoryCache();
 			_cacheManager.GetStatus().ResultFactoryFrozen.ShouldBeTrue();
-			_cacheManager.GetStatus().MiddlewareEvaluatorFrozen.ShouldBeFalse();
 
-			MiddlewareApplicabilityEvaluator.FreezeCache();
-			_cacheManager.GetStatus().MiddlewareEvaluatorFrozen.ShouldBeTrue();
 			_cacheManager.GetStatus().AllFrozen.ShouldBeTrue();
 		}
 		finally

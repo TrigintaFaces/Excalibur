@@ -33,6 +33,14 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 // 1. Register GDPR erasure
 // ----------------------------------------------------------------------------
 
+// This sample runs on the in-memory key provider, whose keys do not survive a restart. That is fine
+// for a demo and unacceptable in production: key material lost on restart makes every value encrypted
+// with it permanently unrecoverable. Nothing stops you deploying this, so the choice is yours to get
+// right — a real deployment deletes these two lines and registers a durable provider instead
+// (for example the Azure Key Vault, AWS KMS, or HashiCorp Vault provider), which the startup
+// durability gate then accepts without any opt-in.
+builder.Services.Configure<KeyDurabilityOptions>(o => o.AllowVolatileKeyProvider = true);
+
 builder.Services.AddGdprErasure(options =>
 {
 	// Grace period during which a user can cancel their erasure request
@@ -45,6 +53,14 @@ builder.Services.AddGdprErasure(options =>
 	// Require an independent verification step before running the erasure.
 	options.RequireVerification = true;
 });
+
+// Data-subject identifiers are pseudonymized with a keyed HMAC that requires a secret pepper; the framework
+// fails closed at startup if one is not configured (a missing/weak pepper would make the pseudonymization
+// reversible). DEMO ONLY: read it from configuration with a runnable fallback — in production supply a
+// high-entropy secret from your secret manager / KMS (never a literal in source), stored apart from the data.
+builder.Services.Configure<Excalibur.Compliance.Erasure.DataSubjectHashingOptions>(o =>
+	o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"]
+		?? "sample-demo-pepper-not-a-secret-change-me-0123456789");
 
 // In-memory erasure store for the demo; production uses SQL Server.
 builder.Services.AddInMemoryErasureStore();

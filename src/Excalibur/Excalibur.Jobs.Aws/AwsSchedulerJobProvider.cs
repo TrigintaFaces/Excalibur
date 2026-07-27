@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Amazon.Scheduler;
@@ -22,7 +21,7 @@ namespace Excalibur.Jobs.Aws;
 public sealed partial class AwsSchedulerJobProvider(
 	AmazonSchedulerClient schedulerClient,
 	AwsSchedulerOptions options,
-	ILogger<AwsSchedulerJobProvider> logger) : IDisposable
+	ILogger<AwsSchedulerJobProvider> logger) : IJobSchedulerProvider, IDisposable
 {
 	private readonly AmazonSchedulerClient _schedulerClient = schedulerClient ?? throw new ArgumentNullException(nameof(schedulerClient));
 	private readonly ILogger<AwsSchedulerJobProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -37,8 +36,6 @@ public sealed partial class AwsSchedulerJobProvider(
 	/// <param name="cronExpression"> The cron expression for scheduling. </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> A task that represents the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
 	public async Task ScheduleJobAsync<TJob>(string jobName, string cronExpression, CancellationToken cancellationToken)
 		where TJob : class, IBackgroundJob
 	{

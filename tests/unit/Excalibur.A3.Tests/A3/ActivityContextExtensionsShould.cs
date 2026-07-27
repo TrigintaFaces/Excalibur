@@ -261,7 +261,7 @@ public sealed class ActivityContextExtensionsShould
 	public void TenantIdShouldReturnNullWhenNotPresent()
 	{
 		// Arrange
-		_ = A.CallTo(() => _activityContext.GetValue("TenantId", default(ITenantId)))
+		_ = A.CallTo(() => _activityContext.GetValue<string?>("TenantId", null))
 			.Returns(null);
 
 		// Act
@@ -276,10 +276,8 @@ public sealed class ActivityContextExtensionsShould
 	{
 		// Arrange
 		const string expectedTenantId = "tenant-abc";
-		var tenantId = A.Fake<ITenantId>();
-		_ = A.CallTo(() => tenantId.Value).Returns(expectedTenantId);
-		_ = A.CallTo(() => _activityContext.GetValue("TenantId", default(ITenantId)))
-			.Returns(tenantId);
+		_ = A.CallTo(() => _activityContext.GetValue<string?>("TenantId", null))
+			.Returns(expectedTenantId);
 
 		// Act
 		var result = _activityContext.TenantId();

@@ -100,6 +100,11 @@ internal partial class AzureMessageJsonContext : JsonSerializerContext
 			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
 			ReferenceHandler = ReferenceHandler.IgnoreCycles,
 			NumberHandling = JsonNumberHandling.AllowReadingFromString,
+			// Intentionally NOT the event canonical serializer (EventSerializationDefaults.Canonical): this is
+			// an Azure Service Bus transport serializer, not event-payload persistence. MaxDepth = 32 is a
+			// DELIBERATELY STRICTER DoS guard than the framework default (64); the frozen Canonical carries no
+			// MaxDepth (effective 64), so converging would LOOSEN this guard 32 -> 64 — a security regression.
+			// Documented-exempt in the 4o8i86 event-serializer guard.
 			MaxDepth = 32,
 		};
 

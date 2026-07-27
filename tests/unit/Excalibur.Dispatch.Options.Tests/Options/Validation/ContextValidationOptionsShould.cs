@@ -33,7 +33,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateRequiredFields.ShouldBeTrue();
+		options.Checks.ValidateRequiredFields.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -43,7 +43,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateMultiTenancy.ShouldBeTrue();
+		options.Checks.ValidateMultiTenancy.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -53,7 +53,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateAuthentication.ShouldBeTrue();
+		options.Checks.ValidateAuthentication.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -63,7 +63,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateTracing.ShouldBeTrue();
+		options.Checks.ValidateTracing.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -73,7 +73,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateVersioning.ShouldBeTrue();
+		options.Checks.ValidateVersioning.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -83,7 +83,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateCollections.ShouldBeTrue();
+		options.Checks.ValidateCollections.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -136,7 +136,7 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Assert
-		options.ValidateCorrelationChain.ShouldBeTrue();
+		options.Checks.ValidateCorrelationChain.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -174,10 +174,10 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions();
 
 		// Act
-		options.ValidateRequiredFields = false;
+		options.Checks.ValidateRequiredFields = false;
 
 		// Assert
-		options.ValidateRequiredFields.ShouldBeFalse();
+		options.Checks.ValidateRequiredFields.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -217,28 +217,31 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions
 		{
 			Mode = ValidationMode.Strict,
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			EnableDetailedDiagnostics = false,
 			MaxMessageAge = TimeSpan.FromHours(6),
-			ValidateCorrelationChain = false,
 		};
 
 		// Assert
 		options.Mode.ShouldBe(ValidationMode.Strict);
-		options.ValidateRequiredFields.ShouldBeFalse();
-		options.ValidateMultiTenancy.ShouldBeFalse();
-		options.ValidateAuthentication.ShouldBeFalse();
-		options.ValidateTracing.ShouldBeFalse();
-		options.ValidateVersioning.ShouldBeFalse();
-		options.ValidateCollections.ShouldBeFalse();
+		options.Checks.ValidateRequiredFields.ShouldBeFalse();
+		options.Checks.ValidateMultiTenancy.ShouldBeFalse();
+		options.Checks.ValidateAuthentication.ShouldBeFalse();
+		options.Checks.ValidateTracing.ShouldBeFalse();
+		options.Checks.ValidateVersioning.ShouldBeFalse();
+		options.Checks.ValidateCollections.ShouldBeFalse();
 		options.EnableDetailedDiagnostics.ShouldBeFalse();
 		options.MaxMessageAge.ShouldBe(TimeSpan.FromHours(6));
-		options.ValidateCorrelationChain.ShouldBeFalse();
+		options.Checks.ValidateCorrelationChain.ShouldBeFalse();
 	}
 
 	#endregion
@@ -252,18 +255,21 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions
 		{
 			Mode = ValidationMode.Strict,
-			ValidateRequiredFields = true,
-			ValidateMultiTenancy = true,
-			ValidateAuthentication = true,
-			ValidateTracing = true,
+			Checks =
+			{
+				ValidateRequiredFields = true,
+				ValidateMultiTenancy = true,
+				ValidateAuthentication = true,
+				ValidateTracing = true,
+			},
 		};
 
 		// Assert
 		options.Mode.ShouldBe(ValidationMode.Strict);
-		options.ValidateRequiredFields.ShouldBeTrue();
-		options.ValidateMultiTenancy.ShouldBeTrue();
-		options.ValidateAuthentication.ShouldBeTrue();
-		options.ValidateTracing.ShouldBeTrue();
+		options.Checks.ValidateRequiredFields.ShouldBeTrue();
+		options.Checks.ValidateMultiTenancy.ShouldBeTrue();
+		options.Checks.ValidateAuthentication.ShouldBeTrue();
+		options.Checks.ValidateTracing.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -273,10 +279,13 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions
 		{
 			Mode = ValidationMode.Lenient,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
+			Checks =
+			{
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+			},
 		};
 
 		// Assert
@@ -295,6 +304,56 @@ public sealed class ContextValidationOptionsShould
 		// Assert
 		options.CustomValidatorTypes.Count.ShouldBe(1);
 		options.CustomValidatorTypes.ShouldContain(typeof(string));
+	}
+
+	#endregion
+
+	#region Validator Tests
+
+	[Fact]
+	public void Validator_Fails_WhenMaxMessageAgeIsNotPositive()
+	{
+		// Arrange
+		var validator = new ContextValidationOptionsValidator();
+		var options = new ContextValidationOptions { MaxMessageAge = TimeSpan.Zero };
+
+		// Act
+		var result = validator.Validate(name: null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void Validator_Fails_WhenRequiredFieldsEmptyAndValidationEnabled()
+	{
+		// Arrange
+		var validator = new ContextValidationOptionsValidator();
+		var options = new ContextValidationOptions
+		{
+			RequiredFields = [],
+			Checks = { ValidateRequiredFields = true },
+		};
+
+		// Act
+		var result = validator.Validate(name: null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void Validator_Succeeds_ForDefaultOptions()
+	{
+		// Arrange
+		var validator = new ContextValidationOptionsValidator();
+		var options = new ContextValidationOptions();
+
+		// Act
+		var result = validator.Validate(name: null, options);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
 	}
 
 	#endregion

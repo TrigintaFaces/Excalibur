@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using System.Collections.Concurrent;
 using System.Reflection;
 
@@ -57,13 +58,8 @@ public sealed class AuditLoggingCoveragePushShould
 		}, CancellationToken.None);
 
 		// Tamper: replace the second event with a modified version that has wrong hash
-		var eventsById = GetPrivateField<ConcurrentDictionary<string, AuditEvent>>(store, "_eventsById");
-		if (eventsById.TryGetValue("tamper-2", out var originalEvent))
-		{
-			// Change the EventHash to a wrong value, causing VerifyHash to fail
-			var tamperedEvent = originalEvent with { EventHash = "TAMPERED_HASH_VALUE" };
-			eventsById["tamper-2"] = tamperedEvent;
-		}
+		// Tamper in BOTH structures -- verification walks the tenant partition, not the by-id map.
+		TamperEventHash(store, "tamper-2", "TAMPERED_HASH_VALUE");
 
 		// Act - this should detect the hash mismatch
 		var result = await store.VerifyChainIntegrityAsync(
@@ -100,13 +96,9 @@ public sealed class AuditLoggingCoveragePushShould
 		}
 
 		// Tamper with events 2 and 3
-		var eventsById = GetPrivateField<ConcurrentDictionary<string, AuditEvent>>(store, "_eventsById");
 		foreach (var key in new[] { "multi-tamper-2", "multi-tamper-3" })
 		{
-			if (eventsById.TryGetValue(key, out var evt))
-			{
-				eventsById[key] = evt with { EventHash = "WRONG_HASH" };
-			}
+			TamperEventHash(store, key, "WRONG_HASH");
 		}
 
 		// Act
@@ -149,11 +141,7 @@ public sealed class AuditLoggingCoveragePushShould
 		}, CancellationToken.None);
 
 		// Tamper with the FIRST event
-		var eventsById = GetPrivateField<ConcurrentDictionary<string, AuditEvent>>(store, "_eventsById");
-		if (eventsById.TryGetValue("first-tamper-1", out var evt))
-		{
-			eventsById["first-tamper-1"] = evt with { EventHash = "BAD_HASH" };
-		}
+		TamperEventHash(store, "first-tamper-1", "BAD_HASH");
 
 		// Act
 		var result = await store.VerifyChainIntegrityAsync(
@@ -439,7 +427,7 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// A non-security event that SecurityAnalyst cannot access
 		var dataEvent = new AuditEvent
@@ -475,7 +463,7 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Act & Assert - exercises LogIntegrityVerificationAccessDenied with logging enabled
 		await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -499,7 +487,7 @@ public sealed class AuditLoggingCoveragePushShould
 		A.CallTo(() => roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null, metaLogger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
 
 		var auditEvent = new AuditEvent
 		{
@@ -583,7 +571,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_OrderByDescendingFalse_WithTenantScope()
 	{
 		// Arrange - exercise ascending order within tenant scope
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.ScopedTo("asc-tenant");
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -612,7 +600,6 @@ public sealed class AuditLoggingCoveragePushShould
 		// Act - ascending order within tenant scope
 		var results = await store.QueryAsync(new AuditQuery
 		{
-			TenantId = "asc-tenant",
 			OrderByDescending = false
 		}, CancellationToken.None);
 
@@ -729,7 +716,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_PaginationWithTenantScope()
 	{
 		// Arrange - exercise pagination within tenant-scoped query
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.ScopedTo("pag-tenant");
 
 		for (var i = 1; i <= 5; i++)
 		{
@@ -748,7 +735,6 @@ public sealed class AuditLoggingCoveragePushShould
 		// Act
 		var page1 = await store.QueryAsync(new AuditQuery
 		{
-			TenantId = "pag-tenant",
 			MaxResults = 2,
 			Skip = 0,
 			OrderByDescending = false
@@ -756,7 +742,6 @@ public sealed class AuditLoggingCoveragePushShould
 
 		var page2 = await store.QueryAsync(new AuditQuery
 		{
-			TenantId = "pag-tenant",
 			MaxResults = 2,
 			Skip = 2,
 			OrderByDescending = false
@@ -772,7 +757,7 @@ public sealed class AuditLoggingCoveragePushShould
 	public async Task InMemoryAuditStore_QueryAsync_DescendingOrder_WithTenantScope()
 	{
 		// Arrange - exercise descending order within tenant scope
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.ScopedTo("desc-tenant");
 		var ts1 = new DateTimeOffset(2025, 6, 10, 0, 0, 0, TimeSpan.Zero);
 		var ts2 = new DateTimeOffset(2025, 6, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -801,7 +786,6 @@ public sealed class AuditLoggingCoveragePushShould
 		// Act - descending order within tenant scope
 		var results = await store.QueryAsync(new AuditQuery
 		{
-			TenantId = "desc-tenant",
 			OrderByDescending = true
 		}, CancellationToken.None);
 
@@ -1004,7 +988,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		AuditQuery? capturedQuery = null;
 		A.CallTo(() => innerStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -1033,7 +1017,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		AuditQuery? capturedQuery = null;
 		A.CallTo(() => innerStore.CountAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -1060,7 +1044,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var authzEvent = new AuditEvent
 		{
@@ -1094,7 +1078,7 @@ public sealed class AuditLoggingCoveragePushShould
 
 		using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Warning));
 		var logger = loggerFactory.CreateLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var dataModEvent = new AuditEvent
 		{
@@ -1127,7 +1111,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		AuditQuery? capturedQuery = null;
 		A.CallTo(() => innerStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
@@ -1159,7 +1143,7 @@ public sealed class AuditLoggingCoveragePushShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var originalQuery = new AuditQuery
 		{
@@ -1183,6 +1167,49 @@ public sealed class AuditLoggingCoveragePushShould
 	#endregion RbacAuditStore - ApplyRoleFilters Fallback
 
 	#region Helper Types and Methods
+
+	/// <summary>
+	/// Corrupts an event's hash in BOTH private structures the store maintains, so the tamper is visible to
+	/// chain verification.
+	/// </summary>
+	/// <remarks>
+	/// The store keeps events twice: <c>_eventsById</c> for point lookup and <c>_eventsByTenant</c> for the
+	/// per-tenant chains. Verification walks the <b>partition</b>, so corrupting only the by-id entry left
+	/// the verified chain pristine and these arms asserted a tamper that verification could not see —
+	/// vacuous, and in the direction that matters: they would have passed while integrity checking was
+	/// broken. <see cref="AuditEvent"/> is a record, so <c>with</c> yields a NEW instance; replacing one
+	/// dictionary's reference does not update the other's.
+	/// </remarks>
+	/// <param name="store">The store whose internals are corrupted.</param>
+	/// <param name="eventId">The event to tamper with.</param>
+	/// <param name="badHash">The corrupt hash to write.</param>
+	private static void TamperEventHash(InMemoryAuditStore store, string eventId, string badHash)
+	{
+		var byId = GetPrivateField<ConcurrentDictionary<string, AuditEvent>>(store, "_eventsById");
+		var byTenant = GetPrivateField<ConcurrentDictionary<string, List<AuditEvent>>>(store, "_eventsByTenant");
+
+		if (!byId.TryGetValue(eventId, out var original))
+		{
+			return;
+		}
+
+		var tampered = original with { EventHash = badHash };
+		byId[eventId] = tampered;
+
+		foreach (var partition in byTenant.Values)
+		{
+			lock (partition)
+			{
+				var index = partition.FindIndex(
+					e => string.Equals(e.EventId, eventId, StringComparison.Ordinal));
+
+				if (index >= 0)
+				{
+					partition[index] = tampered;
+				}
+			}
+		}
+	}
 
 	private static T GetPrivateField<T>(object obj, string fieldName)
 	{

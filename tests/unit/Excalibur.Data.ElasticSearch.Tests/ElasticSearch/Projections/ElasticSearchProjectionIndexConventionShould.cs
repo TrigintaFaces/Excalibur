@@ -17,7 +17,7 @@ public sealed class ElasticSearchProjectionIndexConventionShould
 	[Fact]
 	public void LowercaseProjectionTypeName()
 	{
-		var options = new ElasticSearchProjectionStoreOptions { IndexPrefix = "projections" };
+		var options = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = "projections" } };
 
 		ElasticSearchProjectionIndexConvention.GetIndexName(options, "OrderSummary")
 			.ShouldBe("projections-ordersummary");
@@ -26,7 +26,7 @@ public sealed class ElasticSearchProjectionIndexConventionShould
 	[Fact]
 	public void LowercaseUppercaseIndexPrefix()
 	{
-		var options = new ElasticSearchProjectionStoreOptions { IndexPrefix = "CO-Transactions" };
+		var options = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = "CO-Transactions" } };
 
 		ElasticSearchProjectionIndexConvention.GetIndexName(options, "Order")
 			.ShouldBe("co-transactions-order");
@@ -35,7 +35,7 @@ public sealed class ElasticSearchProjectionIndexConventionShould
 	[Fact]
 	public void LowercaseConsumerSuppliedIndexName()
 	{
-		var options = new ElasticSearchProjectionStoreOptions { IndexPrefix = string.Empty, IndexName = "MyIndex" };
+		var options = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = string.Empty, IndexName = "MyIndex" } };
 
 		ElasticSearchProjectionIndexConvention.GetIndexName(options, "Whatever")
 			.ShouldBe("myindex");
@@ -49,8 +49,11 @@ public sealed class ElasticSearchProjectionIndexConventionShould
 		// invalid_index_name_exception ("must be lowercase").
 		var options = new ElasticSearchProjectionStoreOptions
 		{
-			IndexPrefix = "co-transactions",
-			IndexName = "transaction-Development",
+			Index =
+			{
+				IndexPrefix = "co-transactions",
+				IndexName = "transaction-Development",
+			},
 		};
 
 		var index = ElasticSearchProjectionIndexConvention.GetIndexName(options, "TransactionProjection");

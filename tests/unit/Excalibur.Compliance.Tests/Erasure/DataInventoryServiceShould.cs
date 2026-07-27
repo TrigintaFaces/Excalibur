@@ -26,6 +26,7 @@ public sealed class DataInventoryServiceShould
 		_sut = new DataInventoryService(
 			_store,
 			_keyProvider,
+			TestDataSubjectHasher.Instance,
 			NullLogger<DataInventoryService>.Instance);
 	}
 
@@ -238,7 +239,8 @@ public sealed class DataInventoryServiceShould
 			() => new DataInventoryService(
 				null!,
 				A.Fake<IKeyManagementProvider>(),
-				NullLogger<DataInventoryService>.Instance));
+				TestDataSubjectHasher.Instance,
+			NullLogger<DataInventoryService>.Instance));
 	}
 
 	[Fact]
@@ -252,7 +254,8 @@ public sealed class DataInventoryServiceShould
 			() => new DataInventoryService(
 				store,
 				null!,
-				NullLogger<DataInventoryService>.Instance));
+				TestDataSubjectHasher.Instance,
+			NullLogger<DataInventoryService>.Instance));
 	}
 
 	[Fact]
@@ -266,6 +269,7 @@ public sealed class DataInventoryServiceShould
 			() => new DataInventoryService(
 				store,
 				A.Fake<IKeyManagementProvider>(),
+				TestDataSubjectHasher.Instance,
 				null!));
 	}
 
@@ -280,7 +284,8 @@ public sealed class DataInventoryServiceShould
 			() => new DataInventoryService(
 				store,
 				A.Fake<IKeyManagementProvider>(),
-				NullLogger<DataInventoryService>.Instance));
+				TestDataSubjectHasher.Instance,
+			NullLogger<DataInventoryService>.Instance));
 	}
 
 	[Theory]

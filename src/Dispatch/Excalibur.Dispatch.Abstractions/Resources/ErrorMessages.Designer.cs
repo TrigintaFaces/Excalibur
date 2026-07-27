@@ -3792,16 +3792,6 @@ namespace Excalibur.Dispatch {
 		}
 
 /// <summary>
-/// Looks up a localized string similar to Redis transaction scope only supports the creating provider..
-/// </summary>
-		/// <value>The current <see cref="RedisTransactionScopeOnlySupportsCreatingProvider"/> value.</value>
-		internal static string RedisTransactionScopeOnlySupportsCreatingProvider {
-			get {
-				return ResourceManager.GetString("RedisTransactionScopeOnlySupportsCreatingProvider", resourceCulture);
-			}
-		}
-
-/// <summary>
 /// Looks up a localized string similar to Registered synthesized profile &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="RegisteredSynthesizedProfile"/> value.</value>

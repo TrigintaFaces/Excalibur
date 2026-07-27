@@ -2,8 +2,8 @@
 
 Bridges `ISecurityEventStore` onto the existing `IAuditStore` (e.g. `Excalibur.AuditLogging.SqlServer`),
 giving security events durable, tamper-evident SQL persistence through the audit-store abstraction —
-**without** duplicating any SQL/Dapper/hash-chain machinery (ADR-336: wire the advertised seam by
-composing, never fork a parallel store).
+**without** duplicating any SQL/Dapper/hash-chain machinery — the advertised seam is wired by
+composing the existing store, never by forking a parallel one.
 
 ## Usage
 
@@ -34,4 +34,4 @@ The audit-relevant who/what/when/where of a `SecurityEvent` round-trips lossless
 **Intentionally not carried:** `SecurityEvent.AdditionalData` (arbitrary `object?` forensic payload)
 has no compliant home — the free-form `AuditEvent.Metadata` is contractually "references/identifiers
 only, no sensitive values." Full forensic persistence (encryption-at-rest + retention) is a dedicated
-security-event store, tracked as `bd-8f1l09`.
+security-event store (planned; not yet implemented).

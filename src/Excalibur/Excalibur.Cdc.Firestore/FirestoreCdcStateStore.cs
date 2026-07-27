@@ -138,7 +138,27 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 		};
 #pragma warning restore IL2026
 
-		_ = await docRef.SetAsync(data, SetOptions.Overwrite, cancellationToken).ConfigureAwait(false);
+		// Optimistic-concurrency guard (native Firestore transaction): refuse to regress the CDC
+		// watermark. Reading the current position and writing the new one inside one transaction
+		// makes the check-and-set atomic against a concurrent processor advancing the same key.
+		await _db.RunTransactionAsync(
+			async transaction =>
+			{
+				var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
+				if (snapshot.Exists
+					&& snapshot.TryGetValue<string>("positionData", out var existingData)
+					&& FirestoreCdcPosition.TryFromBase64(existingData, out var current)
+					&& current!.UpdateTime is { } currentWatermark
+					&& position.UpdateTime is { } incomingWatermark
+					&& currentWatermark > incomingWatermark)
+				{
+					throw new FirestoreStalePositionException(
+						$"Refusing to persist a stale CDC position for processor '{processorName}': the stored watermark ({currentWatermark:O}) is newer than the incoming position ({incomingWatermark:O}).");
+				}
+
+				transaction.Set(docRef, data, SetOptions.Overwrite);
+			},
+			cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

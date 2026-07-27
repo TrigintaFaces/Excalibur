@@ -26,6 +26,8 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 
 	private readonly IConsumer<string, byte[]> _consumer;
 	private readonly ILogger _logger;
+	private readonly int? _maxPayloadBytes;
+	private readonly bool _decodeConfluentFraming;
 	private readonly ConcurrentDictionary<string, TopicPartitionOffset> _offsetCache = new(StringComparer.Ordinal);
 
 	/// <summary>
@@ -43,15 +45,48 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	/// <param name="consumer">The Kafka consumer instance.</param>
 	/// <param name="source">The source topic name.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length, in bytes, enforced before the body is materialized, or
+	/// <see langword="null"/> to opt out (unbounded). Defaults to 4 MiB.
+	/// </param>
+	/// <param name="decodeConfluentFraming">
+	/// When <see langword="true"/> (a Confluent Schema Registry-configured transport), a Confluent-framed
+	/// inbound payload (magic byte + schema id) has its 5-byte header stripped so the downstream deserializer
+	/// receives the raw payload. The .NET message type is carried in the <c>message-type</c> header, so the
+	/// schema id itself is not needed to deserialize. Non-framed payloads are passed through untouched.
+	/// </param>
 	public KafkaTransportReceiver(
 		IConsumer<string, byte[]> consumer,
 		string source,
-		ILogger<KafkaTransportReceiver> logger)
+		ILogger<KafkaTransportReceiver> logger,
+		int? maxPayloadBytes = PayloadSizeGuard.DefaultMaxPayloadBytes,
+		bool decodeConfluentFraming = false)
 	{
 		_consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = maxPayloadBytes;
+		_decodeConfluentFraming = decodeConfluentFraming;
 		_maxBatchSize = DefaultMaxBatchSize;
+	}
+
+	/// <summary>
+	/// Materializes the transport body, stripping Confluent Schema Registry framing when this transport is
+	/// schema-registry-configured and the payload carries the Confluent wire-format header.
+	/// </summary>
+	private byte[] MaterializeBody(byte[]? value)
+	{
+		if (value is null || value.Length == 0)
+		{
+			return [];
+		}
+
+		if (_decodeConfluentFraming && ConfluentWireFormat.TryReadSchemaId(value, out _))
+		{
+			return ConfluentWireFormat.GetPayload(value).ToArray();
+		}
+
+		return value;
 	}
 
 	/// <inheritdoc />
@@ -79,7 +114,25 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 					break;
 				}
 
-				var received = ConvertToReceivedMessage(consumeResult);
+				TransportReceivedMessage received;
+				try
+				{
+					received = ConvertToReceivedMessage(consumeResult);
+				}
+				catch (PayloadTooLargeException ex)
+				{
+					// Poison-message guard: an oversized payload can never be processed and, left uncommitted,
+					// Kafka would redeliver it forever — a poison loop that stalls the partition. Commit past
+					// the offending message (offset + 1) to skip it — mirrors the non-requeue reject path — and
+					// continue the batch, rather than letting the throw abort the batch and orphan the message.
+					LogPayloadTooLargeRejected(Source, consumeResult.Message.Value?.Length ?? 0, ex);
+					_consumer.Commit([new TopicPartitionOffset(
+						consumeResult.Topic,
+						consumeResult.Partition,
+						consumeResult.Offset + 1)]);
+					continue;
+				}
+
 				messages.Add(received);
 				LogMessageReceived(received.Id, Source);
 			}
@@ -184,6 +237,11 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 
 	private TransportReceivedMessage ConvertToReceivedMessage(global::Confluent.Kafka.ConsumeResult<string, byte[]> consumeResult)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE it is copied into the
+		// materialized message below. Fail-closed — throws PayloadTooLargeException, which the receive
+		// loop catches to commit past (skip) the poison message; it never truncates or silently drops.
+		PayloadSizeGuard.EnsureWithinLimit(consumeResult.Message.Value?.Length ?? 0, _maxPayloadBytes);
+
 		var receiptHandle = $"{consumeResult.Topic}:{consumeResult.Partition.Value}:{consumeResult.Offset.Value}";
 		_offsetCache[receiptHandle] = consumeResult.TopicPartitionOffset;
 
@@ -210,7 +268,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 		return new TransportReceivedMessage
 		{
 			Id = messageId ?? consumeResult.Message.Key ?? receiptHandle,
-			Body = consumeResult.Message.Value ?? [],
+			Body = MaterializeBody(consumeResult.Message.Value),
 			ContentType = contentType,
 			MessageType = messageType,
 			CorrelationId = correlationId,
@@ -271,4 +329,8 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	[LoggerMessage(KafkaEventId.TransportReceiverOffsetCacheOverflow, LogLevel.Warning,
 		"Kafka transport receiver: offset cache for {Source} has {Count} unsettled entries exceeding expected bounds. Messages may not be getting acknowledged.")]
 	private partial void LogOffsetCacheOverflow(string source, int count);
+
+	[LoggerMessage(KafkaEventId.TransportReceiverPayloadTooLarge, LogLevel.Warning,
+		"Kafka transport receiver: rejected an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization; committed past the poison message.")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

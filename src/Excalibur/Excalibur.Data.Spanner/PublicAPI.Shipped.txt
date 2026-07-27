@@ -1,0 +1,24 @@
+#nullable enable
+Excalibur.Data.Spanner.ISpannerConnectionProvider
+Excalibur.Data.Spanner.ISpannerConnectionProvider.CreateConnection() -> Google.Cloud.Spanner.Data.SpannerConnection!
+Excalibur.Data.Spanner.ISpannerConnectionProvider.ExecuteInRetryableTransactionAsync<T>(System.Func<Google.Cloud.Spanner.Data.SpannerConnection!, System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
+Excalibur.Data.Spanner.SpannerCommitLimits
+Excalibur.Data.Spanner.SpannerOptions
+Excalibur.Data.Spanner.SpannerOptions.AbortRetryBaseDelayMilliseconds.get -> int
+Excalibur.Data.Spanner.SpannerOptions.AbortRetryBaseDelayMilliseconds.set -> void
+Excalibur.Data.Spanner.SpannerOptions.DatabaseId.get -> string!
+Excalibur.Data.Spanner.SpannerOptions.DatabaseId.set -> void
+Excalibur.Data.Spanner.SpannerOptions.DatabasePath.get -> string!
+Excalibur.Data.Spanner.SpannerOptions.EmulatorHost.get -> string?
+Excalibur.Data.Spanner.SpannerOptions.EmulatorHost.set -> void
+Excalibur.Data.Spanner.SpannerOptions.InstanceId.get -> string!
+Excalibur.Data.Spanner.SpannerOptions.InstanceId.set -> void
+Excalibur.Data.Spanner.SpannerOptions.MaxAbortRetries.get -> int
+Excalibur.Data.Spanner.SpannerOptions.MaxAbortRetries.set -> void
+Excalibur.Data.Spanner.SpannerOptions.ProjectId.get -> string!
+Excalibur.Data.Spanner.SpannerOptions.ProjectId.set -> void
+Excalibur.Data.Spanner.SpannerOptions.SpannerOptions() -> void
+Microsoft.Extensions.DependencyInjection.SpannerServiceCollectionExtensions
+const Excalibur.Data.Spanner.SpannerCommitLimits.MaxCommitSizeBytes = 104857600 -> long
+const Excalibur.Data.Spanner.SpannerCommitLimits.MaxMutationsPerCommit = 80000 -> int
+static Microsoft.Extensions.DependencyInjection.SpannerServiceCollectionExtensions.AddSpannerDataProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Spanner.SpannerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

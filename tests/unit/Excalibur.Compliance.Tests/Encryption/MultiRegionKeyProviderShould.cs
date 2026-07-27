@@ -140,14 +140,14 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	{
 		// Arrange
 		A.CallTo(() => ((IKeyManagementAdmin)_primary).DeleteKeyAsync("k1", 90, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
 		// Act
 		var result = await ((IKeyManagementAdmin)_sut).DeleteKeyAsync("k1", 90, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert — MultiRegion surfaces the primary region's tri-state outcome.
+		result.State.ShouldBe(KeyDestructionState.Completed);
 	}
 
 	[Fact]

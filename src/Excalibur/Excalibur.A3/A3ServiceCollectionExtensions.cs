@@ -53,11 +53,18 @@ public static class A3ServiceCollectionExtensions
 		// Register core stores (in-memory fallbacks) via A3.Core
 		var builder = services.AddExcaliburA3Core();
 
-		_ = services.TryAddTenantId();
+		_ = services.AddTenantContext();
 		_ = services.AddA3DispatchServices();
 		_ = AddAuthentication(services);
 		_ = services.AddA3AuthorizationCore();
 		services.TryAddScoped<IAccessToken, AccessToken>();
+
+		// Full-stack A3 is the production authorization composition. Volatile grants lost on restart make a
+		// user whose grants vanished indistinguishable from one who never had any — authorization silently
+		// denies everyone. Install the startup gate so an in-memory grant store FAILS CLOSED here unless the
+		// host opted in (AllowVolatileGrantStore = true) or registered a durable store. AddExcaliburA3Core()
+		// stays gate-free — the lightweight in-memory dev/test path.
+		_ = services.AddGrantDurabilityGate();
 
 		return builder;
 	}

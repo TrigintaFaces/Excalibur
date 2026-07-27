@@ -155,21 +155,22 @@ context.SetItem("TenantId", "acme");
 await dispatcher.DispatchAsync(new OtherAction(), ct);
 ```
 
-**Correct approach:** Use `DispatchChildAsync` for related dispatches (copies correlation/tenant metadata), or pass data through the message itself.
+**Correct approach:** Rely on `DispatchAsync`'s auto-child behavior for related dispatches (it copies correlation/tenant metadata when called from within a handler), or pass data through the message itself.
 
-### Use `DispatchChildAsync` for nested dispatch
+### `DispatchAsync` auto-childs for nested dispatch
 
-When dispatching a message from within an existing handler, always use `DispatchChildAsync` instead of `DispatchAsync`:
+When dispatching a message from within an existing handler, `DispatchAsync` automatically establishes the causal chain — there is no separate method to call:
 
 ```csharp
-// Wrong: loses causation chain
+// From within a handler, DispatchAsync propagates CorrelationId, TenantId,
+// UserId and sets CausationId to the parent's MessageId automatically.
 await _dispatcher.DispatchAsync(new NotifyCustomerAction(orderId), ct);
 
-// Correct: propagates CorrelationId, TenantId, UserId, sets CausationId
-await _dispatcher.DispatchChildAsync(new NotifyCustomerAction(orderId), ct);
+// To deliberately reuse the parent context instead, pass it explicitly:
+// await _dispatcher.DispatchAsync(new NotifyCustomerAction(orderId), context, ct);
 ```
 
-`DispatchChildAsync` creates a child context that maintains the full message lineage -- essential for distributed tracing and debugging.
+Called from within a handler, `DispatchAsync` creates a child context that maintains the full message lineage -- essential for distributed tracing and debugging. At top level it creates a fresh root context.
 
 ## Recommended Reading Order
 

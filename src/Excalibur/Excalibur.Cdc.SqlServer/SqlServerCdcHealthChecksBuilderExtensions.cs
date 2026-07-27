@@ -39,6 +39,7 @@ public static class SqlServerCdcHealthChecksBuilderExtensions
 			_ = builder.Services.AddOptions<CdcHealthCheckOptions>()
 				.Configure(configure)
 				.ValidateOnStart();
+			builder.Services.AddCdcHealthCheckOptionsValidation();
 		}
 
 		return builder.AddCdcHealthCheckCore(name, failureStatus, tags);
@@ -70,6 +71,7 @@ public static class SqlServerCdcHealthChecksBuilderExtensions
 		_ = builder.Services.AddOptions<CdcHealthCheckOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+			builder.Services.AddCdcHealthCheckOptionsValidation();
 
 		return builder.AddCdcHealthCheckCore(name, failureStatus, tags);
 	}

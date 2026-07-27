@@ -99,22 +99,20 @@ public static class RedisLeaderElectionBuilderExtensions
 			builder.Services.TryAddSingleton<IConnectionMultiplexer>(
 				_ => ConnectionMultiplexer.Connect(connStr));
 		}
+		else
+		{
+			// No connection was configured on the builder and none is registered here. Register a
+			// fail-fast IConnectionMultiplexer so the missing configuration surfaces as an actionable
+			// message naming the exact builder methods, instead of a raw "no service for type
+			// IConnectionMultiplexer" at resolve time.
+			RegisterMissingConnectionFailFast(builder.Services);
+		}
 
 		// Determine effective lock key (from builder or default)
 		var lockKey = redisBuilder.LockKeyValue ?? "excalibur:leader";
 
 		// Register RedisLeaderElection
-		builder.Services.TryAddSingleton(sp =>
-		{
-			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
-			var options = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
-			var logger = sp.GetRequiredService<ILogger<RedisLeaderElection>>();
-			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
-			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
-			// umemwa/ADR-339: optional fencing-token issuance at acquisition (null when fencing not enabled).
-			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
-			return new RedisLeaderElection(redis, lockKey, options, logger, failureClassifier, fencingTokenProvider);
-		});
+		RegisterRedisLeaderElectionSingleton(builder.Services, lockKey);
 
 		// Register keyed with telemetry decorator
 		builder.Services.AddKeyedSingleton<ILeaderElection>("redis", (sp, _) =>
@@ -146,6 +144,45 @@ public static class RedisLeaderElectionBuilderExtensions
 		});
 		builder.Services.TryAddKeyedSingleton<ILeaderElectionFactory>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElectionFactory>("redis"));
+	}
+
+	/// <summary>
+	/// Registers the <see cref="RedisLeaderElection"/> singleton, resolving its optional collaborators
+	/// (failure classifier, fencing-token provider) from the service provider at construction time.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="lockKey"> The effective Redis lock key. </param>
+	private static void RegisterRedisLeaderElectionSingleton(IServiceCollection services, string lockKey) =>
+		services.TryAddSingleton(sp =>
+		{
+			var redis = sp.GetRequiredService<IConnectionMultiplexer>();
+			var options = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
+			var logger = sp.GetRequiredService<ILogger<RedisLeaderElection>>();
+			var context = new RedisLeaderElectionContext
+			{
+				// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
+				FailureClassifier = sp.GetService<IMessageFailureClassifier>(),
+				// umemwa/ADR-339: optional fencing-token issuance at acquisition (null when fencing not enabled).
+				FencingTokenProvider = sp.GetService<IFencingTokenProvider>(),
+			};
+			return new RedisLeaderElection(redis, lockKey, options, logger, context);
+		});
+
+	/// <summary>
+	/// Registers a fail-fast <see cref="IConnectionMultiplexer"/> that throws an actionable
+	/// <see cref="InvalidOperationException"/> when resolved, naming the exact builder methods the
+	/// consumer should call. <c>TryAddSingleton</c> means a consumer who registered their OWN
+	/// <see cref="IConnectionMultiplexer"/> is unaffected — the throwing factory only runs when
+	/// nothing else provides one.
+	/// </summary>
+	private static void RegisterMissingConnectionFailFast(IServiceCollection services)
+	{
+		services.TryAddSingleton<IConnectionMultiplexer>(
+			_ => throw new InvalidOperationException(
+				"Redis leader election requires a Redis connection. Call ConnectionString(...), "
+				+ "ConnectionMultiplexer(...) or ConnectionMultiplexerFactory(...) on the UseRedis "
+				+ "builder, or register an IConnectionMultiplexer in the service collection before "
+				+ "calling UseRedis()."));
 	}
 
 	private static void RegisterBuilderManagedMultiplexer(

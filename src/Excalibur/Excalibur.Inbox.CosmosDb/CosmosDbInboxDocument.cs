@@ -31,6 +31,14 @@ internal sealed class CosmosDbInboxDocument
 	public string HandlerType { get; set; } = string.Empty;
 
 	/// <summary>
+	/// Gets or sets the tenant discriminator. A component of the dedup <see cref="Id"/> so two tenants
+	/// carrying the same message id and handler type never collide on the dedup key. Never empty: a real
+	/// tenant, or the reserved untenanted sentinel when no tenant context is established.
+	/// </summary>
+	[JsonPropertyName("tenant_id")]
+	public string TenantId { get; set; } = string.Empty;
+
+	/// <summary>
 	/// Gets or sets the message type.
 	/// </summary>
 	[JsonPropertyName("message_type")]
@@ -94,13 +102,19 @@ internal sealed class CosmosDbInboxDocument
 	public int? Ttl { get; set; }
 
 	/// <summary>
-	/// Creates a composite document ID from message ID and handler type.
+	/// Creates a composite document ID from message ID, handler type, and tenant discriminator. When a
+	/// tenant term is supplied it prefixes the id, so two tenants carrying the same message id and handler
+	/// type never collide on the dedup key. A <see langword="null"/> term yields the tenant-less form (used
+	/// only as a placeholder the store overrides with the ambient-tenant-composed id).
 	/// </summary>
 	/// <param name="messageId">The message ID.</param>
 	/// <param name="handlerType">The handler type.</param>
+	/// <param name="tenantId">The tenant discriminator term, or <see langword="null"/> for the tenant-less form.</param>
 	/// <returns>The composite document ID.</returns>
-	public static string CreateId(string messageId, string handlerType)
-		=> $"{messageId}:{handlerType}";
+	public static string CreateId(string messageId, string handlerType, string? tenantId = null)
+		=> tenantId is null
+			? $"{messageId}:{handlerType}"
+			: $"{tenantId}:{messageId}:{handlerType}";
 
 	/// <summary>
 	/// Creates a document from an <see cref="InboxEntry"/>.
@@ -132,10 +146,19 @@ internal sealed class CosmosDbInboxDocument
 	/// <returns>The inbox entry.</returns>
 	public InboxEntry ToInboxEntry()
 	{
+		// Recover the real handler type from the composite id (messageId:handlerType) rather than the
+		// stored HandlerType field: in shared-partition-key mode the HandlerType field carries the shared
+		// partition value (Cosmos requires the partition-key field to match the write partition), so the
+		// real handler type survives only in the id. Colon-safe — uses the exact stored MessageId length,
+		// not a naive split. Falls back to the field for any document not in composite-id form.
+		var realHandlerType = Id.Length > MessageId.Length && Id[MessageId.Length] == ':'
+			? Id[(MessageId.Length + 1)..]
+			: HandlerType;
+
 		return new InboxEntry
 		{
 			MessageId = MessageId,
-			HandlerType = HandlerType,
+			HandlerType = realHandlerType,
 			MessageType = MessageType,
 			Payload = string.IsNullOrEmpty(Payload) ? [] : Convert.FromBase64String(Payload),
 			Metadata = Metadata,

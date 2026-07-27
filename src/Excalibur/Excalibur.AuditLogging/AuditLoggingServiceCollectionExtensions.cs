@@ -5,12 +5,14 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.AuditLogging;
 using Excalibur.AuditLogging.Alerting;
+using Excalibur.AuditLogging.Annotation;
 using Excalibur.AuditLogging.Encryption;
 using Excalibur.AuditLogging.Retention;
 using Excalibur.Compliance;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -20,6 +22,27 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class AuditLoggingServiceCollectionExtensions
 {
+	/// <summary>
+	/// The service key the audit-annotation store is registered under, so the access-checking decorator can
+	/// resolve whichever store a host configured without naming its type.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A provider package registers its annotation store under this key — and under nothing else. It must not
+	/// bind <see cref="IAuditAnnotationStore"/> directly: that binding belongs to this package and always
+	/// yields the access-checking decorator, so a provider that took it would hand consumers an unchecked
+	/// store. Registering here instead means the provider's store is what the decorator wraps, in either call
+	/// order, because the key is resolved after all registration has completed.
+	/// </para>
+	/// <para>
+	/// Deliberately <see langword="static" /> <see langword="readonly" /> rather than a <c>const</c>: a public
+	/// constant is inlined into every consuming assembly at compile time, so a provider compiled against an
+	/// older value would register under a key this package no longer reads — and would do so silently, since
+	/// the decorator would simply fall back to its own default store.
+	/// </para>
+	/// </remarks>
+	public static readonly string InnerAuditAnnotationStoreKey = "excalibur.auditlogging.annotations.inner";
+
 	/// <summary>
 	/// Adds the default audit logging services with in-memory storage.
 	/// </summary>
@@ -41,12 +64,17 @@ public static class AuditLoggingServiceCollectionExtensions
 		// Every audit store depends on IAuditIntegrityStrategy to tag/verify records.
 		_ = services.AddAuditIntegrity();
 
-		// Register in-memory store as singleton (maintains state across requests)
+		// Register in-memory store as singleton (maintains state across requests).
+		// NOTE: no durability attestation is emitted here, and that is deliberate — this store does not
+		// survive a restart. A host that needs the trail to outlive the process must register a durable
+		// store explicitly; nothing currently refuses this default at startup, so the obligation is the
+		// host's own.
 		services.TryAddSingleton<InMemoryAuditStore>();
 		services.TryAddSingleton<IAuditStore>(sp => sp.GetRequiredService<InMemoryAuditStore>());
 
 		// Register audit logger as scoped (allows for request-scoped context)
 		services.TryAddScoped<IAuditLogger, DefaultAuditLogger>();
+
 
 		return services;
 	}
@@ -216,9 +244,9 @@ public static class AuditLoggingServiceCollectionExtensions
 				sp => new RbacAuditStore(
 					(IAuditStore)implementationFactory(sp),
 					sp.GetRequiredService<IAuditRoleProvider>(),
+					sp.GetRequiredService<IAuditLogger>(),
 					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>(),
-					sp.GetService<IAuditActorProvider>(),
-					sp.GetService<IAuditLogger>()),
+					sp.GetService<IAuditActorProvider>()),
 				existingDescriptor.Lifetime));
 
 			return services;
@@ -240,9 +268,9 @@ public static class AuditLoggingServiceCollectionExtensions
 				return new RbacAuditStore(
 					innerStore,
 					sp.GetRequiredService<IAuditRoleProvider>(),
+					sp.GetRequiredService<IAuditLogger>(),
 					sp.GetRequiredService<Logging.ILogger<RbacAuditStore>>(),
-					sp.GetService<IAuditActorProvider>(),
-					sp.GetService<IAuditLogger>());
+					sp.GetService<IAuditActorProvider>());
 			},
 			existingDescriptor.Lifetime));
 
@@ -291,6 +319,8 @@ public static class AuditLoggingServiceCollectionExtensions
 		_ = services.AddOptions<AuditAlertOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditAlertOptions>>(new AuditAlertOptionsValidator()));
 
 		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
 
@@ -317,6 +347,8 @@ public static class AuditLoggingServiceCollectionExtensions
 		_ = services.AddOptions<AuditAlertOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditAlertOptions>>(new AuditAlertOptionsValidator()));
 
 		services.TryAddSingleton<IAuditAlertService, DefaultAuditAlertService>();
 
@@ -347,9 +379,18 @@ public static class AuditLoggingServiceCollectionExtensions
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditRetentionOptions>>(new AuditRetentionOptionsValidator()));
 
 		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
 		_ = services.AddHostedService<AuditRetentionBackgroundService>();
+
+		// Configuring retention is a production-audit signal: you do not enforce a retention policy over a
+		// trail you are willing to lose on restart. Install the startup gate so a volatile audit store FAILS
+		// CLOSED here unless the host opted in (AllowVolatileAuditStore = true) or registered a durable store.
+		// The bare AddAuditLogging() default stays gate-free (dev/MediatR-replacement) — retention is the
+		// distinct "I require a durable trail" composition, per the S900 audit-funnel finding.
+		_ = services.AddAuditDurabilityGate();
 
 		return services;
 	}
@@ -374,9 +415,18 @@ public static class AuditLoggingServiceCollectionExtensions
 		_ = services.AddOptions<AuditRetentionOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditRetentionOptions>>(new AuditRetentionOptionsValidator()));
 
 		services.TryAddSingleton<IAuditRetentionService, DefaultAuditRetentionService>();
 		_ = services.AddHostedService<AuditRetentionBackgroundService>();
+
+		// Configuring retention is a production-audit signal: you do not enforce a retention policy over a
+		// trail you are willing to lose on restart. Install the startup gate so a volatile audit store FAILS
+		// CLOSED here unless the host opted in (AllowVolatileAuditStore = true) or registered a durable store.
+		// The bare AddAuditLogging() default stays gate-free (dev/MediatR-replacement) — retention is the
+		// distinct "I require a durable trail" composition, per the S900 audit-funnel finding.
+		_ = services.AddAuditDurabilityGate();
 
 		return services;
 	}
@@ -414,7 +464,10 @@ public static class AuditLoggingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddOptions<AuditEncryptionOptions>();
+		_ = services.AddOptions<AuditEncryptionOptions>()
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditEncryptionOptions>>(new AuditEncryptionOptionsValidator()));
 		if (configure is not null)
 		{
 			_ = services.Configure(configure);
@@ -443,7 +496,11 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<AuditEncryptionOptions>().Bind(configuration);
+		_ = services.AddOptions<AuditEncryptionOptions>()
+			.Bind(configuration)
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditEncryptionOptions>>(new AuditEncryptionOptionsValidator()));
 
 		RegisterAuditLogEncryptionDecorator(services);
 
@@ -475,12 +532,45 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<AuditAnnotationOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditAnnotationOptions>>(new AuditAnnotationOptionsValidator()));
 
 		services.TryAddSingleton(TimeProvider.System);
-		services.TryAddSingleton<InMemoryAuditAnnotationStore>();
-		services.TryAddSingleton<IAuditAnnotationStore>(sp => sp.GetRequiredService<InMemoryAuditAnnotationStore>());
+
+		// The inner store is registered under a well-known KEY, and the decorator resolves it by that key at
+		// RESOLUTION time rather than binding a concrete type at REGISTRATION time. That distinction is the
+		// whole fix: an earlier revision wrapped InMemoryAuditAnnotationStore by name, so a provider package
+		// could not participate at all — the decorator either wrapped the in-memory store or, if the provider
+		// registered IAuditAnnotationStore first, was not applied. SQL-backed annotations WITH access checks
+		// were not expressible in any call order, which is worse than the ordering hazard it looked like.
+		//
+		// Resolution happens after every registration has run, so call order cannot affect the outcome. A
+		// provider registers its store under this key with AddKeyedSingleton and wins over this default in
+		// BOTH orders (verified against the container, not assumed: a later keyed registration supersedes an
+		// earlier TryAdd of the same key, and TryAdd declines when the key is already taken).
+		services.TryAddKeyedSingleton<IAuditAnnotationStore, InMemoryAuditAnnotationStore>(InnerAuditAnnotationStoreKey);
+
+		// Resolving IAuditAnnotationStore always yields the access-checking decorator, so "I forgot to add the
+		// decorator" is not a reachable state — the protection is not something a consumer has to remember. A
+		// consumer who genuinely wants the unchecked store asks for it by its key, which makes that decision
+		// visible in their code and in review rather than being the silent default.
+		//
+		// GetRequiredKeyedService is the fail-loud arm and it is free: a host that registered no inner store
+		// fails at first resolution with a container error naming the missing service, rather than silently
+		// resolving to nothing.
+		services.TryAddSingleton<IAuditAnnotationStore>(sp => new RbacAuditAnnotationStore(
+			sp.GetRequiredKeyedService<IAuditAnnotationStore>(InnerAuditAnnotationStoreKey),
+			sp.GetRequiredService<IAuditRoleProvider>(),
+			sp.GetService<IAuditActorProvider>(),
+			sp.GetService<IAuditLogger>(),
+			sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()));
+
+		// The role provider cannot be defaulted, so its absence fails the host at startup rather than at the
+		// first denied read. Registered unconditionally: gating this on anything would reintroduce the
+		// ordering dependence it exists to remove.
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AuditAnnotationRoleProviderValidator>());
 
 		return services;
 	}
@@ -501,11 +591,19 @@ public static class AuditLoggingServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddOptions<AuditAnnotationOptions>()
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
+		// Delegates to the parameterless overload so the access-checking decorator is registered here too.
+		// This overload previously bound IAuditAnnotationStore straight to TStore, which was a SECOND DOOR
+		// to the defect the keyed seam above closes: a consumer calling AddAuditAnnotations<MyStore>() got
+		// their store with no role or authorship checks on it, in a package whose parameterless overload
+		// promises the opposite. A caller cannot be expected to know that one overload is checked and its
+		// sibling is not.
+		_ = services.AddAuditAnnotations();
 
-		services.TryAddSingleton<IAuditAnnotationStore, TStore>();
+		// TStore is registered under the inner-store KEY, exactly as a provider package does, so it becomes
+		// what the decorator wraps rather than what replaces it. AddKeyedSingleton rather than TryAdd: the
+		// call above registers the in-memory default under this key, and a TryAdd here would silently lose
+		// to it — leaving the consumer's own store unused while everything appeared wired.
+		services.AddKeyedSingleton<IAuditAnnotationStore, TStore>(InnerAuditAnnotationStoreKey);
 
 		return services;
 	}
@@ -525,67 +623,6 @@ public static class AuditLoggingServiceCollectionExtensions
 
 		_ = services.AddAuditAnnotations();
 		_ = services.Configure(configure);
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds the RBAC annotation store decorator for role-based access control on annotations.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// Decorates the existing <see cref="IAuditAnnotationStore"/> with
-	/// <see cref="RbacAuditAnnotationStore"/> to enforce role-based access control.
-	/// </para>
-	/// <para>
-	/// Requires <see cref="IAuditRoleProvider"/> registration.
-	/// Call after <see cref="AddAuditAnnotations(IServiceCollection)"/>.
-	/// </para>
-	/// </remarks>
-	public static IServiceCollection AddRbacAuditAnnotationStore(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		var existingDescriptor = services.FirstOrDefault(d => d.ServiceType == typeof(IAuditAnnotationStore))
-								 ?? throw new InvalidOperationException(
-									 Resources.AuditLoggingServiceCollectionExtensions_NoAnnotationStoreRegistrationFound);
-
-		_ = services.Remove(existingDescriptor);
-
-		// ybem93: keyed-safe accessor into a local (preserves null-flow for the type reads below).
-		var implementationType = existingDescriptor.GetImplementationType();
-		if (implementationType is not null)
-		{
-			services.Add(new ServiceDescriptor(
-				implementationType,
-				implementationType,
-				existingDescriptor.Lifetime));
-
-			services.Add(new ServiceDescriptor(
-				typeof(IAuditAnnotationStore),
-				sp => new RbacAuditAnnotationStore(
-					(IAuditAnnotationStore)sp.GetRequiredService(implementationType),
-					sp.GetRequiredService<IAuditRoleProvider>(),
-					sp.GetService<IAuditActorProvider>(),
-					sp.GetService<IAuditLogger>(),
-					sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()),
-				existingDescriptor.Lifetime));
-		}
-		else if (existingDescriptor.GetImplementationFactory() is not null)
-		{
-			var factory = existingDescriptor.GetImplementationFactory();
-			services.Add(new ServiceDescriptor(
-				typeof(IAuditAnnotationStore),
-				sp => new RbacAuditAnnotationStore(
-					(IAuditAnnotationStore)factory(sp),
-					sp.GetRequiredService<IAuditRoleProvider>(),
-					sp.GetService<IAuditActorProvider>(),
-					sp.GetService<IAuditLogger>(),
-					sp.GetRequiredService<Logging.ILogger<RbacAuditAnnotationStore>>()),
-				existingDescriptor.Lifetime));
-		}
 
 		return services;
 	}
@@ -616,8 +653,9 @@ public static class AuditLoggingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddOptions<AuditContextOptions>()
-			.ValidateDataAnnotations()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditContextOptions>>(new AuditContextOptionsValidator()));
 
 		services.TryAddSingleton(TimeProvider.System);
 		services.TryAddScoped<DefaultAuditContext>();

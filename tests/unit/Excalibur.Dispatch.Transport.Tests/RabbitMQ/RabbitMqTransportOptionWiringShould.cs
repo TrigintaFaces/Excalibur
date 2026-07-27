@@ -30,9 +30,12 @@ public sealed class RabbitMqTransportOptionWiringShould : UnitTestBase
 		var services = new ServiceCollection();
 		services.AddLogging();
 
+		// Non-default credentials: options validation is now eager at resolution (ValidateOnStart wired
+		// with the ingress payload-guard option), so the pre-existing default-credentials (guest:guest)
+		// guard fires at GetRequiredKeyedService. Secure creds keep this test on its actual subject (QoS).
 		_ = services.AddRabbitMQTransport("test", rmq =>
 		{
-			_ = rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+			_ = rmq.ConnectionString("amqp://appuser:S3cretPw0rd@localhost:5672/");
 		});
 
 		// Override the transport's real IChannel with a fake (registered last so it wins resolution),

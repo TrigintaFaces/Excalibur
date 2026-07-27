@@ -187,9 +187,50 @@ public sealed class ProjectionRebuildServiceShould
 			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
 			null!));
 	}
+
+	[Fact]
+	public async Task RejectAConcurrentRebuildOfTheSameProjection()
+	{
+		// th0wtn: a second rebuild of the same projection while one is in progress must be rejected, so two
+		// overlapping rebuilds cannot interleave replays and race the final UpsertAsync.
+		var globalQuery = A.Fake<IGlobalStreamQuery>();
+		A.CallTo(() => _serviceProvider.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
+		A.CallTo(() => _serviceProvider.GetService(typeof(MultiStreamProjection<ProjectionRebuildTestState>)))
+			.Returns(new MultiStreamProjection<ProjectionRebuildTestState>());
+		A.CallTo(() => _serviceProvider.GetService(typeof(IProjectionStore<ProjectionRebuildTestState>)))
+			.Returns(A.Fake<IProjectionStore<ProjectionRebuildTestState>>());
+
+		// Hold the first rebuild inside ReadAllAsync so it stays in-progress (claim held).
+		var gate = new TaskCompletionSource<IReadOnlyList<StoredEvent>>(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => globalQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(gate.Task));
+
+		var first = _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None);
+
+		// Wait until the first rebuild has claimed the projection (poll the real state, not a fixed sleep).
+		await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => (await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None)).State
+				== ProjectionRebuildState.Rebuilding,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+		var status = await _sut.GetStatusAsync<ProjectionRebuildTestState>(CancellationToken.None);
+		status.State.ShouldBe(ProjectionRebuildState.Rebuilding);
+
+		// Non-vacuity: pre-fix a second concurrent rebuild silently overwrote the status and ran in parallel;
+		// now it is rejected.
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None));
+
+		// Release the first rebuild; it completes and frees the claim.
+		gate.SetResult(Array.Empty<StoredEvent>());
+		await first;
+
+		// After completion the claim is released, so a fresh rebuild of the same projection is allowed again.
+		await Should.NotThrowAsync(
+			() => _sut.RebuildAsync<ProjectionRebuildTestState>(CancellationToken.None));
+	}
 }
 
-internal sealed class ProjectionRebuildTestState
+public sealed class ProjectionRebuildTestState
 {
 	public int Count { get; set; }
 }

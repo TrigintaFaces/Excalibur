@@ -5,6 +5,7 @@
 using Excalibur.Data.MongoDB.Diagnostics;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
@@ -40,6 +41,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 {
 	private readonly MongoDbSnapshotStoreOptions _options;
 	private readonly ILogger<MongoDbSnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
@@ -52,12 +54,18 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 	/// </summary>
 	/// <param name="options">The snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot document identifier.
+	/// </param>
 	public MongoDbSnapshotStore(
 		IOptions<MongoDbSnapshotStoreOptions> options,
-		ILogger<MongoDbSnapshotStore> logger)
+		ILogger<MongoDbSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
+		_tenantContext = tenantContext;
 
 		_options = options.Value;
 		_options.Validate();
@@ -71,11 +79,17 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 	/// <param name="client">An existing MongoDB client.</param>
 	/// <param name="options">The snapshot store options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot document identifier.
+	/// </param>
 	public MongoDbSnapshotStore(
 		IMongoClient client,
 		IOptions<MongoDbSnapshotStoreOptions> options,
-		ILogger<MongoDbSnapshotStore> logger)
+		ILogger<MongoDbSnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
+		_tenantContext = tenantContext;
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -101,7 +115,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType);
+		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext).TenantId);
 		var filter = Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId);
 
 		try
@@ -148,7 +162,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = MongoDbSnapshotDocument.FromSnapshot(snapshot);
+		var document = MongoDbSnapshotDocument.FromSnapshot(snapshot, TenantScope.FromContext(_tenantContext).TenantId);
 
 		// Version guard in filter: only replace if current version is less than new version
 		// This prevents older snapshots from overwriting newer ones
@@ -201,7 +215,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType);
+		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext).TenantId);
 		var filter = Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId);
 
 		try
@@ -240,7 +254,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType);
+		var documentId = MongoDbSnapshotDocument.CreateId(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext).TenantId);
 		var filter = Builders<MongoDbSnapshotDocument>.Filter.And(
 			Builders<MongoDbSnapshotDocument>.Filter.Eq(d => d.Id, documentId),
 			Builders<MongoDbSnapshotDocument>.Filter.Lt(d => d.Version, olderThanVersion));

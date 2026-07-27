@@ -86,12 +86,6 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 	public string MessageType => GetType().FullName ?? GetType().Name;
 
 	/// <summary>
-	/// Gets the kind of message this audit represents.
-	/// </summary>
-	/// <value> Always returns <see cref="MessageKinds.Event" /> for audit records. </value>
-	public MessageKinds Kind { get; init; } = MessageKinds.Event;
-
-	/// <summary>
 	/// Gets the message headers.
 	/// </summary>
 	/// <value> A read-only dictionary containing the audit's metadata headers. </value>
@@ -200,12 +194,6 @@ public class ActivityAudit<TRequest, TResponse> : IActivityAudited
 
 	/// <inheritdoc />
 	public string EventId => MessageId;
-
-	/// <inheritdoc />
-	public string AggregateId => UserId;
-
-	/// <inheritdoc />
-	public long Version { get; init; }
 
 	/// <inheritdoc />
 	public DateTimeOffset OccurredAt => Timestamp;

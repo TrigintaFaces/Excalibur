@@ -38,6 +38,7 @@ public sealed class HashingTelemetrySanitizer : ITelemetrySanitizer
 	private readonly HashSet<string> _sensitiveTagNames;
 	private readonly HashSet<string> _suppressedTagNames;
 	private readonly bool _includeRawPii;
+	private readonly byte[]? _pepper;
 	private readonly ConcurrentDictionary<string, string> _hashCache = new(StringComparer.Ordinal);
 
 	/// <summary>
@@ -52,6 +53,11 @@ public sealed class HashingTelemetrySanitizer : ITelemetrySanitizer
 		_includeRawPii = opts.IncludeRawPii;
 		_sensitiveTagNames = new HashSet<string>(opts.SensitiveTagNames, StringComparer.OrdinalIgnoreCase);
 		_suppressedTagNames = new HashSet<string>(opts.SuppressedTagNames, StringComparer.OrdinalIgnoreCase);
+
+		// Optional keyed fingerprinting: when a pepper is configured, HMAC-SHA-256 protects low-entropy
+		// identifiers; otherwise fingerprints fall back to an unkeyed SHA-256 digest. Copy the caller's array
+		// so later mutation of the options cannot alter the derived key.
+		_pepper = opts.Pepper is { Length: > 0 } pepper ? (byte[])pepper.Clone() : null;
 	}
 
 	/// <inheritdoc />
@@ -90,7 +96,7 @@ public sealed class HashingTelemetrySanitizer : ITelemetrySanitizer
 	{
 		// Compute hash first -- the hash is used as the cache key to avoid
 		// storing raw PII values in the dictionary keys.
-		var hash = ComputeSha256Hash(value);
+		var hash = ComputeHash(value);
 
 		if (_hashCache.TryGetValue(hash, out var cached))
 		{
@@ -106,10 +112,22 @@ public sealed class HashingTelemetrySanitizer : ITelemetrySanitizer
 		return hash;
 	}
 
-	private static string ComputeSha256Hash(string input)
+	private string ComputeHash(string input)
 	{
-		var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-		return string.Create(71, bytes, static (span, hash) =>
+		var utf8 = Encoding.UTF8.GetBytes(input);
+
+		// Keyed HMAC-SHA-256 when a pepper is configured; unkeyed SHA-256 otherwise. Both emit a 32-byte
+		// digest, so the fingerprint tag shape (sha256:&lt;64 hex&gt;) is identical either way. Neither path
+		// throws, so telemetry sanitization never breaks the audit/telemetry hot path.
+		var bytes = _pepper is null
+			? SHA256.HashData(utf8)
+			: HMACSHA256.HashData(_pepper, utf8);
+
+		return FormatFingerprint(bytes);
+	}
+
+	private static string FormatFingerprint(byte[] bytes) =>
+		string.Create(71, bytes, static (span, hash) =>
 		{
 			"sha256:".AsSpan().CopyTo(span);
 			for (var i = 0; i < hash.Length; i++)
@@ -119,7 +137,6 @@ public sealed class HashingTelemetrySanitizer : ITelemetrySanitizer
 				span[7 + (i * 2) + 1] = ToLowerHexChar(b & 0x0F);
 			}
 		});
-	}
 
 	private static char ToLowerHexChar(int value) =>
 		(char)(value < 10 ? '0' + value : 'a' + value - 10);

@@ -391,16 +391,6 @@ public sealed class TimerInfoShould
 
 	#region Kind Property Tests
 
-	[Fact]
-	public void Kind_ReturnsEvent()
-	{
-		// Arrange & Act
-		var timerInfo = new TimerInfo();
-
-		// Assert
-		timerInfo.Kind.ShouldBe(MessageKinds.Event);
-	}
-
 	#endregion
 
 	#region Interface Tests

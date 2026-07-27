@@ -1,0 +1,25 @@
+# shipped-ddl-sweep REFUSE baseline.
+#
+# Each non-comment line is a table the sweep currently REFUSEs on — it RAN but could not evaluate that
+# table's shipped DDL against a write path (an unmapped table, or a mapped one whose write the column
+# extractor can't parse). A REFUSE is the gate WORKING (announcing a coverage gap), NOT failing.
+#
+# The wired gate (shipped-ddl-sweep-gate.sh) enforces this as a SET, not a count:
+#   * A table ENTERING this set (a NEW gap) FAILs the gate — a count would be blind to substitution
+#     (map one table, a schema change adds another, count unchanged, the new gap invisible).
+#   * A table LEAVING (now evaluable) is a reviewable diff: delete its line here.
+#
+# EVERY line here MUST have a tracked bead naming the table and the write path it could not map —
+# an un-owned REFUSE decays into a tolerated red, indistinguishable from a gate that never ran.
+# A line is closed by MAPPING the table or scoping it out with a written reason — never by suppression.
+#
+# Format: the sweep's REFUSE label, verbatim (everything after "REFUSE " up to the " — " explanation).
+outbox_fence (postgres outbox fence)
+# Both fence tables are written by an UPSERT — Postgres via INSERT ... ON CONFLICT DO UPDATE, SQL Server
+# via MERGE ... WHEN MATCHED THEN UPDATE / WHEN NOT MATCHED THEN INSERT. The column extractor reads plain
+# INSERT and UPDATE statements, so it cannot recover the written column set from either shape and refuses
+# rather than guessing. Both rows are mapped (see MAP_ROWS); the gap is in the extractor, not the map.
+# Reviewed by hand for the SQL Server fence: the shipped DDL declares OutboxTable and HighWaterToken, and
+# the MERGE writes and reads exactly those two, so there is no drift today. Closing this line means
+# teaching the extractor the upsert shapes, not deleting it.
+dbo.OutboxFence (sqlserver outbox fence)

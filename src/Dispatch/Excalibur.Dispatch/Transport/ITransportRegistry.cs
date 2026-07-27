@@ -36,16 +36,25 @@ public interface ITransportRegistry
 	/// <param name="name">The transport name.</param>
 	/// <param name="adapter">The transport adapter.</param>
 	/// <param name="transportType">The transport type identifier.</param>
+	/// <param name="locality">Whether the transport delivers in-process (<see cref="TransportLocality.Local"/>) or across a network boundary (<see cref="TransportLocality.Remote"/>).</param>
 	/// <param name="options">Optional transport options.</param>
-	void RegisterTransport(string name, ITransportAdapter adapter, string transportType, Dictionary<string, object>? options = null);
+	void RegisterTransport(string name, ITransportAdapter adapter, string transportType, TransportLocality locality, Dictionary<string, object>? options = null);
 
 	/// <summary>
 	/// Registers a transport adapter factory for deferred creation.
 	/// </summary>
 	/// <param name="name">The transport name.</param>
 	/// <param name="transportType">The transport type identifier.</param>
+	/// <param name="locality">Whether the transport delivers in-process (<see cref="TransportLocality.Local"/>) or across a network boundary (<see cref="TransportLocality.Remote"/>).</param>
 	/// <param name="factory">Factory function to create the adapter at runtime.</param>
-	void RegisterTransportFactory(string name, string transportType, Func<IServiceProvider, ITransportAdapter> factory);
+	void RegisterTransportFactory(string name, string transportType, TransportLocality locality, Func<IServiceProvider, ITransportAdapter> factory);
+
+	/// <summary>
+	/// Gets a value indicating whether any registered transport — initialized or a pending factory —
+	/// delivers across a network boundary (<see cref="TransportLocality.Remote"/>).
+	/// </summary>
+	/// <value><see langword="true"/> if at least one registered transport is remote; otherwise <see langword="false"/>.</value>
+	bool HasRemoteTransport { get; }
 
 	/// <summary>
 	/// Gets a transport adapter by name.

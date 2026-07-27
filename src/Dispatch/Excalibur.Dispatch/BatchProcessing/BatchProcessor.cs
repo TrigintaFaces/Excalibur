@@ -21,6 +21,13 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	where T : class
 {
 	private readonly Func<IReadOnlyList<T>, ValueTask> _batchProcessor;
+
+	/// <summary>
+	/// Optional callback invoked (fail-open) when a batch-processing delegate throws, so a failure is
+	/// observable to the caller instead of swallowed. <see langword="null"/> ⇒ log + trace + count only.
+	/// </summary>
+	private readonly Func<BatchProcessingErrorContext<T>, ValueTask>? _onBatchError;
+
 	private readonly MicroBatchOptions _options;
 	private readonly Channel<ItemWithToken> _inputChannel;
 	private readonly Task _processingTask;
@@ -59,6 +66,13 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	private readonly Counter<long> _itemsProcessedCounter;
 
 	/// <summary>
+	/// Counter for batches whose processing delegate threw. Tagged with <c>shutdown</c> (bool) to split
+	/// live faults from shutdown-drain faults. Incremented on every fault so a failure is never silently
+	/// swallowed (the "provably counted" backstop of the error-observability contract).
+	/// </summary>
+	private readonly Counter<long> _batchErrorCounter;
+
+	/// <summary>
 	/// Histogram for batch sizes.
 	/// </summary>
 	private readonly Histogram<int> _batchSizeHistogram;
@@ -91,8 +105,9 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	public BatchProcessor(
 		Func<IReadOnlyList<T>, ValueTask> batchProcessor,
 		ILogger<BatchProcessor<T>> logger,
-		MicroBatchOptions? options = null)
-		: this(batchProcessor, logger, meterFactory: null, options)
+		MicroBatchOptions? options = null,
+		Func<BatchProcessingErrorContext<T>, ValueTask>? onBatchError = null)
+		: this(batchProcessor, logger, meterFactory: null, options, onBatchError)
 	{
 	}
 
@@ -103,17 +118,25 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	/// <param name="logger"> The logger instance. </param>
 	/// <param name="meterFactory"> Optional meter factory for DI-managed meter lifecycle. If null, creates an unmanaged meter. </param>
 	/// <param name="options"> Optional micro-batch configuration options. </param>
+	/// <param name="onBatchError">
+	/// Optional callback invoked (fail-open) when a batch-processing delegate throws, surfacing the failed
+	/// batch and exception to the caller. The processor keeps running; a faulted batch never tears down the
+	/// pipeline. If the callback itself throws, the secondary fault is logged and suppressed. When
+	/// <see langword="null"/>, faults are logged, traced, and counted only.
+	/// </param>
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
 		Justification = "Meter lifecycle is managed by IMeterFactory or this class and disposed in Dispose()")]
 	public BatchProcessor(
 		Func<IReadOnlyList<T>, ValueTask> batchProcessor,
 		ILogger<BatchProcessor<T>> logger,
 		IMeterFactory? meterFactory,
-		MicroBatchOptions? options = null)
+		MicroBatchOptions? options = null,
+		Func<BatchProcessingErrorContext<T>, ValueTask>? onBatchError = null)
 	{
 		_batchProcessor = batchProcessor ?? throw new ArgumentNullException(nameof(batchProcessor));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_options = options ?? new MicroBatchOptions();
+		_onBatchError = onBatchError;
 
 		// Initialize OpenTelemetry instrumentation (instance-scoped for test listener compatibility)
 		_activitySource = new ActivitySource(DispatchTelemetryConstants.ActivitySources.BatchProcessor, "1.0.0");
@@ -121,6 +144,8 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 				 ?? new Meter(DispatchTelemetryConstants.Meters.BatchProcessor, "1.0.0");
 		_itemsProcessedCounter = _meter.CreateCounter<long>("dispatch.microbatch.items.processed",
 			description: "Total number of items processed in batches");
+		_batchErrorCounter = _meter.CreateCounter<long>("dispatch.microbatch.batch.errors",
+			description: "Total number of batches whose processing delegate threw");
 		_batchSizeHistogram = _meter.CreateHistogram<int>("dispatch.microbatch.batch.size", description: "Size of batches processed");
 		_processingDurationHistogram = _meter.CreateHistogram<double>("dispatch.microbatch.processing.duration", unit: "ms",
 			description: "Duration of batch processing in milliseconds");
@@ -567,14 +592,29 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 			}
 			catch (Exception ex)
 			{
+				// Error-observability contract: surface the fault via counter (always) + optional callback,
+				// on BOTH the live and shutdown-drain paths. Never rethrow — the batch runs on a detached,
+				// unobserved task, so a rethrow here would fault a task nobody awaits (a silent swallow).
+				// The processor keeps running: a faulted batch must not tear down the pipeline (fail-open).
 				LogErrorProcessingBatchOfItems(ex, batchCopy.Length);
+				_batchErrorCounter.Add(1, new KeyValuePair<string, object?>("shutdown", isShutdown));
 				_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
 				_ = (activity?.AddTag("exception.type", ex.GetType().FullName));
 				_ = (activity?.AddTag("exception.message", ex.Message));
 				_ = (activity?.AddTag("exception.stacktrace", ex.StackTrace?.Length > 1024 ? ex.StackTrace[..1024] : ex.StackTrace));
-				if (!isShutdown)
+
+				var callback = _onBatchError;
+				if (callback is not null)
 				{
-					throw;
+					try
+					{
+						await callback(new BatchProcessingErrorContext<T>(batchCopy, ex, isShutdown)).ConfigureAwait(false);
+					}
+					catch (Exception callbackEx)
+					{
+						// Fail-open: observability must never break the pipeline.
+						LogOnBatchErrorCallbackFailed(_logger, callbackEx);
+					}
 				}
 			}
 		});
@@ -618,4 +658,7 @@ internal sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 	[LoggerMessage(CoreEventId.MicroBatchError, LogLevel.Error,
 		"Error processing batch of {BatchCount} items")]
 	private partial void LogErrorProcessingBatchOfItems(Exception ex, int batchCount);
+
+	[LoggerMessage(LogLevel.Error, "BatchProcessor OnBatchError callback threw; suppressed to keep the pipeline running")]
+	private static partial void LogOnBatchErrorCallbackFailed(ILogger logger, Exception exception);
 }

@@ -37,10 +37,10 @@ namespace Excalibur.Domain.Model;
 ///
 ///     public override string BusinessKey => _orderNumber;
 ///
-///     protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+///     protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 ///     {
 ///         OrderCreated e => Apply(e),
-///         _ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}")
+///         _ => false
 ///     };
 ///
 ///     private bool Apply(OrderCreated e)

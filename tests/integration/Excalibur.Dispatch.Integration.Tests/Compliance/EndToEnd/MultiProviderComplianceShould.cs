@@ -349,7 +349,7 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		var vaultDelete = await _vaultProvider.DeleteKeyAsync(vaultKeyId, 30, CancellationToken.None);
 
 		// Assert
-		vaultDelete.ShouldBeTrue();
+		vaultDelete.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.Completed);
 
 		var vaultKey = await _vaultProvider.GetKeyAsync(vaultKeyId, CancellationToken.None);
 		vaultKey.ShouldBeNull();
@@ -365,9 +365,9 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		var awsResult = await _awsProvider.DeleteKeyAsync(nonExistentId, 30, CancellationToken.None);
 		var vaultResult = await _vaultProvider.DeleteKeyAsync(nonExistentId, 30, CancellationToken.None);
 
-		// Assert - Both should return false consistently
-		awsResult.ShouldBeFalse();
-		vaultResult.ShouldBeFalse();
+		// Assert - both report NotFound consistently
+		awsResult.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.NotFound);
+		vaultResult.State.ShouldBe(Excalibur.Compliance.KeyDestructionState.NotFound);
 	}
 
 	[Fact]

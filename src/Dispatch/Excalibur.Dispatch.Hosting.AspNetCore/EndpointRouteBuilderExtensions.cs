@@ -61,7 +61,7 @@ public static class EndpointRouteBuilderExtensions
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TRequest : class
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapPost(route, RouteMessageHandlerFactory.CreateMessageHandler(
 			actionFactory, responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -101,7 +101,7 @@ public static class EndpointRouteBuilderExtensions
 		string route,
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapPost(route, RouteMessageHandlerFactory.CreateMessageHandler<TAction, TResponse>(
 			responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -149,7 +149,7 @@ public static class EndpointRouteBuilderExtensions
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TRequest : class
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapGet(route, RouteMessageHandlerFactory.CreateMessageHandler(
 			actionFactory, responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -170,7 +170,7 @@ public static class EndpointRouteBuilderExtensions
 		string route,
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapGet(route, RouteMessageHandlerFactory.CreateMessageHandler<TAction, TResponse>(
 			responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -218,7 +218,7 @@ public static class EndpointRouteBuilderExtensions
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TRequest : class
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapPut(route, RouteMessageHandlerFactory.CreateMessageHandler(
 			actionFactory, responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -258,7 +258,7 @@ public static class EndpointRouteBuilderExtensions
 		string route,
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapPut(route, RouteMessageHandlerFactory.CreateMessageHandler<TAction, TResponse>(
 			responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -306,7 +306,7 @@ public static class EndpointRouteBuilderExtensions
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TRequest : class
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapDelete(route, RouteMessageHandlerFactory.CreateMessageHandler(
 			actionFactory, responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 
@@ -346,7 +346,7 @@ public static class EndpointRouteBuilderExtensions
 		string route,
 		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
 		where TAction : class, IDispatchAction<TResponse>
-		where TResponse : class =>
+		=>
 		endpoints.MapDelete(route, RouteMessageHandlerFactory.CreateMessageHandler<TAction, TResponse>(
 			responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
 }

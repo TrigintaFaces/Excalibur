@@ -37,7 +37,10 @@ public sealed class CosmosDbSnapshotDocumentShould
 	{
 		// Arrange
 		var aggregateId = "test-aggregate-123";
-		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
+				// CreateId is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
+		// document ids (e6t62k) — disambiguate the single-arg overload explicitly to avoid AmbiguousMatchException.
+		var createIdMethod = _documentType.GetMethod(
+			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
 
 		// Act
 		var result = (string)createIdMethod!.Invoke(null, new object[] { aggregateId })!;
@@ -53,7 +56,10 @@ public sealed class CosmosDbSnapshotDocumentShould
 	{
 		// Arrange - Characters that need escaping: / \ ? #
 		var aggregateId = "order/123\\test?query#fragment";
-		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
+				// CreateId is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
+		// document ids (e6t62k) — disambiguate the single-arg overload explicitly to avoid AmbiguousMatchException.
+		var createIdMethod = _documentType.GetMethod(
+			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
 
 		// Act
 		var result = (string)createIdMethod!.Invoke(null, new object[] { aggregateId })!;
@@ -69,7 +75,10 @@ public sealed class CosmosDbSnapshotDocumentShould
 	{
 		// Arrange
 		var aggregateId = "my-aggregate-id";
-		var createIdMethod = _documentType.GetMethod("CreateId", BindingFlags.Public | BindingFlags.Static);
+				// CreateId is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
+		// document ids (e6t62k) — disambiguate the single-arg overload explicitly to avoid AmbiguousMatchException.
+		var createIdMethod = _documentType.GetMethod(
+			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
 
 		// Act
 		var result1 = (string)createIdMethod!.Invoke(null, new object[] { aggregateId })!;
@@ -77,6 +86,36 @@ public sealed class CosmosDbSnapshotDocumentShould
 
 		// Assert
 		result1.ShouldBe(result2);
+	}
+
+	[Fact]
+	public void CreateId_WithTenant_DiffersFromUnscoped_AndBetweenTenants()
+	{
+		// STRENGTHEN (e6t62k): the tenant goes in the DOCUMENT ID so a tenant-scoped snapshot can never
+		// collide with an unscoped one, nor with another tenant's snapshot of the same aggregate.
+		var aggregateId = "shared-aggregate";
+		var single = _documentType.GetMethod(
+			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
+		var tenanted = _documentType.GetMethod(
+			"CreateId", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string), typeof(string) }, modifiers: null);
+		tenanted.ShouldNotBeNull("CreateId(aggregateId, tenantId) overload must exist for tenant-inclusive ids.");
+
+		var unscoped = (string)single!.Invoke(null, new object[] { aggregateId })!;
+		var tenantA = (string)tenanted!.Invoke(null, new object?[] { aggregateId, "tenant-a" })!;
+		var tenantB = (string)tenanted.Invoke(null, new object?[] { aggregateId, "tenant-b" })!;
+
+		tenantA.ShouldNotBe(unscoped);
+		tenantB.ShouldNotBe(unscoped);
+		tenantA.ShouldNotBe(tenantB);
+
+		// A null/empty tenant must map back to the unscoped id (single-tenant hosts keep their existing keys).
+		var tenantNull = (string)tenanted.Invoke(null, new object?[] { aggregateId, null })!;
+		tenantNull.ShouldBe(unscoped);
+
+		// The tenant-scoped id remains URL-safe Base64.
+		tenantA.ShouldNotContain("+");
+		tenantA.ShouldNotContain("/");
+		tenantA.ShouldNotContain("=");
 	}
 
 	#endregion

@@ -367,7 +367,9 @@ public sealed class SnapshotMetadataShould
 			}));
 		}
 
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await)
 		var results = Task.WhenAll(tasks).Result;
+		#pragma warning restore RS0030
 
 		// Assert
 		results.Length.ShouldBe(10);

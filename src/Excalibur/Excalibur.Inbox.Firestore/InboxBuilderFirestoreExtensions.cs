@@ -10,6 +10,7 @@ using Excalibur.Inbox.Firestore;
 using Google.Cloud.Firestore;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -117,7 +118,21 @@ public static class InboxBuilderFirestoreExtensions
 		}
 
 		// Register store services
-		builder.Services.TryAddSingleton<FirestoreInboxStore>();
+		// AddTenantScopedStore injects ITenantContext AND emits the ITenantScopingCapability<IInboxStore>
+		// marker inseparably from that wiring, so an unwired provider cannot advertise a capability it does
+		// not have.
+		builder.Services.AddTenantScopedStore<IInboxStore, FirestoreInboxStore>((sp, tenantContext) =>
+		{
+			var options = sp.GetRequiredService<IOptions<FirestoreInboxOptions>>();
+			var logger = sp.GetRequiredService<ILogger<FirestoreInboxStore>>();
+
+			// A registered FirestoreDb must still win; the options-only overload would discard it.
+			var db = sp.GetService<FirestoreDb>();
+
+			return db is null
+				? new FirestoreInboxStore(options, logger, tenantContext)
+				: new FirestoreInboxStore(db, options, logger, tenantContext);
+		});
 		builder.Services.AddKeyedSingleton<IInboxStore>("firestore", (sp, _) => sp.GetRequiredService<FirestoreInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("firestore"));

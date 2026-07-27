@@ -52,12 +52,12 @@ internal sealed class ElasticSearchTenantProjectionStoreResolver<TProjection>
 	private IProjectionStore<TProjection> CreateStore(ShardInfo shardInfo)
 	{
 		// Build per-shard options with tenant's index prefix
-		var indexPrefix = shardInfo.IndexPrefix ?? _defaultOptions.IndexPrefix;
+		var indexPrefix = shardInfo.IndexPrefix ?? _defaultOptions.Index.IndexPrefix;
 		var nodeUri = shardInfo.ConnectionString ?? _defaultOptions.NodeUri;
 		var perShardOptions = new ElasticSearchProjectionStoreOptions
 		{
 			NodeUri = nodeUri,
-			IndexPrefix = indexPrefix,
+			Index = { IndexPrefix = indexPrefix },
 		};
 
 		var optionsMonitor = new StaticOptionsMonitor<ElasticSearchProjectionStoreOptions>(perShardOptions);

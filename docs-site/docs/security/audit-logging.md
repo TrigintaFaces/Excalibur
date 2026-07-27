@@ -65,7 +65,8 @@ builder.Services.Configure<SqlServerAuditOptions>(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("AuditDb")!;
     options.EnableHashChain = true;  // Tamper detection
-    options.RetentionPeriod = TimeSpan.FromDays(7 * 365);  // 7 years
+    // Retention is a nested group on SqlServerAuditOptions, not a flat property
+    options.Retention.RetentionPeriod = TimeSpan.FromDays(7 * 365);  // 7 years
 });
 ```
 

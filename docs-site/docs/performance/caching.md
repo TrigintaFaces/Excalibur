@@ -21,7 +21,7 @@ Excalibur.Dispatch.Caching integrates caching directly into the dispatch pipelin
 
 | Package | Purpose |
 |---------|---------|
-| `Excalibur.Dispatch.Caching` | Pipeline caching middleware, `ICacheable<T>`, `ICacheProvider`, attribute-based caching |
+| `Excalibur.Dispatch.Caching` | Pipeline caching middleware, `ICacheable<T>`, `ICacheInvalidationService`, attribute-based caching (backed by `HybridCache`) |
 | `Excalibur.Caching` | Adaptive TTL strategies, CQRS projection cache invalidation |
 
 ## Cache Modes
@@ -262,14 +262,16 @@ public class ListProductsAction : IDispatchAction<IReadOnlyList<ProductDto>>
 
 ### By Key or Tag
 
-Invalidate caches by key or tag using `ICacheProvider`:
+Invalidate caches by key or tag using `ICacheInvalidationService`:
 
 ```csharp
+using Excalibur.Dispatch.Caching;
+
 public class UpdateProductHandler : IActionHandler<UpdateProductAction>
 {
-    private readonly ICacheProvider _cache;
+    private readonly ICacheInvalidationService _cache;
 
-    public UpdateProductHandler(ICacheProvider cache)
+    public UpdateProductHandler(ICacheInvalidationService cache)
     {
         _cache = cache;
     }
@@ -281,13 +283,16 @@ public class UpdateProductHandler : IActionHandler<UpdateProductAction>
         // Update the product...
 
         // Invalidate specific entry
-        await _cache.RemoveAsync($"product:{action.ProductId}", ct);
+        await _cache.InvalidateKeysAsync([$"product:{action.ProductId}"], ct);
 
         // Invalidate all product listings
-        await _cache.RemoveByTagAsync("products", ct);
+        await _cache.InvalidateTagsAsync(["products"], ct);
     }
 }
 ```
+
+For direct, low-level access you can also inject `HybridCache`
+(`Microsoft.Extensions.Caching.Hybrid`) and call `RemoveAsync` / `RemoveByTagAsync`.
 
 ### Bulk Invalidation Service
 
@@ -454,41 +459,36 @@ services.AddDispatchCaching(options =>
 
 ## Cache Providers
 
-Implement `ICacheProvider` for custom cache backends:
+Custom cache backends implement the standard `IDistributedCache` abstraction
+(`Microsoft.Extensions.Caching.Distributed`) — the framework layers its memory L1,
+tag tracking, and pipeline middleware on top of whatever `IDistributedCache` you supply:
 
 ```csharp
-using Excalibur.Dispatch.Caching;
+using Microsoft.Extensions.Caching.Distributed;
 
-public class CustomCacheProvider : ICacheProvider
+public class CustomDistributedCache : IDistributedCache
 {
-    public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken) { /* ... */ }
-    public Task SetAsync<T>(string key, T value, CancellationToken cancellationToken,
-        TimeSpan? expiration = null, string[]? tags = null) { /* ... */ }
-    public Task RemoveAsync(string key, CancellationToken cancellationToken) { /* ... */ }
-    public Task RemoveByTagAsync(string tag, CancellationToken cancellationToken) { /* ... */ }
-    public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken) { /* ... */ }
+    public byte[]? Get(string key) { /* ... */ }
+    public Task<byte[]?> GetAsync(string key, CancellationToken token = default) { /* ... */ }
+    public void Set(string key, byte[] value, DistributedCacheEntryOptions options) { /* ... */ }
+    public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options,
+        CancellationToken token = default) { /* ... */ }
+    public void Refresh(string key) { /* ... */ }
+    public Task RefreshAsync(string key, CancellationToken token = default) { /* ... */ }
+    public void Remove(string key) { /* ... */ }
+    public Task RemoveAsync(string key, CancellationToken token = default) { /* ... */ }
 }
 ```
 
 Register with the generic distributed caching method:
 
 ```csharp
-services.AddDispatchDistributedCaching<CustomCacheProvider>(options =>
+services.AddDispatchDistributedCaching<CustomDistributedCache>(options =>
 {
     options.Enabled = true;
     options.CacheMode = CacheMode.Distributed;
 });
 ```
-
-### ICacheProvider Methods
-
-| Method | Purpose |
-|--------|---------|
-| `GetAsync<T>(key, ct)` | Retrieve a cached value |
-| `SetAsync<T>(key, value, ct, expiration?, tags?)` | Store a value with optional expiration and tags |
-| `RemoveAsync(key, ct)` | Remove a specific entry |
-| `RemoveByTagAsync(tag, ct)` | Remove all entries with a tag |
-| `ExistsAsync(key, ct)` | Check if a key exists |
 
 ## Health Monitoring
 

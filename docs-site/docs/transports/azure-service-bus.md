@@ -132,7 +132,7 @@ services.AddAzureServiceBusTransport(sb =>
 Alternatively, use the standalone extension method:
 
 ```csharp
-services.UseCloudEventsForServiceBus(options =>
+services.AddCloudEventsForServiceBus(options =>
 {
     options.EnableDuplicateDetection = true;
     options.MaxDeliveryCount = 10;
@@ -144,7 +144,7 @@ services.UseCloudEventsForServiceBus(options =>
 Use `SessionServiceBusConsumer` for FIFO-ordered message processing:
 
 ```csharp
-services.UseCloudEventsForServiceBus(options =>
+services.AddCloudEventsForServiceBus(options =>
 {
     options.UseSessionsForOrdering = true;
     options.DefaultSessionId = "orders";

@@ -51,10 +51,19 @@ public sealed class BackoffStrategyShould
 	#region Enum Definition Tests
 
 	[Fact]
-	public void HaveFiveDefinedValues()
+	public void HaveSevenDefinedValues()
+	{
+		// Assert — seven values since DecorrelatedJitter (=6) was added alongside FullJitter (=5).
+		Enum.GetValues<BackoffStrategy>().Length.ShouldBe(7);
+		Enum.IsDefined(BackoffStrategy.FullJitter).ShouldBeTrue();
+		Enum.IsDefined(BackoffStrategy.DecorrelatedJitter).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void HaveDecorrelatedJitterAsSix()
 	{
 		// Assert
-		Enum.GetValues<BackoffStrategy>().Length.ShouldBe(5);
+		((int)BackoffStrategy.DecorrelatedJitter).ShouldBe(6);
 	}
 
 	[Fact]

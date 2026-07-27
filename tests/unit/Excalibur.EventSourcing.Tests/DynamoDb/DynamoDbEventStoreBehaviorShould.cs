@@ -82,9 +82,13 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AppendAsync_Throw_WhenTransactionalBatchCannotAccessTable()
+	public async Task AppendAsync_ReturnFailureResult_WhenTransactionalBatchCannotAccessTable()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
+		// The contiguity pre-check (1gnr3d) reads the current tail version first; stub it to match
+		// expectedVersion (0) so the code proceeds past the pre-check to the transactional-write path under test.
+		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 0)] }));
 		// A TransactionCanceledException with NO ConditionalCheckFailed reason is a genuine transaction failure
 		// (e.g. table access), not a concurrency conflict — only a ConditionalCheckFailed cancellation maps to a
 		// conflict result; everything else propagates (it is not silently swallowed as a conflict).
@@ -94,14 +98,30 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var sut = CreateStore(client, configure: options => options.UseTransactionalWrite = true);
 		var events = new IDomainEvent[] { new TestDomainEvent("evt-1"), new TestDomainEvent("evt-2") };
 
-		_ = await Should.ThrowAsync<TransactionCanceledException>(
-			async () => await sut.AppendAsync("agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None));
+		// MS-01: the provider exception is normalized to a failure result rather than leaked. The
+		// distinction this test has always protected still holds and is now asserted explicitly: a
+		// TransactionCanceledException WITHOUT a ConditionalCheckFailed reason must NOT be reported as a
+		// concurrency conflict — real conflicts are mapped in the callees, not here.
+		//
+		// IsTransient is deliberately NOT asserted. The store returns isTransient:true for every
+		// non-conflict fault, so a `ShouldBeTrue()` here would pass for the wrong reason and lock in a
+		// classification that reports terminal faults (and cancellation) as retryable.
+		var result = await sut.AppendAsync(
+			"agg-1", "Order", new PartitionKey("Order:agg-1"), events, expectedVersion: 0, CancellationToken.None);
+
+		result.Success.ShouldBeFalse();
+		result.IsConcurrencyConflict.ShouldBeFalse();
+		result.ErrorMessage.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
 	public async Task AppendAsync_SequentialPath_ReturnConflict_WhenConditionalCheckFails()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
+		// Contiguity pre-check (1gnr3d): stub the tail-version read to match expectedVersion (0) so the code
+		// reaches the sequential PutItem path whose ConditionalCheckFailed → conflict mapping is under test.
+		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 0)] }));
 		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
 			.ThrowsAsync(new ConditionalCheckFailedException("conflict"));
 
@@ -132,6 +152,10 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 	public async Task IEventStoreAppendAsync_MapCloudConflictToAppendResultConflict()
 	{
 		var client = A.Fake<IAmazonDynamoDB>();
+		// Contiguity pre-check (1gnr3d): stub the tail-version read to match expectedVersion (4) so the code
+		// reaches the PutItem path whose ConditionalCheckFailed → AppendResult conflict mapping is under test.
+		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(new QueryResponse { Items = [CreateItem("Order:agg-1", "evt-tail", 4)] }));
 		_ = A.CallTo(() => client.PutItemAsync(A<PutItemRequest>._, A<CancellationToken>._))
 			.ThrowsAsync(new ConditionalCheckFailedException("conflict"));
 
@@ -206,7 +230,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var sut = CreateStore(client, configure: options =>
 		{
 			options.CreateTableIfNotExists = true;
-			options.UseOnDemandCapacity = true;
+			options.Throughput.UseOnDemandCapacity = true;
 			options.EnableStreams = true;
 		});
 
@@ -248,9 +272,9 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var sut = CreateStore(client, configure: options =>
 		{
 			options.CreateTableIfNotExists = true;
-			options.UseOnDemandCapacity = false;
-			options.ReadCapacityUnits = 7;
-			options.WriteCapacityUnits = 9;
+			options.Throughput.UseOnDemandCapacity = false;
+			options.Throughput.ReadCapacityUnits = 7;
+			options.Throughput.WriteCapacityUnits = 9;
 			options.EnableStreams = false;
 		});
 

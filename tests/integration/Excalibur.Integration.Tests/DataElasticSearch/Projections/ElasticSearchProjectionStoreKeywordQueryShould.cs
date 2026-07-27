@@ -70,8 +70,11 @@ public sealed class ElasticSearchProjectionStoreKeywordQueryShould : Elasticsear
 		var options = new ElasticSearchProjectionStoreOptions
 		{
 			NodeUri = ConnectionString,
-			IndexPrefix = $"kwq-{Guid.NewGuid():N}",
-			CreateIndexOnInitialize = true,
+			Index =
+			{
+				IndexPrefix = $"kwq-{Guid.NewGuid():N}",
+				CreateIndexOnInitialize = true,
+			},
 		};
 
 		// Register the index for base-class cleanup.

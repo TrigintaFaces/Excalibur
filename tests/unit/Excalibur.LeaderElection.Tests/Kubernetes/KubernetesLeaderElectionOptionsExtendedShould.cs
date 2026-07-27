@@ -18,7 +18,7 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 		var options = new KubernetesLeaderElectionOptions();
 
 		// Assert
-		options.LeaseDurationSeconds.ShouldBe(15);
+		options.LeaseDuration.ShouldBe(TimeSpan.FromSeconds(15));
 	}
 
 	[Fact]
@@ -28,7 +28,7 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 		var options = new KubernetesLeaderElectionOptions();
 
 		// Assert
-		options.RenewIntervalMilliseconds.ShouldBe(5000);
+		options.RenewInterval.ShouldBe(TimeSpan.FromMilliseconds(5000));
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 		var options = new KubernetesLeaderElectionOptions();
 
 		// Assert
-		options.RetryIntervalMilliseconds.ShouldBe(2000);
+		options.RetryInterval.ShouldBe(TimeSpan.FromMilliseconds(2000));
 	}
 
 	[Fact]
@@ -48,7 +48,7 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 		var options = new KubernetesLeaderElectionOptions();
 
 		// Assert
-		options.GracePeriodSeconds.ShouldBe(5);
+		options.GracePeriod.ShouldBe(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -68,7 +68,7 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 		var options = new KubernetesLeaderElectionOptions();
 
 		// Assert
-		options.MaxRetryDelayMilliseconds.ShouldBe(5000);
+		options.MaxRetryDelay.ShouldBe(TimeSpan.FromMilliseconds(5000));
 	}
 
 	[Fact]
@@ -169,19 +169,19 @@ public sealed class KubernetesLeaderElectionOptionsExtendedShould
 	public void AllowCustomLeaseDuration()
 	{
 		// Act
-		var options = new KubernetesLeaderElectionOptions { LeaseDurationSeconds = 30 };
+		var options = new KubernetesLeaderElectionOptions { LeaseDuration = TimeSpan.FromSeconds(30) };
 
 		// Assert
-		options.LeaseDurationSeconds.ShouldBe(30);
+		options.LeaseDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
 	public void AllowCustomRenewInterval()
 	{
 		// Act
-		var options = new KubernetesLeaderElectionOptions { RenewIntervalMilliseconds = 10000 };
+		var options = new KubernetesLeaderElectionOptions { RenewInterval = TimeSpan.FromMilliseconds(10000) };
 
 		// Assert
-		options.RenewIntervalMilliseconds.ShouldBe(10000);
+		options.RenewInterval.ShouldBe(TimeSpan.FromMilliseconds(10000));
 	}
 }

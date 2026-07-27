@@ -212,13 +212,13 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 		var commitTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
 		A.CallTo(() => stateStore.UpdateLastProcessedPositionAsync(
-				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]>._, A<DateTime?>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<string>._, A<byte[]>._, A<byte[]>._, A<DateTime?>._, A<long?>._, A<CancellationToken>._))
 			.Returns(1);
 
 		await sut.UpdateTableLastProcessedAsync("dbo_orders", lsn, seqVal, commitTime, CancellationToken.None);
 
 		A.CallTo(() => stateStore.UpdateLastProcessedPositionAsync(
-				"conn", "db", "dbo_orders", lsn, seqVal, commitTime, A<CancellationToken>._))
+				"conn", "db", "dbo_orders", lsn, seqVal, commitTime, A<long?>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 

@@ -108,7 +108,7 @@ public sealed class AggregateRootDepthShould
 		var aggregate = new TestAggregate();
 
 		// Act
-		aggregate.LoadFromHistory(Array.Empty<IDomainEvent>());
+		aggregate.LoadFromHistory(Array.Empty<HistoricEvent>());
 
 		// Assert
 		aggregate.Version.ShouldBe(0);
@@ -129,10 +129,11 @@ public sealed class AggregateRootDepthShould
 
 		// Act
 		aggregate.LoadFromSnapshot(snapshot);
-		aggregate.LoadFromHistory(new IDomainEvent[]
+		// Envelope versions continue the stream from the snapshot's version (10), they do not restart at 0.
+		aggregate.LoadFromHistory(new HistoricEvent[]
 		{
-			new TestEvent("snap-1", "v11"),
-			new TestEvent("snap-1", "v12"),
+			new(new TestEvent("snap-1", "v11"), 10),
+			new(new TestEvent("snap-1", "v12"), 11),
 		});
 
 		// Assert
@@ -205,7 +206,7 @@ public sealed class AggregateRootDepthShould
 		public void DoSomething(string id, string value) => RaiseEvent(new TestEvent(id, value));
 		public void DoSomethingWithNull() => RaiseEvent(null!);
 
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			TestEvent e => Apply(e),
 			_ => throw new InvalidOperationException($"Unknown: {@event.GetType().Name}"),
@@ -222,12 +223,12 @@ public sealed class AggregateRootDepthShould
 	private sealed class TestGuidAggregate : AggregateRoot<Guid>
 	{
 		public void SetId(Guid id) => Id = id;
-		protected override void ApplyEventInternal(IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(IDomainEvent @event) => false; // totality: recognizes no events => unhandled.
 	}
 
 	private sealed class TestSnapshotAggregate : AggregateRoot
 	{
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			TestEvent _ => true,
 			_ => throw new InvalidOperationException(),
@@ -242,7 +243,6 @@ public sealed class AggregateRootDepthShould
 	private sealed record TestEvent(string AggregateId, string Value) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
-		string IDomainEvent.AggregateId => AggregateId;
 		public long Version { get; init; }
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 		public string EventType => nameof(TestEvent);
@@ -252,6 +252,10 @@ public sealed class AggregateRootDepthShould
 	private sealed class TestSnapshot : ISnapshot
 	{
 		public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+		// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+		// that this double is unscoped instead of assuming it.
+		public string? TenantId { get; init; }
 		public string AggregateId { get; init; } = string.Empty;
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }

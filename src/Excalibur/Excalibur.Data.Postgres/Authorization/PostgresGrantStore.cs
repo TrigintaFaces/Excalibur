@@ -17,7 +17,7 @@ namespace Excalibur.Data.Postgres.Authorization;
 /// Implements both <see cref="IGrantStore"/> and <see cref="IGrantQueryStore"/> (via <see cref="GetService"/>)
 /// plus <see cref="IActivityGroupGrantStore"/> for activity-group grant operations.
 /// </remarks>
-public sealed class PostgresGrantStore : IGrantStore, IGrantQueryStore, IActivityGroupGrantStore
+public sealed class PostgresGrantStore : IGrantStore, IDurableGrantStore, IGrantQueryStore, IActivityGroupGrantStore
 {
 	private readonly IDbConnection _connection;
 
@@ -205,6 +205,11 @@ public sealed class PostgresGrantStore : IGrantStore, IGrantQueryStore, IActivit
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IDurableGrantStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IGrantQueryStore))
 		{

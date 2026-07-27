@@ -26,9 +26,22 @@ internal interface ICdcIdempotencyFilter
 	/// <param name="tableName">The CDC capture instance/table name.</param>
 	/// <param name="lsn">The event's LSN (Log Sequence Number).</param>
 	/// <param name="seqVal">The event's sequence value within the LSN.</param>
+	/// <param name="consumerId">
+	/// The consumer asking. Dedupe is PER CONSUMER: without it the key is table plus position, so the first
+	/// consumer to process a change marks it done for every other consumer of the same table, and the others
+	/// skip a change they never saw. That is silent data loss, and it is the failure this parameter exists to
+	/// make impossible — a duplicate merely reprocesses, which an idempotent handler absorbs.
+	/// Callers pass the SAME identity the checkpoint store uses, so the filter and the position it advances
+	/// can never disagree about who is asking.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns><see langword="true"/> if already processed; <see langword="false"/> otherwise.</returns>
-	Task<bool> IsProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, CancellationToken cancellationToken);
+	/// <returns><see langword="true"/> if already processed BY THIS CONSUMER; <see langword="false"/> otherwise.</returns>
+	Task<bool> IsProcessedAsync(
+		string tableName,
+		byte[] lsn,
+		byte[] seqVal,
+		string consumerId,
+		CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Marks an event as successfully processed.
@@ -36,7 +49,13 @@ internal interface ICdcIdempotencyFilter
 	/// <param name="tableName">The CDC capture instance/table name.</param>
 	/// <param name="lsn">The event's LSN (Log Sequence Number).</param>
 	/// <param name="seqVal">The event's sequence value within the LSN.</param>
+	/// <param name="consumerId">The consumer that processed it. Marks are PER CONSUMER, never global.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
-	Task MarkProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, CancellationToken cancellationToken);
+	Task MarkProcessedAsync(
+		string tableName,
+		byte[] lsn,
+		byte[] seqVal,
+		string consumerId,
+		CancellationToken cancellationToken);
 }

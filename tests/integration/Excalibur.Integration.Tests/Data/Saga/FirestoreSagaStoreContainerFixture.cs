@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Google.Api.Gax;
+
 using Google.Cloud.Firestore;
 
 using Grpc.Core;
@@ -48,11 +50,18 @@ public sealed class FirestoreSagaStoreContainerFixture : IAsyncLifetime
 			await _container.StartAsync().ConfigureAwait(false);
 
 			// Explicit endpoint + insecure credentials — env-var-based emulator discovery is unreliable.
+			// EmulatorOnly makes the SDK speak EMULATOR semantics; an explicit Endpoint alone leaves it
+			// behaving as though this were a real deployment, so the emulator rejects admin-ish calls with
+			// PermissionDenied "Metadata operations require admin authentication." EmulatorOnly and an
+			// explicit Endpoint/ChannelCredentials are mutually exclusive -- the SDK builds its own channel
+			// from FIRESTORE_EMULATOR_HOST and throws from GaxPreconditions.CheckState if given both.
+			// The variable is set from THIS fixture's container, so it cannot point at a foreign emulator.
+			Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
+
 			Db = await new FirestoreDbBuilder
 			{
 				ProjectId = ProjectId,
-				Endpoint = _container.GetEmulatorEndpoint(),
-				ChannelCredentials = ChannelCredentials.Insecure,
+				EmulatorDetection = EmulatorDetection.EmulatorOnly,
 			}.BuildAsync().ConfigureAwait(false);
 
 			IsInitialized = true;

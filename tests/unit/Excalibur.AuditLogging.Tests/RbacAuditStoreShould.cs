@@ -15,10 +15,7 @@ public sealed class RbacAuditStoreShould
 
     public RbacAuditStoreShould()
     {
-        _sut = new RbacAuditStore(
-            _innerStore,
-            _roleProvider,
-            NullLogger<RbacAuditStore>.Instance);
+        _sut = new RbacAuditStore(_innerStore, _roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), NullLogger<RbacAuditStore>.Instance);
     }
 
     private static AuditEvent CreateEvent(
@@ -224,21 +221,30 @@ public sealed class RbacAuditStoreShould
     public void Throw_argument_null_for_null_inner_store()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(null!, _roleProvider, NullLogger<RbacAuditStore>.Instance));
+            new RbacAuditStore(null!, _roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), NullLogger<RbacAuditStore>.Instance));
     }
 
     [Fact]
     public void Throw_argument_null_for_null_role_provider()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(_innerStore, null!, NullLogger<RbacAuditStore>.Instance));
+            new RbacAuditStore(_innerStore, null!, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), NullLogger<RbacAuditStore>.Instance));
     }
 
     [Fact]
     public void Throw_argument_null_for_null_logger()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new RbacAuditStore(_innerStore, _roleProvider, null!));
+            new RbacAuditStore(_innerStore, _roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), null!));
+    }
+
+    [Fact]
+    public void Throw_argument_null_for_null_meta_audit_logger()
+    {
+        // Meta-auditing (recording who reads the audit trail) is a segregation-of-duties control that must
+        // never be silently disabled by being left unconfigured. Its absence fails closed at construction.
+        Should.Throw<ArgumentNullException>(() =>
+            new RbacAuditStore(_innerStore, _roleProvider, null!, NullLogger<RbacAuditStore>.Instance));
     }
 
     [Fact]

@@ -19,6 +19,26 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 
 	public void Dispose() => _store.Clear();
 
+	/// <summary>
+	/// Builds a store whose reads are confined to <paramref name="tenantId"/> by AMBIENT context.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The store partitions <b>writes</b> by <c>auditEvent.TenantId</c> but resolves <b>reads</b> from
+	/// ambient context, deliberately never consulting <c>AuditQuery.TenantId</c> — a caller must not be
+	/// able to widen a read by omitting the field, nor redirect it by naming another tenant. So one store
+	/// can hold several tenants' events while a scoped read sees exactly one partition, which is what these
+	/// arms assert.
+	/// </para>
+	/// <para>
+	/// Arms here previously passed the tenant as <c>new AuditQuery { TenantId = … }</c> and expected it to
+	/// filter. That is the seam the store removed to close a cross-tenant read, so those arms were asserting
+	/// a contract the fix deleted — they had to move to ambient scoping rather than be relaxed to pass.
+	/// </para>
+	/// </remarks>
+	private static InMemoryAuditStore StoreScopedTo(string tenantId) =>
+		AuditStoreTenantScope.ScopedTo(tenantId);
+
 	#region StoreAsync Tests
 
 	[Fact]
@@ -104,28 +124,49 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		result3.SequenceNumber.ShouldBe(3);
 	}
 
+	/// <summary>
+	/// Each tenant's hash chain is independent: one tenant's writes never become links in another's chain.
+	/// </summary>
+	/// <remarks>
+	/// Read back through a store scoped to the tenant under inspection, because <c>GetByIdAsync</c> resolves
+	/// its partition from ambient context rather than scanning every tenant. The same write sequence is
+	/// replayed into each scoped view so that both chains are built under identical interleaving — which is
+	/// the condition that would expose a shared chain if one existed.
+	/// </remarks>
 	[Fact]
 	public async Task StoreAsync_IsolatesHashChainsByTenant()
 	{
-		// Arrange
 		var eventA = CreateTestAuditEvent("event-a") with { TenantId = "tenant-a" };
 		var eventB = CreateTestAuditEvent("event-b") with { TenantId = "tenant-b" };
 		var eventA2 = CreateTestAuditEvent("event-a2") with { TenantId = "tenant-a" };
 
-		// Act
-		_ = await _store.StoreAsync(eventA, CancellationToken.None);
-		_ = await _store.StoreAsync(eventB, CancellationToken.None);
-		_ = await _store.StoreAsync(eventA2, CancellationToken.None);
+		// Tenant A's view — B's write is interleaved between A's two, and must not enter A's chain.
+		var storeA = StoreScopedTo("tenant-a");
+		_ = await storeA.StoreAsync(eventA, CancellationToken.None);
+		_ = await storeA.StoreAsync(eventB, CancellationToken.None);
+		_ = await storeA.StoreAsync(eventA2, CancellationToken.None);
 
-		// Assert
-		var storedA = await _store.GetByIdAsync("event-a", CancellationToken.None);
-		var storedB = await _store.GetByIdAsync("event-b", CancellationToken.None);
-		var storedA2 = await _store.GetByIdAsync("event-a2", CancellationToken.None);
+		var storedA = await storeA.GetByIdAsync("event-a", CancellationToken.None);
+		var storedA2 = await storeA.GetByIdAsync("event-a2", CancellationToken.None);
+		_ = storedA.ShouldNotBeNull();
+		_ = storedA2.ShouldNotBeNull();
 
-		// Tenant A chain: event-a -> event-a2
-		storedA2.PreviousEventHash.ShouldBe(storedA.EventHash);
-		// Tenant B has its own genesis hash, not linked to Tenant A
-		storedB.PreviousEventHash.ShouldNotBe(storedA.EventHash);
+		storedA2.PreviousEventHash.ShouldBe(
+			storedA.EventHash,
+			"tenant A's second event must chain to tenant A's first — if it chains to tenant B's event "
+			+ "instead, the tenants share one chain and either can invalidate the other's audit integrity.");
+
+		// Tenant B's view — same interleaving, B must still start its OWN genesis despite A writing first.
+		var storeB = StoreScopedTo("tenant-b");
+		_ = await storeB.StoreAsync(eventA, CancellationToken.None);
+		_ = await storeB.StoreAsync(eventB, CancellationToken.None);
+
+		var storedB = await storeB.GetByIdAsync("event-b", CancellationToken.None);
+		_ = storedB.ShouldNotBeNull();
+
+		storedB.PreviousEventHash.ShouldBeNull(
+			"tenant B's first event is a GENESIS even though tenant A wrote earlier. A non-null prior hash "
+			+ "here means B's chain was seeded from A's — cross-tenant linkage in the integrity chain.");
 	}
 
 	[Fact]
@@ -179,14 +220,16 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 	[Fact]
 	public async Task StoreAsync_TenantFirstEventHasGenesisHash()
 	{
-		// Arrange
+		// Arrange — the read-back must be scoped to the same tenant the event was written under, because
+		// GetByIdAsync resolves its partition from ambient context rather than scanning every tenant.
+		var store = StoreScopedTo("my-tenant");
 		var auditEvent = CreateTestAuditEvent("tenant-first") with { TenantId = "my-tenant" };
 
 		// Act
-		_ = await _store.StoreAsync(auditEvent, CancellationToken.None);
+		_ = await store.StoreAsync(auditEvent, CancellationToken.None);
 
 		// Assert - tenant's genesis event: null prior tag, with a keyed EventHash (v1:{keyId}:{mac}).
-		var stored = await _store.GetByIdAsync("tenant-first", CancellationToken.None);
+		var stored = await store.GetByIdAsync("tenant-first", CancellationToken.None);
 		_ = stored.ShouldNotBeNull();
 		stored.PreviousEventHash.ShouldBeNull();
 		stored.EventHash.ShouldNotBeNullOrWhiteSpace();
@@ -437,22 +480,60 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		results[0].ActorId.ShouldBe("user-1");
 	}
 
+	/// <summary>
+	/// SAFETY: a read scoped to one tenant must not return another tenant's events.
+	/// </summary>
 	[Fact]
-	public async Task QueryAsync_FiltersByTenant()
+	public async Task QueryAsync_ConfinesTheReadToTheAmbientTenant()
 	{
-		// Arrange
+		// Arrange — one store holding BOTH tenants' events, scoped to tenant-a for reads.
+		var store = StoreScopedTo("tenant-a");
 		var event1 = CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" };
 		var event2 = CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" };
 
-		_ = await _store.StoreAsync(event1, CancellationToken.None);
-		_ = await _store.StoreAsync(event2, CancellationToken.None);
+		_ = await store.StoreAsync(event1, CancellationToken.None);
+		_ = await store.StoreAsync(event2, CancellationToken.None);
 
-		// Act
-		var results = await _store.QueryAsync(new AuditQuery { TenantId = "tenant-a" }, CancellationToken.None);
+		// Act — the query names NO tenant. Under the old seam that meant "every tenant"; it now means
+		// "whatever the ambient scope is", which is the whole point of the change.
+		var results = await store.QueryAsync(new AuditQuery(), CancellationToken.None);
 
 		// Assert
-		results.Count.ShouldBe(1);
+		results.Count.ShouldBe(
+			1,
+			"a scoped read must see its own tenant's event and no other — if tenant-b's event is here, the "
+			+ "cross-tenant read this store closed has reopened.");
 		results[0].TenantId.ShouldBe("tenant-a");
+	}
+
+	/// <summary>
+	/// SAFETY: naming another tenant in the query must NOT redirect the read to that tenant.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm that would go green again if anyone "fixed" the store by honouring
+	/// <c>AuditQuery.TenantId</c>. It exists so that regression fails loudly rather than silently
+	/// re-opening the authorisation hole.
+	/// </remarks>
+	[Fact]
+	public async Task QueryAsync_IgnoresACallerSuppliedTenantAndCannotBeRedirected()
+	{
+		// Arrange
+		var store = StoreScopedTo("tenant-a");
+		_ = await store.StoreAsync(
+			CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
+		_ = await store.StoreAsync(
+			CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
+
+		// Act — a caller explicitly asking for someone else's tenant.
+		var results = await store.QueryAsync(
+			new AuditQuery { TenantId = "tenant-b" }, CancellationToken.None);
+
+		// Assert
+		results.Count.ShouldBe(1, "the caller's tenant field must not widen or redirect the read.");
+		results[0].TenantId.ShouldBe(
+			"tenant-a",
+			"the read stayed in the AMBIENT partition despite the query naming tenant-b. If this returns "
+			+ "tenant-b's event, query.TenantId is being consulted again and any caller can read any tenant.");
 	}
 
 	[Fact]
@@ -766,19 +847,41 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		results.Count.ShouldBe(2);
 	}
 
+	/// <summary>
+	/// SAFETY: omitting the tenant must NOT widen the read to every tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This arm previously asserted the opposite — that an unscoped query returned all three tenants'
+	/// events — and its name said so. <b>That was the authorisation hole stated as a requirement:</b> any
+	/// caller could read every tenant's audit trail simply by not naming one. Omission made tenancy opt-in.
+	/// </para>
+	/// <para>
+	/// It is inverted rather than deleted because the inverted form is the regression lock: if the store
+	/// ever widens on omission again, this fails. A deleted arm would have left that hole unguarded.
+	/// </para>
+	/// </remarks>
 	[Fact]
-	public async Task QueryAsync_ReturnsAllEventsForAllTenantsWhenNoTenantSpecified()
+	public async Task QueryAsync_DoesNotWidenToEveryTenantWhenNoTenantIsNamed()
 	{
-		// Arrange
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
+		// Arrange — three partitions: two tenanted, one untenanted.
+		_ = await _store.StoreAsync(
+			CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
+		_ = await _store.StoreAsync(
+			CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
 		_ = await _store.StoreAsync(CreateTestAuditEvent("event-3"), CancellationToken.None); // null tenant
 
-		// Act - no tenant filter
+		// Act — _store has NO ambient tenant, so it resolves to the untenanted partition.
 		var results = await _store.QueryAsync(new AuditQuery(), CancellationToken.None);
 
-		// Assert
-		results.Count.ShouldBe(3);
+		// Assert — LIVENESS: the untenanted caller still sees its OWN partition, so a store that simply
+		// returned nothing to everybody would not satisfy this.
+		results.Count.ShouldBe(
+			1,
+			"an unscoped read must see the untenanted partition ONLY. Returning 3 would mean omitting the "
+			+ "tenant widens the read to every tenant — the cross-tenant disclosure this store closed.");
+		results[0].TenantId.ShouldBeNull(
+			"the single visible event must be the untenanted one, not another tenant's.");
 	}
 
 	[Fact]
@@ -885,13 +988,14 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 			Timestamp = new DateTimeOffset(2025, 3, 15, 0, 0, 0, TimeSpan.Zero)
 		};
 
-		_ = await _store.StoreAsync(matchingEvent, CancellationToken.None);
-		_ = await _store.StoreAsync(nonMatchingEvent, CancellationToken.None);
+		// The tenant is AMBIENT; the remaining filters are what this arm exercises.
+		var store = StoreScopedTo("tenant-x");
+		_ = await store.StoreAsync(matchingEvent, CancellationToken.None);
+		_ = await store.StoreAsync(nonMatchingEvent, CancellationToken.None);
 
 		// Act
-		var results = await _store.QueryAsync(new AuditQuery
+		var results = await store.QueryAsync(new AuditQuery
 		{
-			TenantId = "tenant-x",
 			ActorId = "actor-1",
 			ResourceId = "res-1",
 			ResourceType = "Order",
@@ -1015,18 +1119,26 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 	}
 
 	[Fact]
-	public async Task CountAsync_FiltersByTenant()
+	public async Task CountAsync_CountsOnlyTheAmbientTenantsEvents()
 	{
-		// Arrange
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("event-3") with { TenantId = "tenant-a" }, CancellationToken.None);
+		// Arrange — reads scoped to tenant-a by ambient context, not by a field on the query.
+		var store = StoreScopedTo("tenant-a");
+		_ = await store.StoreAsync(
+			CreateTestAuditEvent("event-1") with { TenantId = "tenant-a" }, CancellationToken.None);
+		_ = await store.StoreAsync(
+			CreateTestAuditEvent("event-2") with { TenantId = "tenant-b" }, CancellationToken.None);
+		_ = await store.StoreAsync(
+			CreateTestAuditEvent("event-3") with { TenantId = "tenant-a" }, CancellationToken.None);
 
-		// Act
-		var count = await _store.CountAsync(new AuditQuery { TenantId = "tenant-a" }, CancellationToken.None);
+		// Act — the query names no tenant; the count must still be confined to the ambient one.
+		var count = await store.CountAsync(new AuditQuery(), CancellationToken.None);
 
 		// Assert
-		count.ShouldBe(2);
+		count.ShouldBe(
+			2,
+			"a count must be confined to the ambient tenant's partition. 3 would mean the count sees every "
+			+ "tenant — the same widening the query path closed, and a count is a disclosure too: it reveals "
+			+ "how much audit activity other tenants have.");
 	}
 
 	[Fact]
@@ -1109,30 +1221,31 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 	[Fact]
 	public async Task CountAsync_WithTenantFilter_AppliesAllFilters()
 	{
-		// Arrange - verify count with tenant scope + additional filters
-		_ = await _store.StoreAsync(CreateTestAuditEvent("count-1") with
+		// Arrange - verify count with tenant scope + additional filters. The tenant is AMBIENT; count-3
+		// belongs to tenant-y and must be excluded by the SCOPE, not by a field on the query.
+		var store = StoreScopedTo("tenant-x");
+		_ = await store.StoreAsync(CreateTestAuditEvent("count-1") with
 		{
 			TenantId = "tenant-x",
 			EventType = AuditEventType.DataAccess,
 			ActorId = "actor-1"
 		}, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("count-2") with
+		_ = await store.StoreAsync(CreateTestAuditEvent("count-2") with
 		{
 			TenantId = "tenant-x",
 			EventType = AuditEventType.Authentication,
 			ActorId = "actor-2"
 		}, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("count-3") with
+		_ = await store.StoreAsync(CreateTestAuditEvent("count-3") with
 		{
 			TenantId = "tenant-y",
 			EventType = AuditEventType.DataAccess,
 			ActorId = "actor-1"
 		}, CancellationToken.None);
 
-		// Act - count only DataAccess events for tenant-x by actor-1
-		var count = await _store.CountAsync(new AuditQuery
+		// Act - count only DataAccess events by actor-1, within the ambient tenant.
+		var count = await store.CountAsync(new AuditQuery
 		{
-			TenantId = "tenant-x",
 			EventTypes = [AuditEventType.DataAccess],
 			ActorId = "actor-1"
 		}, CancellationToken.None);
@@ -1347,29 +1460,45 @@ public sealed class InMemoryAuditStoreShould : IDisposable
 		result.EventsVerified.ShouldBe(1);
 	}
 
+	/// <summary>
+	/// Chain verification is confined to the ambient tenant — it neither reads nor reports another tenant's
+	/// events.
+	/// </summary>
+	/// <remarks>
+	/// Previously this asserted <c>EventsVerified == 2</c> from an unscoped store, i.e. that one call
+	/// verified <em>every</em> tenant's chain. Under the scoped contract that is a disclosure: the verified
+	/// count alone tells a caller how many audit events other tenants hold. Verification is now per-tenant,
+	/// and both arms below are required — the count must exclude the other tenant (safety) while still
+	/// covering this tenant's own event (liveness), which a verifier that simply returned zero would fail.
+	/// </remarks>
 	[Fact]
-	public async Task VerifyChainIntegrityAsync_MultipleTenantsVerifyIndependently()
+	public async Task VerifyChainIntegrityAsync_VerifiesOnlyTheAmbientTenantsChain()
 	{
-		// Arrange - events from different tenants
-		_ = await _store.StoreAsync(CreateTestAuditEvent("a-1") with
+		// Arrange — both tenants' events land in the store; reads are scoped to tenant-a.
+		var store = StoreScopedTo("tenant-a");
+		_ = await store.StoreAsync(CreateTestAuditEvent("a-1") with
 		{
 			TenantId = "tenant-a",
 			Timestamp = new DateTimeOffset(2025, 6, 1, 0, 0, 0, TimeSpan.Zero)
 		}, CancellationToken.None);
-		_ = await _store.StoreAsync(CreateTestAuditEvent("b-1") with
+		_ = await store.StoreAsync(CreateTestAuditEvent("b-1") with
 		{
 			TenantId = "tenant-b",
 			Timestamp = new DateTimeOffset(2025, 6, 2, 0, 0, 0, TimeSpan.Zero)
 		}, CancellationToken.None);
 
 		// Act
-		var result = await _store.VerifyChainIntegrityAsync(
+		var result = await store.VerifyChainIntegrityAsync(
 			new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
 			new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
-		// Assert - all events should verify (each has its own chain hash)
-		result.IsValid.ShouldBeTrue();
-		result.EventsVerified.ShouldBe(2);
+		// Assert
+		result.IsValid.ShouldBeTrue("tenant A's own chain is intact.");
+		result.EventsVerified.ShouldBe(
+			1,
+			"verification must cover tenant A's event (liveness) and NOT tenant B's (safety). 2 would mean "
+			+ "the verifier crosses partitions and leaks other tenants' event volume; 0 would mean it "
+			+ "verifies nothing and would pass while the chain rotted.");
 	}
 
 	#endregion VerifyChainIntegrityAsync Tests

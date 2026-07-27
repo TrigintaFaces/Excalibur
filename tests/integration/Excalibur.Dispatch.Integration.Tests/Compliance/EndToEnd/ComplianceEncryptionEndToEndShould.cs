@@ -45,6 +45,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 			Schema = "dbo",
 			TableName = "KeyEscrow_E2E",
 			TokensTableName = "KeyEscrowTokens_E2E",
+			WrapTableName = "KeyEscrowWrap_E2E",
 			DefaultTokenExpiration = TimeSpan.FromHours(24),
 			CommandTimeoutSeconds = 30
 		});
@@ -477,7 +478,7 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
                 CREATE TABLE dbo.KeyEscrow_E2E (
                     EscrowId NVARCHAR(64) NOT NULL PRIMARY KEY,
                     KeyId NVARCHAR(256) NOT NULL,
-                    EncryptedKey VARBINARY(MAX) NOT NULL,
+                    EncryptedKey VARBINARY(MAX) NULL,
                     KeyHash NVARCHAR(128) NOT NULL,
                     Algorithm INT NOT NULL,
                     Iv VARBINARY(64) NOT NULL,
@@ -503,12 +504,34 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
                     TokenId NVARCHAR(64) NOT NULL PRIMARY KEY,
                     KeyId NVARCHAR(256) NOT NULL,
                     EscrowId NVARCHAR(64) NOT NULL,
+                    BatchId NVARCHAR(64) NULL,
                     ShareIndex INT NOT NULL,
                     TotalShares INT NOT NULL,
                     Threshold INT NOT NULL,
                     CreatedAt DATETIMEOFFSET NOT NULL,
                     ExpiresAt DATETIMEOFFSET NOT NULL,
-                    IsUsed BIT NOT NULL DEFAULT 0
+                    IsUsed BIT NOT NULL DEFAULT 0,
+                    SecretCommitment VARBINARY(32) NULL
+                )
+            END
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'KeyEscrowWrap_E2E')
+            BEGIN
+                CREATE TABLE dbo.KeyEscrowWrap_E2E (
+                    EscrowId NVARCHAR(64) NOT NULL,
+                    BatchId NVARCHAR(64) NOT NULL,
+                    SecretCommitment VARBINARY(32) NOT NULL,
+                    KekSalt VARBINARY(64) NOT NULL,
+                    InnerIv VARBINARY(16) NOT NULL,
+                    InnerAuthTag VARBINARY(16) NOT NULL,
+                    WrappedInnerKey VARBINARY(MAX) NOT NULL,
+                    OuterIv VARBINARY(64) NOT NULL,
+                    OuterAuthTag VARBINARY(64) NULL,
+                    OuterAlgorithm INT NOT NULL,
+                    OuterMasterKeyId NVARCHAR(256) NOT NULL,
+                    OuterMasterKeyVersion INT NOT NULL,
+                    WrapVersion INT NOT NULL,
+                    CONSTRAINT PK_KeyEscrowWrap_E2E PRIMARY KEY (EscrowId, BatchId)
                 )
             END";
 

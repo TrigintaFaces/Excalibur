@@ -293,11 +293,18 @@ public static class MessageContextFeatureExtensions
 
 	/// <summary>
 	/// Creates a child context for dispatching related messages.
-	/// Propagates cross-cutting identifiers (correlation, identity) from the parent.
+	/// Propagates cross-cutting identifiers (correlation, identity), routing source, and the parent's
+	/// <see cref="IMessageContext.Items"/> baggage from the parent.
 	/// </summary>
 	/// <param name="context">The parent message context.</param>
 	/// <param name="requestServices">The service provider for the child context.</param>
-	/// <returns>A new <see cref="IMessageContext"/> with propagated identifiers.</returns>
+	/// <returns>A new <see cref="IMessageContext"/> with propagated identifiers and baggage.</returns>
+	/// <remarks>
+	/// The parent's <see cref="IMessageContext.Items"/> (idempotency keys, feature flags, custom propagation
+	/// headers, W3C baggage) are copied into the child so a child dispatch carries the same ambient
+	/// cross-cutting state that a context-reuse dispatch would keep. The copy is shallow and per-entry into a
+	/// fresh dictionary — mutating the child's <c>Items</c> does not affect the parent.
+	/// </remarks>
 	public static IMessageContext CreateChildContext(this IMessageContext context, IServiceProvider? requestServices = null)
 	{
 		ArgumentNullException.ThrowIfNull(context);
@@ -309,6 +316,19 @@ public static class MessageContextFeatureExtensions
 			CausationId = context.MessageId ?? context.CorrelationId,
 			MessageId = Uuid7Extensions.GenerateString(),
 		};
+
+		// Propagate the parent's Items baggage (idempotency keys, feature flags, custom propagation headers,
+		// W3C baggage) so a child dispatch keeps the same ambient cross-cutting state as a context-reuse
+		// dispatch (n79zqd). Shallow per-entry copy into the child's own bag.
+		var parentItems = context.Items;
+		if (parentItems.Count > 0)
+		{
+			var childItems = child.Items;
+			foreach (var entry in parentItems)
+			{
+				childItems[entry.Key] = entry.Value;
+			}
+		}
 
 		// Propagate identity feature
 		var parentIdentity = context.GetIdentityFeature();

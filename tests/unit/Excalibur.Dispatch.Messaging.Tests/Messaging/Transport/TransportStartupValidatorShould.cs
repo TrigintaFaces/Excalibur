@@ -117,7 +117,7 @@ public sealed class TransportStartupValidatorShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
 		var options = new TransportValidationOptions
 		{
 			ValidateOnStartup = true,
@@ -138,7 +138,7 @@ public sealed class TransportStartupValidatorShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
 		var options = new TransportValidationOptions
 		{
 			ValidateOnStartup = true,
@@ -155,8 +155,8 @@ public sealed class TransportStartupValidatorShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
 		var options = new TransportValidationOptions
 		{
 			ValidateOnStartup = true,
@@ -179,8 +179,8 @@ public sealed class TransportStartupValidatorShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
 		registry.SetDefaultTransport("rabbitmq");
 		var options = new TransportValidationOptions
 		{
@@ -198,8 +198,8 @@ public sealed class TransportStartupValidatorShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
 		var options = new TransportValidationOptions
 		{
 			ValidateOnStartup = true,
@@ -220,9 +220,9 @@ public sealed class TransportStartupValidatorShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ");
-		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka");
-		registry.RegisterTransport("servicebus", CreateAdapter("3"), "ServiceBus");
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		registry.RegisterTransport("kafka", CreateAdapter("2"), "Kafka", TransportLocality.Remote);
+		registry.RegisterTransport("servicebus", CreateAdapter("3"), "ServiceBus", TransportLocality.Remote);
 		registry.SetDefaultTransport("kafka");
 
 		var options = new TransportValidationOptions
@@ -257,6 +257,90 @@ public sealed class TransportStartupValidatorShould
 	}
 
 	#endregion StartAsync Tests - Combined Scenarios
+
+	#region StartAsync Tests - RequireRemoteTransport (fail-closed locality guarantee, d3mcmb)
+
+	[Fact]
+	public async Task StartAsync_ThrowWhenRemoteRequiredButOnlyLocalTransportsRegistered()
+	{
+		// Arrange — a remote transport is required, but only a Local (in-process) transport is registered.
+		var registry = new TransportRegistry();
+		registry.RegisterTransport("inmemory", CreateAdapter("1"), "InMemory", TransportLocality.Local);
+		var options = new TransportValidationOptions
+		{
+			ValidateOnStartup = true,
+			RequireRemoteTransport = true,
+		};
+		var validator = CreateValidator(registry, options);
+
+		// Act & Assert — fail-closed: startup refuses rather than silently degrading to in-process delivery.
+		var ex = await Should.ThrowAsync<InvalidOperationException>(
+			() => validator.StartAsync(CancellationToken.None));
+		ex.Message.ShouldContain("remote");
+		ex.Message.ShouldContain("RequireRemoteTransport");
+	}
+
+	[Fact]
+	public async Task StartAsync_PassWhenRemoteRequiredAndARemoteTransportIsRegistered()
+	{
+		// Arrange — a remote transport is required and a Remote transport is registered.
+		var registry = new TransportRegistry();
+		registry.RegisterTransport("rabbitmq", CreateAdapter("1"), "RabbitMQ", TransportLocality.Remote);
+		var options = new TransportValidationOptions
+		{
+			ValidateOnStartup = true,
+			RequireRemoteTransport = true,
+		};
+		var validator = CreateValidator(registry, options);
+
+		// Act & Assert — should not throw.
+		await validator.StartAsync(CancellationToken.None);
+	}
+
+	[Fact]
+	public async Task StartAsync_PassWhenLocalOnlyButRemoteNotRequired()
+	{
+		// Arrange — only a Local transport, but the remote guarantee is not requested (default lenient).
+		var registry = new TransportRegistry();
+		registry.RegisterTransport("inmemory", CreateAdapter("1"), "InMemory", TransportLocality.Local);
+		var options = new TransportValidationOptions
+		{
+			ValidateOnStartup = true,
+			RequireRemoteTransport = false,
+		};
+		var validator = CreateValidator(registry, options);
+
+		// Act & Assert — should not throw (a Local-only topology is valid when remote is not required).
+		await validator.StartAsync(CancellationToken.None);
+	}
+
+	[Fact]
+	public async Task StartAsync_ThrowWhenRemoteRequiredAndAPendingLocalFactoryIsTheOnlyRegistration()
+	{
+		// Arrange — locality is honored for a not-yet-initialized factory registration too (fail-closed
+		// on the pending-factory path, not only initialized adapters).
+		var registry = new TransportRegistry();
+		registry.RegisterTransportFactory("inmemory", "InMemory", TransportLocality.Local, _ => CreateAdapter("1"));
+		var options = new TransportValidationOptions
+		{
+			ValidateOnStartup = true,
+			RequireRemoteTransport = true,
+		};
+		var validator = CreateValidator(registry, options);
+
+		// Act & Assert
+		_ = await Should.ThrowAsync<InvalidOperationException>(
+			() => validator.StartAsync(CancellationToken.None));
+	}
+
+	[Fact]
+	public void TransportValidationOptions_RequireRemoteTransport_DefaultsFalse()
+	{
+		// The fail-closed guarantee is opt-in — a Local-only topology stays valid by default.
+		new TransportValidationOptions().RequireRemoteTransport.ShouldBeFalse();
+	}
+
+	#endregion StartAsync Tests - RequireRemoteTransport (fail-closed locality guarantee, d3mcmb)
 
 	#region StopAsync Tests
 

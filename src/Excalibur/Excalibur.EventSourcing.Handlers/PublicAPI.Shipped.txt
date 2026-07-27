@@ -1,0 +1,3 @@
+#nullable enable
+Microsoft.Extensions.DependencyInjection.AggregateHandlerServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AggregateHandlerServiceCollectionExtensions.AddAggregateHandler<TAggregate, TKey, TMessage>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<TMessage, TKey>! resolveId, System.Func<TAggregate!, TMessage, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! decide) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

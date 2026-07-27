@@ -400,7 +400,35 @@ public sealed class PipelineExtensionsShould : IDisposable
 		builder.UseOutbox();
 
 		// Assert
-		_services.ShouldContain(sd => sd.ServiceType == typeof(OutboxMiddleware));
+		_services.ShouldContain(sd => sd.ServiceType == typeof(OutboxStagingMiddleware));
+	}
+
+	/// <summary>
+	///     UseOutbox must wire the canonical <see cref="OutboxStagingMiddleware"/> — the staging
+	///     middleware that actually persists buffered messages to the outbox store — as BOTH the
+	///     service type and the implementation type. Pre-fix, UseOutbox wired a middleware that
+	///     silently dropped messages; this lock proves the canonical, non-lossy middleware is the
+	///     concrete type registered (not just an aliased service entry).
+	/// </summary>
+	[Fact]
+	public void WireCanonicalOutboxStagingMiddlewareImplementation_WhenUseOutboxCalled()
+	{
+		// Arrange
+		var builder = CreateBuilder();
+
+		// Act
+		builder.UseOutbox();
+
+		// Assert — the concrete implementation registered for the outbox middleware slot is the
+		// canonical, non-lossy OutboxStagingMiddleware.
+		var descriptor = _services
+			.Where(sd => sd.ServiceType == typeof(OutboxStagingMiddleware))
+			.ToList()
+			.ShouldHaveSingleItem();
+		descriptor.ImplementationType.ShouldBe(
+			typeof(OutboxStagingMiddleware),
+			"UseOutbox() must wire the canonical OutboxStagingMiddleware (not a lossy middleware) " +
+			"so messages are reliably staged to the outbox store.");
 	}
 
 	#endregion
@@ -994,7 +1022,7 @@ public sealed class PipelineExtensionsShould : IDisposable
 
 		// Assert -- Wave 3 middleware
 		_services.ShouldContain(sd => sd.ServiceType == typeof(TransactionMiddleware));
-		_services.ShouldContain(sd => sd.ServiceType == typeof(OutboxMiddleware));
+		_services.ShouldContain(sd => sd.ServiceType == typeof(OutboxStagingMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(InboxMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(CloudEventMiddleware));
 		_services.ShouldContain(sd => sd.ServiceType == typeof(TenantIdentityMiddleware));

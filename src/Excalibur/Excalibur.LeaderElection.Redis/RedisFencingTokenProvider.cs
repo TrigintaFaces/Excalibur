@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Globalization;
+
 using Excalibur.Dispatch.LeaderElection.Fencing;
 
 using StackExchange.Redis;
@@ -51,8 +53,45 @@ internal sealed class RedisFencingTokenProvider : IFencingTokenProvider
 
 		// INCR is atomic + monotonic; a missing key initializes to 1. The returned value is the
 		// newly minted token — strictly greater than any previously issued token for this resource.
+		// Redis INCR does NOT wrap at the int64 ceiling — it fails the command with a server error
+		// ("increment or decrement would overflow"); translate that (and any defensive non-positive
+		// result) to the contract's FencingTokenExhaustedException so a consumer's fail-closed
+		// catch(FencingTokenExhaustedException) relinquish path is honored rather than seeing a raw
+		// RedisServerException (nxjn2k — a wrapped/reused fencing token would be a split-brain catastrophe).
 		var db = _redis.GetDatabase();
-		return await db.StringIncrementAsync(KeyPrefix + resourceId).ConfigureAwait(false);
+		long token;
+		try
+		{
+			token = await db.StringIncrementAsync(KeyPrefix + resourceId).ConfigureAwait(false);
+		}
+		catch (RedisServerException ex) when (ex.Message.Contains("overflow", StringComparison.OrdinalIgnoreCase))
+		{
+			throw new FencingTokenExhaustedException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"Redis fencing token domain is exhausted for resource '{0}'.",
+					resourceId),
+				ex)
+			{
+				ResourceId = resourceId,
+			};
+		}
+
+		if (token <= 0)
+		{
+			// Defensive: a non-positive INCR result would be non-monotonic. Fail closed rather than mint
+			// an unsafe token.
+			throw new FencingTokenExhaustedException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"Redis fencing token domain is exhausted for resource '{0}'.",
+					resourceId))
+			{
+				ResourceId = resourceId,
+			};
+		}
+
+		return token;
 	}
 
 	/// <inheritdoc />

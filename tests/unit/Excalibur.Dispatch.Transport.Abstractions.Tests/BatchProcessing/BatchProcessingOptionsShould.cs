@@ -71,14 +71,6 @@ public sealed class BatchProcessingOptionsShould
     }
 
     [Fact]
-    public void Should_Default_CompletionStrategy_To_Size()
-    {
-        var options = new BatchProcessingOptions();
-
-        options.Collection.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Size);
-    }
-
-    [Fact]
     public void Should_Default_MinBatchSize_To_1()
     {
         var options = new BatchProcessingOptions();

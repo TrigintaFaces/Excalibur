@@ -84,6 +84,11 @@ public static class RoleServiceCollectionExtensions
 
 	private static IA3Builder AddRolesCore(this IA3Builder builder)
 	{
+		// Startup validation for RoleOptions (reflection-free, AOT-safe).
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<Microsoft.Extensions.Options.IValidateOptions<Excalibur.A3.Authorization.RoleOptions>>(
+				new Excalibur.A3.Core.Authorization.Roles.RoleOptionsValidator()));
+
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<IRoleStore, InMemoryRoleStore>();
 

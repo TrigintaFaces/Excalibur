@@ -75,9 +75,31 @@ internal sealed class PostgresFencingTokenProvider : IFencingTokenProvider
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		await using var command = new NpgsqlCommand(sql, connection);
-		var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-		return Convert.ToInt64(result, CultureInfo.InvariantCulture);
+		try
+		{
+			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+			return Convert.ToInt64(result, CultureInfo.InvariantCulture);
+		}
+		catch (PostgresException ex) when (ex.SqlState == SequenceLimitExceededSqlState)
+		{
+			// A NO CYCLE bigint sequence raises 2200H (sequence_generator_limit_exceeded) at its ceiling
+			// rather than wrapping; translate to the contract's FencingTokenExhaustedException so a
+			// consumer's fail-closed catch relinquishes rather than seeing a raw PostgresException
+			// (nxjn2k — a wrapped/reused fencing token would be a split-brain catastrophe).
+			throw new FencingTokenExhaustedException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"Postgres fencing token domain is exhausted for resource '{0}'.",
+					resourceId),
+				ex)
+			{
+				ResourceId = resourceId,
+			};
+		}
 	}
+
+	/// <summary>PostgreSQL SQLSTATE raised when a NO CYCLE sequence reaches its ceiling (sequence_generator_limit_exceeded).</summary>
+	private const string SequenceLimitExceededSqlState = "2200H";
 
 	/// <inheritdoc />
 	public async ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken)

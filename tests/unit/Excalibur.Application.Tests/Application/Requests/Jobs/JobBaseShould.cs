@@ -36,13 +36,6 @@ public sealed class JobBaseShould
 	}
 
 	[Fact]
-	public void DefaultToActionKind()
-	{
-		var job = new TestJob();
-		job.Kind.ShouldBe(MessageKinds.Action);
-	}
-
-	[Fact]
 	public void HaveEmptyHeaders()
 	{
 		var job = new TestJob();

@@ -117,7 +117,7 @@ public sealed class BankAccountAggregate : AggregateRoot
 	}
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 	{
 		AccountOpenedEvent e => Apply(e),
 		FundsDepositedEvent e => Apply(e),

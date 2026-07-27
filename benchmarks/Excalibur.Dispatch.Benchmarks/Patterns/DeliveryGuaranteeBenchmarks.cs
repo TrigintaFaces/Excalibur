@@ -9,15 +9,14 @@ using Excalibur.Dispatch.Options.Delivery;
 namespace Excalibur.Dispatch.Benchmarks.Patterns;
 
 /// <summary>
-/// Benchmarks for OutboxDeliveryGuarantee levels per AD-222-5.
+/// Benchmarks for OutboxDeliveryGuarantee levels.
 /// </summary>
 /// <remarks>
-/// Sprint 222 Task 5q19 - Benchmark performance of each delivery guarantee level.
+/// Benchmark performance of each delivery guarantee level.
 ///
 /// Expected Results:
 /// - AtLeastOnce: Highest throughput (batch operations reduce database round-trips)
 /// - MinimizedWindow: Lower throughput (one round-trip per message)
-/// - TransactionalWhenApplicable: Variable (depends on transaction overhead)
 /// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(PatternsBenchmarkConfig))]
@@ -28,8 +27,7 @@ public class DeliveryGuaranteeBenchmarks
 	private byte[] _testPayload = null!;
 
 	[Params(OutboxDeliveryGuarantee.AtLeastOnce,
-			OutboxDeliveryGuarantee.MinimizedWindow,
-			OutboxDeliveryGuarantee.TransactionalWhenApplicable)]
+			OutboxDeliveryGuarantee.MinimizedWindow)]
 	public OutboxDeliveryGuarantee GuaranteeLevel { get; set; }
 
 	[Params(10, 100)]
@@ -38,8 +36,7 @@ public class DeliveryGuaranteeBenchmarks
 	[GlobalSetup]
 	public void Setup()
 	{
-		_store = new BenchmarkOutboxStore(
-			supportsTransactions: GuaranteeLevel == OutboxDeliveryGuarantee.TransactionalWhenApplicable);
+		_store = new BenchmarkOutboxStore();
 
 		_testPayload = new byte[256];
 		Random.Shared.NextBytes(_testPayload);
@@ -77,7 +74,6 @@ public class DeliveryGuaranteeBenchmarks
 		{
 			OutboxDeliveryGuarantee.AtLeastOnce => await ProcessAtLeastOnceAsync(messageIds),
 			OutboxDeliveryGuarantee.MinimizedWindow => await ProcessMinimizedWindowAsync(messageIds),
-			OutboxDeliveryGuarantee.TransactionalWhenApplicable => await ProcessTransactionalAsync(messageIds),
 			_ => throw new ArgumentOutOfRangeException()
 		};
 	}
@@ -99,7 +95,6 @@ public class DeliveryGuaranteeBenchmarks
 			{
 				OutboxDeliveryGuarantee.AtLeastOnce => await ProcessAtLeastOnceAsync(messageIds),
 				OutboxDeliveryGuarantee.MinimizedWindow => await ProcessMinimizedWindowAsync(messageIds),
-				OutboxDeliveryGuarantee.TransactionalWhenApplicable => await ProcessTransactionalAsync(messageIds),
 				_ => 0
 			};
 
@@ -175,27 +170,6 @@ public class DeliveryGuaranteeBenchmarks
 		return count;
 	}
 
-	/// <summary>
-	/// TransactionalWhenApplicable: Transactional batch completion.
-	/// </summary>
-	private async Task<int> ProcessTransactionalAsync(List<string> messageIds)
-	{
-		if (_store is ITransactionalOutboxStore txStore && txStore.SupportsTransactions)
-		{
-			await txStore.MarkSentTransactionalAsync(messageIds, CancellationToken.None);
-		}
-		else
-		{
-			// Fallback to individual
-			foreach (var id in messageIds)
-			{
-				await _store.MarkSentAsync(id, CancellationToken.None);
-			}
-		}
-
-		return messageIds.Count;
-	}
-
 	private OutboundMessage CreateMessage(string id)
 	{
 		return new OutboundMessage
@@ -213,17 +187,9 @@ public class DeliveryGuaranteeBenchmarks
 	/// <summary>
 	/// In-memory outbox store for benchmarking.
 	/// </summary>
-	private sealed class BenchmarkOutboxStore : ITransactionalOutboxStore
+	private sealed class BenchmarkOutboxStore : IOutboxStore
 	{
 		private readonly Dictionary<string, OutboundMessage> _messages = new();
-		private readonly bool _supportsTransactions;
-
-		public BenchmarkOutboxStore(bool supportsTransactions)
-		{
-			_supportsTransactions = supportsTransactions;
-		}
-
-		public bool SupportsTransactions => _supportsTransactions;
 
 		public void StageMessageSync(OutboundMessage message)
 		{
@@ -259,20 +225,6 @@ public class DeliveryGuaranteeBenchmarks
 			return default;
 		}
 
-		public Task MarkSentTransactionalAsync(IReadOnlyList<string> messageIds, CancellationToken cancellationToken)
-		{
-			// Simulate transactional batch mark (slightly more overhead)
-			foreach (var id in messageIds)
-			{
-				if (_messages.TryGetValue(id, out var msg))
-				{
-					msg.Status = OutboxStatus.Sent;
-				}
-			}
-
-			return Task.CompletedTask;
-		}
-
 		public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
 		{
 			if (_messages.TryGetValue(messageId, out var msg))
@@ -290,17 +242,5 @@ public class DeliveryGuaranteeBenchmarks
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 			new ValueTask<IEnumerable<OutboundMessage>>(_messages.Values.Where(m => m.Status == OutboxStatus.Staged).Take(batchSize));
-
-		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) =>
-			new ValueTask<IEnumerable<OutboundMessage>>(_messages.Values.Where(m => m.Status == OutboxStatus.Failed && m.RetryCount < maxRetries).Take(batchSize));
-
-		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) =>
-			new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>());
-
-		public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) =>
-			new ValueTask<int>(0);
-
-		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) =>
-			new ValueTask<OutboxStatistics>(new OutboxStatistics());
 	}
 }

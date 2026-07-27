@@ -26,20 +26,6 @@ public interface IDomainEvent : IDispatchEvent
 	string EventId { get; }
 
 	/// <summary>
-	/// Gets the identifier of the aggregate that raised this event.
-	/// Set automatically by the framework in <c>AggregateRoot.RaiseEvent</c>.
-	/// </summary>
-	/// <value>The identifier of the aggregate that raised this event.</value>
-	string AggregateId { get; }
-
-	/// <summary>
-	/// Gets the version of the aggregate after this event was applied.
-	/// Set automatically by the framework in <c>AggregateRoot.RaiseEvent</c>.
-	/// </summary>
-	/// <value>The version of the aggregate after this event was applied.</value>
-	long Version { get; }
-
-	/// <summary>
 	/// Gets the UTC timestamp when this event occurred.
 	/// </summary>
 	/// <value>The UTC timestamp when this event occurred.</value>

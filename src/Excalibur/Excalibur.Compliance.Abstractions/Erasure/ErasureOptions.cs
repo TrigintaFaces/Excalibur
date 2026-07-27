@@ -40,6 +40,21 @@ public sealed class ErasureOptions
 	public bool EnableAutoDiscovery { get; set; } = true;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether GDPR erasure is accepted as complete on the basis of
+	/// per-subject key destruction (crypto-shred) alone, without a data-inventory discovery source
+	/// verifying store-level coverage.
+	/// </summary>
+	/// <remarks>
+	/// A completion certificate is a compliance PROOF and therefore fails closed: when this is
+	/// <see langword="false"/> (the default) and no data-inventory discovery source is registered, the
+	/// erasure registration is rejected at startup, because a certificate must never be issued over
+	/// coverage that was never verified. Set this to <see langword="true"/> to explicitly accept
+	/// key-destruction-only erasure — the per-subject key is still shredded, and certificates report a
+	/// coverage basis of key destruction rather than store-verified coverage. Default: <see langword="false"/>.
+	/// </remarks>
+	public bool KeyShredOnlyErasure { get; set; }
+
+	/// <summary>
 	/// Gets or sets whether to require verification before issuing certificate.
 	/// Default: true.
 	/// </summary>

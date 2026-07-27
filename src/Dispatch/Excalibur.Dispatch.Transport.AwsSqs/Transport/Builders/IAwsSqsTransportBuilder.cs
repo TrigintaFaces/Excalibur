@@ -291,6 +291,24 @@ public interface IAwsSqsTransportBuilder
 	IAwsSqsTransportBuilder ConfigureVisibilityHeartbeat(Action<AwsSqsVisibilityHeartbeatOptions> configure);
 
 	/// <summary>
+	/// Sets the maximum inbound-payload length, in bytes, enforced at both SQS ingress surfaces
+	/// (receiver and subscriber) before the body is materialized/deserialized.
+	/// </summary>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length in bytes (positive), or <see langword="null"/> to opt out
+	/// (unbounded). Defaults to the SQS provider ceiling of 256 KiB.
+	/// </param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown when <paramref name="maxPayloadBytes"/> is non-null and not positive.
+	/// </exception>
+	/// <remarks>
+	/// An over-limit message is rejected at ingress (deleted, dead-lettered via the redrive policy)
+	/// without deserializing its body, guarding against allocation-DoS from oversized payloads.
+	/// </remarks>
+	IAwsSqsTransportBuilder UseMaxPayloadBytes(int? maxPayloadBytes);
+
+	/// <summary>
 	/// Configures optional, opt-in startup provisioning of dead-letter redrive policies and SNS subscriptions.
 	/// </summary>
 	/// <param name="configure">The provisioning configuration action.</param>
@@ -423,6 +441,23 @@ internal sealed class AwsSqsTransportBuilder : IAwsSqsTransportBuilder
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 		configure(_options.VisibilityHeartbeat);
+
+		// Fail fast on an incoherent heartbeat configuration (e.g. Interval >= VisibilityTimeout) at
+		// configuration time — the adapter options are builder-configured, not IOptions-registered, so a
+		// standalone IValidateOptions would never run (it would be an inert, advertised-but-unwired validator).
+		_options.VisibilityHeartbeat.Validate();
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public IAwsSqsTransportBuilder UseMaxPayloadBytes(int? maxPayloadBytes)
+	{
+		if (maxPayloadBytes is int max)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max);
+		}
+
+		_options.MaxPayloadBytes = maxPayloadBytes;
 		return this;
 	}
 

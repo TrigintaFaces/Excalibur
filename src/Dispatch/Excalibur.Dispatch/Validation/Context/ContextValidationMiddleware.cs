@@ -21,7 +21,6 @@ namespace Excalibur.Dispatch.Validation.Context;
 /// This middleware runs early in the pipeline to catch context issues before they cause downstream problems. It validates required fields,
 /// checks for corruption, and tracks metrics on validation failures.
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="ContextValidationMiddleware" /> class. </remarks>
 /// <param name="contextValidator"> The primary context validator. </param>
 /// <param name="logger"> The logger for diagnostic output. </param>
 /// <param name="options"> Configuration options for the middleware. </param>

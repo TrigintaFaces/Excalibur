@@ -153,7 +153,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 
 **Key Differences:**
 - MassTransit: Immediate broker publish (at-least-once via broker)
-- Dispatch: Transactional outbox (exactly-once semantics via database)
+- Dispatch: Transactional outbox — the message is staged in the **same database transaction** as your state change, so it cannot be lost if the broker is unreachable. Delivery is still **at-least-once**: a dispatcher crash or a retry can deliver a message more than once, so consumers must be idempotent. Pair it with the [Inbox pattern](../patterns/inbox.md) for consumer-side deduplication.
 
 ### Consuming Messages
 

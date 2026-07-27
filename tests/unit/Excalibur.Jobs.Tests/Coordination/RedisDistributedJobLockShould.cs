@@ -44,6 +44,7 @@ public sealed class RedisDistributedJobLockShould
 			ownerToken,
 			acquiredAt ?? now,
 			expiresAt ?? now.AddMinutes(5),
+			TimeProvider.System,
 			_logger)!;
 	}
 

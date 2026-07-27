@@ -271,7 +271,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			observedBeginningPosition.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Assert - polling should eventually query from beginning
@@ -308,7 +308,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			observedConfiguredPosition.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Assert - polling should eventually use configured start position

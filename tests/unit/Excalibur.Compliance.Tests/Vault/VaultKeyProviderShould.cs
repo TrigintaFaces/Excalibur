@@ -731,7 +731,10 @@ public sealed class VaultKeyProviderShould
 
 		var deleted = await setup.Provider.DeleteKeyAsync("orders", 30, CancellationToken.None);
 
-		deleted.ShouldBeTrue();
+		// Vault destroys transit key material immediately (irrecoverable on return) regardless of the
+		// retention window — the tri-state outcome is Completed / irreversible now.
+		deleted.State.ShouldBe(KeyDestructionState.Completed);
+		deleted.IsIrreversibleNow.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -743,7 +746,7 @@ public sealed class VaultKeyProviderShould
 
 		var deleted = await setup.Provider.DeleteKeyAsync("orders", 30, CancellationToken.None);
 
-		deleted.ShouldBeFalse();
+		deleted.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	[Fact]

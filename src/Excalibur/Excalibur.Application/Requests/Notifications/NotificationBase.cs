@@ -48,12 +48,6 @@ public abstract class NotificationBase(Guid correlationId, string? tenantId = nu
 	public string MessageType => GetType().FullName ?? GetType().Name;
 
 	/// <summary>
-	/// Gets the kind of message this notification represents.
-	/// </summary>
-	/// <value> Always returns <see cref="MessageKinds.Event" /> for notifications. </value>
-	public MessageKinds Kind { get; protected init; } = MessageKinds.Event;
-
-	/// <summary>
 	/// Gets the message headers.
 	/// </summary>
 	/// <value> A read-only dictionary containing the notification's metadata headers. </value>

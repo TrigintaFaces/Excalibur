@@ -8,16 +8,24 @@ Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.Database(int database
 Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.KeyPrefix(string! prefix) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
 Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder.LockKey(string! lockKey) -> Excalibur.LeaderElection.Redis.IRedisLeaderElectionBuilder!
 Excalibur.LeaderElection.Redis.RedisLeaderElection
+Excalibur.LeaderElection.Redis.RedisLeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.LeaderElection.Redis.RedisLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Redis.RedisLeaderElection.CandidateId.get -> string!
 Excalibur.LeaderElection.Redis.RedisLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Redis.RedisLeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.LeaderElection.Redis.RedisLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.LeaderElection.Redis.RedisLeaderElection.IsLeader.get -> bool
 Excalibur.LeaderElection.Redis.RedisLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.LeaderElection.Redis.RedisLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
-Excalibur.LeaderElection.Redis.RedisLeaderElection.RedisLeaderElection(StackExchange.Redis.IConnectionMultiplexer! redis, string! lockKey, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Redis.RedisLeaderElection!>! logger, Excalibur.Dispatch.IMessageFailureClassifier? failureClassifier = null, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
+Excalibur.LeaderElection.Redis.RedisLeaderElection.RedisLeaderElection(StackExchange.Redis.IConnectionMultiplexer! redis, string! lockKey, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Redis.RedisLeaderElection!>! logger, Excalibur.LeaderElection.Redis.RedisLeaderElectionContext? context = null, System.TimeProvider? timeProvider = null) -> void
 Excalibur.LeaderElection.Redis.RedisLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Redis.RedisLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Redis.RedisLeaderElectionContext
+Excalibur.LeaderElection.Redis.RedisLeaderElectionContext.FailureClassifier.get -> Excalibur.Dispatch.IMessageFailureClassifier?
+Excalibur.LeaderElection.Redis.RedisLeaderElectionContext.FailureClassifier.init -> void
+Excalibur.LeaderElection.Redis.RedisLeaderElectionContext.FencingTokenProvider.get -> Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider?
+Excalibur.LeaderElection.Redis.RedisLeaderElectionContext.FencingTokenProvider.init -> void
+Excalibur.LeaderElection.Redis.RedisLeaderElectionContext.RedisLeaderElectionContext() -> void
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
 Excalibur.LeaderElection.Redis.RedisLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!

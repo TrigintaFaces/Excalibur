@@ -43,6 +43,19 @@ internal sealed class CosmosDbSagaDocument
 	public string SagaType { get; set; } = string.Empty;
 
 	/// <summary>
+	/// The tenant that owns this saga, or <see langword="null"/> for the untenanted partition.
+	/// </summary>
+	/// <remarks>
+	/// Carries BOTH serializer attributes deliberately. The Cosmos v3 SDK's default serializer is Newtonsoft,
+	/// and System.Text.Json is opt-in, so a property annotated only for STJ round-trips as PascalCase on the
+	/// most common client configuration — the tenant would silently vanish from the document on exactly the
+	/// setup most consumers run. Every persisted property on this type carries the pair for that reason.
+	/// </remarks>
+	[JsonPropertyName("tenantId")]
+	[Newtonsoft.Json.JsonProperty("tenantId")]
+	public string? TenantId { get; set; }
+
+	/// <summary>
 	/// Gets or sets the serialized saga state as JSON.
 	/// </summary>
 	[JsonPropertyName("stateJson")]
@@ -55,6 +68,18 @@ internal sealed class CosmosDbSagaDocument
 	[JsonPropertyName("isCompleted")]
 	[Newtonsoft.Json.JsonProperty("isCompleted")]
 	public bool IsCompleted { get; set; }
+
+	/// <summary>
+	/// Gets or sets when the saga completed (UTC), or <see langword="null"/> while it is still running.
+	/// </summary>
+	/// <remarks>
+	/// Persisted as a dedicated document field (not read out of <see cref="StateJson"/>) so retention
+	/// cleanup can query completed-before-threshold sagas directly. Dual STJ + Newtonsoft attributes so the
+	/// lowercase <c>completedAt</c> key is emitted regardless of which serializer the Cosmos client uses.
+	/// </remarks>
+	[JsonPropertyName("completedAt")]
+	[Newtonsoft.Json.JsonProperty("completedAt")]
+	public DateTime? CompletedAt { get; set; }
 
 	/// <summary>
 	/// Gets or sets the optimistic-concurrency version of the persisted saga state.

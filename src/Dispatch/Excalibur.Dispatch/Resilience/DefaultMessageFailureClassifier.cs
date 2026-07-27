@@ -73,9 +73,24 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
 
             // EC-3: anything unrecognised is treated as transient so it gets a bounded retry —
             // never an infinite loop, never a silent drop. The attempt cap is the safety net.
-            _ => MessageFailureKind.Transient,
+            _ => ClassifyUnrecognized(ex),
         };
     }
+
+    /// <summary>
+    /// Classifies exceptions whose types live in packages this component does not (and, by design,
+    /// must not) reference, matched by their fully-qualified type name. Signing and signature-
+    /// verification failures are provably non-retryable — the message will fail identically on every
+    /// attempt — so they are classified <see cref="MessageFailureKind.Permanent"/> rather than being
+    /// given a futile bounded retry. Everything else remains <see cref="MessageFailureKind.Transient"/>.
+    /// </summary>
+    private static MessageFailureKind ClassifyUnrecognized(Exception exception) =>
+        exception.GetType().FullName switch
+        {
+            "Excalibur.Security.VerificationException" => MessageFailureKind.Permanent,
+            "Excalibur.Security.SigningException" => MessageFailureKind.Permanent,
+            _ => MessageFailureKind.Transient,
+        };
 
     /// <summary>
     /// EC-2: unwraps a single-inner <see cref="AggregateException"/> chain to its root cause so the

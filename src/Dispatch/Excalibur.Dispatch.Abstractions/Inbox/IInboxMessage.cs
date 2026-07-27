@@ -72,4 +72,13 @@ public interface IInboxMessage
 	/// A <see cref="DateTimeOffset" /> representing when the current dispatcher's lease expires, or null if no dispatcher is processing.
 	/// </value>
 	DateTimeOffset? DispatcherTimeout { get; set; }
+
+	/// <summary>
+	/// Gets the tenant identifier this message was received under. Defaults to <see langword="null"/> so
+	/// implementations that do not carry tenant scope inherit the default unchanged; a store-backed message
+	/// surfaces the persisted value so the inbox re-admission drain can re-establish the entry's tenant scope
+	/// before dispatch, matching the outbox message contract.
+	/// </summary>
+	/// <value>The tenant identifier, or <see langword="null"/> when no tenant scope is carried.</value>
+	string? TenantId => null;
 }

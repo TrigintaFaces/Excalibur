@@ -56,13 +56,6 @@ public sealed class CommandBaseGenericShould
 	}
 
 	[Fact]
-	public void ReturnActionKind()
-	{
-		var command = new TestTypedCommand(Guid.NewGuid());
-		command.Kind.ShouldBe(MessageKinds.Action);
-	}
-
-	[Fact]
 	public void ImplementIActivity()
 	{
 		var command = new TestTypedCommand(Guid.NewGuid());

@@ -69,6 +69,10 @@ public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTe
 	public Task GetByIdAsync_NullOrEmpty_ShouldThrow_Test() =>
 		GetByIdAsync_NullOrEmpty_ShouldThrow();
 
+	[Fact]
+	public Task GetByIdAsync_ForAnotherTenantsEvent_ShouldNotReturnIt_Test() =>
+		GetByIdAsync_ForAnotherTenantsEvent_ShouldNotReturnIt();
+
 	#endregion Retrieval Tests
 
 	#region Query Tests
@@ -76,6 +80,18 @@ public sealed class InMemoryAuditStoreConformanceTests : AuditStoreConformanceTe
 	[Fact]
 	public Task QueryAsync_ByDateRange_ShouldReturnMatching_Test() =>
 		QueryAsync_ByDateRange_ShouldReturnMatching();
+
+	[Fact]
+	public Task QueryAsync_WithoutAnExplicitTenant_ShouldNotReturnAnotherTenantsEvents_Test() =>
+		QueryAsync_WithoutAnExplicitTenant_ShouldNotReturnAnotherTenantsEvents();
+
+	[Fact]
+	public Task QueryAsync_ScopedToATenant_ShouldStillReturnThatTenantsOwnEvents_Test() =>
+		QueryAsync_ScopedToATenant_ShouldStillReturnThatTenantsOwnEvents();
+
+	[Fact]
+	public Task QueryAsync_NamingAnotherTenant_ShouldNotReturnThatTenantsEvents_Test() =>
+		QueryAsync_NamingAnotherTenant_ShouldNotReturnThatTenantsEvents();
 
 	[Fact]
 	public Task QueryAsync_ByEventType_ShouldFilter_Test() =>

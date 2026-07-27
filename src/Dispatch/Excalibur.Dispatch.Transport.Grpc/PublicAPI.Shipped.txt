@@ -16,6 +16,8 @@ Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.KeepAlivePingDelaySeconds
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.KeepAlivePingDelaySeconds.set -> void
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.KeepAlivePingTimeoutSeconds.get -> int
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.KeepAlivePingTimeoutSeconds.set -> void
+Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.MaxPayloadBytes.get -> int?
+Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.MaxPayloadBytes.set -> void
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.MaxReceiveMessageSize.get -> int?
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.MaxReceiveMessageSize.set -> void
 Excalibur.Dispatch.Transport.Grpc.GrpcTransportOptions.MaxRetryAttempts.get -> int
@@ -47,6 +49,7 @@ const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverDisposed = 
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessageAcknowledged = 25022 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessageRejected = 25024 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverMessagesReceived = 25020 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverPayloadTooLarge = 25027 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverReceiveFailed = 25021 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.ReceiverRejectFailed = 25025 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SenderBatchSendFailed = 25003 -> int
@@ -60,6 +63,7 @@ const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageAc
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageReceived = 25041 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageRejected = 25043 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberMessageRequeued = 25044 -> int
+const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberPayloadTooLarge = 25049 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStarted = 25040 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStopped = 25046 -> int
 const Excalibur.Dispatch.Transport.Grpc.GrpcTransportEventId.SubscriberStreamEnded = 25048 -> int

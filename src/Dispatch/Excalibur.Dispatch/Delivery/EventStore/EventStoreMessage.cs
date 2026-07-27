@@ -75,15 +75,4 @@ public sealed class EventStoreMessage<TAggregateKey> : IEventStoreMessage<TAggre
 	/// </summary>
 	/// <value>The current <see cref="DispatcherTimeout"/> value.</value>
 	public DateTimeOffset? DispatcherTimeout { get; set; }
-
-	/// <summary>
-	/// Converts an EventStoreMessage with string key to one with the specified aggregate key type.
-	/// </summary>
-	/// <param name="source"> The source message to convert. </param>
-	/// <returns> A new EventStoreMessage with the specified key type. </returns>
-	/// <exception cref="NotSupportedException"> Thrown when conversion is not implemented. </exception>
-	public static EventStoreMessage<TAggregateKey> FromEventStoreMessage(EventStoreMessage<string> source) => throw
-
-		// Proper implementation would go here For now, just throwing NotSupportedException with a descriptive message
-		new NotSupportedException(Resources.EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented);
 }

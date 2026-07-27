@@ -19,8 +19,8 @@ public sealed class AuthorizationPolicyDepthShould
 		string tenantId = "tenant-1",
 		string userId = "user-1")
 	{
-		var tenant = A.Fake<ITenantId>();
-		A.CallTo(() => tenant.Value).Returns(tenantId);
+		var tenant = A.Fake<ITenantContext>();
+		A.CallTo(() => tenant.TenantId).Returns(tenantId);
 
 		return new AuthorizationPolicy(
 			grants,

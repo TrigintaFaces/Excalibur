@@ -119,7 +119,9 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 		var projection = new TestOpenSearchProjection { Id = "proj-1", Name = "Test", Value = 42 };
 		await _store!.UpsertAsync("proj-1", projection, CancellationToken.None);
-		await Task.Delay(1000);
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => await _store.GetByIdAsync("proj-1", CancellationToken.None) is not null,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false)).ShouldBeTrue();
 
 		var result = await _store.GetByIdAsync("proj-1", CancellationToken.None);
 		result.ShouldNotBeNull();
@@ -142,9 +144,13 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 		if (!_available) return;
 
 		await _store!.UpsertAsync("proj-del", new TestOpenSearchProjection { Id = "proj-del", Name = "ToDelete" }, CancellationToken.None);
-		await Task.Delay(1000);
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => await _store.GetByIdAsync("proj-del", CancellationToken.None) is not null,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false)).ShouldBeTrue();
 		await _store.DeleteAsync("proj-del", CancellationToken.None);
-		await Task.Delay(1000);
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => await _store.GetByIdAsync("proj-del", CancellationToken.None) is null,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false)).ShouldBeTrue();
 
 		var result = await _store.GetByIdAsync("proj-del", CancellationToken.None);
 		result.ShouldBeNull();
@@ -157,7 +163,9 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 		await _store!.UpsertAsync("proj-c1", new TestOpenSearchProjection { Id = "proj-c1", Name = "A" }, CancellationToken.None);
 		await _store.UpsertAsync("proj-c2", new TestOpenSearchProjection { Id = "proj-c2", Name = "B" }, CancellationToken.None);
-		await Task.Delay(1000);
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => await _store.CountAsync(null, CancellationToken.None) >= 2,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false)).ShouldBeTrue();
 
 		var count = await _store.CountAsync(null, CancellationToken.None);
 		count.ShouldBeGreaterThanOrEqualTo(2);
@@ -182,7 +190,10 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 			new TestOpenSearchProjection { Id = "filter-a", Name = "Alpha", Status = activeStatus }, CancellationToken.None);
 		await _store.UpsertAsync("filter-b",
 			new TestOpenSearchProjection { Id = "filter-b", Name = "Beta", Status = closedStatus }, CancellationToken.None);
-		await Task.Delay(1000);
+		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => await _store.GetByIdAsync("filter-a", CancellationToken.None) is not null
+				&& await _store.GetByIdAsync("filter-b", CancellationToken.None) is not null,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false)).ShouldBeTrue();
 
 		var filters = new Dictionary<string, object>(StringComparer.Ordinal) { ["status"] = activeStatus };
 

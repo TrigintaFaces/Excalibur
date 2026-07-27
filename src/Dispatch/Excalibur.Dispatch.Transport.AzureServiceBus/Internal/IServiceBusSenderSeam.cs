@@ -3,6 +3,8 @@
 
 using Azure.Messaging.ServiceBus;
 
+using Excalibur.Dispatch.Transport.Azure;
+
 namespace Excalibur.Dispatch.Transport.AzureServiceBus.Internal;
 
 /// <summary>

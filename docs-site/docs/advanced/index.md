@@ -71,7 +71,7 @@ The [Testing Guide](testing.md) covers:
 
 - **Unit Testing**: xUnit, Shouldly, FakeItEasy patterns
 - **Integration Testing**: TestContainers, real infrastructure
-- **Conformance Testing**: 130+ compliance test kits
+- **Conformance Testing**: abstract conformance kits per provider contract
 - **Shared Test Doubles**: `TestMessageContext`, `TestDispatcher`
 
 ### Test Double Reference

@@ -7,6 +7,7 @@ using System.Diagnostics.Metrics;
 using System.Threading.Channels;
 
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery.BatchProcessing;
 using Excalibur.Dispatch.Diagnostics;
 
@@ -31,6 +32,7 @@ internal sealed partial class CdcChangeApplier
 	private readonly ILogger _logger;
 	private readonly CdcFatalErrorHandler<DataChangeEvent>? _onFatalError;
 	private readonly ICdcIdempotencyFilter? _idempotencyFilter;
+	private readonly IMessageFailureClassifier? _failureClassifier;
 
 	private static readonly Counter<long> EventsProcessedCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
 		CdcTelemetryConstants.MetricNames.EventsProcessed,
@@ -59,7 +61,8 @@ internal sealed partial class CdcChangeApplier
 		Domain.OrderedEventProcessor orderedEventProcessor,
 		ILogger logger,
 		CdcFatalErrorHandler<DataChangeEvent>? onFatalError,
-		ICdcIdempotencyFilter? idempotencyFilter = null)
+		ICdcIdempotencyFilter? idempotencyFilter = null,
+		IMessageFailureClassifier? failureClassifier = null)
 	{
 		_dbConfig = dbConfig;
 		_policyFactory = policyFactory;
@@ -68,6 +71,7 @@ internal sealed partial class CdcChangeApplier
 		_logger = logger;
 		_onFatalError = onFatalError;
 		_idempotencyFilter = idempotencyFilter;
+		_failureClassifier = failureClassifier;
 	}
 
 	/// <summary>
@@ -184,7 +188,11 @@ internal sealed partial class CdcChangeApplier
 			// Idempotency check: skip events already processed in a prior cycle.
 			if (_idempotencyFilter is not null
 				&& await _idempotencyFilter.IsProcessedAsync(
-					changeEvent.TableName, changeEvent.Lsn, changeEvent.SeqVal, cancellationToken)
+					changeEvent.TableName,
+					changeEvent.Lsn,
+					changeEvent.SeqVal,
+					_dbConfig.DatabaseConnectionIdentifier,
+					cancellationToken)
 					.ConfigureAwait(false))
 			{
 				LogIdempotencyEventSkipped(changeEvent.TableName,
@@ -217,8 +225,17 @@ internal sealed partial class CdcChangeApplier
 				// Mark event as processed for idempotency tracking.
 				if (_idempotencyFilter is not null)
 				{
+					// SAME identity the checkpoint advances under (CdcCheckpointManager passes
+					// _dbConfig.DatabaseConnectionIdentifier to the state store, and CdcStateStore records that
+					// "DatabaseConnectionIdentifier = consumerId"). Sourcing both from one field means the
+					// dedupe filter and the position it guards cannot disagree about who is asking -- a
+					// mismatch there would resurrect the very suppression this parameter closes.
 					await _idempotencyFilter.MarkProcessedAsync(
-						changeEvent.TableName, changeEvent.Lsn, changeEvent.SeqVal, cancellationToken)
+						changeEvent.TableName,
+						changeEvent.Lsn,
+						changeEvent.SeqVal,
+						_dbConfig.DatabaseConnectionIdentifier,
+						cancellationToken)
 						.ConfigureAwait(false);
 				}
 
@@ -281,12 +298,27 @@ internal sealed partial class CdcChangeApplier
 		// This reduces checkpoint I/O from O(batch_size) to O(tracked_tables).
 		foreach (var (tableName, lastEvent) in lastSuccessfulPerTable)
 		{
-			await batchPolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
-				tableName,
-				lastEvent.Lsn,
-				lastEvent.SeqVal,
-				lastEvent.CommitTime,
-				cancellationToken)).ConfigureAwait(false);
+			try
+			{
+				await batchPolicy.ExecuteAsync(() => _checkpointManager.UpdateTableLastProcessedAsync(
+					tableName,
+					lastEvent.Lsn,
+					lastEvent.SeqVal,
+					lastEvent.CommitTime,
+					cancellationToken)).ConfigureAwait(false);
+			}
+			catch (Exception ex) when (CdcFatalGuard.Decide(ex, _failureClassifier).Stop)
+			{
+				// Route the checkpoint-write fatal decision through the shared CdcFatalGuard, matching the
+				// Cosmos/Dynamo/Mongo/Firestore/Postgres providers. A fatal fault — chiefly a demoted leader's
+				// CdcLeadershipSupersededException from losing the fencing CAS — must STOP the loop, never be
+				// retried: retrying the same stale-token write is rejected identically and would spin the
+				// demoted instance. The comprehensive retry policy handles ONLY transient SqlException numbers /
+				// timeouts (its allow-list predicate), so a fatal is structurally never retried before reaching
+				// here; rethrowing propagates it out of the consumer loop and stops the processor.
+				LogFatalCheckpoint(tableName, ex);
+				throw;
+			}
 		}
 
 		BatchDurationHistogram.Record(batchStopwatch.Elapsed.TotalMilliseconds);
@@ -348,4 +380,8 @@ internal sealed partial class CdcChangeApplier
 	[LoggerMessage(DataSqlServerEventId.CdcIdempotencyEventSkipped, LogLevel.Debug,
 		"CDC event skipped by idempotency filter: table={TableName}, LSN={Lsn}, SeqVal={SeqVal}")]
 	private partial void LogIdempotencyEventSkipped(string tableName, string lsn, string seqVal);
+
+	[LoggerMessage(DataSqlServerEventId.CdcConsumerFatalCheckpoint, LogLevel.Critical,
+		"Fatal fault writing CDC checkpoint for table '{TableName}'; leadership superseded or non-retryable. Stopping processor.")]
+	private partial void LogFatalCheckpoint(string tableName, Exception ex);
 }

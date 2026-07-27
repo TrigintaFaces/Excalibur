@@ -42,4 +42,7 @@ public static class CdcProcessingEventId
 
 	/// <summary>CDC background service applying error backoff delay.</summary>
 	public const int CdcBackgroundServiceErrorBackoff = 3109;
+
+	/// <summary>No <see cref="Excalibur.Cdc.Processing.ICdcBackgroundProcessor"/> was registered when the CDC background service started.</summary>
+	public const int CdcBackgroundServiceNoProcessor = 3110;
 }

@@ -1,8 +1,16 @@
 namespace Excalibur.Dispatch.Tests.EventSourcing;
 
 /// <summary>
-/// Contract tests for IDomainEvent interface.
-/// Verifies the interface defines all required properties for domain event sourcing.
+/// Contract tests for the <see cref="IDomainEvent"/> messaging interface, and the structural
+/// guard (K3) that keeps a stream version OFF the messaging contract.
+/// <para>
+/// The interface defines the members a message genuinely carries (id, timestamp, type, metadata).
+/// It deliberately does NOT carry <c>AggregateId</c> or <c>Version</c>: an aggregate stream position
+/// is a persistence concern owned by the persistence envelope (<c>StoredEvent.Version</c> →
+/// <c>HistoricEvent</c>), not a messaging concern (dispatch-vs-excalibur boundary). Re-adding either
+/// member to the contract re-opens the boundary leak and the "unstampable event" failure mode — so
+/// the absence is asserted here as a regression lock, RED the moment a member is re-introduced.
+/// </para>
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Dispatch.Abstractions")]
@@ -23,34 +31,31 @@ public sealed class IDomainEventContractShould
 		property.CanRead.ShouldBeTrue("EventId must be readable");
 	}
 
+	// ── K3 (fvq5qf) structural regression guard: a stream version/aggregate id must NOT live on
+	//    the messaging contract. RED the moment either is re-added to IDomainEvent or DomainEvent. ──
+
 	[Fact]
-	public void Have_AggregateId_Property()
+	public void NotDefine_AggregateId_OnTheMessagingContract()
 	{
-		// Arrange
-		var interfaceType = typeof(IDomainEvent);
-
-		// Act
-		var property = interfaceType.GetProperty(nameof(IDomainEvent.AggregateId));
-
-		// Assert
-		_ = property.ShouldNotBeNull("IDomainEvent must define AggregateId property");
-		property.PropertyType.ShouldBe(typeof(string), "AggregateId must be of type string");
-		property.CanRead.ShouldBeTrue("AggregateId must be readable");
+		// A stream's aggregate identity is known to the repository from the stream it loads; it is
+		// not a messaging concern. Re-adding it re-opens the dispatch-vs-excalibur boundary leak.
+		typeof(IDomainEvent).GetProperty("AggregateId")
+			.ShouldBeNull("IDomainEvent must NOT carry AggregateId (persistence concern, not messaging)");
+		typeof(DomainEvent).GetProperty("AggregateId")
+			.ShouldBeNull("DomainEvent must NOT carry AggregateId (removed as a boundary leak)");
 	}
 
 	[Fact]
-	public void Have_Version_Property()
+	public void NotDefine_Version_OnTheMessagingContract()
 	{
-		// Arrange
-		var interfaceType = typeof(IDomainEvent);
-
-		// Act
-		var property = interfaceType.GetProperty(nameof(IDomainEvent.Version));
-
-		// Assert
-		_ = property.ShouldNotBeNull("IDomainEvent must define Version property");
-		property.PropertyType.ShouldBe(typeof(long), "Version must be of type long");
-		property.CanRead.ShouldBeTrue("Version must be readable");
+		// The authoritative aggregate stream version lives in the persistence envelope
+		// (StoredEvent.Version -> HistoricEvent), never on the event payload. Re-adding a payload
+		// Version re-introduces the "event stamped with a version nothing on the read path reads"
+		// failure mode the removal made inexpressible.
+		typeof(IDomainEvent).GetProperty("Version")
+			.ShouldBeNull("IDomainEvent must NOT carry Version (lives in the persistence envelope)");
+		typeof(DomainEvent).GetProperty("Version")
+			.ShouldBeNull("DomainEvent must NOT carry Version (removed as a boundary leak)");
 	}
 
 	[Fact]

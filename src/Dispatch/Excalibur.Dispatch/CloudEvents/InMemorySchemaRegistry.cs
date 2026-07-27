@@ -12,6 +12,38 @@ internal sealed class InMemorySchemaRegistry : ISchemaRegistry
 {
 	private readonly ConcurrentDictionary<(string eventType, string version), string> _schemas = new();
 	private readonly ConcurrentDictionary<string, List<string>> _versions = new();
+	private readonly System.Threading.Lock _versionsLock = new();
+
+	/// <summary>
+	/// Registers a schema in memory so it can be resolved by <see cref="GetSchemaAsync"/> and enumerated by
+	/// <see cref="GetVersionsAsync"/>. Without this the store was permanently empty (every lookup returned
+	/// null), which made the validation gate inert.
+	/// </summary>
+	/// <param name="eventType"> The event type the schema applies to. </param>
+	/// <param name="version"> The schema version. </param>
+	/// <param name="schema"> The schema document. </param>
+	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
+	/// <returns> A completed task. </returns>
+	public Task RegisterSchemaAsync(string eventType, string version, string schema, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
+		ArgumentException.ThrowIfNullOrWhiteSpace(version);
+		ArgumentNullException.ThrowIfNull(schema);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		_schemas[(eventType, version)] = schema;
+
+		lock (_versionsLock)
+		{
+			var versions = _versions.GetOrAdd(eventType, static _ => []);
+			if (!versions.Contains(version, StringComparer.Ordinal))
+			{
+				versions.Add(version);
+			}
+		}
+
+		return Task.CompletedTask;
+	}
 
 	/// <summary>
 	/// Retrieves the schema for a specific event type and version from memory.
@@ -24,39 +56,21 @@ internal sealed class InMemorySchemaRegistry : ISchemaRegistry
 		Task.FromResult(_schemas.GetValueOrDefault((eventType, version)));
 
 	/// <summary>
-	/// Checks if two schema versions are compatible based on the specified compatibility mode.
-	/// </summary>
-	/// <param name="eventType"> The event type to check compatibility for. </param>
-	/// <param name="fromVersion"> The source schema version. </param>
-	/// <param name="toVersion"> The target schema version. </param>
-	/// <param name="mode"> The compatibility mode to apply. </param>
-	/// <returns> True if the versions are compatible; otherwise, false. </returns>
-	public bool IsCompatible(string eventType, string fromVersion, string toVersion, SchemaCompatibilityMode mode)
-	{
-		// Simplified compatibility check
-		if (!Version.TryParse(fromVersion, out var from) || !Version.TryParse(toVersion, out var to))
-		{
-			return false;
-		}
-
-		return mode switch
-		{
-			SchemaCompatibilityMode.Forward => from.Major == to.Major && from.Minor <= to.Minor,
-			SchemaCompatibilityMode.Backward => from.Major == to.Major && from.Minor >= to.Minor,
-			SchemaCompatibilityMode.Full => from.Major == to.Major,
-			_ => false,
-		};
-	}
-
-	/// <summary>
 	/// Gets all available versions for a specific event type from memory.
 	/// </summary>
 	/// <param name="eventType"> The event type to get versions for. </param>
 	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
 	/// <returns> A read-only list of available versions for the event type. </returns>
-	public Task<IReadOnlyList<string>> GetVersionsAsync(string eventType, CancellationToken cancellationToken) =>
-		Task.FromResult<IReadOnlyList<string>>(
-			_versions.TryGetValue(eventType, out var versions)
-				? versions.AsReadOnly()
-				: Array.Empty<string>());
+	public Task<IReadOnlyList<string>> GetVersionsAsync(string eventType, CancellationToken cancellationToken)
+	{
+		// Snapshot under the same lock RegisterSchemaAsync mutates the list with, so a concurrent
+		// registration never races an enumeration.
+		lock (_versionsLock)
+		{
+			return Task.FromResult<IReadOnlyList<string>>(
+				_versions.TryGetValue(eventType, out var versions)
+					? versions.ToArray()
+					: Array.Empty<string>());
+		}
+	}
 }

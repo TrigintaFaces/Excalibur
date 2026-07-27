@@ -15,8 +15,8 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </para>
 /// <para>
 /// The naming convention is: <c>{IndexPrefix}-{IndexName ?? projectionTypeName}</c>.
-/// When <see cref="ElasticSearchProjectionStoreOptions.IndexPrefix"/> is empty/whitespace, the prefix is omitted.
-/// When <see cref="ElasticSearchProjectionStoreOptions.IndexName"/> is set, it replaces the projection type name.
+/// When <see cref="ElasticSearchProjectionIndexOptions.IndexPrefix"/> is empty/whitespace, the prefix is omitted.
+/// When <see cref="ElasticSearchProjectionIndexOptions.IndexName"/> is set, it replaces the projection type name.
 /// </para>
 /// </remarks>
 /// <example>
@@ -40,7 +40,7 @@ public static class ElasticSearchProjectionIndexConvention
 	/// Resolves the ElasticSearch index name for a projection type using the configured options.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type. The lowercased type name is used when
-	/// <see cref="ElasticSearchProjectionStoreOptions.IndexName"/> is not set.</typeparam>
+	/// <see cref="ElasticSearchProjectionIndexOptions.IndexName"/> is not set.</typeparam>
 	/// <param name="options">The projection store options containing prefix and index name configuration.</param>
 	/// <returns>The resolved index name (e.g. <c>"development-projections-ordersummary"</c>).</returns>
 	public static string GetIndexName<TProjection>(ElasticSearchProjectionStoreOptions options)
@@ -61,13 +61,13 @@ public static class ElasticSearchProjectionIndexConvention
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentException.ThrowIfNullOrWhiteSpace(projectionTypeName);
 
-		var name = !string.IsNullOrWhiteSpace(options.IndexName)
-			? options.IndexName
+		var name = !string.IsNullOrWhiteSpace(options.Index.IndexName)
+			? options.Index.IndexName
 			: projectionTypeName;
 
-		var composed = string.IsNullOrWhiteSpace(options.IndexPrefix)
+		var composed = string.IsNullOrWhiteSpace(options.Index.IndexPrefix)
 			? name
-			: $"{options.IndexPrefix}-{name}";
+			: $"{options.Index.IndexPrefix}-{name}";
 
 		// Elasticsearch index names MUST be lowercase (an uppercase character yields a 400
 		// invalid_index_name_exception). Lowercase the entire composed name so a consumer-supplied

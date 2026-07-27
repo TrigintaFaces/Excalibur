@@ -42,7 +42,6 @@ public sealed class DispatchCacheManagerFreezeLockShould : IDisposable
 		HandlerInvokerRegistry.ClearCache();
 		HandlerActivator.ClearCache();
 		FinalDispatchHandler.ClearResultFactoryCache();
-		MiddlewareApplicabilityEvaluator.ClearCache();
 	}
 
 	[Fact]
@@ -185,7 +184,6 @@ public sealed class DispatchCacheManagerFreezeLockShould : IDisposable
 			status.HandlerRegistryFrozen.ShouldBeTrue();
 			status.HandlerActivatorFrozen.ShouldBeTrue();
 			status.ResultFactoryFrozen.ShouldBeTrue();
-			status.MiddlewareEvaluatorFrozen.ShouldBeTrue();
 		}
 		finally
 		{

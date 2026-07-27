@@ -18,6 +18,12 @@ namespace Excalibur.Integration.Tests.TieredStorage;
 [Trait("Component", "TieredStorage")]
 public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 {
+	// The cold-store contract keys every object by tenant. These arms use a SCOPED tenant
+	// rather than Untenanted deliberately: Untenanted is the weakest path and would leave the
+	// tenant-carrying key shape — the thing the contract change exists to enforce — unexercised.
+	private static readonly KeyedTenantPartition Tenant =
+		KeyedTenantPartition.Scoped("cold-store-tenant");
+
 	private AzuriteContainer? _container;
 	private ServiceProvider? _serviceProvider;
 	private IColdEventStore? _store;
@@ -89,9 +95,9 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 		if (!_available) return;
 
 		var events = CreateEvents("blob-agg-1", 1, 2, 3);
-		await _store!.WriteAsync("blob-agg-1", events, CancellationToken.None);
+		await _store!.WriteAsync(Tenant, "blob-agg-1", events, CancellationToken.None);
 
-		var read = await _store.ReadAsync("blob-agg-1", CancellationToken.None);
+		var read = await _store.ReadAsync(Tenant, "blob-agg-1", CancellationToken.None);
 		read.Count.ShouldBe(3);
 		read[0].Version.ShouldBe(1);
 		read[2].Version.ShouldBe(3);
@@ -102,9 +108,9 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		if (!_available) return;
 
-		await _store!.WriteAsync("blob-agg-v", CreateEvents("blob-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
+		await _store!.WriteAsync(Tenant, "blob-agg-v", CreateEvents("blob-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
 
-		var fromV3 = await _store.ReadAsync("blob-agg-v", 3, CancellationToken.None);
+		var fromV3 = await _store.ReadAsync(Tenant, "blob-agg-v", 3, CancellationToken.None);
 		fromV3.Count.ShouldBe(2);
 		fromV3[0].Version.ShouldBe(4);
 	}
@@ -114,10 +120,10 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		if (!_available) return;
 
-		await _store!.WriteAsync("blob-agg-m", CreateEvents("blob-agg-m", 1, 2, 3), CancellationToken.None);
-		await _store.WriteAsync("blob-agg-m", CreateEvents("blob-agg-m", 3, 4, 5), CancellationToken.None);
+		await _store!.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 1, 2, 3), CancellationToken.None);
+		await _store.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 3, 4, 5), CancellationToken.None);
 
-		var all = await _store.ReadAsync("blob-agg-m", CancellationToken.None);
+		var all = await _store.ReadAsync(Tenant, "blob-agg-m", CancellationToken.None);
 		all.Count.ShouldBe(5);
 	}
 
@@ -126,22 +132,22 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		if (!_available) return;
 
-		await _store!.WriteAsync("blob-agg-h", CreateEvents("blob-agg-h", 1), CancellationToken.None);
-		(await _store.HasArchivedEventsAsync("blob-agg-h", CancellationToken.None)).ShouldBeTrue();
+		await _store!.WriteAsync(Tenant, "blob-agg-h", CreateEvents("blob-agg-h", 1), CancellationToken.None);
+		(await _store.HasArchivedEventsAsync(Tenant, "blob-agg-h", CancellationToken.None)).ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
 		if (!_available) return;
-		(await _store!.HasArchivedEventsAsync("blob-nonexistent", CancellationToken.None)).ShouldBeFalse();
+		(await _store!.HasArchivedEventsAsync(Tenant, "blob-nonexistent", CancellationToken.None)).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
 		if (!_available) return;
-		(await _store!.ReadAsync("blob-no-such", CancellationToken.None)).Count.ShouldBe(0);
+		(await _store!.ReadAsync(Tenant, "blob-no-such", CancellationToken.None)).Count.ShouldBe(0);
 	}
 
 	private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions) =>

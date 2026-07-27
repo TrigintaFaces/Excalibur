@@ -19,12 +19,12 @@ namespace Excalibur.Tests.A3.Authorization;
 public sealed class AuthorizationPolicyWildcardIntegrationShould
 {
 	private const string Tenant = "tenant-1";
-	private readonly ITenantId _tenantId;
+	private readonly ITenantContext _tenantId;
 
 	public AuthorizationPolicyWildcardIntegrationShould()
 	{
-		_tenantId = A.Fake<ITenantId>();
-		A.CallTo(() => _tenantId.Value).Returns(Tenant);
+		_tenantId = A.Fake<ITenantContext>();
+		A.CallTo(() => _tenantId.TenantId).Returns(Tenant);
 	}
 
 	#region Case 1-3: Exact match regression guard

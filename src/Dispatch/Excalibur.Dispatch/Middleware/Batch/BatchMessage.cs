@@ -6,7 +6,12 @@ namespace Excalibur.Dispatch.Middleware.Batch;
 /// <summary>
 /// A composite message that represents a batch of messages.
 /// </summary>
-internal sealed class BatchMessage : IDispatchMessage
+/// <remarks>
+/// Classified as a document because it is an inert container for other messages rather than an operation in its own
+/// right. Leaving it unclassifiable would make the pipeline decide its protection from a default rather than from its
+/// declared intent.
+/// </remarks>
+internal sealed class BatchMessage : IDispatchDocument
 {
 	public BatchMessage(IList<IDispatchMessage> messages)
 	{
@@ -18,16 +23,10 @@ internal sealed class BatchMessage : IDispatchMessage
 		Body = messages;
 		MessageType = "BatchMessage";
 		Features = new DefaultMessageFeatures();
-
-		// Batch messages are document-style messages containing multiple messages
-		Kind = MessageKinds.Document;
 	}
 
 	/// <inheritdoc/>
 	public Guid Id { get; }
-
-	/// <inheritdoc/>
-	public MessageKinds Kind { get; }
 
 	public IList<IDispatchMessage> Messages { get; }
 

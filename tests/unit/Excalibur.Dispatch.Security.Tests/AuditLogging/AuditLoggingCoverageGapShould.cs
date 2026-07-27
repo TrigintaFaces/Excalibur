@@ -106,7 +106,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// A non-security event (System type)
 		var systemEvent = new AuditEvent
@@ -139,7 +139,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var complianceEvent = new AuditEvent
 		{
@@ -171,7 +171,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
@@ -194,7 +194,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Request only DataAccess and Compliance - neither are security types
 		var query = new AuditQuery
@@ -226,7 +226,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Request specific event types including both security and non-security
 		var query = new AuditQuery
@@ -260,7 +260,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.None));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
@@ -279,7 +279,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Developer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<UnauthorizedAccessException>(async () =>
@@ -298,7 +298,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		A.CallTo(() => innerStore.GetLastEventAsync("my-tenant", A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
@@ -326,7 +326,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
 
 		A.CallTo(() => innerStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<AuditEvent>>([]));
@@ -349,7 +349,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
 
 		A.CallTo(() => innerStore.CountAsync(A<AuditQuery>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(0L));
@@ -371,7 +371,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
 
 		var start = DateTimeOffset.UtcNow.AddDays(-1);
 		var end = DateTimeOffset.UtcNow;
@@ -395,7 +395,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger, null);
 
 		A.CallTo(() => innerStore.GetLastEventAsync(A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<AuditEvent?>(null));
@@ -418,7 +418,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.Administrator));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null, metaLogger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
 
 		var events = new List<AuditEvent>
 		{
@@ -457,7 +457,7 @@ public sealed class AuditLoggingCoverageGapShould
 			.Returns(Task.FromResult(AuditLogRole.ComplianceOfficer));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger, null, metaLogger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, metaLogger, logger, null);
 
 		var start = DateTimeOffset.UtcNow.AddDays(-1);
 		var end = DateTimeOffset.UtcNow;
@@ -641,7 +641,7 @@ public sealed class AuditLoggingCoverageGapShould
 	public async Task InMemoryAuditStore_StoreAsync_WithAllOptionalFields()
 	{
 		// Arrange - exercise all fields in the store path
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.ScopedTo("tenant-full");
 		var auditEvent = new AuditEvent
 		{
 			EventId = "full-fields",
@@ -728,7 +728,7 @@ public sealed class AuditLoggingCoverageGapShould
 	public async Task InMemoryAuditStore_QueryAsync_TenantScopeWithMultipleFilters()
 	{
 		// Arrange - exercise tenant-scoped query with all filters
-		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
+		var store = AuditStoreTenantScope.ScopedTo("scope-tenant");
 		var timestamp = new DateTimeOffset(2025, 6, 15, 0, 0, 0, TimeSpan.Zero);
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -761,7 +761,6 @@ public sealed class AuditLoggingCoverageGapShould
 		// Act - specific query matching only t-evt-1
 		var results = await store.QueryAsync(new AuditQuery
 		{
-			TenantId = "scope-tenant",
 			ActorId = "user-1",
 			EventTypes = [AuditEventType.Authentication],
 			Outcomes = [AuditOutcome.Success],

@@ -34,6 +34,11 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 	private readonly FirestoreEventStoreOptions _options;
 	private readonly ILogger<FirestoreEventStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// The single canonical event contract (camelCase + string-enum + null-ignore) shared by every event
+	// store. Using the default serializer here would write PascalCase / enum-as-number bodies that mis-read
+	// when loaded through the canonical read path (the i2eabb cross-path fault).
+	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
 	private FirestoreDb? _db;
 	private bool _initialized;
 	private volatile bool _disposed;
@@ -138,6 +143,9 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -201,6 +209,9 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -263,6 +274,10 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
+		ArgumentNullException.ThrowIfNull(events);
 		var stopwatch = ValueStopwatch.StartNew();
 		var operationResult = WriteStoreTelemetry.Results.Success;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -338,12 +353,12 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 						["eventType"] = eventTypeName,
 						["version"] = version,
 						["timestamp"] = evt.OccurredAt.ToString("O"),
-						["eventData"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt))
+						["eventData"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions))
 					};
 
 					if (evt.Metadata != null)
 					{
-						data["metadata"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata));
+						data["metadata"] = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(evt.Metadata, _jsonOptions));
 					}
 #pragma warning restore IL2026
 
@@ -424,6 +439,9 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		IPartitionKey partitionKey,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(partitionKey);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var streamId = BuildStreamId(aggregateType, aggregateId);
@@ -451,6 +469,8 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var partitionKey = new PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadAsync(aggregateId, aggregateType, partitionKey, null, cancellationToken)
 			.ConfigureAwait(false);
@@ -464,6 +484,8 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var partitionKey = new PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await LoadFromVersionAsync(aggregateId, aggregateType, partitionKey, fromVersion, null, cancellationToken)
 			.ConfigureAwait(false);
@@ -478,13 +500,18 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		var partitionKey = new PartitionKey(BuildStreamId(aggregateType, aggregateId));
 		var result = await AppendAsync(aggregateId, aggregateType, partitionKey, events, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (result.Success)
 		{
-			return AppendResult.CreateSuccess(result.NextExpectedVersion, 0);
+			// Firestore has no store-wide global sequence across documents/streams; global ordering is
+			// unsupported for this provider, so no global first-event position is reported.
+			return AppendResult.CreateSuccess(result.NextExpectedVersion, firstEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)

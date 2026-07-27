@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Google.Api.Gax;
+
 using Google.Cloud.Firestore;
 
 using Grpc.Core;
@@ -57,11 +59,26 @@ public sealed class FirestoreInboxStoreContainerFixture : ContainerFixtureBase
 
 		// Explicit endpoint + insecure credentials with the SDK's default serializer settings —
 		// env-var-based emulator discovery is unreliable.
+		// EmulatorOnly is what makes the SDK speak EMULATOR semantics instead of production ones. With an
+		// explicit Endpoint + insecure credentials the client still behaves as though it were talking to a
+		// real deployment, so it skips the emulator handshake and the emulator rejects admin-ish calls
+		// (ListDocuments and friends) with PermissionDenied "Metadata operations require admin
+		// authentication."
+		//
+		// EmulatorOnly and an explicit Endpoint/ChannelCredentials are MUTUALLY EXCLUSIVE -- the SDK builds
+		// the channel itself from FIRESTORE_EMULATOR_HOST and throws from GaxPreconditions.CheckState if you
+		// also hand it one. So the endpoint is published via the environment variable the SDK reads, and the
+		// builder carries no channel configuration of its own.
+		//
+		// The variable is set HERE from the container's actual endpoint rather than inherited from the
+		// ambient environment, which is what made env-var discovery unreliable before: the value is derived
+		// from this fixture's own container, so it cannot point at a stale or foreign emulator.
+		Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
+
 		Db = await new FirestoreDbBuilder
 		{
 			ProjectId = ProjectId,
-			Endpoint = _container.GetEmulatorEndpoint(),
-			ChannelCredentials = ChannelCredentials.Insecure,
+			EmulatorDetection = EmulatorDetection.EmulatorOnly,
 		}.BuildAsync(cancellationToken).ConfigureAwait(false);
 	}
 

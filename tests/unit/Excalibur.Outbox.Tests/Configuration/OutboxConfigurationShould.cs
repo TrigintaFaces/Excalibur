@@ -1,4 +1,4 @@
-using Excalibur.Outbox;
+﻿using Excalibur.Outbox;
 
 namespace Excalibur.Outbox.Tests.Configuration;
 
@@ -17,9 +17,6 @@ public sealed class OutboxConfigurationShould
 		config.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
 		config.MaxRetryCount.ShouldBe(3);
 		config.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		config.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
-		config.EnableAutomaticCleanup.ShouldBeTrue();
-		config.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
 		config.EnableBackgroundProcessing.ShouldBeTrue();
 		config.ProcessorId.ShouldBeNull();
 		config.EnableParallelProcessing.ShouldBeFalse();
@@ -66,9 +63,6 @@ public sealed class OutboxConfigurationShould
 			PollingInterval = TimeSpan.FromMilliseconds(500),
 			MaxRetryCount = 7,
 			RetryDelay = TimeSpan.FromMinutes(2),
-			MessageRetentionPeriod = TimeSpan.FromDays(14),
-			EnableAutomaticCleanup = true,
-			CleanupInterval = TimeSpan.FromHours(2),
 			EnableBackgroundProcessing = true,
 			ProcessorId = "test",
 			EnableParallelProcessing = true,
@@ -84,9 +78,6 @@ public sealed class OutboxConfigurationShould
 		options.PollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
 		options.Retry.MaxRetryCount.ShouldBe(7);
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(2));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 		options.ProcessorId.ShouldBe("test");
 		options.EnableParallelProcessing.ShouldBeTrue();

@@ -157,19 +157,4 @@
   <data name="SecureCredentialProvider_NoWritableStoresAvailableFormat" xml:space="preserve">
     <value>Failed to rotate credential '{0}' - no writable stores available</value>
   </data>
-  <data name="SqlSecurityEventStore_FailedToQueryEvents" xml:space="preserve">
-    <value>Failed to query security events</value>
-  </data>
-  <data name="SqlSecurityEventStore_FailedToStoreEvents" xml:space="preserve">
-    <value>Failed to store security events</value>
-  </data>
-  <data name="SqlSecurityEventStore_InvalidEventsDetectedFormat" xml:space="preserve">
-    <value>Invalid events detected: {0} out of {1}</value>
-  </data>
-  <data name="SqlSecurityEventStore_MaxResultsMustBeGreaterThanZero" xml:space="preserve">
-    <value>MaxResults must be greater than zero</value>
-  </data>
-  <data name="SqlSecurityEventStore_StartTimeAfterEndTime" xml:space="preserve">
-    <value>StartTime cannot be greater than EndTime</value>
-  </data>
 </root>

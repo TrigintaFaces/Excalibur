@@ -35,12 +35,18 @@ public interface IOutboxMessage
 	string MessageMetadata { get; init; }
 
 	/// <summary>
-	/// Gets the serialized body content of the message.
+	/// Gets the serialized body content of the message as raw bytes.
 	/// </summary>
+	/// <remarks>
+	/// The body is stored as <see cref="T:System.Byte" />[] so arbitrary payloads — binary, compressed,
+	/// or encrypted — round-trip losslessly. A string body would corrupt any non-UTF8 content, matching
+	/// how first-party message models carry byte bodies (Azure Service Bus <c>ServiceBusMessage.Body</c>,
+	/// Event Hubs <c>EventData.Body</c>, Kafka payloads).
+	/// </remarks>
 	/// <value>
 	/// The serialized body content of the message.
 	/// </value>
-	string MessageBody { get; init; }
+	byte[] MessageBody { get; init; }
 
 	/// <summary>
 	/// Gets the timestamp when the message was created and stored in the outbox.
@@ -95,4 +101,33 @@ public interface IOutboxMessage
 	/// </summary>
 	/// <value>The tenant identifier, or <see langword="null"/> when the store does not carry tenant scope.</value>
 	string? TenantId => null;
+
+	/// <summary>
+	/// Gets the delivery destination this message is routed to, for round-trip parity on the persisted
+	/// outbox row. Defaults to <see langword="null"/> so existing providers that do not yet persist the
+	/// destination inherit the default unchanged; a provider with a destination column overrides this to
+	/// surface the stored value. Making destination expressible on the row contract keeps a provider from
+	/// silently dropping it on the stage-then-reload path.
+	/// </summary>
+	/// <value>The delivery destination, or <see langword="null"/> when the store does not carry it.</value>
+	string? Destination => null;
+
+	/// <summary>
+	/// Gets the delivery priority (higher values are dispatched first) on the persisted outbox row. Defaults
+	/// to <c>0</c> so existing providers that do not yet persist a priority inherit the default unchanged; a
+	/// provider with a priority column overrides this to surface the stored value. Making priority
+	/// expressible on the row contract keeps a provider from silently dropping it on the stage-then-reload path.
+	/// </summary>
+	/// <value>The delivery priority; <c>0</c> when the store does not carry it.</value>
+	int Priority => 0;
+
+	/// <summary>
+	/// Gets the time before which the message must not be delivered, for schedule parity on the persisted
+	/// outbox row. Defaults to <see langword="null"/> (immediately deliverable) so existing providers that do
+	/// not yet persist a schedule inherit the default unchanged; a provider with a scheduled-at column
+	/// overrides this to surface the stored value. Making the schedule expressible on the row contract keeps a
+	/// provider from silently treating a future-scheduled message as immediately deliverable after a reload.
+	/// </summary>
+	/// <value>The scheduled delivery time, or <see langword="null"/> when the message is deliverable immediately.</value>
+	DateTimeOffset? ScheduledAt => null;
 }

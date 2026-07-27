@@ -150,6 +150,9 @@ public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 		// Act
 		_ = services.AddRabbitMQTransport("test", rmq =>
 		{
+			// A valid connection string is now required: options validation is eager at resolution
+			// (ValidateOnStart wired with the ingress payload-guard option).
+			_ = rmq.ConnectionString("amqp://appuser:S3cretPw0rd@localhost:5672/");
 			_ = rmq.ConfigureQueue(queue =>
 			{
 				_ = queue.Name("queue-a").PrefetchCount(42);

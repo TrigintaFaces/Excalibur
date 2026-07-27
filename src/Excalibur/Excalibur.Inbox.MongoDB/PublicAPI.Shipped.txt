@@ -1,4 +1,5 @@
 #nullable enable
+Excalibur.Dispatch.MongoInboxTransactionScopeExtensions
 Excalibur.Inbox.MongoDB.IMongoDBInboxBuilder
 Excalibur.Inbox.MongoDB.IMongoDBInboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Inbox.MongoDB.IMongoDBInboxBuilder!
 Excalibur.Inbox.MongoDB.IMongoDBInboxBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Inbox.MongoDB.IMongoDBInboxBuilder!
@@ -17,6 +18,8 @@ Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DatabaseName.get -> string!
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DatabaseName.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DefaultTtlSeconds.get -> int
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.DefaultTtlSeconds.set -> void
+Excalibur.Inbox.MongoDB.MongoDbInboxOptions.EnableTransactions.get -> bool
+Excalibur.Inbox.MongoDB.MongoDbInboxOptions.EnableTransactions.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.MaxPoolSize.get -> int
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.MaxPoolSize.set -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxOptions.MongoDbInboxOptions() -> void
@@ -38,10 +41,16 @@ Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkFailedAsync(string! messageId, str
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.MarkProcessingAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Excalibur.Inbox.MongoDB.MongoDbInboxStore.MongoDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.MongoDB.MongoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.MongoDB.MongoDbInboxStore!>! logger) -> void
-Excalibur.Inbox.MongoDB.MongoDbInboxStore.MongoDbInboxStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.MongoDB.MongoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.MongoDB.MongoDbInboxStore!>! logger) -> void
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.MongoDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.MongoDB.MongoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.MongoDB.MongoDbInboxStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.MongoDbInboxStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.MongoDB.MongoDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.MongoDB.MongoDbInboxStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.ReleaseAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.SupportsClaim.get -> bool
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.SupportsProcessingTracking.get -> bool
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.SupportsTransactional.get -> bool
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.TryClaimAsync(string! messageId, string! handlerType, System.TimeSpan leaseDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Excalibur.Inbox.MongoDB.MongoDbInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Inbox.MongoDB.MongoDbInboxStore.TryProcessTransactionallyAsync(string! messageId, string! handlerType, System.Func<Excalibur.Dispatch.IInboxTransactionScope!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Microsoft.Extensions.DependencyInjection.InboxBuilderMongoDbExtensions
+static Excalibur.Dispatch.MongoInboxTransactionScopeExtensions.AsMongoSession(this Excalibur.Dispatch.IInboxTransactionScope! scope) -> MongoDB.Driver.IClientSessionHandle!
 static Microsoft.Extensions.DependencyInjection.InboxBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.MongoDB.IMongoDBInboxBuilder!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!

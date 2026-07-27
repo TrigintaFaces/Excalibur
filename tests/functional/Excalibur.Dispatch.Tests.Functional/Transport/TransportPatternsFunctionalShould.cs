@@ -41,7 +41,9 @@ public sealed class TransportPatternsFunctionalShould : FunctionalTestBase
 
 		// Assert
 		requestTcs.Task.IsCompleted.ShouldBeTrue();
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		requestTcs.Task.Result.ShouldBe("Success");
+		#pragma warning restore RS0030
 	}
 
 	[Fact]

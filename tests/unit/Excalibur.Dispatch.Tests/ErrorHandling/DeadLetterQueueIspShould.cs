@@ -83,7 +83,11 @@ public sealed class DeadLetterQueueIspShould
 		var method = typeof(IDeadLetterQueueAdmin).GetMethod("ReplayBatchAsync", DeclaredPublicInstance);
 
 		method.ShouldNotBeNull("IDeadLetterQueueAdmin must have ReplayBatchAsync");
-		method.ReturnType.ShouldBe(typeof(Task<int>));
+
+		// A batch replay reports Enumerated/Replayed/Truncated, never a bare count: a single int cannot
+		// distinguish a completed batch from one the limit cut short, which is the silence this contract
+		// exists to prevent. Asserting the return type here keeps a regression to Task<int> from passing.
+		method.ReturnType.ShouldBe(typeof(Task<ReplayBatchResult>));
 	}
 
 	[Fact]

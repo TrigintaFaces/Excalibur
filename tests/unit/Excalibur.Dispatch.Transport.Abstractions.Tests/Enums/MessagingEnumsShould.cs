@@ -26,16 +26,6 @@ public sealed class MessagingEnumsShould
     }
 
     [Theory]
-    [InlineData(ErrorHandlingStrategy.Retry, 0)]
-    [InlineData(ErrorHandlingStrategy.DeadLetter, 1)]
-    [InlineData(ErrorHandlingStrategy.Ignore, 2)]
-    [InlineData(ErrorHandlingStrategy.Throw, 3)]
-    public void ErrorHandlingStrategy_Should_Have_Correct_Values(ErrorHandlingStrategy strategy, int expected)
-    {
-        ((int)strategy).ShouldBe(expected);
-    }
-
-    [Theory]
     [InlineData(OversizedMessageBehavior.SendSeparately, 0)]
     [InlineData(OversizedMessageBehavior.Skip, 1)]
     [InlineData(OversizedMessageBehavior.ThrowException, 2)]

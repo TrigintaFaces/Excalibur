@@ -250,7 +250,6 @@ If you're looking for a sample that used to live at `09-advanced/<Something>/`, 
 | `09-advanced/InboxIdempotency/` | `09-advanced/persistence-patterns/InboxIdempotency/` |
 | `09-advanced/TransactionalHandlers/` | `09-advanced/persistence-patterns/TransactionalHandlers/` |
 | `09-advanced/MultiDatabase/` | `09-advanced/persistence-patterns/MultiDatabase/` |
-| `09-advanced/SessionManagement/` | `09-advanced/persistence-patterns/SessionManagement/` |
 | `09-advanced/CdcAntiCorruption/` | `09-advanced/cdc/CdcAntiCorruption/` |
 | `09-advanced/CdcEventStoreElasticsearch/` | `09-advanced/cdc/CdcEventStoreElasticsearch/` |
 | `09-advanced/StreamingHandlers/` | `09-advanced/querying/StreamingHandlers/` |

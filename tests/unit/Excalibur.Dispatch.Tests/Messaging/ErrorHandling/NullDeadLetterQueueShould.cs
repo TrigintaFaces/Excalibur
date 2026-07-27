@@ -160,10 +160,15 @@ public sealed class NullDeadLetterQueueShould
 		var filter = new DeadLetterQueryFilter { Reason = DeadLetterReason.MaxRetriesExceeded };
 
 		// Act
-		var result = await admin.ReplayBatchAsync(filter, CancellationToken.None);
+		var result = await admin.ReplayBatchAsync(filter, limit: 100, CancellationToken.None);
 
 		// Assert
-		result.ShouldBe(0);
+		result.Enumerated.ShouldBe(0);
+		result.Replayed.ShouldBe(0);
+
+		// The null queue holds nothing, so the batch is complete: Truncated is false because the queue is
+		// genuinely drained, not because the limit went unchecked.
+		result.Truncated.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -226,7 +231,7 @@ public sealed class NullDeadLetterQueueShould
 		var filter = new DeadLetterQueryFilter();
 
 		// Act
-		var replayTask = admin.ReplayBatchAsync(filter, CancellationToken.None);
+		var replayTask = admin.ReplayBatchAsync(filter, limit: 100, CancellationToken.None);
 		var purgeTask = admin.PurgeAsync(Guid.NewGuid(), CancellationToken.None);
 		var purgeOlderTask = admin.PurgeOlderThanAsync(TimeSpan.FromHours(1), CancellationToken.None);
 
@@ -236,7 +241,7 @@ public sealed class NullDeadLetterQueueShould
 		purgeOlderTask.IsCompletedSuccessfully.ShouldBeTrue();
 
 		// Await to verify values
-		(await replayTask).ShouldBe(0);
+		(await replayTask).Replayed.ShouldBe(0);
 		(await purgeTask).ShouldBeFalse();
 		(await purgeOlderTask).ShouldBe(0);
 	}
@@ -252,8 +257,9 @@ public sealed class NullDeadLetterQueueShould
 		var filter = new DeadLetterQueryFilter();
 
 		// Act & Assert - should not throw OperationCanceledException
-		var replayResult = await admin.ReplayBatchAsync(filter, cts.Token);
-		replayResult.ShouldBe(0);
+		var replayResult = await admin.ReplayBatchAsync(filter, limit: 100, cts.Token);
+		replayResult.Replayed.ShouldBe(0);
+		replayResult.Truncated.ShouldBeFalse();
 
 		var purgeResult = await admin.PurgeAsync(Guid.NewGuid(), cts.Token);
 		purgeResult.ShouldBeFalse();

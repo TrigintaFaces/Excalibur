@@ -229,10 +229,13 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(document) { Index = indexName, Id = documentId }, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Wait for indexing to complete
-		await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-
 		var getRequest = new GetRequest(indexName, documentId);
+
+		// Wait for indexing to complete — poll until the document is retrievable
+		var indexed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => (await _resilientClient.GetAsync<TestDocument>(getRequest, CancellationToken.None).ConfigureAwait(false)).Found,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		indexed.ShouldBeTrue();
 
 		// Act
 		var response = await _resilientClient.GetAsync<TestDocument>(getRequest, CancellationToken.None).ConfigureAwait(false);
@@ -258,8 +261,11 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(document) { Index = indexName, Id = documentId }, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Wait for indexing to complete
-		await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+		// Wait for indexing to complete — poll until the document is retrievable
+		var indexed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => (await _resilientClient.GetAsync<TestDocument>(new GetRequest(indexName, documentId), CancellationToken.None).ConfigureAwait(false)).Found,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		indexed.ShouldBeTrue();
 
 		var updateRequest = new UpdateRequest<TestDocument, object>(indexName, documentId) { Doc = new { Name = "Updated Name" } };
 
@@ -286,8 +292,11 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 		_ = await _resilientClient.IndexAsync(new IndexRequest<TestDocument>(document) { Index = indexName, Id = documentId }, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Wait for indexing to complete
-		await Task.Delay(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+		// Wait for indexing to complete — poll until the document is retrievable
+		var indexed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => (await _resilientClient.GetAsync<TestDocument>(new GetRequest(indexName, documentId), CancellationToken.None).ConfigureAwait(false)).Found,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		indexed.ShouldBeTrue();
 
 		var deleteRequest = new DeleteRequest(indexName, documentId);
 

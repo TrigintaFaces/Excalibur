@@ -4,6 +4,7 @@
 
 #pragma warning disable IDE0270 // Null check can be simplified
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
 
 namespace Excalibur.Testing.Conformance;
@@ -13,7 +14,7 @@ namespace Excalibur.Testing.Conformance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Inherit from this class and implement <see cref="CreateStore"/> to verify that
+/// Inherit from this class and implement <see cref="CreateStore(ITenantContext)"/> to verify that
 /// your dead letter store implementation conforms to the IDeadLetterStore contract.
 /// </para>
 /// <para>
@@ -35,8 +36,8 @@ namespace Excalibur.Testing.Conformance;
 /// {
 ///     private readonly SqlServerFixture _fixture;
 ///
-///     protected override IDeadLetterStore CreateStore() =&gt;
-///         new SqlServerDeadLetterStore(_fixture.ConnectionString);
+///     protected override IDeadLetterStore CreateStore(ITenantContext? ambientTenant) =&gt;
+///         new SqlServerDeadLetterStore(_fixture.ConnectionString, ambientTenant);
 ///
 ///     protected override async Task CleanupAsync() =&gt;
 ///         await _fixture.CleanupAsync();
@@ -48,10 +49,70 @@ namespace Excalibur.Testing.Conformance;
 public abstract class DeadLetterStoreConformanceTestKit
 {
 	/// <summary>
-	/// Creates a fresh dead letter store instance for testing.
+	/// Creates a dead letter store that resolves its tenant from the supplied ambient context.
+	/// </summary>
+	/// <param name="ambientTenant">
+	/// The ambient tenant context the store must consult on every operation, or <see langword="null"/> for
+	/// a single-tenant host that registers none.
+	/// </param>
+	/// <returns>An IDeadLetterStore implementation to test.</returns>
+	/// <remarks>
+	/// <para>
+	/// The context is a parameter — rather than the tenant itself — because that is how tenancy actually
+	/// works in this family: a store resolves the ambient tenant per operation, so the kit can hold
+	/// <strong>one</strong> store and change the tenant between calls. Both partitions then address the
+	/// <strong>same backing store</strong>, which is what makes the isolation arm falsifiable.
+	/// </para>
+	/// <para>
+	/// A seam that handed out one store per tenant would let an implementation satisfy isolation by
+	/// instance separation — two independent stores share no entries, so the arm passes even with the
+	/// tenant predicate deleted. The kit is deliberately unable to obtain a second store for that reason.
+	/// </para>
+	/// <para>
+	/// Implementations must consult the context on <em>every</em> operation, including writes and deletes.
+	/// The store returned here is reused across a case, so caching the resolved tenant at construction
+	/// will fail the isolation arm.
+	/// </para>
+	/// </remarks>
+	protected abstract IDeadLetterStore CreateStore(ITenantContext? ambientTenant);
+
+	/// <summary>
+	/// Creates a store for a single-tenant host — one that registers no tenant context at all.
 	/// </summary>
 	/// <returns>An IDeadLetterStore implementation to test.</returns>
-	protected abstract IDeadLetterStore CreateStore();
+	/// <remarks>
+	/// The default for the non-tenancy cases. <see langword="null"/> is the correct model of a
+	/// single-tenant host: a context that exists but resolves no tenant means "multi-tenancy is active but
+	/// unresolved", which implementations are expected to fail closed on rather than treat as unscoped.
+	/// </remarks>
+	private IDeadLetterStore CreateStore() => CreateStore(ambientTenant: null);
+
+	/// <summary>
+	/// An ambient tenant context whose resolved tenant the kit controls.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is what makes the isolation arm mean anything. The kit takes <strong>one</strong> store and
+	/// changes the ambient tenant between operations, so both partitions address the <strong>same
+	/// backing store</strong> — exactly as a singleton store resolving a scoped context does in a real
+	/// host.
+	/// </para>
+	/// <para>
+	/// Obtaining a second store per tenant instead would let an implementation satisfy isolation by
+	/// <em>instance separation</em>: two independent stores never share an entry, so the arm would pass
+	/// with the tenant predicate deleted. That is a test of the fixture, not of the contract.
+	/// </para>
+	/// </remarks>
+	private sealed class SwitchableTenantContext : ITenantContext
+	{
+		public string? TenantId { get; private set; }
+
+		public bool HasTenant => TenantId is not null;
+
+		/// <summary>Switches the ambient tenant for subsequent operations.</summary>
+		/// <param name="tenantId"> The tenant to resolve from now on. </param>
+		public void SwitchTo(string tenantId) => TenantId = tenantId;
+	}
 
 	/// <summary>
 	/// Optional cleanup after each test.
@@ -577,6 +638,116 @@ public abstract class DeadLetterStoreConformanceTestKit
 		{
 			throw new TestFixtureAssertionException(
 				"Message within retention period should remain after cleanup");
+		}
+	}
+
+	#endregion
+
+	#region Tenant Isolation Tests
+
+	/// <summary>
+	/// SAFETY: an entry written by one tenant must not be observable by another.
+	/// </summary>
+	/// <remarks>
+	/// A dead-letter entry carries the failed message body, so a read that crosses tenants discloses one
+	/// tenant's message content to another. This case is mandatory: a store that cannot discriminate
+	/// tenants is not a conformant implementation of this contract.
+	/// </remarks>
+	public virtual async Task TenantScopedRead_MustNotSeeAnotherTenantsEntry()
+	{
+		// ONE store, ONE backing set, ambient tenant switched between operations. Two stores would let an
+		// implementation pass this by instance separation with no tenant predicate at all.
+		var ambient = new SwitchableTenantContext();
+		var store = CreateStore(ambient);
+
+		ambient.SwitchTo("conformance-tenant-a");
+		var message = CreateDeadLetterMessage();
+		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		ambient.SwitchTo("conformance-tenant-b");
+
+		// Addressed read: B must not resolve A's entry by its identifier.
+		var byId = await store.GetByIdAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+		if (byId is not null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Tenant isolation violated: tenant B resolved tenant A's entry {message.MessageId} by id, "
+				+ "disclosing the failed message body across tenants.");
+		}
+
+		// Unfiltered enumeration: the shape most likely to leak, because a filter that specifies nothing
+		// must still be scoped rather than returning the estate.
+		var listed = await store.GetMessagesAsync(new DeadLetterFilter(), CancellationToken.None)
+			.ConfigureAwait(false);
+		foreach (var entry in listed)
+		{
+			if (string.Equals(entry.MessageId, message.MessageId, StringComparison.Ordinal))
+			{
+				throw new TestFixtureAssertionException(
+					"Tenant isolation violated: an unfiltered GetMessagesAsync for tenant B returned tenant "
+					+ $"A's entry {message.MessageId}.");
+			}
+		}
+	}
+
+	/// <summary>
+	/// LIVENESS: a tenant must still see its own entries.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm that fails when a store is scoped by returning nothing to anybody. Without it the
+	/// safety case above is satisfied by a completely inert store — isolation is trivially perfect when no
+	/// read ever returns a row — so a provider could pass tenancy conformance while being unusable.
+	/// </remarks>
+	public virtual async Task TenantScopedRead_MustSeeItsOwnEntry()
+	{
+		var ambient = new SwitchableTenantContext();
+		var store = CreateStore(ambient);
+		ambient.SwitchTo("conformance-tenant-a");
+
+		var message = CreateDeadLetterMessage();
+		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		var byId = await store.GetByIdAsync(message.MessageId, CancellationToken.None).ConfigureAwait(false);
+		if (byId is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"Tenant scoping is inert: tenant A stored entry {message.MessageId} and could not read it "
+				+ "back. A store that returns nothing to anybody passes every isolation assertion while "
+				+ "being unusable.");
+		}
+
+		if (byId.MessageBody != message.MessageBody)
+		{
+			throw new TestFixtureAssertionException(
+				$"MessageBody mismatch on a tenant-scoped read. Expected: {message.MessageBody}, "
+				+ $"Actual: {byId.MessageBody}");
+		}
+	}
+
+	/// <summary>
+	/// LIVENESS: the untenanted partition is a real partition and must round-trip.
+	/// </summary>
+	/// <remarks>
+	/// A single-tenant host resolves no ambient tenant and therefore operates entirely under the reserved
+	/// untenanted partition. If scoping is implemented so that this partition matches nothing, every
+	/// consumer who never opted into multi-tenancy loses their dead-letter store outright — and no
+	/// isolation assertion would report it.
+	/// </remarks>
+	public virtual async Task UntenantedPartition_MustRoundTripItsOwnEntry()
+	{
+		var untenanted = CreateStore(ambientTenant: null);
+
+		var message = CreateDeadLetterMessage();
+		await untenanted.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
+
+		var byId = await untenanted.GetByIdAsync(message.MessageId, CancellationToken.None)
+			.ConfigureAwait(false);
+		if (byId is null)
+		{
+			throw new TestFixtureAssertionException(
+				$"The untenanted partition did not round-trip entry {message.MessageId}. A single-tenant "
+				+ "host operates entirely under this partition, so this breaks every consumer that never "
+				+ "opted into multi-tenancy.");
 		}
 	}
 

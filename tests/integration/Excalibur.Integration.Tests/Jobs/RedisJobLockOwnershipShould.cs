@@ -48,6 +48,7 @@ public sealed class RedisJobLockOwnershipShould : IntegrationTestBase, IClassFix
 		var database = connection.GetDatabase();
 		var coordinator = new RedisJobCoordinator(
 			database,
+			TimeProvider.System,
 			NullLogger<RedisJobCoordinator>.Instance,
 			keyPrefix: $"jobs-test-{Guid.NewGuid():N}:");
 

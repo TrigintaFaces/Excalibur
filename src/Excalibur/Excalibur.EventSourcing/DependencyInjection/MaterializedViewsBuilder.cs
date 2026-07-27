@@ -39,10 +39,15 @@ internal sealed class MaterializedViewsBuilder : IMaterializedViewsBuilder
 
 		// Also register as the marker interface for discovery
 		_ = Services.AddSingleton(sp =>
-			new MaterializedViewBuilderRegistration(
+		{
+			var viewBuilder = sp.GetRequiredService<IMaterializedViewBuilder<TView>>();
+			return new MaterializedViewBuilderRegistration(
 				typeof(TView),
 				typeof(TBuilder),
-				sp.GetRequiredService<IMaterializedViewBuilder<TView>>()));
+				viewBuilder,
+				new ViewStoreAccessor<TView>(),
+				viewBuilder.DeliverySemantics);
+		});
 
 		return this;
 	}

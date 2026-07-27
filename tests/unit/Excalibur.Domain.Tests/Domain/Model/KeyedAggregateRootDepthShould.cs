@@ -102,7 +102,7 @@ public sealed class KeyedAggregateRootDepthShould
 			RaiseEvent(new OrderCreatedEvent(id, orderNumber));
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			OrderCreatedEvent e => Apply(e),
 			_ => throw new InvalidOperationException(),

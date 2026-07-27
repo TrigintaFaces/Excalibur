@@ -9,6 +9,7 @@ using Excalibur.EventSourcing.DependencyInjection;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.CosmosDb;
 
@@ -89,6 +90,8 @@ public static class EventSourcingBuilderCosmosDbExtensions
 
 		// Register ValidateOnStart
 		builder.Services.AddOptions<CosmosDbEventStoreOptions>().ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbEventStoreOptions>, CosmosDbEventStoreOptionsValidator>());
 
 		// Register CosmosClient based on connection path
 		if (hasBuilderConnection)
@@ -99,6 +102,10 @@ public static class EventSourcingBuilderCosmosDbExtensions
 		{
 			var endpoint = cosmosBuilder.EndpointValue;
 			var authKey = cosmosBuilder.AuthKeyValue!;
+			// Intentional bespoke-interop deviation (NOT the event canonical contract): the Cosmos SDK's document
+			// serializer is configured camelCase because Cosmos's own document model (id, _etag, _ts, partition
+			// key) is camelCase-shaped and this options object governs the SDK's document (de)serialization, not
+			// the event payload. The event payload itself uses the canonical serializer; this is the SDK boundary.
 			builder.Services.TryAddSingleton(_ => new CosmosClient(endpoint, authKey, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 		}
 		else if (cosmosBuilder.ConnectionStringValue is not null)

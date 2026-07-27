@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -23,6 +22,18 @@ namespace Excalibur.Dispatch;
 /// <para>
 /// Consumers opt in by referencing the <c>Excalibur.Dispatch.SourceGenerators</c> package,
 /// which generates the type map at compile time.
+/// </para>
+/// <para>
+/// <b>Wire-shape parity (required).</b> The emitted JSON is controlled entirely by the consumer-supplied
+/// <see cref="JsonSerializerContext"/>. To round-trip with events written through the reflection-based
+/// <see cref="JsonEventSerializer"/> (which uses camelCase property names, enums as strings, and omitted
+/// nulls), the consumer's context MUST be annotated with
+/// <c>[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+/// UseStringEnumConverter = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]</c>.
+/// A divergent context (e.g. default PascalCase or enum-as-number) silently produces payloads that
+/// mis-read across the two paths — the generated context example carries the canonical attribute so the
+/// copy-paste path is correct by default. (The naming/enum settings of a source-generated context cannot
+/// be reliably introspected at runtime, so this contract is enforced by that guidance, not a runtime check.)
 /// </para>
 /// </remarks>
 internal sealed class AotJsonEventSerializer : IEventSerializer

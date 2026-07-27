@@ -53,6 +53,9 @@ public sealed class OutboxProcessorService(
 
 	private async Task ProcessPendingMessagesAsync(CancellationToken cancellationToken)
 	{
+		// Single-process drain: no leadership tenure, so no fencing token. Stated explicitly rather than defaulted —
+		// when several instances drain one outbox, pass the token from your leader election so a superseded
+		// leader's writes are rejected instead of silently applied.
 		var messages = await outboxStore.GetUnsentMessagesAsync(_batchSize, cancellationToken);
 		var messageList = messages.ToList();
 

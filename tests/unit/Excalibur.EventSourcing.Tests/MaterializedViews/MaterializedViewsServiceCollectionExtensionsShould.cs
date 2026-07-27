@@ -545,7 +545,9 @@ public sealed class MaterializedViewsServiceCollectionExtensionsShould
 
 		public IReadOnlyList<Type> HandledEventTypes => Array.Empty<Type>();
 
-		public string? GetViewId(IDomainEvent @event) => @event.AggregateId;
+		// AggregateId moved off IDomainEvent to the persistence envelope; GetViewId is not exercised
+		// by these DI-registration tests, so a stable constant suffices.
+		public string? GetViewId(IDomainEvent @event) => "TestView";
 
 		public TestView Apply(TestView view, IDomainEvent @event) => view;
 

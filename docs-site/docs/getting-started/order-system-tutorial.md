@@ -135,7 +135,7 @@ public class CreateOrderHandler(OrderStore store, IDispatcher dispatcher) : IAct
         store.Add(order);
 
         // Dispatch a domain event to notify other parts of the system
-        await dispatcher.DispatchChildAsync(
+        await dispatcher.DispatchAsync(
             new OrderCreatedEvent(order.Id, order.CustomerId, order.Total),
             cancellationToken);
     }
@@ -159,7 +159,7 @@ public class CancelOrderHandler(OrderStore store, IDispatcher dispatcher) : IAct
 
         order.Status = OrderStatus.Cancelled;
 
-        await dispatcher.DispatchChildAsync(
+        await dispatcher.DispatchAsync(
             new OrderCancelledEvent(order.Id, action.Reason),
             cancellationToken);
     }

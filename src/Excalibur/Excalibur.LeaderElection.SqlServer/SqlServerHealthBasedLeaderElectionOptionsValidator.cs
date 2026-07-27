@@ -17,6 +17,16 @@ internal sealed class SqlServerHealthBasedLeaderElectionOptionsValidator
 
 		var failures = new List<string>();
 
+		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		{
+			failures.Add("ConnectionString must not be empty.");
+		}
+
+		if (string.IsNullOrWhiteSpace(options.LockResource))
+		{
+			failures.Add("LockResource must not be empty.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.SchemaName))
 		{
 			failures.Add("SchemaName must not be empty.");

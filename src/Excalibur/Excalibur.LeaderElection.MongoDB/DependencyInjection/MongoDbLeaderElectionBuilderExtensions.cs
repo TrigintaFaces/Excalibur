@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.LeaderElection.Fencing;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
@@ -129,7 +130,10 @@ public static class MongoDbLeaderElectionBuilderExtensions
 			var mongoOptions = sp.GetRequiredService<IOptions<MongoDbLeaderElectionOptions>>();
 			var electionOptions = sp.GetRequiredService<IOptions<LeaderElectionOptions>>();
 			var logger = sp.GetRequiredService<ILogger<MongoDbLeaderElection>>();
-			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger);
+			// Optional: flows through only when the consumer registered a fencing token provider
+			// (AddMongoDbFencingTokenProvider + WithFencingTokens()). Null = fencing not enabled.
+			var fencingTokenProvider = sp.GetService<IFencingTokenProvider>();
+			return new MongoDbLeaderElection(client, resourceName, mongoOptions, electionOptions, logger, fencingTokenProvider);
 		});
 		builder.Services.AddKeyedSingleton<ILeaderElection>("mongodb", (sp, _) =>
 		{

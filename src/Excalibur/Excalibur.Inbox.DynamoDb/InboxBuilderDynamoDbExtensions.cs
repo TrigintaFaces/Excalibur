@@ -10,6 +10,7 @@ using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.DynamoDb;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -123,8 +124,23 @@ public static class InboxBuilderDynamoDbExtensions
 				new AmazonDynamoDBClient(region));
 		}
 
-		// Register store services
-		builder.Services.TryAddSingleton<DynamoDbInboxStore>();
+		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup sort key scopes per
+		// tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably from that wiring —
+		// an unwired provider cannot carry a truthful marker. Registering the store on its own would leave
+		// the capability advertisable while the key stayed (handler_type, message_id).
+		builder.Services.AddTenantScopedStore<IInboxStore, DynamoDbInboxStore>((sp, tenantContext) =>
+		{
+			var options = sp.GetRequiredService<IOptions<DynamoDbInboxOptions>>();
+			var logger = sp.GetRequiredService<ILogger<DynamoDbInboxStore>>();
+
+			// A consumer-supplied or builder-registered client must still win: constructing the
+			// options-only overload here would silently discard it and have the store build its own.
+			var client = sp.GetService<IAmazonDynamoDB>();
+
+			return client is null
+				? new DynamoDbInboxStore(options, logger, tenantContext)
+				: new DynamoDbInboxStore(client, options, logger, tenantContext);
+		});
 		builder.Services.AddKeyedSingleton<IInboxStore>("dynamodb", (sp, _) => sp.GetRequiredService<DynamoDbInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("dynamodb"));

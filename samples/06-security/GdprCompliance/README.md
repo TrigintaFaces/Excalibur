@@ -72,6 +72,12 @@ builder.Services.AddGdprErasure(options =>
     options.RequireVerification  = true;
 });
 
+// Data-subject identifiers are pseudonymized with a keyed HMAC that needs a secret pepper; the framework
+// fails closed at startup if one is not configured. In production, source it from your secret manager / KMS
+// (stored apart from the erasure data) — never a literal in source.
+builder.Services.Configure<DataSubjectHashingOptions>(o =>
+    o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"] ?? "sample-demo-pepper-not-a-secret-change-me-0123456789");
+
 builder.Services.AddInMemoryErasureStore();       // swap for SQL Server in prod
 builder.Services.AddComplianceMonitoring();
 ```

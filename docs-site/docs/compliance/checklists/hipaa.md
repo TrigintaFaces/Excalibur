@@ -533,7 +533,7 @@ public class PatientRecordService
 - Audit log samples (anonymized)
 - Audit log retention policy (6 years)
 - Hash chain integrity verification tests
-- Conformance test results (AuditStoreConformanceTestKit - 18 tests)
+- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 27 available)
 
 **SSP Statement:**
 > "§164.312(b) Audit Controls is satisfied through the Excalibur framework's `IAuditLogger` with tamper-evident hash chain. All ePHI access, modifications, and deletions are logged with user ID, timestamp, and action. Audit logs are retained for 6 years per HIPAA requirements."
@@ -888,8 +888,8 @@ public class TransmissionIntegrityService
 - `docs/security/gdpr-compliance.md` - Erasure (right to access/deletion)
 
 **Conformance Test Results:**
-- AuditStoreConformanceTestKit (18 tests) - §164.312(b)
-- ErasureStoreConformanceTestKit (24 tests) - Secure disposal
+- `AuditStoreConformanceTestKit` — 27 arms - §164.312(b)
+- `ErasureStoreConformanceTestKit` — 24 arms - Secure disposal
 - Encryption verification tests - §164.312(a)(2)(iv), §164.312(e)(2)(ii)
 
 **Audit Evidence:**

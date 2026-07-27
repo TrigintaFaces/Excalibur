@@ -46,4 +46,15 @@ internal sealed class MongoDbLeaderElectionDocument
 	/// </summary>
 	[BsonElement("lastRenewedAt")]
 	public DateTime LastRenewedAt { get; set; }
+
+	/// <summary>
+	/// Gets or sets the store-arbitrated fencing token for this lock's current holder.
+	/// </summary>
+	/// <remarks>
+	/// Strictly increases each time leadership passes to a different candidate (computed
+	/// server-side inside the atomic takeover pipeline); unchanged when the same candidate
+	/// renews its own lease. Starts at 1 on first acquisition.
+	/// </remarks>
+	[BsonElement("fencingToken")]
+	public long FencingToken { get; set; }
 }

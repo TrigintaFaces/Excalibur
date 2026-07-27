@@ -42,7 +42,7 @@ public sealed class CdcProcessingHostedServiceBackoffShould : UnitTestBase
 			UnhealthyThreshold = 10 // High threshold so we don't go unhealthy
 		});
 
-		var service = new CdcProcessingHostedService(processor, options, NullLogger<CdcProcessingHostedService>.Instance);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, NullLogger<CdcProcessingHostedService>.Instance);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -88,7 +88,7 @@ public sealed class CdcProcessingHostedServiceBackoffShould : UnitTestBase
 			UnhealthyThreshold = 10
 		});
 
-		var service = new CdcProcessingHostedService(processor, options, NullLogger<CdcProcessingHostedService>.Instance);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, NullLogger<CdcProcessingHostedService>.Instance);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -136,7 +136,7 @@ public sealed class CdcProcessingHostedServiceBackoffShould : UnitTestBase
 			UnhealthyThreshold = 10
 		});
 
-		var service = new CdcProcessingHostedService(processor, options, NullLogger<CdcProcessingHostedService>.Instance);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, NullLogger<CdcProcessingHostedService>.Instance);
 		using var cts = new CancellationTokenSource();
 
 		// Act
@@ -177,7 +177,7 @@ public sealed class CdcProcessingHostedServiceBackoffShould : UnitTestBase
 			UnhealthyThreshold = 20
 		});
 
-		var service = new CdcProcessingHostedService(processor, options, NullLogger<CdcProcessingHostedService>.Instance);
+		var service = new CdcProcessingHostedService(SpWith(processor), options, TimeProvider.System, NullLogger<CdcProcessingHostedService>.Instance);
 		using var cts = new CancellationTokenSource();
 
 		// Act — should complete within a reasonable time because cap is 5x
@@ -194,6 +194,9 @@ public sealed class CdcProcessingHostedServiceBackoffShould : UnitTestBase
 
 	private static TaskCompletionSource<bool> CreateSignal()
 		=> new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	private static IServiceProvider SpWith(ICdcBackgroundProcessor processor)
+		=> new ServiceCollection().AddSingleton(processor).BuildServiceProvider();
 
 	private static TimeSpan SignalWaitTimeout
 		=> global::Tests.Shared.Infrastructure.TestTimeouts.Integration;

@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: Message Signing
-description: Ensure message integrity and authenticity with HMAC, ECDSA, Ed25519, and RSA signing algorithms.
+description: Ensure message integrity and authenticity with HMAC, ECDSA, and RSA signing algorithms.
 ---
 
 # Message Signing
 
-Excalibur.Dispatch provides message signing to ensure messages haven't been tampered with during transmission. The signing infrastructure supports both symmetric (HMAC) and asymmetric (ECDSA, Ed25519, RSA) algorithms.
+Excalibur.Dispatch provides message signing to ensure messages haven't been tampered with during transmission. The signing infrastructure supports both symmetric (HMAC) and asymmetric (ECDSA, RSA) algorithms.
 
 **Package:** `Excalibur.Security`
 
@@ -20,7 +20,7 @@ IMessageSigningService
 └── CompositeMessageSigningService  (multi-algorithm)
     ├── HmacSignatureAlgorithmProvider    (HMAC-SHA256/512)
     ├── EcdsaSignatureAlgorithmProvider   (ECDSA P-256)
-    └── Ed25519SignatureAlgorithmProvider (Ed25519)
+    └── RsaSignatureAlgorithmProvider     (RSA PKCS#1 / PSS, SHA-256)
 ```
 
 - **`AddMessageSigning()`** — Registers `HmacMessageSigningService` for HMAC-only scenarios
@@ -35,8 +35,7 @@ Both methods register `MessageSigningMiddleware` in the Dispatch pipeline automa
 | HMAC-SHA256 | `SigningAlgorithm.HMACSHA256` | Symmetric | Internal service-to-service (default) |
 | HMAC-SHA512 | `SigningAlgorithm.HMACSHA512` | Symmetric | Higher security symmetric |
 | ECDSA P-256 | `SigningAlgorithm.ECDSASHA256` | Asymmetric | Non-repudiation, cross-boundary |
-| Ed25519 | `SigningAlgorithm.Ed25519` | Asymmetric | High-performance asymmetric |
-| RSA-SHA256 | `SigningAlgorithm.RSASHA256` | Asymmetric | Legacy interoperability |
+| RSA-SHA256 | `SigningAlgorithm.RSASHA256` | Asymmetric | Legacy interoperability (RSASSA-PKCS1-v1_5) |
 | RSA-PSS-SHA256 | `SigningAlgorithm.RSAPSSSHA256` | Asymmetric | Modern RSA with PSS padding |
 
 ## Setup
@@ -55,7 +54,7 @@ builder.Services.AddMessageSigning(opt =>
 });
 ```
 
-### Asymmetric Signing (ECDSA / Ed25519)
+### Asymmetric Signing (ECDSA / RSA)
 
 For non-repudiation scenarios where the signer and verifier use different keys:
 
@@ -71,7 +70,7 @@ builder.Services.AddAsymmetricSigning(opt =>
 });
 ```
 
-`AddAsymmetricSigning()` registers all algorithm providers (HMAC, ECDSA, Ed25519) via `CompositeMessageSigningService`, so you can use any algorithm at runtime.
+`AddAsymmetricSigning()` registers all algorithm providers (HMAC, ECDSA, RSA) via `CompositeMessageSigningService`, so you can use any supported algorithm at runtime.
 
 ### Per-Tenant Algorithms
 
@@ -82,7 +81,7 @@ builder.Services.AddAsymmetricSigning(opt =>
 {
     opt.DefaultAlgorithm = SigningAlgorithm.HMACSHA256;
     opt.TenantAlgorithms["tenant-financial"] = SigningAlgorithm.ECDSASHA256;
-    opt.TenantAlgorithms["tenant-healthcare"] = SigningAlgorithm.Ed25519;
+    opt.TenantAlgorithms["tenant-healthcare"] = SigningAlgorithm.RSAPSSSHA256;
 });
 ```
 
@@ -118,12 +117,34 @@ Security options are configured via `IConfiguration` (e.g., `appsettings.json`):
 
 ## Key Provider
 
-Signing requires an `IKeyProvider` to supply key material. Cloud-specific packages provide implementations:
+Signing requires an `IKeyProvider` to supply key material. Cloud-specific packages provide
+Secrets-backed implementations that fail closed (a resolution error never yields a null/empty key)
+and cache resolved key material for a bounded TTL (`CacheTtlSeconds`, default 300s; disable with
+`EnableCache = false`):
 
-- **`Excalibur.Security.Azure`** — Azure Key Vault
-- **`Excalibur.Security.Aws`** — AWS KMS
+- **`Excalibur.Security.Azure`** — Azure Key Vault (`AddAzureKeyVaultKeyProvider`)
+- **`Excalibur.Security.Aws`** — AWS Secrets Manager (`AddAwsSecretsManagerKeyProvider`)
 
-For local development, register a custom `IKeyProvider`:
+```csharp
+// Azure Key Vault
+builder.Services.AddAzureKeyVaultKeyProvider(o =>
+{
+    o.VaultUri = builder.Configuration["Signing:VaultUri"];
+    o.SecretNamePrefix = "dispatch-signing-";   // optional
+    o.CacheTtlSeconds = 300;                     // bounded cache (default)
+});
+
+// AWS Secrets Manager
+builder.Services.AddAwsSecretsManagerKeyProvider(o =>
+{
+    o.Region = "us-east-1";
+    o.SecretNamePrefix = "dispatch-signing-";   // optional
+});
+```
+
+Both registrations validate their options at startup (`ValidateOnStart`) and register the
+`IKeyProvider` via `TryAdd`, so a caller can override with a custom provider. For local development,
+register your own before the cloud call:
 
 ```csharp
 builder.Services.AddSingleton<IKeyProvider, MyLocalKeyProvider>();
@@ -131,7 +152,7 @@ builder.Services.AddSingleton<IKeyProvider, MyLocalKeyProvider>();
 
 ### Asymmetric Key Resolution
 
-For asymmetric algorithms (ECDSA, Ed25519, RSA), the `CompositeMessageSigningService` automatically appends `:pub` to the key ID when resolving keys for verification. Store your keys using this convention:
+For asymmetric algorithms (ECDSA, RSA), the `CompositeMessageSigningService` automatically appends `:pub` to the key ID when resolving keys for verification. Store your keys using this convention:
 
 | Operation | Key ID resolved |
 |-----------|----------------|

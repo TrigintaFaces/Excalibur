@@ -34,7 +34,7 @@ namespace Excalibur.Compliance.Aws;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagementAdmin, IDisposable
+public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
 {
 	private readonly IAmazonKeyManagementService _kmsClient;
 	private readonly IMemoryCache _metadataCache;
@@ -42,6 +42,12 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 	private readonly ILogger<AwsKmsProvider> _logger;
 	private readonly ConcurrentDictionary<string, string> _aliasToKeyIdMap = new();
 	private readonly SemaphoreSlim _keyCreationLock = new(1, 1);
+
+	// Upper bound on the alias->keyId resolution cache. .NET has no built-in bounded concurrent map, so
+	// this composes ConcurrentDictionary with a count guard: at capacity new keys are skipped (a later
+	// lookup simply re-resolves via KMS DescribeKey), while existing entries may still be refreshed. This
+	// prevents unbounded growth across many distinct key ids in long-lived hosts.
+	private const int MaxAliasCacheEntries = 1024;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -85,7 +91,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 			var metadata = MapToKeyMetadata(keyId, response.KeyMetadata);
 
 			_ = _metadataCache.Set(cacheKey, metadata, TimeSpan.FromSeconds(_options.Cache.MetadataCacheDurationSeconds));
-			_aliasToKeyIdMap[keyId] = response.KeyMetadata.KeyId;
+			CacheAliasMapping(keyId, response.KeyMetadata.KeyId);
 
 			return metadata;
 		}
@@ -249,13 +255,10 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 	}
 
 	/// <inheritdoc/>
-	public async Task<bool> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
+	public async Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrEmpty(keyId);
-
-		// AWS KMS requires 7-30 days retention
-		retentionDays = Math.Clamp(retentionDays, 7, 30);
 
 		try
 		{
@@ -272,7 +275,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 				var key = await GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
 				if (key is null)
 				{
-					return false;
+					return KeyDestructionOutcome.NotFound;
 				}
 
 				kmsKeyId = _aliasToKeyIdMap.GetValueOrDefault(keyId);
@@ -281,43 +284,79 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 			if (string.IsNullOrEmpty(kmsKeyId))
 			{
 				LogKeyIdResolutionFailed(keyId);
-				return false;
+				return KeyDestructionOutcome.NotFound;
 			}
 
-			// Schedule key deletion
+			// Determine the key's material origin: imported key material can be destroyed immediately
+			// (irrecoverable on return, Vault parity); a KMS-generated symmetric CMK can only be SCHEDULED
+			// behind AWS's mandatory 7-30 day window, so it stays recoverable until the window elapses.
+			var describe = await _kmsClient.DescribeKeyAsync(
+				new DescribeKeyRequest { KeyId = kmsKeyId },
+				cancellationToken).ConfigureAwait(false);
+			var origin = describe.KeyMetadata?.Origin;
+
+			if (origin == OriginType.EXTERNAL)
+			{
+				// Imported key material — delete it immediately; the CMK becomes unusable at once and any data
+				// encrypted under it is unrecoverable now (no pending window).
+				_ = await _kmsClient.DeleteImportedKeyMaterialAsync(
+					new DeleteImportedKeyMaterialRequest { KeyId = kmsKeyId },
+					cancellationToken).ConfigureAwait(false);
+
+				await DeleteAliasAndClearCacheAsync(alias, keyId, cancellationToken).ConfigureAwait(false);
+				LogKeyDestroyed(keyId);
+				return KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow);
+			}
+
+			// KMS-generated CMK (or external key store): AWS enforces a mandatory pending-deletion window and the
+			// key remains CancelKeyDeletion-recoverable until it elapses. Do NOT silently clamp: honor the request
+			// where legal and DISCLOSE the effective irreversibility instant through the returned outcome.
+			var effectiveWindow = retentionDays <= 0
+				? MinPendingWindowDays
+				: Math.Clamp(retentionDays, MinPendingWindowDays, MaxPendingWindowDays);
+
 			_ = await _kmsClient.ScheduleKeyDeletionAsync(
-				new ScheduleKeyDeletionRequest { KeyId = kmsKeyId, PendingWindowInDays = retentionDays },
+				new ScheduleKeyDeletionRequest { KeyId = kmsKeyId, PendingWindowInDays = effectiveWindow },
 				cancellationToken).ConfigureAwait(false);
 
-			// Delete the alias
-			try
-			{
-				_ = await _kmsClient.DeleteAliasAsync(
-					new DeleteAliasRequest { AliasName = alias },
-					cancellationToken).ConfigureAwait(false);
-			}
-			catch (NotFoundException)
-			{
-				// Alias already deleted
-			}
+			await DeleteAliasAndClearCacheAsync(alias, keyId, cancellationToken).ConfigureAwait(false);
 
-			// Clear cache
-			_metadataCache.Remove($"key:{keyId}");
-			_ = _aliasToKeyIdMap.TryRemove(keyId, out _);
+			LogKeyScheduledForDeletion(keyId, effectiveWindow);
 
-			LogKeyScheduledForDeletion(keyId, retentionDays);
-
-			return true;
+			return KeyDestructionOutcome.ScheduledAt(DateTimeOffset.UtcNow.AddDays(effectiveWindow));
 		}
 		catch (NotFoundException)
 		{
-			return false;
+			return KeyDestructionOutcome.NotFound;
 		}
 		catch (Exception ex)
 		{
 			LogFailedToScheduleDeletion(keyId, ex);
 			throw;
 		}
+	}
+
+	/// <summary>AWS KMS mandatory minimum pending-deletion window for a symmetric CMK (days).</summary>
+	private const int MinPendingWindowDays = 7;
+
+	/// <summary>AWS KMS maximum pending-deletion window (days).</summary>
+	private const int MaxPendingWindowDays = 30;
+
+	private async Task DeleteAliasAndClearCacheAsync(string alias, string keyId, CancellationToken cancellationToken)
+	{
+		try
+		{
+			_ = await _kmsClient.DeleteAliasAsync(
+				new DeleteAliasRequest { AliasName = alias },
+				cancellationToken).ConfigureAwait(false);
+		}
+		catch (NotFoundException)
+		{
+			// Alias already deleted
+		}
+
+		_metadataCache.Remove($"key:{keyId}");
+		_ = _aliasToKeyIdMap.TryRemove(keyId, out _);
 	}
 
 	/// <inheritdoc/>
@@ -372,6 +411,39 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 		catch (Exception ex)
 		{
 			LogFailedToSuspendKey(keyId, ex);
+			throw;
+		}
+	}
+
+	/// <inheritdoc/>
+	public async Task<bool> ReactivateKeyAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		try
+		{
+			var alias = _options.BuildKeyAlias(keyId);
+
+			// Inverse of SuspendKeyAsync's DisableKeyAsync: re-enable the key natively via AWS KMS EnableKey.
+			_ = await _kmsClient.EnableKeyAsync(
+				new EnableKeyRequest { KeyId = alias },
+				cancellationToken).ConfigureAwait(false);
+
+			// Clear cache
+			_metadataCache.Remove($"key:{keyId}");
+
+			LogKeyReactivated(keyId);
+
+			return true;
+		}
+		catch (NotFoundException)
+		{
+			return false;
+		}
+		catch (Exception ex)
+		{
+			LogFailedToReactivateKey(keyId, ex);
 			throw;
 		}
 	}
@@ -439,6 +511,10 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 		"Key {KeyId} scheduled for deletion in {RetentionDays} days (crypto-shredding)")]
 	private partial void LogKeyScheduledForDeletion(string keyId, int retentionDays);
 
+	[LoggerMessage(LogLevel.Warning,
+		"Key {KeyId} imported material deleted — irrecoverable now (crypto-shredding)")]
+	private partial void LogKeyDestroyed(string keyId);
+
 	[LoggerMessage(LogLevel.Error, "Failed to schedule deletion for key {KeyId}")]
 	private partial void LogFailedToScheduleDeletion(string keyId, Exception ex);
 
@@ -447,6 +523,12 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 
 	[LoggerMessage(LogLevel.Error, "Failed to suspend key {KeyId}")]
 	private partial void LogFailedToSuspendKey(string keyId, Exception ex);
+
+	[LoggerMessage(LogLevel.Information, "Key {KeyId} reactivated")]
+	private partial void LogKeyReactivated(string keyId);
+
+	[LoggerMessage(LogLevel.Error, "Failed to reactivate key {KeyId}")]
+	private partial void LogFailedToReactivateKey(string keyId, Exception ex);
 
 	[LoggerMessage(LogLevel.Debug, "AwsKmsProvider disposed")]
 	private partial void LogDisposed();
@@ -505,7 +587,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 
 		// Clear cache and update mapping
 		_metadataCache.Remove($"key:{keyId}");
-		_aliasToKeyIdMap[keyId] = newKey.KeyId;
+		CacheAliasMapping(keyId, newKey.KeyId);
 
 		var newMetadata = MapToKeyMetadata(keyId, newKey);
 		var previousMetadata = existingKey with { Status = KeyStatus.DecryptOnly };
@@ -513,6 +595,16 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 		LogRotatedKey(keyId, newKey.KeyId);
 
 		return KeyRotationResult.Succeeded(newMetadata, previousMetadata);
+	}
+
+	// Records an alias->keyId resolution, bounded to avoid unbounded growth. At capacity a new key is
+	// skipped (a later lookup re-resolves via KMS DescribeKey); an already-cached key is still refreshed.
+	private void CacheAliasMapping(string keyId, string resolvedKeyId)
+	{
+		if (_aliasToKeyIdMap.Count < MaxAliasCacheEntries || _aliasToKeyIdMap.ContainsKey(keyId))
+		{
+			_aliasToKeyIdMap[keyId] = resolvedKeyId;
+		}
 	}
 
 	private async Task<KeyRotationResult> CreateNewKeyAsync(
@@ -536,7 +628,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagem
 				cancellationToken).ConfigureAwait(false);
 		}
 
-		_aliasToKeyIdMap[keyId] = kmsKey.KeyId;
+		CacheAliasMapping(keyId, kmsKey.KeyId);
 
 		var metadata = MapToKeyMetadata(keyId, kmsKey);
 		_ = _metadataCache.Set($"key:{keyId}", metadata, TimeSpan.FromSeconds(_options.Cache.MetadataCacheDurationSeconds));

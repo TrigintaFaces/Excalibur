@@ -191,63 +191,68 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 			.MustHaveHappenedOnceExactly();
 	}
 
+	// ── ADMIN CAPABILITY, INVERTED FOR THE l0qpxo DENY-BY-DEFAULT SEAM ──────────────────────────────────────────
+	//
+	// The four arms this block replaces — Return_empty_for_failed_messages_when_inner_not_admin,
+	// Return_empty_for_scheduled_messages…, Return_zero_for_cleanup…, Return_default_stats… — called
+	// sut.GetFailedMessagesAsync / GetScheduledMessagesAsync / CleanupAllTenantsSentMessagesAsync / GetStatisticsAsync
+	// directly on the decorator, and asserted that a NON-admin inner degraded to empty / zero / a default struct.
+	//
+	// That contract is the exact defect l0qpxo fixes. It CERTIFIED the silent fail-open: a capability going missing
+	// returned an empty result with a descriptive name, so the missing capability read as "no data" instead of
+	// "unsupported." Return_default_stats… asserted only ShouldNotBeNull() — inert, satisfied by any object.
+	//
+	// Under the ruled seam the decorator no longer declares IOutboxStoreAdmin (the methods are gone from its type,
+	// which is why the old arms no longer compile). IOutboxStoreAdmin is PAYLOAD-BEARING, so it is WRAPPED, never
+	// forwarded raw: it is discovered through GetService and resolves to a DECRYPTING view, or to null when the
+	// inner is not an admin. Recorded not deleted; the capability is pinned in both directions, each with its
+	// non-vacuity half.
+
 	[Fact]
-	public async Task Return_empty_for_failed_messages_when_inner_not_admin()
+	public void ResolveNull_ForAdmin_WhenInnerIsNotAdmin()
 	{
-		// Arrange — use a plain IOutboxStore (not IOutboxStoreAdmin)
-		var inner = A.Fake<IOutboxStore>();
+		// SAFETY / deny-by-default. A non-admin inner must resolve the admin capability to a HONEST null, not a
+		// degraded empty result. Null tells the consumer the capability is genuinely absent; an empty list lies.
+		var inner = A.Fake<IOutboxStore>(); // plain IOutboxStore — NOT IOutboxStoreAdmin
 		var sut = CreateSut(inner);
 
-		// Act
-		var result = await sut.GetFailedMessagesAsync(3, null, 10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		result.ShouldBeEmpty();
+		sut.GetService(typeof(IOutboxStoreAdmin)).ShouldBeNull(
+			"A non-admin inner must resolve IOutboxStoreAdmin to null through the encrypting decorator. The old " +
+			"contract returned an empty result set here, which silently reported 'no failed messages' when the " +
+			"real answer is 'this store cannot report failed messages.'");
 	}
 
 	[Fact]
-	public async Task Return_empty_for_scheduled_messages_when_inner_not_admin()
+	public async Task ResolveMediatingAdmin_NeverTheRawInner_OverAnAdminInner()
 	{
-		// Arrange
-		var inner = A.Fake<IOutboxStore>();
+		// LIVENESS + the core security property, and the non-vacuity half of ResolveNull_… above.
+		//
+		// An admin inner must resolve to a WORKING admin view — and it must NOT be the raw inner instance. If
+		// GetService forwarded the inner's own IOutboxStoreAdmin, GetFailedMessagesAsync would return ciphertext
+		// undecrypted: a plaintext-bypass through the sixth-most-obscure capability. The resolved view must be a
+		// mediating (decrypting) wrapper that still delegates the fetch to the inner.
+		var inner = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
+		A.CallTo(() => inner.GetService(typeof(IOutboxStoreAdmin)))
+			.ReturnsLazily((Type _) => inner); // honest store: returns itself for a capability it implements
+		A.CallTo(() => ((IOutboxStoreAdmin)inner).GetFailedMessagesAsync(A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([]));
 		var sut = CreateSut(inner);
 
-		// Act
-		var result = await sut.GetScheduledMessagesAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None)
-			.ConfigureAwait(false);
+		var admin = sut.GetService(typeof(IOutboxStoreAdmin)) as IOutboxStoreAdmin;
 
-		// Assert
-		result.ShouldBeEmpty();
-	}
+		admin.ShouldNotBeNull(
+			"An admin inner must resolve IOutboxStoreAdmin to a non-null view, or the ResolveNull arm is vacuous.");
+		admin.ShouldNotBeSameAs(
+			inner,
+			"The resolved admin MUST be a mediating decrypting view, never the raw inner. Returning the inner would " +
+			"hand the consumer undecrypted ciphertext through the admin surface — a plaintext bypass of the whole " +
+			"encryption boundary.");
 
-	[Fact]
-	public async Task Return_zero_for_cleanup_when_inner_not_admin()
-	{
-		// Arrange
-		var inner = A.Fake<IOutboxStore>();
-		var sut = CreateSut(inner);
-
-		// Act
-		var result = await sut.CleanupSentMessagesAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		// Assert
-		result.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task Return_default_stats_when_inner_not_admin()
-	{
-		// Arrange
-		var inner = A.Fake<IOutboxStore>();
-		var sut = CreateSut(inner);
-
-		// Act
-		var result = await sut.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		result.ShouldNotBeNull();
+		// Delegation still works: the mediating view fetches through the inner's admin.
+		_ = await admin.GetFailedMessagesAsync(3, null, 10, CancellationToken.None).ConfigureAwait(false);
+		A.CallTo(() => ((IOutboxStoreAdmin)inner)
+				.GetFailedMessagesAsync(3, null, 10, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -255,6 +260,15 @@ public sealed class EncryptingOutboxStoreDecoratorShould
 	{
 		// Arrange -- inner must implement IOutboxStoreBatch for the decorator to delegate
 		var inner = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreBatch>());
+
+		// FIXTURE HONESTY (l0qpxo migration). TryMarkSentAndReceivedAsync is an extension over IOutboxStore that now
+		// resolves the batch capability via store.GetService(typeof(IOutboxStoreBatch)) — the `as`→GetService
+		// migration. A bare FakeItEasy fake answers GetService with null even for interfaces it implements, so the
+		// decorator's WrapCapability sees a non-batch inner and mediation resolves null → the extension returns
+		// false. A real store returns itself for a capability it implements; the fake must too, or this arm
+		// false-REDs on a fixture defect rather than the decorator.
+		A.CallTo(() => inner.GetService(typeof(IOutboxStoreBatch))).Returns(inner);
+
 		var sut = CreateSut(inner);
 		var inboxEntry = new InboxEntry
 		{

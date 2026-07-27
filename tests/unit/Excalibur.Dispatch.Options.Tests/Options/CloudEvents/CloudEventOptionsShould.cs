@@ -49,13 +49,14 @@ public sealed class CloudEventOptionsShould
 	}
 
 	[Fact]
-	public void Default_ValidateSchema_IsTrue()
+	public void Default_ValidateSchema_IsFalse()
 	{
-		// Arrange & Act
+		// Validation gates are opt-in (baarat): ValidateSchema defaults false so the default CloudEvents
+		// ingress path works without a schema-validation provider (Microsoft OutputCache/HybridCache never
+		// validate by default).
 		var options = new CloudEventOptions();
 
-		// Assert
-		options.Schema.ValidateSchema.ShouldBeTrue();
+		options.Schema.ValidateSchema.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -88,15 +89,6 @@ public sealed class CloudEventOptionsShould
 		options.Schema.SchemaProvider.ShouldBeNull();
 	}
 
-	[Fact]
-	public void Default_PreserveEnvelopeProperties_IsTrue()
-	{
-		// Arrange & Act
-		var options = new CloudEventOptions();
-
-		// Assert
-		options.PreserveEnvelopeProperties.ShouldBeTrue();
-	}
 
 	[Fact]
 	public void Default_DispatchExtensionPrefix_IsDispatch()
@@ -128,15 +120,6 @@ public sealed class CloudEventOptionsShould
 		options.Compression.CompressionThreshold.ShouldBe(1024);
 	}
 
-	[Fact]
-	public void Default_EnableDoDCompliance_IsFalse()
-	{
-		// Arrange & Act
-		var options = new CloudEventOptions();
-
-		// Assert
-		options.EnableDoDCompliance.ShouldBeFalse();
-	}
 
 	[Fact]
 	public void Default_DefaultMode_IsStructured()
@@ -228,18 +211,6 @@ public sealed class CloudEventOptionsShould
 		options.Compression.CompressionThreshold.ShouldBe(4096);
 	}
 
-	[Fact]
-	public void EnableDoDCompliance_CanBeSet()
-	{
-		// Arrange
-		var options = new CloudEventOptions();
-
-		// Act
-		options.EnableDoDCompliance = true;
-
-		// Assert
-		options.EnableDoDCompliance.ShouldBeTrue();
-	}
 
 	[Fact]
 	public void ExcludedExtensions_CanAddItems()
@@ -269,7 +240,6 @@ public sealed class CloudEventOptionsShould
 			Mode = CloudEventMode.Binary,
 			Schema = { ValidateSchema = false },
 			Compression = { UseCompression = true, CompressionThreshold = 2048 },
-			EnableDoDCompliance = true,
 			DispatchExtensionPrefix = "custom",
 		};
 
@@ -278,30 +248,12 @@ public sealed class CloudEventOptionsShould
 		options.Schema.ValidateSchema.ShouldBeFalse();
 		options.Compression.UseCompression.ShouldBeTrue();
 		options.Compression.CompressionThreshold.ShouldBe(2048);
-		options.EnableDoDCompliance.ShouldBeTrue();
 		options.DispatchExtensionPrefix.ShouldBe("custom");
 	}
 
 	#endregion
 
 	#region Real-World Scenario Tests
-
-	[Fact]
-	public void Options_ForDoDCompliance_EnablesStrictValidation()
-	{
-		// Act
-		var options = new CloudEventOptions
-		{
-			EnableDoDCompliance = true,
-			Schema = { ValidateSchema = true },
-			PreserveEnvelopeProperties = true,
-		};
-
-		// Assert
-		options.EnableDoDCompliance.ShouldBeTrue();
-		options.Schema.ValidateSchema.ShouldBeTrue();
-		options.PreserveEnvelopeProperties.ShouldBeTrue();
-	}
 
 	[Fact]
 	public void Options_ForBinaryMode_UsesBinaryTransport()

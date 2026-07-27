@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Transport.Aws;
 
@@ -15,9 +16,11 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <remarks> Initializes a new instance of the <see cref="SqsChannelProcessorHostedService" /> class. </remarks>
 internal partial class SqsChannelProcessorHostedService(
 	ISqsChannelProcessor processor,
+	IOptions<SqsProcessorOptions> options,
 	ILogger<SqsChannelProcessorHostedService> logger) : BackgroundService
 {
 	private readonly ISqsChannelProcessor _processor = processor ?? throw new ArgumentNullException(nameof(processor));
+	private readonly TimeSpan _drainTimeout = (options ?? throw new ArgumentNullException(nameof(options))).Value.DrainTimeout;
 	private readonly ILogger<SqsChannelProcessorHostedService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <summary>
@@ -47,7 +50,11 @@ internal partial class SqsChannelProcessorHostedService(
 		}
 		finally
 		{
-			await _processor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+			// Bound the shutdown drain (uco9lt): pass a deadline-bounded token instead of
+			// CancellationToken.None so a stalled SQS StopAsync cannot block process exit indefinitely.
+			// Mirrors the linked-CTS drain pattern in TransportAdapterHostedService.StopAsync.
+			using var drainCts = new CancellationTokenSource(_drainTimeout);
+			await _processor.StopAsync(drainCts.Token).ConfigureAwait(false);
 		}
 	}
 

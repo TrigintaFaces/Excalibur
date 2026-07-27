@@ -90,7 +90,9 @@ internal sealed partial class InboxService : BackgroundService
 	/// <returns> A task that represents the long-running inbox processing operation. </returns>
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		// Check processing gate (e.g., leader election)
+		// Check processing gate (e.g., leader election). When the gate is an ILeaderProcessingGate
+		// backed by ILeaderElection, a null CurrentLeadership snapshot fail-closes this protected
+		// cycle (never gated on the advisory IsLeader bool).
 		if (_gate is not null && !_gate.ShouldProcess)
 		{
 			// Wait for leadership before starting inbox dispatch.

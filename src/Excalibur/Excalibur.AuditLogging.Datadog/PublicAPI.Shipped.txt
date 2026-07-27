@@ -34,6 +34,12 @@ Excalibur.AuditLogging.Datadog.DatadogExporterRetryOptions.RetryBaseDelay.get ->
 Excalibur.AuditLogging.Datadog.DatadogExporterRetryOptions.RetryBaseDelay.set -> void
 Excalibur.AuditLogging.Datadog.DatadogExporterRetryOptions.Timeout.get -> System.TimeSpan
 Excalibur.AuditLogging.Datadog.DatadogExporterRetryOptions.Timeout.set -> void
+Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder
+Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.ApiKey(string! apiKey) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
+Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
+Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.Service(string! service) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
+Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.Site(string! site) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
+Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.Source(string! source) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
 Microsoft.Extensions.DependencyInjection.DatadogServiceCollectionExtensions
 const Excalibur.AuditLogging.Datadog.DatadogAuditLoggingEventId.BatchForwarded = 93421 -> int
 const Excalibur.AuditLogging.Datadog.DatadogAuditLoggingEventId.EventForwarded = 93420 -> int
@@ -43,10 +49,4 @@ const Excalibur.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedSta
 const Excalibur.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardFailedTimeout = 93429 -> int
 const Excalibur.AuditLogging.Datadog.DatadogAuditLoggingEventId.ForwardRetried = 93426 -> int
 const Excalibur.AuditLogging.Datadog.DatadogAuditLoggingEventId.HealthCheckFailed = 93427 -> int
-Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder
-Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.ApiKey(string! apiKey) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
-Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
-Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.Service(string! service) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
-Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.Site(string! site) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
-Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder.Source(string! source) -> Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!
 static Microsoft.Extensions.DependencyInjection.DatadogServiceCollectionExtensions.AddDatadogAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Datadog.IAuditLoggingDatadogBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -2,6 +2,8 @@
 Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.CollectionNames(params string![]! collectionNames) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
 Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.DatabaseName(string! databaseName) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
@@ -213,5 +215,3 @@ static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.StalePositionErrorCode
 static Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.FromErrorCode(int errorCode) -> string!
 static Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.FromErrorMessage(string? errorMessage) -> string!
 static readonly Excalibur.Cdc.MongoDB.MongoDbCdcPosition.Start -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
-Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.Client(MongoDB.Driver.IMongoClient! client) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
-Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ClientFactory(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!

@@ -127,7 +127,7 @@ Notes:
 
 ## Correlation, Causation, and Child Dispatch
 
-Ultra-local is primarily a top-level local optimization. For nested dispatch from handlers, use `DispatchChildAsync(...)` to preserve child-message lineage (correlation/causation semantics).
+Ultra-local is primarily a top-level local optimization. For nested dispatch from handlers, calling `DispatchAsync(...)` automatically preserves child-message lineage (correlation/causation semantics) by dispatching a child message.
 
 ## See Also
 

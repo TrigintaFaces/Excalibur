@@ -130,6 +130,28 @@ public sealed class MediatRCompatOptions
         _closedBehaviors.Add(new ClosedBehaviorRegistration(ServiceType: null, typeof(TImplementationType), lifetime));
         return this;
     }
+
+    /// <summary>
+    /// Copies the configured state from <paramref name="source"/> into this instance. Used to populate the
+    /// DI-resolved options instance from a pre-configured probe, so the consumer's <c>configure</c> delegate
+    /// is invoked exactly once (on the probe) rather than a second time when options are first resolved.
+    /// </summary>
+    /// <param name="source">The already-configured options to copy from.</param>
+    internal void CopyFrom(MediatRCompatOptions source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        HandlerLifetime = source.HandlerLifetime;
+
+        _assemblies.Clear();
+        _assemblies.AddRange(source._assemblies);
+
+        _openBehaviors.Clear();
+        _openBehaviors.AddRange(source._openBehaviors);
+
+        _closedBehaviors.Clear();
+        _closedBehaviors.AddRange(source._closedBehaviors);
+    }
 }
 
 /// <summary>Records an open-generic pipeline behavior registration and its lifetime.</summary>

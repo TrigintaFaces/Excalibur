@@ -51,43 +51,43 @@ internal sealed partial class DefaultContextValidator(
 		var details = new Dictionary<string, object?>(StringComparer.Ordinal);
 
 		// Validate required fields
-		if (_options.ValidateRequiredFields)
+		if (_options.Checks.ValidateRequiredFields)
 		{
 			ValidateRequiredFields(context, missingFields, corruptedFields, details);
 		}
 
 		// Validate multi-tenancy fields if enabled
-		if (_options.ValidateMultiTenancy && message is ITenantAware)
+		if (_options.Checks.ValidateMultiTenancy && message is ITenantAware)
 		{
 			ValidateMultiTenancyFields(context, missingFields, corruptedFields, details);
 		}
 
 		// Validate authentication fields if enabled
-		if (_options.ValidateAuthentication)
+		if (_options.Checks.ValidateAuthentication)
 		{
 			ValidateAuthenticationFields(context, missingFields, corruptedFields, details);
 		}
 
 		// Validate distributed tracing context if enabled
-		if (_options.ValidateTracing)
+		if (_options.Checks.ValidateTracing)
 		{
 			ValidateTracingContext(context, missingFields, corruptedFields, details);
 		}
 
 		// Validate message versioning if enabled
-		if (_options.ValidateVersioning)
+		if (_options.Checks.ValidateVersioning)
 		{
 			ValidateVersioning(context, missingFields, corruptedFields, details);
 		}
 
 		// Validate collection integrity if enabled
-		if (_options.ValidateCollections)
+		if (_options.Checks.ValidateCollections)
 		{
 			ValidateCollections(context, corruptedFields, details);
 		}
 
 		// Validate correlation chain if enabled
-		if (_options.ValidateCorrelationChain)
+		if (_options.Checks.ValidateCorrelationChain)
 		{
 			ValidateCorrelationChain(context, missingFields, corruptedFields, details);
 		}

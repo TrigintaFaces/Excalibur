@@ -37,7 +37,7 @@ This metapackage bundles:
 - Observability instrumentation (`UseObservability`)
 - **Ambient-scope resolution** (`AddDispatchAmbientScope`) — scoped message handlers (and handlers with
   scoped dependencies such as `IUnitOfWork` / `IDb` / `DbContext`) resolve from, and share state with,
-  the **active request scope**. See ADR-335.
+  the **active request scope**.
 
 ## Scoped handlers
 

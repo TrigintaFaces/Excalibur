@@ -33,7 +33,15 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </remarks>
 internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 {
+	/// <summary>
+	/// The default maximum inbound-payload length (10 MiB) applied when a consumer does not configure
+	/// one. Matches Pub/Sub's own maximum message size so a legitimately-sized message is never rejected.
+	/// </summary>
+	private const int DefaultMaxPayloadBytes = 10 * 1024 * 1024;
+
 	private readonly ISubscriberClientSeam _subscriber;
+	private readonly int? _maxPayloadBytes;
+	private readonly bool _hasDeadLetterPolicy;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -44,13 +52,24 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 	/// <param name="subscriber">The Pub/Sub subscriber client.</param>
 	/// <param name="source">The subscription name this subscriber reads from.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound payload length, in bytes, enforced before the body is materialized;
+	/// <see langword="null"/> opts out of the size limit. Defaults to 10 MiB (Pub/Sub's message ceiling).
+	/// </param>
+	/// <param name="hasDeadLetterPolicy">
+	/// <see langword="true"/> when a native dead-letter topic is configured for the subscription; governs
+	/// how an oversized poison payload is settled (dead-letter/Nack vs drop/Ack). Defaults to
+	/// <see langword="false"/>.
+	/// </param>
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
 		Justification = "Adapter is stored in _subscriber field and lives for the subscriber's lifetime.")]
 	public PubSubTransportSubscriber(
 		SubscriberClient subscriber,
 		string source,
-		ILogger<PubSubTransportSubscriber> logger)
-		: this(CreateAdapter(subscriber), source, logger)
+		ILogger<PubSubTransportSubscriber> logger,
+		int? maxPayloadBytes = DefaultMaxPayloadBytes,
+		bool hasDeadLetterPolicy = false)
+		: this(CreateAdapter(subscriber), source, logger, maxPayloadBytes, hasDeadLetterPolicy)
 	{
 	}
 
@@ -62,11 +81,15 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 	internal PubSubTransportSubscriber(
 		ISubscriberClientSeam subscriber,
 		string source,
-		ILogger<PubSubTransportSubscriber> logger)
+		ILogger<PubSubTransportSubscriber> logger,
+		int? maxPayloadBytes = DefaultMaxPayloadBytes,
+		bool hasDeadLetterPolicy = false)
 	{
 		_subscriber = subscriber ?? throw new ArgumentNullException(nameof(subscriber));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = maxPayloadBytes;
+		_hasDeadLetterPolicy = hasDeadLetterPolicy;
 	}
 
 	private static ISubscriberClientSeam CreateAdapter(SubscriberClient subscriber)
@@ -87,7 +110,23 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 
 		await _subscriber.StartAsync(async (pubsubMessage, ct) =>
 		{
-			var received = ConvertToReceivedMessage(pubsubMessage);
+			TransportReceivedMessage received;
+			try
+			{
+				received = ConvertToReceivedMessage(pubsubMessage);
+			}
+			catch (PayloadTooLargeException ex)
+			{
+				// Oversized poison message: settle via the single shared decision before its body is read.
+				// With a dead-letter policy -> Nack (Pub/Sub routes it to the DLQ after the configured
+				// delivery attempts, preserving a diagnostic copy). Without one -> Ack to DROP it, so a
+				// permanent Nack with nowhere to dead-letter can't loop forever and wedge the subscription.
+				LogPayloadTooLargeRejected(Source, pubsubMessage.Data.Length, ex);
+				return PoisonPayloadSettlement.ShouldDeadLetter(_hasDeadLetterPolicy)
+					? SubscriberClient.Reply.Nack
+					: SubscriberClient.Reply.Ack;
+			}
+
 			LogMessageReceived(received.Id, Source);
 
 			try
@@ -171,8 +210,14 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 		return ValueTask.CompletedTask;
 	}
 
-	private static TransportReceivedMessage ConvertToReceivedMessage(PubsubMessage pubsubMessage)
+	private TransportReceivedMessage ConvertToReceivedMessage(PubsubMessage pubsubMessage)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (pubsubMessage.Data.Memory below). The raw wire length is the ByteString length — no
+		// deserialization needed. Fail-closed: throws PayloadTooLargeException, which the subscribe
+		// loop catches to reject the poison message; never truncated or silently passed.
+		PayloadSizeGuard.EnsureWithinLimit(pubsubMessage.Data.Length, _maxPayloadBytes);
+
 		var attributes = pubsubMessage.Attributes;
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		foreach (var attr in attributes)
@@ -248,4 +293,8 @@ internal sealed partial class PubSubTransportSubscriber : ITransportSubscriber
 	[LoggerMessage(GooglePubSubEventId.TransportSubscriberDisposed, LogLevel.Debug,
 		"Pub/Sub transport subscriber disposed for {Source}")]
 	private partial void LogDisposed(string source);
+
+	[LoggerMessage(GooglePubSubEventId.TransportSubscriberPayloadTooLarge, LogLevel.Warning,
+		"Pub/Sub transport subscriber: rejected an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization (dead-lettered if configured).")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

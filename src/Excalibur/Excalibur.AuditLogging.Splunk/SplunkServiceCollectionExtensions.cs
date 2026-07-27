@@ -7,6 +7,7 @@ using Excalibur.AuditLogging.Splunk;
 using Excalibur.Compliance;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -90,16 +91,20 @@ public static class SplunkServiceCollectionExtensions
 	private static void RegisterSplunkAuditExporterCore(IServiceCollection services)
 	{
 		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SplunkExporterOptions>>(new SplunkExporterOptionsValidator()));
+		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SplunkBatchOptions>, SplunkBatchOptionsValidator>());
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<SplunkConnectionOptions>, SplunkConnectionOptionsValidator>());
 
-		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
+		// Transient-fault retry (formerly hand-rolled in the exporter) is delegated to the standard
+		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience); the pipeline owns
+		// timeouts, so the HttpClient timeout is left infinite.
+		var httpClientBuilder = services.AddHttpClient<SplunkAuditExporter>(static (_, client) =>
 			{
-				var options = sp.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
-				client.Timeout = options.Batch.RequestTimeout;
+				client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
 			})
-			.ConfigurePrimaryHttpMessageHandler(sp =>
+			.ConfigurePrimaryHttpMessageHandler(static sp =>
 			{
 				var options = sp.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
 
@@ -112,6 +117,27 @@ public static class SplunkServiceCollectionExtensions
 				}
 
 				return handler;
+			});
+
+		_ = httpClientBuilder.AddStandardResilienceHandler();
+
+		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
+		// batch retry options, so config-bound overrides flow through the DI options system.
+		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+			.Configure<IOptions<SplunkExporterOptions>>(static (resilience, exporterOptions) =>
+			{
+				var batch = exporterOptions.Value.Batch;
+
+				resilience.Retry.MaxRetryAttempts = batch.MaxRetryAttempts;
+				resilience.Retry.Delay = batch.RetryBaseDelay;
+				resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+
+				// Preserve the configured per-request timeout as the per-attempt timeout; the total-request
+				// timeout must accommodate every attempt, and the breaker sampling window must be at least
+				// twice the attempt timeout (standard-handler validation invariants).
+				resilience.AttemptTimeout.Timeout = batch.RequestTimeout;
+				resilience.TotalRequestTimeout.Timeout = batch.RequestTimeout * (batch.MaxRetryAttempts + 1);
+				resilience.CircuitBreaker.SamplingDuration = batch.RequestTimeout * 2;
 			});
 
 		services.TryAddSingleton<IAuditLogExporter, SplunkAuditExporter>();

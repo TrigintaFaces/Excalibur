@@ -36,7 +36,9 @@ public abstract class HostTestBase<TFixture> : IClassFixture<TFixture>, IAsyncLi
 #pragma warning disable CA2214
 		ConfigureHostServices(builder, fixture);
 
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		TestHost = builder.StartAlbaAsync(ConfigureHostApplication).GetAwaiter().GetResult();
+		#pragma warning restore RS0030
 #pragma warning restore CA2214
 	}
 

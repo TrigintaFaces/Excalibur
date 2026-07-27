@@ -7,6 +7,7 @@ using Excalibur.Data.ElasticSearch.Security;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -31,6 +32,8 @@ public static class ElasticsearchSecurityServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchSecurityOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchSecurityOptions>, ElasticsearchSecurityOptionsValidator>());
 
 		services.TryAddSingleton<IElasticsearchSecurityProvider, DefaultElasticsearchSecurityProvider>();
 		services.TryAddSingleton<SecurityPolicyEngine>();
@@ -59,6 +62,8 @@ public static class ElasticsearchSecurityServiceCollectionExtensions
 		_ = services.AddOptions<ElasticsearchSecurityOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticsearchSecurityOptions>, ElasticsearchSecurityOptionsValidator>());
 
 		services.TryAddSingleton<IElasticsearchSecurityProvider, DefaultElasticsearchSecurityProvider>();
 		services.TryAddSingleton<SecurityPolicyEngine>();

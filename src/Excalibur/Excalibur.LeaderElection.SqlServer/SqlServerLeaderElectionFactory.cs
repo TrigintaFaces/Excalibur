@@ -32,7 +32,7 @@ public sealed class SqlServerLeaderElectionFactory : ILeaderElectionFactory
 	/// the consumer. These are honored by every election this factory creates.
 	/// </param>
 	/// <param name="failureClassifier">
-	/// An optional <see cref="IMessageFailureClassifier"/> (ot72w3) propagated to every election this
+	/// An optional <see cref="IMessageFailureClassifier"/> propagated to every election this
 	/// factory creates, enabling accelerated self-demotion on definitively-permanent renewal faults.
 	/// Defaults to <see langword="null"/> (grace-only behavior).
 	/// </param>
@@ -71,14 +71,16 @@ public sealed class SqlServerLeaderElectionFactory : ILeaderElectionFactory
 
 		var electionOptions = ResolveOptions(_options, candidateId);
 
-		var healthOptions = new SqlServerHealthBasedLeaderElectionOptions();
+		var healthOptions = new SqlServerHealthBasedLeaderElectionOptions
+		{
+			ConnectionString = _connectionString,
+			LockResource = resourceName,
+		};
 
 		var logger = _loggerFactory.CreateLogger<SqlServerHealthBasedLeaderElection>();
 		var innerLogger = _loggerFactory.CreateLogger<SqlServerLeaderElection>();
 
 		return new SqlServerHealthBasedLeaderElection(
-			_connectionString,
-			resourceName,
 			electionOptions,
 			Options.Create(healthOptions),
 			logger,

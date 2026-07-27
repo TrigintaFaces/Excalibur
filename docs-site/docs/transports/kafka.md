@@ -165,7 +165,7 @@ services.AddKafkaTransport(kafka =>
 Alternatively, use the standalone extension method:
 
 ```csharp
-services.UseCloudEventsForKafka(options =>
+services.AddCloudEventsForKafka(options =>
 {
     options.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
     options.AcknowledgmentLevel = KafkaAckLevel.All;

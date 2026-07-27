@@ -5,3 +5,4 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Excalibur.EventSourcing.SqlServer.Tests")]
 [assembly: InternalsVisibleTo("Excalibur.EventSourcing.Tests")]
+[assembly: InternalsVisibleTo("Excalibur.Integration.Tests")]

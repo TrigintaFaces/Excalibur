@@ -12,11 +12,34 @@ description: Excalibur is a high-performance .NET framework for messaging, event
 
 | Signal | Value |
 |--------|-------|
-| **Automated Tests** | 44,000+ (unit, integration, conformance, performance) |
-| **Packages** | 119 NuGet packages across 6 families |
+| **Automated Tests** | 55,000+ (unit, integration, conformance, performance) |
+| **Packages** | 197 NuGet packages across 6 families |
 | **CI Pipeline** | 10 sharded test stages, governance gates, conformance suites |
 | **API Stability** | PublicAPI analyzer tracking on every package |
 | **Target Framework** | .NET 10.0 |
+
+## Tamper-Evident Audit Trails
+
+Compliance-grade audit stores (SQL Server, PostgreSQL) **hash-chain** every audit event — each record is cryptographically linked to the one before it — so the trail is *verifiable*, not merely stored. A single altered, inserted, or deleted record breaks the chain and is detected, with the exact offending event pinpointed. One call verifies an entire time range:
+
+```csharp
+using Excalibur.Compliance;
+
+// Verify the audit trail for the last 30 days has not been tampered with.
+public static async Task<bool> IsAuditTrailIntactAsync(IAuditQuery audit, CancellationToken ct)
+{
+    AuditIntegrityResult result = await audit.VerifyChainIntegrityAsync(
+        startDate: DateTimeOffset.UtcNow.AddDays(-30),
+        endDate: DateTimeOffset.UtcNow,
+        cancellationToken: ct);
+
+    // result.EventsVerified were checked; if the chain is broken,
+    // result.FirstViolationEventId and result.ViolationDescription pinpoint it.
+    return result.IsValid;
+}
+```
+
+Audit events also stream to SIEM and observability sinks — AWS, Datadog, Elasticsearch, Google Cloud, OpenSearch, Microsoft Sentinel, and Splunk — for search and alerting (these are write-only projections, not compliance stores). See **[Audit Logging](compliance/audit-logging)** for the compliance boundary, setup, and the full backend list.
 
 ## What Excalibur.Dispatch Does
 
@@ -58,10 +81,20 @@ If you're familiar with MediatR, you'll feel right at home. Here's how concepts 
 
 **Key improvements over MediatR (all included in `Excalibur.Dispatch`):**
 
-- Built-in result types with error handling
+- **Results carry to the HTTP edge, no boilerplate** — a handler returns a railway-style `IMessageResult`, and `.ToHttpResult()` maps it to the correct response automatically: **403** when authorization failed, **400** when validation failed, `ProblemDetails` (with its status) for structured errors, **500** for unstructured failures, and **200 / 202 / 201 / 204** on success. With MediatR you hand-write that mapping in every endpoint.
+- **Pluggable AuthN/AuthZ/Audit, fail-closed by default** — authorization speaks native ASP.NET Core `[Authorize]` / `AuthorizationHandler`, and denies when the decision is missing rather than falling open.
 - Automatic context propagation for distributed tracing
 - Multi-transport routing support
 - Performance optimizations for high-throughput scenarios
+
+```csharp
+// A handler returns a result; the endpoint maps it to the right HTTP status with one call.
+app.MapPost("/orders", async (CreateOrderRequest req, IDispatcher dispatcher, CancellationToken ct) =>
+{
+    var result = await dispatcher.DispatchAsync(new CreateOrderAction(req.CustomerId, req.Items), ct);
+    return result.ToHttpResult(); // 202 on success; 403/400/ProblemDetails/500 on failure — no manual mapping
+});
+```
 
 ## Quick Start
 

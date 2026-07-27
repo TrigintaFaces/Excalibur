@@ -493,6 +493,9 @@ public static class GooglePubSubEventId
 	/// <summary>Transport receiver: disposed.</summary>
 	public const int TransportReceiverDisposed = 23917;
 
+	/// <summary>Transport receiver: oversized inbound payload rejected before materialization.</summary>
+	public const int TransportReceiverPayloadTooLarge = 23918;
+
 	// ========================================
 	// 23920-23927: ITransportSubscriber
 	// ========================================
@@ -521,7 +524,10 @@ public static class GooglePubSubEventId
 	/// <summary>Transport subscriber: disposed.</summary>
 	public const int TransportSubscriberDisposed = 23927;
 
-	/// <summary>Subscription delivery-guarantee configuration validated at startup (abyfxr).</summary>
+	/// <summary>Transport subscriber: oversized inbound payload rejected before materialization.</summary>
+	public const int TransportSubscriberPayloadTooLarge = 23929;
+
+	/// <summary>Subscription delivery-guarantee configuration validated at startup.</summary>
 	public const int SubscriptionConfigValidated = 23930;
 
 	/// <summary>Dead letter policy auto-applied to a subscription at startup.</summary>

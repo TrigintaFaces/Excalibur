@@ -10,6 +10,7 @@ using Excalibur.Data.ElasticSearch;
 namespace Excalibur.Data.ElasticSearch.Tests.ElasticSearch;
 
 [UnitTest]
+[Trait("Component", "Elasticsearch")]
 public sealed class ElasticIndexMappingBuilderShould
 {
 	// ─── Tier 1: Explicit mapping via IElasticIndexConfiguration ─────────

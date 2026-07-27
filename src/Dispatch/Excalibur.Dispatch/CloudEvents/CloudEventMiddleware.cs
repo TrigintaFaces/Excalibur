@@ -170,23 +170,41 @@ public sealed partial class CloudEventMiddleware(
 			return false;
 		}
 
-		// Schema validation if registry is available
-		if (schemaRegistry != null && _options.Schema.ValidateSchema)
+		// Schema validation. Requested validation must NEVER rubber-stamp: if the payload cannot actually
+		// be validated against a schema, fail closed (reject/throw) rather than silently pass — a
+		// validation gate that always returns "valid" is a false sense of validation.
+		if (_options.Schema.ValidateSchema)
 		{
-			var schemaVersion = cloudEvent.GetSchemaVersion();
-			if (!string.IsNullOrEmpty(schemaVersion))
+			if (schemaRegistry is null)
 			{
-				var schema = await schemaRegistry.GetSchemaAsync(cloudEvent.Type, schemaVersion, cancellationToken).ConfigureAwait(false);
-				if (schema == null)
-				{
-					LogSchemaNotFound(cloudEvent.Type, schemaVersion);
-					return !_options.Schema.ValidateSchema;
-				}
-
-				// Schema validation implementation depends on the specific registry provider Core validation is delegated to the schema
-				// registry implementation
-				LogSchemaValidated(cloudEvent.Type, schemaVersion);
+				throw new InvalidOperationException(
+					"CloudEventOptions.Schema.ValidateSchema is enabled but no ISchemaRegistry is registered. " +
+					"Register a schema registry or disable ValidateSchema; the middleware refuses to pass unvalidated events.");
 			}
+
+			var schemaVersion = cloudEvent.GetSchemaVersion();
+			if (string.IsNullOrEmpty(schemaVersion))
+			{
+				// Validation requested but the event carries no schema version -> cannot resolve a schema -> reject.
+				LogSchemaNotFound(cloudEvent.Type, "(none)");
+				return false;
+			}
+
+			var schema = await schemaRegistry.GetSchemaAsync(cloudEvent.Type, schemaVersion, cancellationToken).ConfigureAwait(false);
+			if (schema is null)
+			{
+				// No schema registered for this type/version -> cannot validate -> reject (do not pass).
+				LogSchemaNotFound(cloudEvent.Type, schemaVersion);
+				return false;
+			}
+
+			// A schema was resolved, but structural payload-against-schema validation is not yet
+			// implemented (it requires a JSON-Schema validator, tracked as a follow-up). Fail closed
+			// rather than pretend the payload conforms.
+			throw new NotSupportedException(
+				"CloudEvent schema-payload validation is not yet implemented. Do not enable " +
+				"CloudEventOptions.Schema.ValidateSchema until a schema-validation provider is available; " +
+				"the middleware refuses to rubber-stamp events as valid.");
 		}
 
 		// Custom validation

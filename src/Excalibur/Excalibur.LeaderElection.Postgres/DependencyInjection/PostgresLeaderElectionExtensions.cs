@@ -104,6 +104,13 @@ public static class PostgresLeaderElectionExtensions
 		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("postgres"));
 
+		// Also register unkeyed. Consumers of a single leader election resolve ILeaderElection directly —
+		// including the outbox leader gate — and a keyed registration does not satisfy an unkeyed request.
+		// Without this, a host that registers leader election here resolves nothing and drains unfenced.
+		// TryAdd, so a consumer's own unkeyed registration still wins.
+		services.TryAddSingleton<ILeaderElection>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElection>("default"));
+
 		return services;
 	}
 }

@@ -15,8 +15,6 @@ internal sealed class RoleModified : IDomainEvent
 	public string? Description { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => RoleId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(RoleModified);
 	public IDictionary<string, object>? Metadata { get; init; }

@@ -5,11 +5,13 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.Dispatch.Caching;
 
 /// <summary>
 /// AOT-safe registry that maps message types to their <see cref="IResultCachePolicy{TMessage}"/> delegates.
-/// Populated at DI composition time via <see cref="CachePolicyRegistryPopulator"/>, eliminating the need
+/// Populated at DI composition time via <c>CachePolicyRegistryPopulator</c>, eliminating the need
 /// for <see cref="Type.MakeGenericType"/> at runtime.
 /// </summary>
 /// <remarks>
@@ -17,7 +19,7 @@ namespace Excalibur.Dispatch.Caching;
 /// This follows the Explicit-Generic-DI Registry pattern established in Excalibur.Saga.
 /// During DI composition, each <c>AddCachePolicy&lt;TMessage, TPolicy&gt;()</c> call accumulates a
 /// typed registration action. On first <see cref="Microsoft.Extensions.Options.IOptions{TOptions}"/>
-/// resolution, the <see cref="CachePolicyRegistryPopulator"/> drains the accumulated actions and
+/// resolution, the <c>CachePolicyRegistryPopulator</c> drains the accumulated actions and
 /// freezes the registry.
 /// </para>
 /// </remarks>

@@ -115,7 +115,7 @@ public static class CdcBuilderFirestoreExtensions
 	/// <see cref="IFirestoreCdcBuilder.WithStateStore(Action{ICdcStateStoreBuilder})"/>
 	/// support for configuring a separate Firestore project for state persistence.
 	/// Firestore uses project IDs instead of connection strings;
-	/// use <see cref="ICdcStateStoreBuilder.ConnectionString(string)"/> to set the project ID.
+	/// use <c>ConnectionString</c> to set the project ID.
 	/// </para>
 	/// </remarks>
 	/// <example>

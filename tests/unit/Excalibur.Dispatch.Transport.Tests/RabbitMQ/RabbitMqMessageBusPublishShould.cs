@@ -62,7 +62,7 @@ public sealed class RabbitMqMessageBusPublishShould : UnitTestBase
 						A<RabbitMqBasicProperties>._,
 						A<ReadOnlyMemory<byte>>._,
 						A<CancellationToken>._))
-				.Invokes(call =>
+				.ReturnsLazily(call =>
 				{
 					var props = call.Arguments.Get<RabbitMqBasicProperties>(3);
 					var body = call.Arguments.Get<ReadOnlyMemory<byte>>(4);
@@ -76,9 +76,14 @@ public sealed class RabbitMqMessageBusPublishShould : UnitTestBase
 									body: body,
 									cancellationToken: CancellationToken.None);
 
-					returnHandler?.Invoke(channel, args).GetAwaiter().GetResult();
-				})
-				.Returns(ValueTask.CompletedTask);
+					// Simulate the broker firing BasicReturn during publish and honor the async handler as
+					// part of the publish's own completion. Awaiting it (rather than blocking on it via
+					// GetAwaiter().GetResult()) is what lets the single-threaded test config drain the
+					// handler's continuation instead of self-deadlocking the bus's publish (jetk8q).
+					return returnHandler is null
+						? ValueTask.CompletedTask
+						: new ValueTask(returnHandler.Invoke(channel, args));
+				});
 
 		var bus = new RabbitMqMessageBus(
 				channel,

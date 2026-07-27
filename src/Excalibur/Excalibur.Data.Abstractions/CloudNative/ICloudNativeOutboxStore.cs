@@ -144,6 +144,12 @@ public sealed record CloudOutboxMessage
 	public string? TenantId { get; init; }
 
 	/// <summary>
+	/// Gets the delivery destination this message is routed to, preserving the routing target through the
+	/// cloud-native outbox round-trip rather than dropping it on the stage-then-reload path.
+	/// </summary>
+	public string? Destination { get; init; }
+
+	/// <summary>
 	/// Gets when the message was created.
 	/// </summary>
 	public required DateTimeOffset CreatedAt { get; init; }

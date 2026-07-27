@@ -53,6 +53,7 @@ public sealed class ErasureServiceExecutionShould
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService);
 	}
@@ -518,6 +519,7 @@ public sealed class ErasureServiceExecutionShould
 			_keyAdmin,
 			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null,
 			null);
 
@@ -577,8 +579,8 @@ public sealed class ErasureServiceExecutionShould
 	public void HashDataSubjectId_ReturnsDeterministicHash()
 	{
 		// Act
-		var hash1 = ErasureService.HashDataSubjectId("user@example.com");
-		var hash2 = ErasureService.HashDataSubjectId("user@example.com");
+		var hash1 = TestDataSubjectHasher.Instance.HashDataSubjectId("user@example.com");
+		var hash2 = TestDataSubjectHasher.Instance.HashDataSubjectId("user@example.com");
 
 		// Assert
 		hash1.ShouldBe(hash2);
@@ -589,8 +591,8 @@ public sealed class ErasureServiceExecutionShould
 	public void HashDataSubjectId_ReturnsDifferentHash_ForDifferentInputs()
 	{
 		// Act
-		var hash1 = ErasureService.HashDataSubjectId("user1@example.com");
-		var hash2 = ErasureService.HashDataSubjectId("user2@example.com");
+		var hash1 = TestDataSubjectHasher.Instance.HashDataSubjectId("user1@example.com");
+		var hash2 = TestDataSubjectHasher.Instance.HashDataSubjectId("user2@example.com");
 
 		// Assert
 		hash1.ShouldNotBe(hash2);

@@ -62,7 +62,6 @@ Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.ReadChangesAsync(Sys
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.SubscriptionId.get -> string!
-Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.Client(Amazon.DynamoDBv2.IAmazonDynamoDB! client) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
@@ -71,4 +70,5 @@ Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.Region(Amazon.RegionEndpoint! r
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.ServiceUrl(string! serviceUrl) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.TableName(string! tableName) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
 Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder.TablePrefix(string! prefix) -> Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!
+Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.DynamoDb.IDynamoDBOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

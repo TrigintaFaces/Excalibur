@@ -40,4 +40,14 @@ public interface IPipelineProfileRegistry
 	/// </summary>
 	/// <param name="profileName"> The name of the profile to set as default. </param>
 	void SetDefaultProfile(string profileName);
+
+	/// <summary>
+	/// Gets the name of the default pipeline profile — the one selected when no profile is explicitly
+	/// specified for a message.
+	/// </summary>
+	/// <returns>
+	/// The configured default profile name (set via <see cref="SetDefaultProfile"/>), or the built-in
+	/// default profile when none has been configured, or <see langword="null"/> when no default exists.
+	/// </returns>
+	string? GetDefaultProfileName();
 }

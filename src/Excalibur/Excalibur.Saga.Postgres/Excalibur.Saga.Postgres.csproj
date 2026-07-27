@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -37,5 +37,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Shipped schema: a consumer cannot obtain this DDL unless it is packed, and the
+         framework does not auto-create tables. Glob matches where the .sql actually lives. -->
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
 </Project>

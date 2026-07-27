@@ -5,6 +5,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
+using Excalibur.Dispatch.Messaging;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Delivery;

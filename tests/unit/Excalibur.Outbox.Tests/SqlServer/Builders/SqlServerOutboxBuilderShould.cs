@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
@@ -140,7 +140,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.SchemaName.ShouldBe("Messaging");
+		options.Value.Tables.SchemaName.ShouldBe("Messaging");
 	}
 
 	[Fact]
@@ -162,7 +162,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.OutboxTableName.ShouldBe("CustomOutbox");
+		options.Value.Tables.OutboxTableName.ShouldBe("CustomOutbox");
 	}
 
 	[Fact]
@@ -184,7 +184,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.TransportsTableName.ShouldBe("CustomTransports");
+		options.Value.Tables.TransportsTableName.ShouldBe("CustomTransports");
 	}
 
 	[Fact]
@@ -206,7 +206,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.DeadLetterTableName.ShouldBe("CustomDeadLetters");
+		options.Value.Tables.DeadLetterTableName.ShouldBe("CustomDeadLetters");
 	}
 
 	[Fact]
@@ -229,7 +229,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.CommandTimeoutSeconds.ShouldBe(60);
+		options.Value.Processing.CommandTimeoutSeconds.ShouldBe(60);
 	}
 
 	[Fact]
@@ -251,7 +251,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.UseRowLocking.ShouldBeFalse();
+		options.Value.Processing.UseRowLocking.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -273,7 +273,7 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		options.Value.DefaultBatchSize.ShouldBe(500);
+		options.Value.Processing.DefaultBatchSize.ShouldBe(500);
 	}
 
 	[Fact]
@@ -302,13 +302,13 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
 		options.Value.ConnectionString.ShouldBe(TestConnectionString);
-		options.Value.SchemaName.ShouldBe("Outbox");
-		options.Value.OutboxTableName.ShouldBe("Messages");
-		options.Value.TransportsTableName.ShouldBe("MessageTransports");
-		options.Value.DeadLetterTableName.ShouldBe("DeadLetters");
-		options.Value.CommandTimeoutSeconds.ShouldBe(45);
-		options.Value.UseRowLocking.ShouldBeTrue();
-		options.Value.DefaultBatchSize.ShouldBe(200);
+		options.Value.Tables.SchemaName.ShouldBe("Outbox");
+		options.Value.Tables.OutboxTableName.ShouldBe("Messages");
+		options.Value.Tables.TransportsTableName.ShouldBe("MessageTransports");
+		options.Value.Tables.DeadLetterTableName.ShouldBe("DeadLetters");
+		options.Value.Processing.CommandTimeoutSeconds.ShouldBe(45);
+		options.Value.Processing.UseRowLocking.ShouldBeTrue();
+		options.Value.Processing.DefaultBatchSize.ShouldBe(200);
 	}
 
 	[Fact]
@@ -327,21 +327,18 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 					   .SchemaName("Messaging");
 				})
 				.WithProcessing(p => p.BatchSize(150).PollingInterval(TimeSpan.FromSeconds(10)))
-				.WithCleanup(c => c.EnableAutoCleanup(true).RetentionPeriod(TimeSpan.FromDays(14)))
 				.EnableBackgroundProcessing();
 		});
 		var provider = services.BuildServiceProvider();
 
 		// Assert - SQL Server options
 		var sqlOptions = provider.GetRequiredService<IOptions<SqlServerOutboxOptions>>();
-		sqlOptions.Value.SchemaName.ShouldBe("Messaging");
+		sqlOptions.Value.Tables.SchemaName.ShouldBe("Messaging");
 
 		// Assert - Core outbox options
 		var outboxOptions = provider.GetRequiredService<OutboxOptions>();
 		outboxOptions.BatchSize.ShouldBe(150);
 		outboxOptions.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		outboxOptions.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
-		outboxOptions.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
 		outboxOptions.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 }

@@ -184,6 +184,27 @@ public sealed class DataRequestBaseShould
 	}
 
 	/// <summary>
+	/// pq8ezz (§2): CreateCommand must thread the caller's <see cref="CancellationToken"/> into the
+	/// <see cref="CommandDefinition"/> so Dapper honors cancellation on its async execution paths.
+	/// Non-vacuous: RED on the pre-fix <c>_ = cancellationToken;</c> discard (the command carried
+	/// <see cref="CancellationToken.None"/> regardless of the caller's token).
+	/// </summary>
+	[Fact]
+	public void ThreadTheCancellationTokenIntoTheCommand()
+	{
+		// Arrange
+		var request = new TestDataRequestWithCommand();
+		using var cts = new CancellationTokenSource();
+		var token = cts.Token;
+
+		// Act
+		var command = request.PublicCreateCommand("SELECT 1", cancellationToken: token);
+
+		// Assert — the exact caller token is carried by the command (RED on the discard).
+		command.CancellationToken.ShouldBe(token);
+	}
+
+	/// <summary>
 	/// AC6 (additional): CreateCommand validates commandText is not null or whitespace.
 	/// </summary>
 	[Fact]

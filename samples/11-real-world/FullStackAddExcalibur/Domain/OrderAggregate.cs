@@ -111,14 +111,16 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case OrderCreated e: Apply(e); break;
-			case OrderLineItemAdded e: Apply(e); break;
-			case OrderShipped: Status = OrderStatus.Shipped; break;
-			case OrderCancelled: Status = OrderStatus.Cancelled; break;
+			case OrderCreated e: Apply(e); return true;
+			case OrderLineItemAdded e: Apply(e); return true;
+			case OrderShipped: Status = OrderStatus.Shipped; return true;
+			case OrderCancelled: Status = OrderStatus.Cancelled; return true;
+			default:
+				return false;
 		}
 	}
 

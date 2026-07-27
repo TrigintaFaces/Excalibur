@@ -17,7 +17,12 @@ using Microsoft.Extensions.Hosting;
 //
 // Demonstrates:
 //   1. Inbox pattern  -- Idempotent at-least-once message processing
-//   2. Outbox pattern -- Reliable exactly-once message publishing
+//   2. Outbox pattern -- Reliable at-least-once message publishing
+//
+// Delivery is at-least-once, NOT exactly-once: a crash or retry between
+// publishing and marking a message sent can deliver it more than once.
+// That is what the Inbox half of this sample is for -- consumers
+// deduplicate on receipt, and handlers must be idempotent.
 //
 // Both patterns use Elasticsearch as the backing store.
 //
@@ -145,6 +150,8 @@ Console.WriteLine($"   Staged message '{secondMessage.Id}' -> destination: {seco
 
 // Step 3: Retrieve unsent messages (simulating the background processor)
 Console.WriteLine("3. Retrieving unsent messages (batch size=10)...");
+// This walkthrough drains from a single process, so no leadership tenure applies and no fencing token is presented.
+// State it rather than default it: under leader election, pass the token so a superseded leader's drain is rejected.
 var unsentMessages = await outboxStore.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
 var unsentList = unsentMessages.ToList();
 Console.WriteLine($"   Found {unsentList.Count} unsent message(s).");
@@ -165,7 +172,7 @@ Console.WriteLine($"   {outboxStats}");
 
 // Step 6: Clean up old sent messages
 Console.WriteLine("6. Cleaning up sent messages older than 1 hour...");
-var cleaned = await outboxStore.CleanupSentMessagesAsync(
+var cleaned = await outboxStore.CleanupAllTenantsSentMessagesAsync(
     DateTimeOffset.UtcNow.AddHours(-1), batchSize: 100, CancellationToken.None).ConfigureAwait(false);
 Console.WriteLine($"   Cleaned up {cleaned} message(s).");
 

@@ -143,13 +143,19 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		var sagaInfo = new SagaInfo(typeof(TestSaga), typeof(TestSagaState));
 		sagaInfo.StartsWith<TestStartEvent>();
 
+		// No saga exists yet — the store returns null on the pre-load, so a fresh state is created.
+		A.CallTo(() => _sagaStore.LoadAsync<TestSagaState>(sagaId, A<CancellationToken>._))
+			.Returns((TestSagaState?)null);
+
 		// Act
 		await _sut.HandleEventInternalAsync<TestSaga, TestSagaState>(
 			messageContext, evt, sagaInfo, CancellationToken.None);
 
-		// Assert - state should be saved (not loaded since it's a start event)
-		A.CallTo(() => _sagaStore.LoadAsync<TestSagaState>(A<Guid>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
+		// Assert - a start event now consults the store first so a replayed start event for an
+		// already-existing saga is deduped (idempotent-replay guard) instead of colliding on save. When
+		// no saga exists (the fake returns null), a fresh state is created and saved.
+		A.CallTo(() => _sagaStore.LoadAsync<TestSagaState>(sagaId, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _sagaStore.SaveAsync(A<TestSagaState>.That.Matches(s => s.SagaId == sagaId), A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}

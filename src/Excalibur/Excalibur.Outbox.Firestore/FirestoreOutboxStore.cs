@@ -21,7 +21,7 @@ namespace Excalibur.Outbox.Firestore;
 /// <summary>
 /// Google Cloud Firestore implementation of the cloud-native outbox store.
 /// </summary>
-public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsyncDisposable
+public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, ICloudNativeOutboxStoreBatch, IAsyncDisposable
 {
 	private static readonly JsonSerializerOptions JsonOptions = new()
 	{
@@ -627,6 +627,11 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			doc["tenantId"] = message.TenantId;
 		}
 
+		if (!string.IsNullOrEmpty(message.Destination))
+		{
+			doc["destination"] = message.Destination;
+		}
+
 		if (message.PublishedAt.HasValue)
 		{
 			doc["publishedAt"] = message.PublishedAt.Value.ToString("o");
@@ -657,6 +662,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IAsy
 			CorrelationId = doc.ContainsField("correlationId") ? doc.GetValue<string?>("correlationId") : null,
 			CausationId = doc.ContainsField("causationId") ? doc.GetValue<string?>("causationId") : null,
 			TenantId = doc.ContainsField("tenantId") ? doc.GetValue<string?>("tenantId") : null,
+			Destination = doc.ContainsField("destination") ? doc.GetValue<string?>("destination") : null,
 			CreatedAt = DateTimeOffset.Parse(doc.GetValue<string>("createdAt"), CultureInfo.InvariantCulture),
 			PublishedAt = doc.ContainsField("publishedAt") && doc.GetValue<string?>("publishedAt") != null
 				? DateTimeOffset.Parse(doc.GetValue<string>("publishedAt"), CultureInfo.InvariantCulture)

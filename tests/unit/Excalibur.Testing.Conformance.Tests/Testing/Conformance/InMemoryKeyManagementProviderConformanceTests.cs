@@ -139,6 +139,18 @@ public sealed class InMemoryKeyManagementProviderConformanceTests : KeyManagemen
 
 	#endregion SuspendKey Tests
 
+	#region ReactivateKey Tests
+
+	[Fact]
+	public Task ReactivateKeyAsync_NonExistent_ShouldReturnFalse_Test() =>
+		ReactivateKeyAsync_NonExistent_ShouldReturnFalse();
+
+	[Fact]
+	public Task ReactivateKeyAsync_SuspendedKey_ShouldRestoreToActive_Test() =>
+		ReactivateKeyAsync_SuspendedKey_ShouldRestoreToActive();
+
+	#endregion ReactivateKey Tests
+
 	#region GetActiveKey Tests
 
 	[Fact]

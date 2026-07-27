@@ -104,6 +104,18 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		var builder = new AzureServiceBusTransportBuilder(transportOptions);
 		configure(builder);
 
+		// Fail fast on an invalid payload-size limit. MaxPayloadBytes lives on the builder-time
+		// Processor options and is read directly at receiver construction, so its [Range] attribute is
+		// never exercised by the ValidateOnStart pipeline. A zero/negative limit would silently reject
+		// (dead-letter) every message; catch it here at registration instead of at runtime.
+		if (transportOptions.Processor.MaxPayloadBytes is < 1)
+		{
+			throw new ArgumentException(
+				"AzureServiceBusProcessorOptions.MaxPayloadBytes must be at least 1 byte when specified. " +
+				"Set it to null to opt out of the payload-size limit.",
+				nameof(configure));
+		}
+
 		// Register core Azure Service Bus services
 		RegisterAzureServiceBusServices(services, transportOptions);
 
@@ -269,6 +281,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			AzureServiceBusTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<AzureServiceBusTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
@@ -292,14 +305,20 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		string name,
 		AzureServiceBusTransportOptions transportOptions)
 	{
-		var entityName = transportOptions.Sender.DefaultEntityName ?? name;
+		// The sender publishes to its own entity; the receiver/session consume the PROCESSOR's entity
+		// when one is configured, so a send/receive entity split is honored. Falling back to the
+		// sender entity (then the transport name) preserves the symmetric single-entity convention.
+		var senderEntityName = transportOptions.Sender.DefaultEntityName ?? name;
+		var receiveEntityName = transportOptions.Processor.DefaultEntityName
+			?? transportOptions.Sender.DefaultEntityName
+			?? name;
 
 		services.TryAddKeyedSingleton<ITransportSender>(name, (sp, _) =>
 		{
 			var client = sp.GetRequiredService<ServiceBusClient>();
-			var sender = client.CreateSender(entityName);
+			var sender = client.CreateSender(senderEntityName);
 			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportSender>>();
-			return new ServiceBusTransportSender(sender, entityName, logger);
+			return new ServiceBusTransportSender(sender, senderEntityName, logger);
 		});
 
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
@@ -319,13 +338,14 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 					ReceiveMode = transportOptions.Processor.ReceiveMode,
 				};
 				return new ServiceBusTransportReceiver(
-					new ServiceBusSessionReceiverSeam(client, entityName, sessionOptions, logger),
-					entityName,
-					logger);
+					new ServiceBusSessionReceiverSeam(client, receiveEntityName, sessionOptions, logger),
+					receiveEntityName,
+					logger,
+					transportOptions.Processor.MaxPayloadBytes);
 			}
 
-			var receiver = client.CreateReceiver(entityName);
-			return new ServiceBusTransportReceiver(receiver, entityName, logger);
+			var receiver = client.CreateReceiver(receiveEntityName);
+			return new ServiceBusTransportReceiver(receiver, receiveEntityName, logger, transportOptions.Processor.MaxPayloadBytes);
 		});
 	}
 
@@ -340,10 +360,14 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var client = sp.GetRequiredService<ServiceBusClient>();
-			var entityName = transportOptions.Sender.DefaultEntityName ?? name;
+			// Subscriber consumes the processor's entity when configured (send/receive split),
+			// falling back to the sender entity then the transport name.
+			var entityName = transportOptions.Processor.DefaultEntityName
+				?? transportOptions.Sender.DefaultEntityName
+				?? name;
 			var processor = client.CreateProcessor(entityName, BuildProcessorOptions(transportOptions.Processor));
 			var logger = sp.GetRequiredService<ILogger<ServiceBusTransportSubscriber>>();
-			var nativeSubscriber = new ServiceBusTransportSubscriber(processor, entityName, logger);
+			var nativeSubscriber = new ServiceBusTransportSubscriber(processor, entityName, logger, transportOptions.Processor.MaxPayloadBytes);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));

@@ -179,6 +179,55 @@ $buildFailed = 0
 $smokePassed = 0
 $smokeFailed = 0
 
+# --- Fast path: one parallel MSBuild over an .slnf filter (certified samples are already in Excalibur.sln).
+# A single `dotnet build -m` shares ONE MSBuild process and builds the shared framework dependency graph
+# ONCE, instead of N cold `dotnet build` processes that each re-restore and re-walk the graph. Measured
+# ~60x faster (serial ~75 min -> single build ~75 s). Falls back to the per-sample loop on ANY non-zero
+# exit, so per-sample failure attribution and the transient-retry path are preserved unchanged. Certified
+# samples NOT present in Excalibur.sln are always built by the per-sample loop below (never skipped).
+$solutionPath = Join-Path $RepoRoot 'Excalibur.sln'
+if ((Test-Path $solutionPath) -and $CertifiedSamples.Count -gt 0) {
+    $slnContent = (Get-Content -Raw $solutionPath).Replace('\', '/')
+    $inSolution = @($CertifiedSamples | Where-Object { $slnContent.Contains($_) })
+    $missingFromSln = @($CertifiedSamples | Where-Object { -not $slnContent.Contains($_) })
+
+    if ($missingFromSln.Count -gt 0) {
+        Write-Host "  NOTE: certified samples absent from Excalibur.sln (built per-sample; reconcile via cicd-sync): $($missingFromSln -join ', ')" -ForegroundColor Yellow
+    }
+
+    if ($inSolution.Count -gt 0) {
+        $slnfPath = Join-Path $RepoRoot 'certified-samples.slnf'
+        ([PSCustomObject]@{ solution = [PSCustomObject]@{ path = 'Excalibur.sln'; projects = $inSolution } } | ConvertTo-Json -Depth 5) | Set-Content -Path $slnfPath -Encoding utf8
+
+        Write-Host "  Fast path: single -m build of $($inSolution.Count) certified samples via certified-samples.slnf... " -NoNewline
+        $slnfArgs = @('build', $slnfPath, '--configuration', $Configuration, '-m', '--verbosity', 'quiet', '--nologo')
+        if ($SkipRestore) { $slnfArgs += '--no-restore' }
+        $slnfOutput = & dotnet @slnfArgs 2>&1
+        $slnfExit = $LASTEXITCODE
+        Remove-Item $slnfPath -ErrorAction SilentlyContinue
+
+        if ($slnfExit -eq 0) {
+            Write-Host 'OK' -ForegroundColor Green
+            foreach ($samplePath in $inSolution) {
+                $buildPassed++
+                $results += [PSCustomObject]@{
+                    Sample = ($samplePath -replace '^samples/', '')
+                    BuildStatus = 'PASS'
+                    SmokeStatus = 'PENDING'
+                    SmokeMode = $smokeByProject[$samplePath].mode
+                    Message = ''
+                }
+            }
+            # Only samples the fast path could NOT cover fall through to the per-sample loop.
+            $CertifiedSamples = $missingFromSln
+        }
+        else {
+            Write-Host 'FALLBACK (per-sample build for attribution)' -ForegroundColor Yellow
+            if ($Detailed) { $slnfOutput | Where-Object { $_ -match 'error' } | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray } }
+        }
+    }
+}
+
 foreach ($samplePath in $CertifiedSamples) {
     $fullPath = Join-Path $RepoRoot $samplePath
     $sampleName = $samplePath -replace '^samples/', ''
@@ -204,8 +253,32 @@ foreach ($samplePath in $CertifiedSamples) {
         $buildArgs += '--no-restore'
     }
 
-    $buildOutput = & dotnet @buildArgs 2>&1
-    $buildExitCode = $LASTEXITCODE
+    # Concurrent builds sharing output/dependency artifacts can produce TRANSIENT failures that
+    # clear on a plain retry: CS2012 (output DLL locked for writing by a parallel build), CS0006
+    # (a referenced metadata/DLL momentarily absent mid-write), and the MSB copy-retry exhaustions
+    # (MSB3021/MSB3027). Retry ONLY on those transients with a short backoff; a genuine compile
+    # error is not retried (it would fail every attempt and just waste time).
+    $transientBuildPattern = 'CS2012|CS0006|MSB3021|MSB3027'
+    $maxBuildAttempts = 3
+    $buildAttempt = 0
+    do {
+        $buildAttempt++
+        $buildOutput = & dotnet @buildArgs 2>&1
+        $buildExitCode = $LASTEXITCODE
+
+        if ($buildExitCode -eq 0) {
+            break
+        }
+
+        $isTransient = [bool]($buildOutput | Select-String -Pattern $transientBuildPattern -Quiet)
+        if ($isTransient -and $buildAttempt -lt $maxBuildAttempts) {
+            Write-Host "retry $buildAttempt/$($maxBuildAttempts - 1) (transient concurrent-build error)... " -NoNewline -ForegroundColor Yellow
+            Start-Sleep -Seconds ($buildAttempt * 2)
+            continue
+        }
+
+        break
+    } while ($buildAttempt -lt $maxBuildAttempts)
 
     if ($buildExitCode -ne 0) {
         Write-Host 'FAIL' -ForegroundColor Red

@@ -62,20 +62,78 @@ public sealed partial class PollyRetryPolicyFactory
 	}
 
 	/// <summary>
-	/// Creates an asynchronous Polly policy based on the provided message bus options.
+	/// Creates a resilience pipeline based on the provided message bus options.
 	/// </summary>
 	/// <param name="busOptions"> The message bus configuration options containing retry settings. </param>
-	/// <returns> An asynchronous Polly policy instance configured with retry, circuit breaker, and timeout behavior. </returns>
-	public IAsyncPolicy Create(MessageBusOptions busOptions)
+	/// <returns> A <see cref="ResiliencePipeline"/> configured with retry, circuit breaker, and timeout behavior. </returns>
+	public ResiliencePipeline Create(MessageBusOptions busOptions)
 	{
 		ArgumentNullException.ThrowIfNull(busOptions);
 
-		var retryPolicy = CreateRetryPolicyInternal(busOptions);
-		var circuitBreakerPolicy = CreateCircuitBreakerPolicy(busOptions);
-		var timeoutPolicy = CreateTimeoutPolicy(busOptions);
+		var name = busOptions.Name ?? "Default";
+		var baseDelay = _options.Backoff.BaseDelay;
 
-		// Combine policies: Timeout wraps Circuit Breaker wraps Retry
-		return Policy.WrapAsync(timeoutPolicy, circuitBreakerPolicy, retryPolicy);
+		// Polly v8 pipeline. Strategies execute outer→inner in the order added, so this preserves the
+		// prior v7 composition: Timeout wraps Circuit Breaker wraps Retry.
+		var builder = new ResiliencePipelineBuilder()
+			.AddTimeout(new TimeoutStrategyOptions
+			{
+				Timeout = _options.Timeout,
+				OnTimeout = args =>
+				{
+					LogOperationTimeout(args.Timeout.TotalSeconds, name);
+					return default;
+				},
+			})
+			.AddCircuitBreaker(new CircuitBreakerStrategyOptions
+			{
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(IsTransientException),
+				FailureRatio = 0.5, // 50% failure rate
+				SamplingDuration = TimeSpan.FromSeconds(10),
+				// Polly v8 requires a minimum throughput of at least 2.
+				MinimumThroughput = Math.Max(2, _options.CircuitBreaker.CircuitBreakerThreshold),
+				BreakDuration = _options.CircuitBreaker.CircuitBreakerDuration,
+				OnOpened = args =>
+				{
+					LogCircuitBreakerOpened(args.BreakDuration.TotalSeconds, name);
+					return default;
+				},
+				OnClosed = _ =>
+				{
+					LogCircuitBreakerReset(name);
+					return default;
+				},
+				OnHalfOpened = _ =>
+				{
+					LogCircuitBreakerHalfOpen(name);
+					return default;
+				},
+			});
+
+		// Add the retry strategy only when retries are configured. Polly v8's RetryStrategyOptions rejects
+		// MaxRetryAttempts < 1, whereas the prior v7 behavior treated 0 as "no retries" — so a 0 setting
+		// means simply omit the retry strategy.
+		if (_options.MaxRetryAttempts > 0)
+		{
+			builder.AddRetry(new RetryStrategyOptions
+			{
+				ShouldHandle = new PredicateBuilder().Handle<Exception>(IsTransientException),
+				MaxRetryAttempts = _options.MaxRetryAttempts,
+				DelayGenerator = args =>
+				{
+					// AttemptNumber is 0-based; matches the prior 2^(retryAttempt-1) exponential curve.
+					var delay = TimeSpan.FromMilliseconds(baseDelay.TotalMilliseconds * Math.Pow(2, args.AttemptNumber));
+					return ValueTask.FromResult<TimeSpan?>(delay);
+				},
+				OnRetry = args =>
+				{
+					LogRetryAttempt(args.AttemptNumber + 1, args.RetryDelay.TotalMilliseconds, name, args.Outcome.Exception);
+					return default;
+				},
+			});
+		}
+
+		return builder.Build();
 	}
 
 	/// <summary>
@@ -111,52 +169,6 @@ public sealed partial class PollyRetryPolicyFactory
 			NotSupportedException => false,
 			_ => true, // Consider all other exceptions as transient by default
 		};
-
-	private AsyncRetryPolicy CreateRetryPolicyInternal(MessageBusOptions busOptions)
-	{
-		var retryCount = _options.MaxRetryAttempts;
-		var delay = _options.Backoff.BaseDelay;
-
-		return Policy
-			.Handle<Exception>(IsTransientException)
-			.WaitAndRetryAsync(
-				retryCount,
-				retryAttempt => TimeSpan.FromMilliseconds(delay.TotalMilliseconds * Math.Pow(2, retryAttempt - 1)),
-				onRetry: (exception, timespan, retryCount, context) => LogRetryAttempt(
-					retryCount,
-					timespan.TotalMilliseconds,
-					busOptions.Name ?? "Default",
-					exception));
-	}
-
-	private AsyncCircuitBreakerPolicy CreateCircuitBreakerPolicy(MessageBusOptions busOptions) =>
-		Policy
-			.Handle<Exception>(IsTransientException)
-			.AdvancedCircuitBreakerAsync(
-				failureThreshold: 0.5, // 50% failure rate
-				samplingDuration: TimeSpan.FromSeconds(10),
-				minimumThroughput: _options.CircuitBreaker.CircuitBreakerThreshold,
-				durationOfBreak: _options.CircuitBreaker.CircuitBreakerDuration,
-				onBreak: (result, state, duration, context) => LogCircuitBreakerOpened(
-					duration.TotalSeconds,
-					busOptions.Name ?? "Default"),
-				onReset: context => LogCircuitBreakerReset(
-					busOptions.Name ?? "Default"),
-				onHalfOpen: () => LogCircuitBreakerHalfOpen(
-					busOptions.Name ?? "Default"));
-
-	private AsyncTimeoutPolicy CreateTimeoutPolicy(MessageBusOptions busOptions) =>
-		Policy.TimeoutAsync(
-			_options.Timeout,
-			TimeoutStrategy.Optimistic,
-			onTimeoutAsync: (context, timespan, task) =>
-			{
-				LogOperationTimeout(
-					timespan.TotalSeconds,
-					busOptions.Name ?? "Default");
-
-				return Task.CompletedTask;
-			});
 
 	// Source-generated logging methods
 	[LoggerMessage(ResilienceEventId.RetryAttemptStarted, LogLevel.Warning,

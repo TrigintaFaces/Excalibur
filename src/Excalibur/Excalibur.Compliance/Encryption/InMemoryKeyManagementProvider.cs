@@ -177,19 +177,19 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 	/// </param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns><see langword="true"/> if the key was found and processed; <see langword="false"/> if the key does not exist.</returns>
-	public Task<bool> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
+	public Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrEmpty(keyId);
 
 		if (!_keys.TryGetValue(keyId, out var keyEntry))
 		{
-			return Task.FromResult(false);
+			return Task.FromResult(KeyDestructionOutcome.NotFound);
 		}
 
 		if (retentionDays == 0)
 		{
-			// Immediate destruction: zero key material and remove from store
+			// Immediate destruction: zero key material and remove from store — irrecoverable on return.
 			_ = _keys.TryRemove(keyId, out _);
 			foreach (var versionEntry in keyEntry.Versions.Values)
 			{
@@ -203,19 +203,20 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 			}
 
 			LogKeyDestroyed(keyId);
-			return Task.FromResult(true);
+			return Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow));
 		}
 
-		// Mark all versions as pending destruction with scheduled deletion
+		// Mark all versions as pending destruction with scheduled deletion — recoverable until the window elapses.
+		var irreversibleAt = DateTimeOffset.UtcNow.AddDays(retentionDays);
 		foreach (var versionEntry in keyEntry.Versions.Values)
 		{
 			versionEntry.Status = KeyStatus.PendingDestruction;
-			versionEntry.ScheduledDeletionAt = DateTimeOffset.UtcNow.AddDays(retentionDays);
+			versionEntry.ScheduledDeletionAt = irreversibleAt;
 		}
 
 		LogKeyDeletionScheduled(keyId, retentionDays);
 
-		return Task.FromResult(true);
+		return Task.FromResult(KeyDestructionOutcome.ScheduledAt(irreversibleAt));
 	}
 
 	/// <inheritdoc/>
@@ -241,6 +242,33 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		}
 
 		LogKeySuspended(keyId, reason);
+
+		return Task.FromResult(true);
+	}
+
+	/// <inheritdoc/>
+	public Task<bool> ReactivateKeyAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		if (!_keys.TryGetValue(keyId, out var keyEntry))
+		{
+			return Task.FromResult(false);
+		}
+
+		// Inverse of SuspendKeyAsync: flip every suspended version back to Active and clear the reason.
+		// Destroyed versions are left untouched (reactivation never resurrects crypto-shredded material).
+		foreach (var versionEntry in keyEntry.Versions.Values)
+		{
+			if (versionEntry.Status is KeyStatus.Suspended)
+			{
+				versionEntry.Status = KeyStatus.Active;
+				versionEntry.SuspensionReason = null;
+			}
+		}
+
+		LogKeyReactivated(keyId);
 
 		return Task.FromResult(true);
 	}
@@ -435,6 +463,9 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 
 	[LoggerMessage(LogLevel.Warning, "Key {KeyId} suspended: {Reason}")]
 	private partial void LogKeySuspended(string keyId, string reason);
+
+	[LoggerMessage(LogLevel.Information, "Key {KeyId} reactivated")]
+	private partial void LogKeyReactivated(string keyId);
 
 	[LoggerMessage(LogLevel.Debug, "InMemoryKeyManagementProvider disposed - all key material securely cleared")]
 	private partial void LogProviderDisposed();

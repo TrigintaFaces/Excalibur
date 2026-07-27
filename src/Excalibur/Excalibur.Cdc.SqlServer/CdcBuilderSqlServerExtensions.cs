@@ -5,6 +5,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Cdc.Processing;
 using Excalibur.Data.SqlServer;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.LeaderElection;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -154,7 +156,7 @@ public static class CdcBuilderSqlServerExtensions
 	/// Priority order:
 	/// 1. Explicit <see cref="SqlServerCdcBuilder.SourceConnectionFactory"/> (set via <c>ConnectionFactory()</c>)
 	/// 2. <see cref="SqlServerCdcBuilder.SourceConnectionStringName"/> (resolved from IConfiguration at DI resolution)
-	/// 3. <see cref="SqlServerCdcOptions.ConnectionString"/> (set via <c>ConnectionString()</c> or <c>BindConfiguration()</c>)
+	/// 3. <see cref="SqlServerCdcConnectionOptions.ConnectionString"/> (set via <c>ConnectionString()</c> or <c>BindConfiguration()</c>)
 	/// </remarks>
 	private static Func<IServiceProvider, Func<SqlConnection>> ResolveSourceFactory(
 		SqlServerCdcBuilder sqlBuilder)
@@ -184,7 +186,7 @@ public static class CdcBuilderSqlServerExtensions
 		return sp =>
 		{
 			var opts = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>();
-			return () => new SqlConnection(opts.Value.ConnectionString);
+			return () => new SqlConnection(opts.Value.Connection.ConnectionString);
 		};
 	}
 
@@ -277,7 +279,7 @@ public static class CdcBuilderSqlServerExtensions
 			opt.PollingInterval = sqlOptions.PollingInterval;
 			opt.BatchSize = sqlOptions.BatchSize;
 			opt.CommandTimeout = sqlOptions.CommandTimeout;
-			opt.ConnectionString = sqlOptions.ConnectionString;
+			opt.Connection.ConnectionString = sqlOptions.Connection.ConnectionString;
 		});
 
 		// Register source BindConfiguration if set
@@ -289,12 +291,12 @@ public static class CdcBuilderSqlServerExtensions
 
 			// When ConnectionString() was explicitly called alongside BindConfiguration,
 			// re-apply via PostConfigure so the explicit value takes precedence over config.
-			if (!string.IsNullOrWhiteSpace(sqlOptions.ConnectionString))
+			if (!string.IsNullOrWhiteSpace(sqlOptions.Connection.ConnectionString))
 			{
-				var explicitConnectionString = sqlOptions.ConnectionString;
+				var explicitConnectionString = sqlOptions.Connection.ConnectionString;
 				_ = builder.Services.PostConfigure<SqlServerCdcOptions>(opt =>
 				{
-					opt.ConnectionString = explicitConnectionString;
+					opt.Connection.ConnectionString = explicitConnectionString;
 				});
 			}
 		}
@@ -387,9 +389,9 @@ public static class CdcBuilderSqlServerExtensions
 		// TryAdd ensures manual registration still takes precedence.
 		{
 			// Capture builder-time overrides (may be null if using BindConfiguration).
-			var capturedBuilderDbName = sqlOptions.DatabaseName;
-			var capturedBuilderDbConnId = sqlOptions.DatabaseConnectionIdentifier;
-			var capturedBuilderStateConnId = sqlOptions.StateConnectionIdentifier;
+			var capturedBuilderDbName = sqlOptions.Connection.DatabaseName;
+			var capturedBuilderDbConnId = sqlOptions.Connection.DatabaseConnectionIdentifier;
+			var capturedBuilderStateConnId = sqlOptions.Connection.StateConnectionIdentifier;
 			var capturedStopOnMissing = sqlOptions.StopOnMissingTableHandler;
 			var capturedBuilderInstances = sqlOptions.CaptureInstances;
 			var capturedBatchSize = sqlOptions.BatchSize;
@@ -399,7 +401,7 @@ public static class CdcBuilderSqlServerExtensions
 				var resolvedOptions = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>().Value;
 
 				// Prefer builder-set value, fall back to config-bound value.
-				var dbName = capturedBuilderDbName ?? resolvedOptions.DatabaseName
+				var dbName = capturedBuilderDbName ?? resolvedOptions.Connection.DatabaseName
 					?? throw new InvalidOperationException(
 						"DatabaseName is required for IDatabaseOptions. Set it via .DatabaseName() on the builder " +
 						"or include it in the configuration section bound via .BindConfiguration().");
@@ -478,6 +480,7 @@ public static class CdcBuilderSqlServerExtensions
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			var appLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
+			var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
 			var logger = sp.GetRequiredService<ILogger<CdcProcessor>>();
 
 			var databaseConfig = sp.GetService<IDatabaseOptions>()
@@ -490,6 +493,15 @@ public static class CdcBuilderSqlServerExtensions
 			var fatalErrorOptions = sp.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 			var idempotencyFilter = sp.GetService<ICdcIdempotencyFilter>();
 
+			// Opt-in single-active consumer: when the consumer has registered leader election, resolve it so
+			// only the leader processes and the checkpoint write is fenced. Absent (single-instance) → null,
+			// and the processor runs unconditionally exactly as before.
+			var leaderElection = sp.GetService<ILeaderElection>();
+
+			// Shared failure classifier (present when Dispatch is wired) so the checkpoint-write fatal decision
+			// routes through the same CdcFatalGuard the other providers use.
+			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
+
 			return new CdcProcessor(
 				appLifetime,
 				databaseConfig,
@@ -497,9 +509,12 @@ public static class CdcBuilderSqlServerExtensions
 				stateStoreConnection,
 				stateStoreOptions,
 				policyFactory,
+				timeProvider,
 				logger,
 				fatalErrorOptions,
-				idempotencyFilter);
+				idempotencyFilter,
+				leaderElection,
+				failureClassifier);
 		});
 
 		// Forward to base interface so consumers can depend on the abstraction level they need
@@ -516,6 +531,7 @@ public static class CdcBuilderSqlServerExtensions
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			var appLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
+			var timeProvider = sp.GetService<TimeProvider>() ?? TimeProvider.System;
 			var logger = sp.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
 			var databaseConfig = sp.GetService<IDatabaseOptions>()
@@ -536,6 +552,7 @@ public static class CdcBuilderSqlServerExtensions
 				stateStoreOptions,
 				sp,
 				policyFactory,
+				timeProvider,
 				logger,
 				fatalErrorOptions,
 				idempotencyFilter);

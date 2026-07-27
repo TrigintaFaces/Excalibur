@@ -75,7 +75,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 				payload,
 				DatadogAuditJsonContext.Default.DatadogLogEntryArray);
 
-			var response = await SendWithRetryAsync(json, cancellationToken).ConfigureAwait(false);
+			var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -287,7 +287,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 			payloads,
 			DatadogAuditJsonContext.Default.DatadogLogEntryArray);
 
-		var response = await SendWithRetryAsync(json, cancellationToken).ConfigureAwait(false);
+		var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -298,47 +298,15 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 		return (false, $"HTTP {(int)response.StatusCode}: {errorBody}");
 	}
 
-	private async Task<HttpResponseMessage> SendWithRetryAsync(
+	private async Task<HttpResponseMessage> SendAsync(
 		string json,
 		CancellationToken cancellationToken)
 	{
-		var attempts = 0;
-		HttpResponseMessage? lastResponse = null;
-
-		while (attempts <= _options.Retry.MaxRetryAttempts)
-		{
-			attempts++;
-
-			try
-			{
-				using var request = CreateRequest(json);
-				lastResponse = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
-				if (lastResponse.IsSuccessStatusCode || !IsTransientStatusCode(lastResponse.StatusCode))
-				{
-					return lastResponse;
-				}
-
-				if (attempts <= _options.Retry.MaxRetryAttempts)
-				{
-					var delay = _options.Retry.RetryBaseDelay * Math.Pow(2, attempts - 1);
-					LogAuditExportRetry(
-						attempts,
-						delay.TotalMilliseconds,
-						lastResponse.StatusCode);
-
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			catch (HttpRequestException) when (attempts <= _options.Retry.MaxRetryAttempts)
-			{
-				var delay = _options.Retry.RetryBaseDelay * Math.Pow(2, attempts - 1);
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		return lastResponse ?? throw new HttpRequestException(
-			Resources.DatadogAuditExporter_FailedAfterRetries);
+		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
+		// resilience pipeline attached to the typed HttpClient in DI. The buffered request content is
+		// replayable, so the pipeline can safely re-send across attempts.
+		using var request = CreateRequest(json);
+		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}
 
 	private HttpRequestMessage CreateRequest(string json)
@@ -443,10 +411,6 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 	[LoggerMessage(DatadogAuditLoggingEventId.HealthCheckFailed, LogLevel.Warning,
 		"Datadog health check failed")]
 	private partial void LogHealthCheckFailed(Exception exception);
-
-	[LoggerMessage(DatadogAuditLoggingEventId.ForwardRetried, LogLevel.Debug,
-		"Retrying Datadog export (attempt {Attempt}) after {Delay}ms due to {StatusCode}")]
-	private partial void LogAuditExportRetry(int attempt, double delay, HttpStatusCode statusCode);
 
 	/// <summary>
 	/// Datadog log entry structure.

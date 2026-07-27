@@ -42,7 +42,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemoryErasureStoreConformanceTests : ErasureStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override IErasureStore CreateStore() => new InMemoryErasureStore();
+	protected override IErasureStore CreateStore() => new InMemoryErasureStore(TestDataSubjectHasher.Instance);
 
 	#region Request Lifecycle Tests
 

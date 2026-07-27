@@ -1,0 +1,48 @@
+# Banned sync-over-async BLOCKING APIs in TEST code (1b54fe).
+#
+# Sync-blocking waits in tests hide deadlocks and make suites flaky (dotnet-best-practices.md async
+# rules + testing-patterns §1 "never depend on wall-clock timing; poll"). Applied to test projects via
+# tests/Directory.Build.props (BannedApiAnalyzers, error severity).
+#
+# NOTE: `Task.Delay` is INTENTIONALLY NOT banned here — an *awaited* Task.Delay is non-blocking, and the
+# ~112 legitimate test uses stay green (SA ruling, S887). The separate Task.Delay-then-assert determinism
+# smell is policed by eng/ci/task-delay-syncwait-gate.sh (a different concern), not this list.
+#
+# Projects with PRE-EXISTING violations are opted out in tests/Directory.Build.props until migrated
+# (tracked: bead c36hwe). New violations in the clean projects fail the build immediately.
+#
+# Format: <Roslyn-DocId>;<message>  (Microsoft.CodeAnalysis.BannedApiAnalyzers RS0030).
+
+# Thread.Sleep — a blocking sleep.
+M:System.Threading.Thread.Sleep(System.Int32);Blocking sleep in a test — await Task.Delay(...) or poll (WaitHelpers) instead.
+M:System.Threading.Thread.Sleep(System.TimeSpan);Blocking sleep in a test — await Task.Delay(...) or poll (WaitHelpers) instead.
+
+# Task/ValueTask.Result — a blocking property access (sync-over-async).
+P:System.Threading.Tasks.Task`1.Result;Sync-over-async: await the task instead of blocking on .Result.
+P:System.Threading.Tasks.ValueTask`1.Result;Sync-over-async: await the ValueTask instead of blocking on .Result.
+
+# Task.Wait / WaitAll / WaitAny — blocking waits.
+M:System.Threading.Tasks.Task.Wait();Sync-over-async: await the task instead of .Wait().
+M:System.Threading.Tasks.Task.Wait(System.Int32);Sync-over-async: await the task instead of .Wait().
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan);Sync-over-async: await the task instead of .Wait().
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken);Sync-over-async: await the task instead of .Wait().
+M:System.Threading.Tasks.Task.Wait(System.Int32,System.Threading.CancellationToken);Sync-over-async: await the task instead of .Wait().
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[]);Sync-over-async: await Task.WhenAll instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32);Sync-over-async: await Task.WhenAll instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.TimeSpan);Sync-over-async: await Task.WhenAll instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Sync-over-async: await Task.WhenAll instead.
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Sync-over-async: await Task.WhenAll instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[]);Sync-over-async: await Task.WhenAny instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32);Sync-over-async: await Task.WhenAny instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.TimeSpan);Sync-over-async: await Task.WhenAny instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Sync-over-async: await Task.WhenAny instead.
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Sync-over-async: await Task.WhenAny instead.
+
+# .GetAwaiter().GetResult() — sync-over-async in every awaiter form (incl. .ConfigureAwait(false).GetAwaiter().GetResult()).
+M:System.Runtime.CompilerServices.TaskAwaiter.GetResult();Sync-over-async: await the task instead of .GetAwaiter().GetResult().
+M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult();Sync-over-async: await the task instead of .GetAwaiter().GetResult().
+M:System.Runtime.CompilerServices.ValueTaskAwaiter.GetResult();Sync-over-async: await the ValueTask instead of .GetAwaiter().GetResult().
+M:System.Runtime.CompilerServices.ValueTaskAwaiter`1.GetResult();Sync-over-async: await the ValueTask instead of .GetAwaiter().GetResult().
+M:System.Runtime.CompilerServices.ConfiguredTaskAwaitable.ConfiguredTaskAwaiter.GetResult();Sync-over-async: await the task instead of .ConfigureAwait(...).GetAwaiter().GetResult().
+M:System.Runtime.CompilerServices.ConfiguredTaskAwaitable`1.ConfiguredTaskAwaiter.GetResult();Sync-over-async: await the task instead of .ConfigureAwait(...).GetAwaiter().GetResult().
+M:System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable`1.ConfiguredValueTaskAwaiter.GetResult();Sync-over-async: await the ValueTask instead of .ConfigureAwait(...).GetAwaiter().GetResult().

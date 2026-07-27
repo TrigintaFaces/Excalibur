@@ -13,8 +13,9 @@ using Excalibur.AuditLogging;namespace Excalibur.AuditLogging.Elasticsearch.Test
 
 /// <summary>
 /// Tests for <see cref="OpenSearchAuditExporter"/> covering NodeUrls cluster support,
-/// round-robin request distribution, and health check URL selection.
-/// Sprint 736: AOT Wave 1 -- cluster-aware OpenSearch exporter.
+/// first-node request templating, and health check URL selection. Per-attempt node failover
+/// (round-robin) is owned by <see cref="NodeFailoverHandler"/> in the HttpClient pipeline and is
+/// covered by its own tests.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
@@ -91,8 +92,12 @@ public sealed class OpenSearchAuditExporterShould : IDisposable
 	}
 
 	[Fact]
-	public async Task RoundRobinAcrossMultipleNodes()
+	public async Task TargetFirstNodeTemplateWithoutFailoverHandler()
 	{
+		// The exporter builds every request against the FIRST configured node as a template; per-attempt
+		// round-robin failover is applied by NodeFailoverHandler in the HttpClient pipeline (covered by
+		// NodeFailoverHandlerShould). Built directly against a bare handler, the exporter must NOT
+		// round-robin — every request targets node1.
 		_handler.SetResponse(HttpStatusCode.OK);
 		_options.NodeUrls =
 		[
@@ -102,7 +107,6 @@ public sealed class OpenSearchAuditExporterShould : IDisposable
 		];
 		var sut = CreateExporter();
 
-		// Send 6 requests and track which hosts are hit
 		var hosts = new List<string>();
 		for (var i = 0; i < 6; i++)
 		{
@@ -110,13 +114,7 @@ public sealed class OpenSearchAuditExporterShould : IDisposable
 			hosts.Add(_handler.LastRequest!.RequestUri!.Host);
 		}
 
-		// Should cycle through all 3 nodes twice
-		hosts[0].ShouldBe("node1.example.com");
-		hosts[1].ShouldBe("node2.example.com");
-		hosts[2].ShouldBe("node3.example.com");
-		hosts[3].ShouldBe("node1.example.com");
-		hosts[4].ShouldBe("node2.example.com");
-		hosts[5].ShouldBe("node3.example.com");
+		hosts.ShouldAllBe(host => host == "node1.example.com");
 	}
 
 	[Fact]

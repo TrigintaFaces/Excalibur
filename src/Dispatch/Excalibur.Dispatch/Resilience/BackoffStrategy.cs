@@ -38,4 +38,19 @@ public enum BackoffStrategy
 	/// Fibonacci sequence delays.
 	/// </summary>
 	Fibonacci = 4,
+
+	/// <summary>
+	/// AWS "Full Jitter" exponential backoff: the delay is sampled uniformly from
+	/// <c>[0, min(maxDelay, baseDelay * multiplier^(attempt-1))]</c>, maximally decorrelating concurrent
+	/// clients to avoid the thundering-herd problem.
+	/// </summary>
+	FullJitter = 5,
+
+	/// <summary>
+	/// AWS "Decorrelated Jitter": the delay is sampled uniformly from
+	/// <c>[baseDelay, min(maxDelay, previousDelay * 3)]</c>, threading the previous actual delay forward for a
+	/// smoother, less-correlated growth than full jitter. Stateful, so it applies to the in-process retry path
+	/// only; durable retry paths use an attempt-derived strategy.
+	/// </summary>
+	DecorrelatedJitter = 6,
 }

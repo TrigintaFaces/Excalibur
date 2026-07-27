@@ -4,6 +4,7 @@
 using Excalibur.Cdc.Diagnostics;
 using Excalibur.Dispatch.Diagnostics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -34,8 +35,9 @@ namespace Excalibur.Cdc.Processing;
 /// </remarks>
 internal sealed partial class CdcProcessingHostedService : BackgroundService
 {
-	private readonly ICdcBackgroundProcessor _processor;
+	private readonly IServiceProvider _serviceProvider;
 	private readonly IOptions<CdcProcessingOptions> _options;
+	private readonly TimeProvider _timeProvider;
 	private readonly ILogger<CdcProcessingHostedService> _logger;
 
 	private volatile bool _isHealthy;
@@ -64,16 +66,26 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CdcProcessingHostedService"/> class.
 	/// </summary>
-	/// <param name="processor">The CDC background processor implementation.</param>
+	/// <param name="serviceProvider">
+	/// The service provider used to resolve the <see cref="ICdcBackgroundProcessor"/> lazily at start
+	/// time, so the host can be registered independently of the provider-specific processor registration
+	/// order (a processor registered after <c>AddCdcProcessor()</c> is still picked up).
+	/// </param>
 	/// <param name="options">The processing options.</param>
+	/// <param name="timeProvider">
+	/// The time provider used for the last-success timestamp and the adaptive-poll / error-backoff delays,
+	/// so the polling loop is deterministically testable without wall-clock sleeps.
+	/// </param>
 	/// <param name="logger">The logger instance.</param>
 	public CdcProcessingHostedService(
-		ICdcBackgroundProcessor processor,
+		IServiceProvider serviceProvider,
 		IOptions<CdcProcessingOptions> options,
+		TimeProvider timeProvider,
 		ILogger<CdcProcessingHostedService> logger)
 	{
-		_processor = processor ?? throw new ArgumentNullException(nameof(processor));
+		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -104,6 +116,16 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 			return;
 		}
 
+		// Resolve the processor lazily (order-independent): the host is registered unconditionally, so a
+		// provider that registers ICdcBackgroundProcessor AFTER AddCdcProcessor() is still picked up. If
+		// none is registered, fail LOUD and no-op rather than validate-green-and-silently-skip.
+		var processor = _serviceProvider.GetService<ICdcBackgroundProcessor>();
+		if (processor is null)
+		{
+			LogNoBackgroundProcessorRegistered();
+			return;
+		}
+
 		_isHealthy = true;
 		LogBackgroundServiceStarting(_options.Value.PollingInterval);
 
@@ -114,11 +136,11 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 			try
 			{
 				var stopwatch = ValueStopwatch.StartNew();
-				processed = await _processor.ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
+				processed = await processor.ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
 
 				_consecutiveErrors = 0;
 				_isHealthy = true;
-				Interlocked.Exchange(ref _lastSuccessfulProcessingTicks, DateTimeOffset.UtcNow.UtcTicks);
+				Interlocked.Exchange(ref _lastSuccessfulProcessingTicks, _timeProvider.GetUtcNow().UtcTicks);
 
 				if (processed > 0)
 				{
@@ -159,7 +181,7 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 
 				try
 				{
-					await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+					await Task.Delay(delay, _timeProvider, stoppingToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
@@ -191,6 +213,10 @@ internal sealed partial class CdcProcessingHostedService : BackgroundService
 	[LoggerMessage(CdcProcessingEventId.CdcBackgroundServiceProcessedChanges, LogLevel.Debug,
 		"Processed {ChangeCount} CDC changes in {DurationMs:F1}ms.")]
 	private partial void LogProcessedChanges(int changeCount, double durationMs);
+
+	[LoggerMessage(CdcProcessingEventId.CdcBackgroundServiceNoProcessor, LogLevel.Error,
+		"CDC background processing is enabled but no ICdcBackgroundProcessor is registered — CDC changes will NOT be processed. Register a provider-specific CDC processor (e.g. via UseSqlServer(...) on the CDC builder).")]
+	private partial void LogNoBackgroundProcessorRegistered();
 
 	[LoggerMessage(CdcProcessingEventId.CdcBackgroundServiceDrainTimeout, LogLevel.Warning,
 		"CDC background processing service drain timeout exceeded ({DrainTimeout}).")]

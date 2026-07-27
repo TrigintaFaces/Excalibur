@@ -329,6 +329,7 @@ public sealed partial class DynamoDbOutboxStreamsSubscription : IChangeFeedSubsc
 			CorrelationId = item.TryGetValue("correlationId", out var corrId) ? corrId.S : null,
 			CausationId = item.TryGetValue("causationId", out var causId) ? causId.S : null,
 			TenantId = item.TryGetValue("tenantId", out var tenId) ? tenId.S : null,
+			Destination = item.TryGetValue("destination", out var dest) ? dest.S : null,
 			CreatedAt = item.TryGetValue("createdAt", out var created) && !string.IsNullOrEmpty(created.S)
 				? DateTimeOffset.Parse(created.S, CultureInfo.InvariantCulture)
 				: DateTimeOffset.UtcNow,

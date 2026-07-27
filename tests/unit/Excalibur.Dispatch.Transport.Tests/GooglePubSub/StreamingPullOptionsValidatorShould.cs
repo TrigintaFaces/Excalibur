@@ -127,11 +127,11 @@ public sealed class StreamingPullOptionsValidatorShould
 		var options = new StreamingPullOptions
 		{
 			StreamIdleTimeout = TimeSpan.FromSeconds(90),
-			HealthCheckInterval = TimeSpan.FromSeconds(90), // Equal, not less
+			Monitoring = { HealthCheckInterval = TimeSpan.FromSeconds(90) }, // Equal, not less
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(StreamingPullOptions.HealthCheckInterval));
+		result.FailureMessage.ShouldContain(nameof(StreamingPullMonitoringOptions.HealthCheckInterval));
 	}
 
 	[Fact]
@@ -141,7 +141,7 @@ public sealed class StreamingPullOptionsValidatorShould
 		{
 			StreamAckDeadlineSeconds = 30,
 			StreamIdleTimeout = TimeSpan.FromSeconds(60),
-			HealthCheckInterval = TimeSpan.FromSeconds(30),
+			Monitoring = { HealthCheckInterval = TimeSpan.FromSeconds(30) },
 		};
 		var result = _sut.Validate(null, options);
 		result.Succeeded.ShouldBeTrue();

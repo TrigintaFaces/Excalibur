@@ -95,6 +95,26 @@ services.AddPollyRetryPolicy("transient-retry", options =>
 });
 ```
 
+`BackoffStrategy` supports `Fixed`, `Linear`, `Exponential`, `ExponentialWithJitter`, `Fibonacci`,
+`FullJitter`, and `DecorrelatedJitter`. Use **`BackoffStrategy.FullJitter`** for AWS-style full jitter — the
+delay is sampled uniformly from `[0, min(maxDelay, baseDelay * multiplier^(attempt-1))]`, maximally
+decorrelating concurrent clients to avoid a thundering herd on retry:
+
+```csharp
+options.BackoffStrategy = BackoffStrategy.FullJitter;
+```
+
+Use **`BackoffStrategy.DecorrelatedJitter`** for AWS-style *decorrelated* jitter — each delay is sampled from
+`[baseDelay, previousDelay * 3]` and capped at `maxDelay`, threading the previous actual delay forward for
+smoother, less-correlated growth than full jitter. Because it depends on prior delay state it is **stateful
+and in-process only** (the in-memory retry middleware / Polly path); durable retry paths (outbox/inbox
+schedulable stores) intentionally use an attempt-derived strategy instead, so it is not persisted across
+restarts:
+
+```csharp
+options.BackoffStrategy = BackoffStrategy.DecorrelatedJitter;
+```
+
 ## Circuit Breaker
 
 ### CircuitState

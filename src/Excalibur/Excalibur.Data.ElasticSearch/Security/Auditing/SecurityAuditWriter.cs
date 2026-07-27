@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Collections.Concurrent;
+using System.Threading.Channels;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -36,8 +36,8 @@ internal sealed class SecurityAuditWriter
 
 	private readonly AuditOptions _configuration;
 	private readonly SemaphoreSlim _auditSemaphore;
-	private readonly ConcurrentQueue<SecurityAuditEvent> _normalEventQueue;
-	private readonly ConcurrentQueue<SecurityAuditEvent> _priorityEventQueue;
+	private readonly ChannelWriter<SecurityAuditEvent> _normalEventWriter;
+	private readonly ChannelWriter<SecurityAuditEvent> _priorityEventWriter;
 	private readonly Dictionary<ComplianceFramework, ComplianceReporter> _complianceReporters;
 	private readonly ITelemetrySanitizer? _sanitizer;
 	private readonly ILogger _logger;
@@ -60,16 +60,16 @@ internal sealed class SecurityAuditWriter
 	internal SecurityAuditWriter(
 		AuditOptions configuration,
 		SemaphoreSlim auditSemaphore,
-		ConcurrentQueue<SecurityAuditEvent> normalEventQueue,
-		ConcurrentQueue<SecurityAuditEvent> priorityEventQueue,
+		ChannelWriter<SecurityAuditEvent> normalEventWriter,
+		ChannelWriter<SecurityAuditEvent> priorityEventWriter,
 		Dictionary<ComplianceFramework, ComplianceReporter> complianceReporters,
 		ITelemetrySanitizer? sanitizer,
 		ILogger logger)
 	{
 		_configuration = configuration;
 		_auditSemaphore = auditSemaphore;
-		_normalEventQueue = normalEventQueue;
-		_priorityEventQueue = priorityEventQueue;
+		_normalEventWriter = normalEventWriter;
+		_priorityEventWriter = priorityEventWriter;
 		_complianceReporters = complianceReporters;
 		_sanitizer = sanitizer;
 		_logger = logger;
@@ -199,7 +199,7 @@ internal sealed class SecurityAuditWriter
 			};
 
 			MaskPiiIfEnabled(securityEvent);
-			_normalEventQueue.Enqueue(securityEvent);
+			await _normalEventWriter.WriteAsync(securityEvent, cancellationToken).ConfigureAwait(false);
 
 			_logger.LogDebug(
 				"Security activity audited: {ActivityType} by {UserId}",
@@ -251,7 +251,7 @@ internal sealed class SecurityAuditWriter
 			};
 
 			MaskPiiIfEnabled(securityEvent);
-			_normalEventQueue.Enqueue(securityEvent);
+			await _normalEventWriter.WriteAsync(securityEvent, cancellationToken).ConfigureAwait(false);
 
 			EventsRecordedCounter.Add(1, new TagList
 			{
@@ -320,7 +320,7 @@ internal sealed class SecurityAuditWriter
 			};
 
 			MaskPiiIfEnabled(securityEvent);
-			_normalEventQueue.Enqueue(securityEvent);
+			await _normalEventWriter.WriteAsync(securityEvent, cancellationToken).ConfigureAwait(false);
 
 			EventsRecordedCounter.Add(1, new TagList
 			{
@@ -386,7 +386,7 @@ internal sealed class SecurityAuditWriter
 			};
 
 			MaskPiiIfEnabled(securityEvent);
-			_normalEventQueue.Enqueue(securityEvent);
+			await _normalEventWriter.WriteAsync(securityEvent, cancellationToken).ConfigureAwait(false);
 
 			SecurityEventRecorded?.Invoke(this, new SecurityEventRecordedEventArgs(
 				"ConfigurationChange", configurationEvent.EventId.ToString(), configurationEvent.Timestamp)
@@ -439,7 +439,7 @@ internal sealed class SecurityAuditWriter
 			};
 
 			MaskPiiIfEnabled(auditEvent);
-			_normalEventQueue.Enqueue(auditEvent);
+			await _normalEventWriter.WriteAsync(auditEvent, cancellationToken).ConfigureAwait(false);
 
 			SecurityEventRecorded?.Invoke(this, new SecurityEventRecordedEventArgs(
 				securityEvent.EventType, securityEvent.EventId.ToString(), securityEvent.Timestamp)
@@ -501,7 +501,7 @@ internal sealed class SecurityAuditWriter
 
 			// Add to priority queue for incidents -- drained first by timer
 			MaskPiiIfEnabled(auditEvent);
-			_priorityEventQueue.Enqueue(auditEvent);
+			await _priorityEventWriter.WriteAsync(auditEvent, cancellationToken).ConfigureAwait(false);
 
 			EventsRecordedCounter.Add(1, new TagList
 			{

@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>

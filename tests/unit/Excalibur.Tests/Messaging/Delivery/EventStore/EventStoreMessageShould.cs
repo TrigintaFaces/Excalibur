@@ -194,23 +194,6 @@ public sealed class EventStoreMessageShould
 		message.DispatcherTimeout.ShouldBeNull();
 	}
 
-	[Fact]
-	public void FromEventStoreMessageShouldThrowNotSupportedException()
-	{
-		// Arrange
-		var sourceMessage = new EventStoreMessage<string>
-		{
-			AggregateId = "test-id",
-			OccurredOn = DateTimeOffset.UtcNow,
-			EventId = Guid.NewGuid().ToString(),
-			EventType = "Tests.Shared.Events.TestEvent",
-			EventBody = "{}",
-			EventMetadata = "{}",
-		};
-
-		// Act & Assert
-		_ = Should.Throw<NotSupportedException>(() => _ = EventStoreMessage<Guid>.FromEventStoreMessage(sourceMessage));
-	}
 
 	[Fact]
 	public void MessageShouldImplementIEventStoreMessage()

@@ -97,13 +97,13 @@ timeline
 
 ## Breaking Changes
 
-We follow [Semantic Versioning](https://semver.org/):
+The package major version matches the targeted .NET major (`net10.0` → `10.x`); minor and patch releases follow [Semantic Versioning](https://semver.org/) **within that major line**:
 
 | Version | Breaking Changes? | Examples |
 |---------|-------------------|----------|
-| **Patch** (x.y.Z) | No | Bug fixes |
-| **Minor** (x.Y.0) | No | New features, deprecations |
-| **Major** (X.0.0) | Yes | API changes, removals |
+| **Patch** (`10.0.Z`) | No | Bug fixes |
+| **Minor** (`10.Y.0`) | No | New features, deprecations |
+| **Major** (`10.x` → `11.x`) | Yes | API changes, removals — coincides with a new .NET major line |
 
 ### Deprecation Process
 

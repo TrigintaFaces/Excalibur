@@ -6,13 +6,16 @@
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
-/// Serializable implementation of ITenantId for AOT compatibility.
+/// Serializable, concrete tenant identifier value-type for AOT compatibility.
 /// </summary>
-public sealed class SerializableTenantId : ITenantId
+public sealed class SerializableTenantId
 {
 	private string _value = string.Empty;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the tenant identifier value.
+	/// </summary>
+	/// <value> The unique tenant identifier string. </value>
 	public string Value
 	{
 		get => _value;
@@ -26,6 +29,9 @@ public sealed class SerializableTenantId : ITenantId
 	public static SerializableTenantId Create(string? value = null)
 		=> new() { Value = value ?? string.Empty };
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Returns the tenant identifier as a string.
+	/// </summary>
+	/// <returns> The tenant identifier value. </returns>
 	public override string ToString() => Value;
 }

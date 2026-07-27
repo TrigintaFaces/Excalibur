@@ -119,19 +119,6 @@ public sealed class QueryBaseShould : UnitTestBase
 
 	#endregion
 
-	#region Kind Property Tests
-
-	[Fact]
-	public void Kind_ReturnsAction()
-	{
-		// Arrange
-		var query = new TestQuery(Guid.NewGuid());
-
-		// Act & Assert
-		query.Kind.ShouldBe(MessageKinds.Action);
-	}
-
-	#endregion
 
 	#region Headers Property Tests
 

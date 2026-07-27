@@ -74,7 +74,7 @@ public sealed class SqlServerCdcOptionsShould
 	{
 		var options = new SqlServerCdcOptions();
 
-		options.ConnectionString.ShouldBeNull();
+		options.Connection.ConnectionString.ShouldBeNull();
 	}
 
 	[Fact]
@@ -128,8 +128,8 @@ public sealed class SqlServerCdcOptionsShould
 	[Fact]
 	public void AllowCustomConnectionString()
 	{
-		var options = new SqlServerCdcOptions { ConnectionString = "Server=localhost" };
+		var options = new SqlServerCdcOptions { Connection = { ConnectionString = "Server=localhost" } };
 
-		options.ConnectionString.ShouldBe("Server=localhost");
+		options.Connection.ConnectionString.ShouldBe("Server=localhost");
 	}
 }

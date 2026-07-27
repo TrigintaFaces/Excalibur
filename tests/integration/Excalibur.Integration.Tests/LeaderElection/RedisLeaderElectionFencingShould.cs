@@ -79,7 +79,7 @@ public sealed class RedisLeaderElectionFencingShould : IntegrationTestBase, ICla
 			lockKey,
 			options,
 			NullLogger<RedisLeaderElection>.Instance,
-			fencingTokenProvider: new AlwaysThrowingFencingTokenProvider());
+			new RedisLeaderElectionContext { FencingTokenProvider = new AlwaysThrowingFencingTokenProvider() });
 		election.BecameLeader += (_, _) => Interlocked.Increment(ref becameLeaderFired);
 
 		// Act — StartAsync runs the initial acquire: SET NX acquires the key, then every bounded mint attempt
@@ -135,12 +135,14 @@ public sealed class RedisLeaderElectionFencingShould : IntegrationTestBase, ICla
 			lockKey,
 			options,
 			NullLogger<RedisLeaderElection>.Instance,
-			fencingTokenProvider: fencing);
+			new RedisLeaderElectionContext { FencingTokenProvider = fencing });
 
 		// Capture the resource's fence high-water mark AT the instant the leadership event fires. The handler
 		// is synchronous; reading the (already-advanced) token via the public contract is a quick Redis GET.
 		election.BecameLeader += (_, _) =>
+			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			highWaterMarkAtEventTime = fencing.GetTokenAsync(lockKey, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+			#pragma warning restore RS0030
 
 		// Act — StartAsync mints the fence (INCR -> 1) BEFORE declaring leadership, firing BecameLeader.
 		await election.StartAsync(TestCancellationToken);

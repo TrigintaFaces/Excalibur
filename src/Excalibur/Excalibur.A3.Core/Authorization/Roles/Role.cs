@@ -121,7 +121,7 @@ internal sealed class Role : AggregateRoot, IAggregateRoot<Role, string>
 	/// <param name="id">The role identifier.</param>
 	/// <param name="events">The stream of events to apply.</param>
 	/// <returns>The Role rebuilt from the events.</returns>
-	public static Role FromEvents(string id, IEnumerable<IDomainEvent> events)
+	public static Role FromEvents(string id, IEnumerable<HistoricEvent> events)
 	{
 		var role = new Role { Id = id };
 		role.LoadFromHistory(events);
@@ -254,28 +254,30 @@ internal sealed class Role : AggregateRoot, IAggregateRoot<Role, string>
 		ParentRoleName: ParentRoleName);
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case RoleCreated e:
 				Apply(e);
-				break;
+				return true;
 			case RoleModified e:
 				Apply(e);
-				break;
+				return true;
 			case RoleActivityGroupsChanged e:
 				Apply(e);
-				break;
+				return true;
 			case RoleActivitiesChanged e:
 				Apply(e);
-				break;
+				return true;
 			case RoleParentChanged e:
 				Apply(e);
-				break;
+				return true;
 			case RoleStateChanged e:
 				Apply(e);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

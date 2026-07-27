@@ -135,7 +135,6 @@ public sealed class SignedMessageShould
 	[InlineData(SigningAlgorithm.HMACSHA256)]
 	[InlineData(SigningAlgorithm.HMACSHA512)]
 	[InlineData(SigningAlgorithm.RSASHA256)]
-	[InlineData(SigningAlgorithm.Ed25519)]
 	public void AllowSettingAlgorithm(SigningAlgorithm algorithm)
 	{
 		// Arrange

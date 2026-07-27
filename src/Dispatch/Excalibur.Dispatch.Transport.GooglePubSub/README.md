@@ -30,8 +30,8 @@ dotnet add package Excalibur.Dispatch.Transport.GooglePubSub
 services.Configure<GoogleProviderOptions>(options =>
 {
     options.ProjectId = "your-gcp-project-id";
-    options.MaxMessages = 100;
-    options.AckDeadline = TimeSpan.FromSeconds(30);
+    options.Subscription.MaxMessages = 100;
+    options.Subscription.AckDeadline = TimeSpan.FromSeconds(30);
 });
 ```
 
@@ -41,7 +41,7 @@ Configure via environment variables for containerized deployments:
 
 ```bash
 GOOGLE__PROJECTID=your-gcp-project-id
-GOOGLE__MAXMESSAGES=100
+GOOGLE__SUBSCRIPTION__MAXMESSAGES=100
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ```
 
@@ -57,8 +57,8 @@ Use the Pub/Sub emulator for local development without GCP credentials:
 services.Configure<GoogleProviderOptions>(options =>
 {
     options.ProjectId = "test-project";
-    options.UseEmulator = true;
-    options.EmulatorHost = "localhost:8085";
+    options.Emulator.UseEmulator = true;
+    options.Emulator.EmulatorHost = "localhost:8085";
     options.ValidateOnStartup = false;  // Emulator may not support all validations
 });
 ```
@@ -134,25 +134,22 @@ services.Configure<GoogleProviderOptions>(options =>
     options.ProjectId = "your-gcp-project-id";
 
     // Emulator settings
-    options.UseEmulator = false;
-    options.EmulatorHost = "localhost:8085";
+    options.Emulator.UseEmulator = false;
+    options.Emulator.EmulatorHost = "localhost:8085";
 
     // Request handling
     options.RequestTimeout = TimeSpan.FromSeconds(60);
     options.ValidateOnStartup = true;
 
-    // Batch settings
-    options.MaxMessages = 100;
-
-    // Acknowledgment
-    options.AckDeadline = TimeSpan.FromSeconds(30);
-
-    // Delivery semantics
-    options.EnableExactlyOnceDelivery = false;
-    options.EnableMessageOrdering = false;
+    // Subscription / delivery
+    options.Subscription.MaxMessages = 100;
+    options.Subscription.AckDeadline = TimeSpan.FromSeconds(30);
+    options.Subscription.EnableExactlyOnceDelivery = false;
+    options.Subscription.EnableMessageOrdering = false;
+    options.Subscription.AutoCreateResources = true;
 
     // Flow control
-    options.FlowControl = new FlowControlSettings
+    options.FlowControl = new FlowControlOptions
     {
         MaxOutstandingMessages = 1000,
         MaxOutstandingBytes = 100_000_000,  // 100 MB
@@ -160,7 +157,7 @@ services.Configure<GoogleProviderOptions>(options =>
     };
 
     // Retry settings
-    options.RetrySettings = new RetrySettings
+    options.PubSubRetryOptions = new PubSubRetryOptions
     {
         InitialRetryDelay = TimeSpan.FromMilliseconds(100),
         RetryDelayMultiplier = 2.0,
@@ -263,7 +260,7 @@ services.Configure<DeadLetterOptions>(options =>
 ```csharp
 services.Configure<GoogleProviderOptions>(options =>
 {
-    options.RetrySettings = new RetrySettings
+    options.PubSubRetryOptions = new PubSubRetryOptions
     {
         InitialRetryDelay = TimeSpan.FromMilliseconds(100),   // Initial delay
         RetryDelayMultiplier = 2.0,                           // Exponential backoff
@@ -336,8 +333,8 @@ public class GooglePubSubHealthCheck : IHealthCheck
 // High-throughput configuration
 services.Configure<GoogleProviderOptions>(options =>
 {
-    options.MaxMessages = 1000;
-    options.FlowControl = new FlowControlSettings
+    options.Subscription.MaxMessages = 1000;
+    options.FlowControl = new FlowControlOptions
     {
         MaxOutstandingMessages = 10000,
         MaxOutstandingBytes = 500_000_000  // 500 MB
@@ -358,9 +355,9 @@ services.Configure<GoogleProviderOptions>(options =>
 ```csharp
 services.Configure<GoogleProviderOptions>(options =>
 {
-    options.MaxMessages = 1000;
+    options.Subscription.MaxMessages = 1000;
     options.RequestTimeout = TimeSpan.FromSeconds(30);
-    options.FlowControl = new FlowControlSettings
+    options.FlowControl = new FlowControlOptions
     {
         MaxOutstandingMessages = 10000,
         MaxOutstandingBytes = 500_000_000
@@ -379,9 +376,9 @@ services.Configure<GooglePubSubCloudEventOptions>(options =>
 ```csharp
 services.Configure<GoogleProviderOptions>(options =>
 {
-    options.MaxMessages = 10;  // Smaller batches
-    options.AckDeadline = TimeSpan.FromSeconds(10);  // Shorter deadline
-    options.FlowControl = new FlowControlSettings
+    options.Subscription.MaxMessages = 10;  // Smaller batches
+    options.Subscription.AckDeadline = TimeSpan.FromSeconds(10);  // Shorter deadline
+    options.FlowControl = new FlowControlOptions
     {
         MaxOutstandingMessages = 100
     };
@@ -393,8 +390,8 @@ services.Configure<GoogleProviderOptions>(options =>
 ```csharp
 services.Configure<GoogleProviderOptions>(options =>
 {
-    options.EnableExactlyOnceDelivery = true;
-    options.AckDeadline = TimeSpan.FromMinutes(10);  // Longer deadline for exactly-once
+    options.Subscription.EnableExactlyOnceDelivery = true;
+    options.Subscription.AckDeadline = TimeSpan.FromMinutes(10);  // Longer deadline for exactly-once
 });
 
 services.Configure<GooglePubSubCloudEventOptions>(options =>
@@ -573,25 +570,22 @@ services.Configure<GoogleProviderOptions>(options =>
     options.ProjectId = "your-gcp-project-id";
 
     // Emulator settings
-    options.UseEmulator = false;
-    options.EmulatorHost = "localhost:8085";
+    options.Emulator.UseEmulator = false;
+    options.Emulator.EmulatorHost = "localhost:8085";
 
     // Request handling
     options.RequestTimeout = TimeSpan.FromSeconds(60);
     options.ValidateOnStartup = true;
 
-    // Batch settings
-    options.MaxMessages = 100;
-
-    // Acknowledgment
-    options.AckDeadline = TimeSpan.FromSeconds(30);
-
-    // Delivery semantics
-    options.EnableExactlyOnceDelivery = false;
-    options.EnableMessageOrdering = false;
+    // Subscription / delivery
+    options.Subscription.MaxMessages = 100;
+    options.Subscription.AckDeadline = TimeSpan.FromSeconds(30);
+    options.Subscription.EnableExactlyOnceDelivery = false;
+    options.Subscription.EnableMessageOrdering = false;
+    options.Subscription.AutoCreateResources = true;
 
     // Flow control
-    options.FlowControl = new FlowControlSettings
+    options.FlowControl = new FlowControlOptions
     {
         MaxOutstandingMessages = 1000,
         MaxOutstandingBytes = 100_000_000,
@@ -599,7 +593,7 @@ services.Configure<GoogleProviderOptions>(options =>
     };
 
     // Retry settings
-    options.RetrySettings = new RetrySettings
+    options.PubSubRetryOptions = new PubSubRetryOptions
     {
         InitialRetryDelay = TimeSpan.FromMilliseconds(100),
         RetryDelayMultiplier = 2.0,

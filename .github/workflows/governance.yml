@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -67,7 +67,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -98,7 +98,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -172,7 +172,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
 
@@ -195,7 +195,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -228,7 +228,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -264,7 +264,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -295,7 +295,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -330,7 +330,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -359,7 +359,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1

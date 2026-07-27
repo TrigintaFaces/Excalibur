@@ -173,7 +173,19 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 		dlqMessage.DeadLetterReason.ShouldBe("TestReason");
 		dlqMessage.DeadLetterErrorDescription.ShouldBe("Testing dead-letter flow");
 
-		await dlqReceiver.CompleteMessageAsync(dlqMessage).ConfigureAwait(false);
+		// bd-lruj48: the DLQ assertions above are the load-bearing checks and have already passed. The
+		// completion below is non-load-bearing cleanup; under emulator load the DLQ message lock can expire
+		// between receive and complete, surfacing MessageLockLost. That is an emulator lock-timing artifact,
+		// NOT a code regression — a lost lock simply leaves the (already-verified) DLQ message for the
+		// container's disposal. Swallow ONLY MessageLockLost so the flake cannot fail an already-proven test.
+		try
+		{
+			await dlqReceiver.CompleteMessageAsync(dlqMessage).ConfigureAwait(false);
+		}
+		catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessageLockLost)
+		{
+			// Emulator lock-timing only; the dead-letter assertions have already been verified.
+		}
 	}
 
 	[Fact]

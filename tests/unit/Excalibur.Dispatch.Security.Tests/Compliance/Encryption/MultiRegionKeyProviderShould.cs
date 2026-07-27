@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance;
 using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
@@ -453,7 +454,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	{
 		// Arrange
 		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).DeleteKeyAsync("key-1", 30, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
 		var sut = CreateSut();
 
@@ -461,7 +462,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var result = await ((IKeyManagementAdmin)sut).DeleteKeyAsync("key-1", 30, CancellationToken.None);
 
 		// Assert
-		result.ShouldBeTrue();
+		result.State.ShouldBe(KeyDestructionState.Completed);
 		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).DeleteKeyAsync("key-1", 30, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}

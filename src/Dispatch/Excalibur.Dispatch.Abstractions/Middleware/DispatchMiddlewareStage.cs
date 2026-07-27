@@ -85,6 +85,13 @@ public enum DispatchMiddlewareStage
 	PostProcessing = 700,
 
 	/// <summary>
+	/// Cascade stage: stages any follow-up messages a handler returns (via <see cref="ICascade"/>) to
+	/// the outbox. Runs inside outbox staging so cascaded messages are persisted with the handler's
+	/// outbound set.
+	/// </summary>
+	Cascade = 750,
+
+	/// <summary>
 	/// Error handling and compensation stage.
 	/// </summary>
 	ErrorHandling = 800,

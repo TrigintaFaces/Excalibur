@@ -135,6 +135,8 @@ public static class PollyResilienceServiceCollectionExtensions
 		_ = services.AddOptions<PollyRetryOptions>(name)
 			.Configure(options => configureOptions?.Invoke(options))
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PollyRetryOptions>, RetryOptionsValidator>());
 
 		return services;
 	}
@@ -169,6 +171,8 @@ public static class PollyResilienceServiceCollectionExtensions
 				configureOptions?.Invoke(options);
 			})
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PollyRetryOptions>, RetryOptionsValidator>());
 
 		// Register factory for creating retry policies
 		services.TryAddTransient<RetryPolicy>();

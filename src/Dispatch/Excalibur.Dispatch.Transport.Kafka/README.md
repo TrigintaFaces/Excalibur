@@ -138,50 +138,51 @@ services.Configure<KafkaOptions>(options =>
     options.ConsumerGroup = "my-consumer-group";
 
     // Offset management
-    options.EnableAutoCommit = false;          // Manual commits (recommended)
-    options.AutoCommitIntervalMs = 5000;       // If auto-commit is enabled
-    options.AutoOffsetReset = "latest";        // "earliest", "latest", or "none"
+    options.Consumer.EnableAutoCommit = false;       // Manual commits (recommended)
+    options.Consumer.AutoCommitIntervalMs = 5000;    // If auto-commit is enabled
+    options.Consumer.AutoOffsetReset = "latest";     // "earliest", "latest", or "none"
 
     // Batching
-    options.MaxBatchSize = 100;                // Messages per batch
-    options.MaxBatchWaitMs = 1000;             // Max wait for batch (ms)
+    options.Consumer.MaxBatchSize = 100;             // Messages per batch
+    options.Consumer.MaxBatchWaitMs = 1000;          // Max wait for batch (ms)
 
     // Performance
-    options.QueuedMinMessages = 1000;          // Prefetch per partition
-    options.MaxConcurrentCommits = 10;         // Concurrent offset commits
+    options.Consumer.QueuedMinMessages = 1000;       // Prefetch per partition
+    options.Consumer.MaxConcurrentCommits = 10;      // Concurrent offset commits
 
     // Session management
-    options.SessionTimeoutMs = 30000;          // Consumer session timeout
-    options.MaxPollIntervalMs = 300000;        // Max time between polls
+    options.Consumer.SessionTimeoutMs = 30000;       // Consumer session timeout
+    options.Consumer.MaxPollIntervalMs = 300000;     // Max time between polls
 
     // Partition handling
-    options.EnablePartitionEof = false;        // EOF detection
+    options.Consumer.EnablePartitionEof = false;     // EOF detection
 
     // Security
     options.EnableEncryption = false;          // Message-level encryption
 });
 ```
 
-#### Producer Settings (Message Bus)
+#### Producer Settings
+
+Broker/consumer settings live on `KafkaOptions`; CloudEvent publishing settings
+(acknowledgment, compression, partitioning) live on `KafkaCloudEventOptions` and its
+nested `Producer` object.
 
 ```csharp
-services.Configure<KafkaMessageBusOptions>(options =>
+services.Configure<KafkaOptions>(options =>
 {
     options.BootstrapServers = "localhost:9092";
-    options.ProducerClientId = "my-producer";
-    options.ConsumerGroupId = "my-consumer-group";
+    options.ConsumerGroup = "my-consumer-group";
+});
 
-    // CloudEvents
-    options.EnableCloudEvents = true;
-
-    // Compression
-    options.CompressionType = KafkaCompressionType.Snappy;
-
-    // Acknowledgment
-    options.AckLevel = KafkaAckLevel.All;      // All, Leader, or None
-
+services.Configure<KafkaCloudEventOptions>(options =>
+{
     // Partitioning
     options.PartitioningStrategy = KafkaPartitioningStrategy.RoundRobin;
+
+    // Producer publishing settings
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;      // All, Leader, or None
+    options.Producer.CompressionType = KafkaCompressionType.Snappy;
 });
 ```
 
@@ -200,29 +201,29 @@ services.Configure<KafkaCloudEventOptions>(options =>
     options.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
 
     // Exactly-once semantics
-    options.EnableIdempotentProducer = true;
-    options.EnableTransactions = false;
-    options.TransactionalId = null;
+    options.Producer.EnableIdempotentProducer = true;
+    options.Producer.EnableTransactions = false;
+    options.Producer.TransactionalId = null;
 
     // Acknowledgment
-    options.AcknowledgmentLevel = KafkaAckLevel.All;
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
 
     // Message size
-    options.MaxMessageSizeBytes = 1048576;     // 1 MB
+    options.Producer.MaxMessageSizeBytes = 1048576;     // 1 MB
 
     // Compression
-    options.EnableCompression = true;
-    options.CompressionType = KafkaCompressionType.Snappy;
-    options.CompressionThreshold = 1024;       // Compress messages > 1 KB
+    options.Producer.EnableCompression = true;
+    options.Producer.CompressionType = KafkaCompressionType.Snappy;
+    options.Producer.CompressionThreshold = 1024;       // Compress messages > 1 KB
 
     // Consumer settings
     options.ConsumerGroupId = "cloudevents-consumer";
     options.OffsetReset = KafkaOffsetReset.Latest;
 
     // Retry settings
-    options.RetrySettings = new KafkaRetrySettings
+    options.Producer.RetrySettings = new KafkaRetryOptions
     {
-        MaxRetries = 3,
+        MaxRetryAttempts = 3,
         RetryDelay = TimeSpan.FromMilliseconds(100),
         MaxRetryDelay = TimeSpan.FromSeconds(30),
         UseExponentialBackoff = true,
@@ -260,9 +261,9 @@ services.Configure<KafkaCloudEventOptions>(options =>
 ```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
-    options.RetrySettings = new KafkaRetrySettings
+    options.Producer.RetrySettings = new KafkaRetryOptions
     {
-        MaxRetries = 3,                               // Retry attempts
+        MaxRetryAttempts = 3,                         // Retry attempts
         RetryDelay = TimeSpan.FromMilliseconds(100),  // Initial delay
         MaxRetryDelay = TimeSpan.FromSeconds(30),     // Maximum delay
         UseExponentialBackoff = true,                 // Exponential backoff
@@ -354,22 +355,22 @@ services.Configure<KafkaCloudEventOptions>(options =>
 ```csharp
 services.Configure<KafkaOptions>(options =>
 {
-    options.MaxBatchSize = 500;                   // Larger batches
-    options.MaxBatchWaitMs = 50;                  // Shorter wait time
-    options.QueuedMinMessages = 5000;             // More prefetch
-});
-
-services.Configure<KafkaMessageBusOptions>(options =>
-{
-    options.AckLevel = KafkaAckLevel.Leader;      // Faster acks (less durable)
-    options.CompressionType = KafkaCompressionType.Lz4;  // Fast compression
+    options.Consumer.MaxBatchSize = 500;          // Larger batches
+    options.Consumer.MaxBatchWaitMs = 50;         // Shorter wait time
+    options.Consumer.QueuedMinMessages = 5000;    // More prefetch
 });
 
 services.Configure<KafkaCloudEventOptions>(options =>
 {
-    options.EnableCompression = true;
-    options.CompressionType = KafkaCompressionType.Lz4;
-    options.EnableIdempotentProducer = false;    // Disable for max throughput
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.Leader;  // Faster acks (less durable)
+    options.Producer.CompressionType = KafkaCompressionType.Lz4;  // Fast compression
+});
+
+services.Configure<KafkaCloudEventOptions>(options =>
+{
+    options.Producer.EnableCompression = true;
+    options.Producer.CompressionType = KafkaCompressionType.Lz4;
+    options.Producer.EnableIdempotentProducer = false;    // Disable for max throughput
 });
 ```
 
@@ -378,10 +379,10 @@ services.Configure<KafkaCloudEventOptions>(options =>
 ```csharp
 services.Configure<KafkaOptions>(options =>
 {
-    options.MaxBatchSize = 1;                     // Process immediately
-    options.MaxBatchWaitMs = 0;                   // No batching delay
-    options.SessionTimeoutMs = 10000;             // Faster failure detection
-    options.MaxPollIntervalMs = 60000;            // Shorter poll interval
+    options.Consumer.MaxBatchSize = 1;            // Process immediately
+    options.Consumer.MaxBatchWaitMs = 0;          // No batching delay
+    options.Consumer.SessionTimeoutMs = 10000;    // Faster failure detection
+    options.Consumer.MaxPollIntervalMs = 60000;   // Shorter poll interval
 });
 ```
 
@@ -390,15 +391,15 @@ services.Configure<KafkaOptions>(options =>
 ```csharp
 services.Configure<KafkaCloudEventOptions>(options =>
 {
-    options.EnableIdempotentProducer = true;      // Idempotent writes
-    options.EnableTransactions = true;            // Transactional processing
-    options.TransactionalId = "my-service-txn";   // Unique transaction ID
-    options.AcknowledgmentLevel = KafkaAckLevel.All;
+    options.Producer.EnableIdempotentProducer = true;   // Idempotent writes
+    options.Producer.EnableTransactions = true;         // Transactional processing
+    options.Producer.TransactionalId = "my-service-txn"; // Unique transaction ID
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
 });
 
 services.Configure<KafkaOptions>(options =>
 {
-    options.EnableAutoCommit = false;             // Manual offset commits
+    options.Consumer.EnableAutoCommit = false;    // Manual offset commits
 });
 ```
 
@@ -564,40 +565,43 @@ services.Configure<KafkaOptions>(options =>
     options.ConsumerGroup = "my-consumer-group";
 
     // Offset management
-    options.EnableAutoCommit = false;
-    options.AutoCommitIntervalMs = 5000;
-    options.AutoOffsetReset = "latest";
+    options.Consumer.EnableAutoCommit = false;
+    options.Consumer.AutoCommitIntervalMs = 5000;
+    options.Consumer.AutoOffsetReset = "latest";
 
     // Batching
-    options.MaxBatchSize = 100;
-    options.MaxBatchWaitMs = 1000;
+    options.Consumer.MaxBatchSize = 100;
+    options.Consumer.MaxBatchWaitMs = 1000;
 
     // Performance
-    options.QueuedMinMessages = 1000;
-    options.MaxConcurrentCommits = 10;
+    options.Consumer.QueuedMinMessages = 1000;
+    options.Consumer.MaxConcurrentCommits = 10;
 
     // Session management
-    options.SessionTimeoutMs = 30000;
-    options.MaxPollIntervalMs = 300000;
+    options.Consumer.SessionTimeoutMs = 30000;
+    options.Consumer.MaxPollIntervalMs = 300000;
 
     // Features
-    options.EnablePartitionEof = false;
+    options.Consumer.EnablePartitionEof = false;
     options.EnableEncryption = false;
 
     // Additional librdkafka config
     options.AdditionalConfig["socket.keepalive.enable"] = "true";
 });
 
-// Message Bus Options
-services.Configure<KafkaMessageBusOptions>(options =>
+// Broker/consumer options
+services.Configure<KafkaOptions>(options =>
 {
     options.BootstrapServers = "localhost:9092";
-    options.ProducerClientId = "my-producer";
-    options.ConsumerGroupId = "my-consumer-group";
-    options.EnableCloudEvents = true;
-    options.CompressionType = KafkaCompressionType.Snappy;
-    options.AckLevel = KafkaAckLevel.All;
+    options.ConsumerGroup = "my-consumer-group";
+});
+
+// CloudEvent producer options
+services.Configure<KafkaCloudEventOptions>(options =>
+{
     options.PartitioningStrategy = KafkaPartitioningStrategy.RoundRobin;
+    options.Producer.CompressionType = KafkaCompressionType.Snappy;
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
 });
 
 // CloudEvents Options
@@ -613,27 +617,27 @@ services.Configure<KafkaCloudEventOptions>(options =>
     options.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
 
     // Exactly-once
-    options.EnableIdempotentProducer = true;
-    options.EnableTransactions = false;
-    options.TransactionalId = null;
+    options.Producer.EnableIdempotentProducer = true;
+    options.Producer.EnableTransactions = false;
+    options.Producer.TransactionalId = null;
 
     // Message settings
-    options.AcknowledgmentLevel = KafkaAckLevel.All;
-    options.MaxMessageSizeBytes = 1048576;
+    options.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
+    options.Producer.MaxMessageSizeBytes = 1048576;
 
     // Compression
-    options.EnableCompression = true;
-    options.CompressionType = KafkaCompressionType.Snappy;
-    options.CompressionThreshold = 1024;
+    options.Producer.EnableCompression = true;
+    options.Producer.CompressionType = KafkaCompressionType.Snappy;
+    options.Producer.CompressionThreshold = 1024;
 
     // Consumer
     options.ConsumerGroupId = "cloudevents-consumer";
     options.OffsetReset = KafkaOffsetReset.Latest;
 
     // Retry
-    options.RetrySettings = new KafkaRetrySettings
+    options.Producer.RetrySettings = new KafkaRetryOptions
     {
-        MaxRetries = 3,
+        MaxRetryAttempts = 3,
         RetryDelay = TimeSpan.FromMilliseconds(100),
         MaxRetryDelay = TimeSpan.FromSeconds(30),
         UseExponentialBackoff = true,

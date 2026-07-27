@@ -18,6 +18,17 @@ public interface IAuthorizationEvaluator
 	/// <param name="resource"> The target resource for the action. </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> An <see cref="AuthorizationDecision" /> describing the evaluation result. </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Fail-closed postcondition.</b> The returned decision MUST default to denial: access is granted
+	/// only when the decision's effect is explicitly <see cref="AuthorizationEffect.Permit" />. Any other
+	/// effect — <see cref="AuthorizationEffect.Deny" />, <see cref="AuthorizationEffect.Indeterminate" />,
+	/// or a default-initialized effect — MUST be treated by callers as a denial. Implementations MUST NOT
+	/// return <see cref="AuthorizationEffect.Permit" /> on an error, timeout, or ambiguous result; on any
+	/// failure to reach a positive decision they return <see cref="AuthorizationEffect.Deny" /> (or
+	/// <see cref="AuthorizationEffect.Indeterminate" />), never a silent permit.
+	/// </para>
+	/// </remarks>
 	Task<AuthorizationDecision> EvaluateAsync(
 		AuthorizationSubject subject,
 		AuthorizationAction action,

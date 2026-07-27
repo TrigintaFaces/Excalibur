@@ -88,7 +88,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Assert - Exactly one should succeed, rest should fail
 		successCount.ShouldBe(1);
 		exceptionCount.ShouldBe(taskCount - 1);
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await)
 		tasks.Count(t => t.Result != null).ShouldBe(1);
+		#pragma warning restore RS0030
 	}
 
 	[Fact]

@@ -420,7 +420,6 @@ public class MediatRComparisonBenchmarks
 		HandlerInvokerRegistry.FreezeCache();
 		HandlerActivator.FreezeCache();
 		FinalDispatchHandler.FreezeResultFactoryCache();
-		MiddlewareApplicabilityEvaluator.FreezeCache();
 	}
 
 	private static async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(

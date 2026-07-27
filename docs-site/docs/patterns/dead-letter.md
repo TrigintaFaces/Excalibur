@@ -60,7 +60,34 @@ dotnet add package Excalibur.Data.SqlServer
 dotnet add package Excalibur.Data.ElasticSearch
 ```
 
+## Two dead-letter families — check which one you are installing
+
+This page documents **two independent dead-letter surfaces**. They are not alternative providers of one abstraction; they are separate types with different guarantees, and the registration you call decides which one you get.
+
+| | `IDeadLetterStore` (poison-message) | `IDeadLetterQueue` (outbox/transport) |
+|---|---|---|
+| Installed by | `AddPoisonMessageHandling()`, `UseInMemoryDeadLetterStore()`, `AddSqlServerDeadLetterStore()` | `AddSqlServerOutbox(...)`, `AddKafkaDeadLetterQueue()` and the other transport registrations |
+| Admin surface | `IDeadLetterStoreAdmin` | `IDeadLetterQueueAdmin` |
+| Stores the failed message body | Yes | Yes |
+| Tenant term | Every operation keys by the **ambient** tenant | Keys by the **ambient** tenant for reads and replay; **purge is estate-wide by design** (admin surface) |
+
+**Every tenancy statement on this page names the family it binds.** A warning that names one family says nothing about the other. Both families now scope their tenant-facing reads to the ambient tenant; they differ on the admin surface, where `IDeadLetterQueueAdmin` purges across every tenant deliberately.
+
+:::info `IDeadLetterStore` scopes every operation to the ambient tenant
+
+All seven operations on `IDeadLetterStore` — store, fetch-by-id, list, mark-replayed, delete, count, and the retention cleanup — key by the tenant in scope when you call them. Rows carry a tenant column, written on store and required on every subsequent match, so one tenant's listing, count, delete and cleanup cannot reach another tenant's entries.
+
+**The tenant is ambient, not a parameter.** No method takes a tenant argument; each resolves the tenant from the scope the call runs in. Two obligations follow for you:
+
+- **Establish the tenant scope before you call.** A call made with no scope resolves under the untenanted partition — it does not fall back to "all tenants", so a forgotten scope loses sight of entries rather than exposing them, but it will look empty and it is not an error.
+- **A single-tenant host registers no tenant context at all.** That is supported: every row lands in the untenanted partition and every operation matches it consistently. Nothing to configure.
+
+Entries still contain the full failed-message body, so ordinary care about who may call these operations applies — but a correctly-scoped tenant call no longer discloses another tenant's content.
+:::
+
 ## Basic Configuration
+
+The registrations in this section install the **`IDeadLetterStore` (poison-message) family** — see the disclosure above for what that means in a multi-tenant host.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -121,9 +148,50 @@ builder.Services.AddDispatch(dispatch =>
 
 - The decorator dead-letters with reason `DeadLetterReason.MaxRetriesExceeded` **only** — it composes with
   `PoisonMessageMiddleware` (which owns `PoisonMessage` / `DeserializationFailed`) rather than duplicating it.
-- **Fail-safe default:** `AddDeadLetterOnExhaustion()` registers a no-op `NullDeadLetterQueue` via `TryAdd`,
-  so if you have not registered a real `IDeadLetterQueue` the exhaustion is logged and never crashes the
-  pipeline. A consumer-registered `IDeadLetterQueue` takes precedence.
+- **An `IDeadLetterQueue` is required — there is no default.** The middleware routes messages that have
+  exhausted every retry attempt, so a host without a store would drop them. Register one (for example
+  `AddSqlServerOutbox(...)`, which registers `SqlServerDeadLetterQueue`) before building the host.
+
+:::warning The failure surfaces at first resolve, not at startup
+
+If no `IDeadLetterQueue` is registered, `BuildServiceProvider()` **returns normally** — the registration is
+a factory, so the failure appears the first time the middleware is resolved:
+
+```
+System.InvalidOperationException
+
+AddDeadLetterOnExhaustion() requires an IDeadLetterQueue, and none is registered. The
+middleware routes messages that exhaust every retry attempt, so a host without a store
+would drop them. Register one before building the host - for example
+AddSqlServerOutbox(...), which registers SqlServerDeadLetterQueue. If discarding
+exhausted messages is genuinely intended, make that choice explicit with
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance); each discarded
+message is then logged as discarded rather than reported as dead-lettered.
+```
+
+A successful `BuildServiceProvider()` is therefore not evidence that the queue is wired. To check it at
+startup, resolve the middleware itself and let the failure surface:
+
+```csharp
+// Fails fast on a queue-less host, at startup, on your machine.
+_ = provider.GetRequiredService<DeadLetterOnExhaustionMiddleware>();
+```
+
+Assert the same thing in an integration test. Resolve **this type specifically** — a check that only
+constructs surrounding infrastructure is not equivalent, and a startup that completes without resolving
+this middleware tells you nothing about whether a store is registered.
+
+:::
+
+- **Discarding is available, but only as an explicit choice.** If losing exhausted messages is genuinely
+  intended, register the no-op queue yourself:
+
+  ```csharp
+  services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+  ```
+
+  The middleware then logs each message as **discarded** rather than reporting it as dead-lettered — the two
+  paths emit different events, so a discard is never mistaken for storage in your telemetry.
 
 ## IDeadLetterQueue Interface
 
@@ -172,18 +240,25 @@ public interface IDeadLetterQueue
 
 /// <summary>
 /// Admin operations (batch replay, purge) for the dead letter queue.
+/// Every operation on this interface is estate-wide: it addresses entries in
+/// every tenant, not only the ambient one.
 /// </summary>
 public interface IDeadLetterQueueAdmin
 {
     /// <summary>
     /// Replays multiple dead letter entries that match the specified filter.
+    /// Estate-wide: the selection is not narrowed by the ambient tenant. Each
+    /// replayed message re-enters the tenant its entry was stored under.
+    /// The result reports whether the batch was cut short -- see the note below.
     /// </summary>
-    Task<int> ReplayBatchAsync(
+    Task<ReplayBatchResult> ReplayBatchAsync(
         DeadLetterQueryFilter filter,
+        int limit,
         CancellationToken cancellationToken);
 
     /// <summary>
     /// Purges (permanently deletes) a dead letter entry.
+    /// Estate-wide: addresses the entry in whichever tenant holds it.
     /// </summary>
     Task<bool> PurgeAsync(
         Guid entryId,
@@ -191,12 +266,64 @@ public interface IDeadLetterQueueAdmin
 
     /// <summary>
     /// Purges all dead letter entries older than the specified age.
+    /// Estate-wide and irreversible: deletes matching entries in every tenant
+    /// on an age predicate alone. There is no tenant term in the selection.
     /// </summary>
     Task<int> PurgeOlderThanAsync(
         TimeSpan olderThan,
         CancellationToken cancellationToken);
 }
 ```
+
+:::danger `IDeadLetterQueueAdmin` is an operator surface, not a tenant surface
+
+*Binds the `IDeadLetterQueue` (outbox/transport) family. The `IDeadLetterStore` family scopes every operation to the ambient tenant — see the top of this page. Do not carry this warning across to it.*
+
+**Every operation on `IDeadLetterQueueAdmin` crosses tenant boundaries.** `PurgeOlderThanAsync` selects on an age predicate alone — there is no tenant term in the selection — so it permanently deletes matching entries in **every** tenant, and the deletion is not recoverable.
+
+A multi-tenant host that resolves this interface into a tenant-facing request path lets one tenant delete another tenant's failed messages. Inject it only into operator tooling that is already authorized across the estate, and never behind an endpoint a tenant can reach.
+
+Keep the two apart at your composition root — and read the note below before assuming the non-admin interface is safe to hand a tenant.
+
+:::
+
+:::info `IDeadLetterQueue` reads and replay are tenant-scoped; `IDeadLetterQueueAdmin` is estate-wide by design
+
+*Binds the `IDeadLetterQueue` (outbox/transport) family. It is not a statement about the `IDeadLetterStore` family, which has no tenant term on any operation.*
+
+The shipped `IDeadLetterQueue` implementation resolves its tenant-facing operations within the **ambient tenant**: `GetEntriesAsync`, `GetEntryAsync`, `ReplayAsync` and `GetCountAsync` each carry the ambient tenant scope into the query, so an entry stored under another tenant is not listed, not fetched, not replayable, and not counted from a caller's own context. Counting is included deliberately: a total taken across tenants would disclose another tenant's failure volume even though no entry of theirs is readable. Replay continues to re-enter the tenant the entry was **stored** under, never the caller's — those are two separate properties and both hold.
+
+**Purging is deliberately not scoped, and is not on this interface.** `PurgeAsync` and `PurgeOlderThanAsync` are declared on `IDeadLetterQueueAdmin`, the privileged operator surface, and resolve entries across every tenant **on purpose** — an operator must be able to address any tenant's entry. Do not register the admin interface for tenant-facing injection, and keep it out of tenant-reachable code paths. That is a design boundary, not a gap.
+
+**Verify before you rely on it.** This describes the shipped SQL Server implementation. A custom `IDeadLetterQueue` you write is scoped only insofar as you scope it, and the interface's own contract documentation is being brought in line with this behaviour — treat your own implementation's isolation as your responsibility to test.
+:::
+
+:::note `ReplayBatchAsync` tells you when the batch was cut short
+
+The result reports three things, and the third is the one to branch on:
+
+| Member | Meaning |
+|---|---|
+| `Enumerated` | How many entries the filter selected, up to your `limit`. |
+| `Replayed` | How many were actually replayed. Lower than `Enumerated` when an individual entry could not be replayed. |
+| `Truncated` | `true` when the limit was reached and **further entries may still match the filter** — the batch is incomplete. |
+
+**Drive your drain loop off `Truncated`, not off the counts.** A batch that returns exactly `limit` entries is indistinguishable by count alone from one that happened to drain the queue; `Truncated` is what separates them.
+
+```csharp
+ReplayBatchResult result;
+do
+{
+    result = await dlqAdmin.ReplayBatchAsync(filter, limit: 500, ct);
+    logger.LogInformation(
+        "Replayed {Replayed} of {Enumerated} entries", result.Replayed, result.Enumerated);
+}
+while (result.Truncated);
+```
+
+`Replayed < Enumerated` means individual entries failed to replay and remain in the queue — it is not an error, and those entries are still selectable by the same filter on a later pass.
+
+:::
 
 ## Dead Letter Reasons
 
@@ -240,6 +367,8 @@ public sealed class DeadLetterEntry
 ## Usage Examples
 
 ### Viewing Dead Letter Entries
+
+The service below is **operator tooling**. Listing, fetching, replaying, and purging all select without a tenant term today (see the disclosure above), so a service shaped like this does not belong in a request path a tenant can reach.
 
 ```csharp
 public class DeadLetterMonitorService
@@ -336,26 +465,28 @@ public class DeadLetterRecoveryService
     }
 
     // Batch replay all validation failures (after fixing validation logic)
-    public async Task<int> ReplayValidationFailuresAsync(CancellationToken ct)
+    public async Task<ReplayBatchResult> ReplayValidationFailuresAsync(CancellationToken ct)
     {
         var filter = DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed);
-        return await _dlqAdmin.ReplayBatchAsync(filter, ct);
+        return await _dlqAdmin.ReplayBatchAsync(filter, limit: 500, ct);
     }
 
     // Replay all pending entries for a specific message type
-    public async Task<int> ReplayByTypeAsync(string messageType, CancellationToken ct)
+    public async Task<ReplayBatchResult> ReplayByTypeAsync(string messageType, CancellationToken ct)
     {
         var filter = new DeadLetterQueryFilter
         {
             MessageType = messageType,
             IsReplayed = false
         };
-        return await _dlqAdmin.ReplayBatchAsync(filter, ct);
+        return await _dlqAdmin.ReplayBatchAsync(filter, limit: 500, ct);
     }
 }
 ```
 
 ### Cleanup and Purging
+
+The cleanup service below is **operator tooling**. `PurgeOlderThanAsync` deletes across every tenant on age alone, so a service like this belongs in an admin host or a scheduled job that is authorized estate-wide — not in a request path a tenant can reach.
 
 ```csharp
 public class DeadLetterCleanupService
@@ -575,6 +706,10 @@ public class CustomDeadLetterHandler
 ```
 
 ## Supported Providers
+
+These providers back the **`IDeadLetterStore` (poison-message) family**. The in-memory, SQL Server and PostgreSQL stores all key every operation by the ambient tenant, as described at the top of this page.
+
+**The Elasticsearch entry is the exception, and it is not the same kind of thing.** `ElasticsearchDeadLetterHandler` does not implement `IDeadLetterStore`; it is a standalone handler that indexes a failed document, and it carries no tenant term of any kind — nothing written to the index identifies the tenant, and there is no scoped read to retrieve from it. In a multi-tenant host it writes every tenant's failed payloads into one unpartitioned index. Do not reach for it expecting the isolation the other three provide, and do not expose an index it writes to a tenant.
 
 | Provider | Package | Use Case |
 |----------|---------|----------|

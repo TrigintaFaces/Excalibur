@@ -146,11 +146,18 @@ public sealed class InMemoryAuditStoreShould : IDisposable
     [Fact]
     public async Task Query_by_tenant_id()
     {
-        await _sut.StoreAsync(CreateEvent("evt-t1", tenantId: "tenant-a"), CancellationToken.None);
-        await _sut.StoreAsync(CreateEvent("evt-t2", tenantId: "tenant-b"), CancellationToken.None);
+        // Scoping comes from the ambient context, not from the query. Setting AuditQuery.TenantId here and
+        // asserting it selected the partition would have required the store to trust a caller-supplied
+        // tenant -- the impersonation defect. The store never reads that field.
+        using var sut = new InMemoryAuditStore(
+            AuditIntegrityTestStrategy.Create(), new FixedTenantContext("tenant-a"));
 
-        var query = new AuditQuery { TenantId = "tenant-a" };
-        var results = await _sut.QueryAsync(query, CancellationToken.None);
+        await sut.StoreAsync(CreateEvent("evt-t1", tenantId: "tenant-a"), CancellationToken.None);
+        await sut.StoreAsync(CreateEvent("evt-t2", tenantId: "tenant-b"), CancellationToken.None);
+
+        // Deliberately carries no TenantId: this is the shape a caller produces, and the store must scope
+        // it anyway.
+        var results = await sut.QueryAsync(new AuditQuery(), CancellationToken.None);
 
         results.Count.ShouldBe(1);
         results[0].TenantId.ShouldBe("tenant-a");
@@ -159,8 +166,17 @@ public sealed class InMemoryAuditStoreShould : IDisposable
     [Fact]
     public async Task Query_returns_empty_for_nonexistent_tenant()
     {
-        var query = new AuditQuery { TenantId = "nonexistent" };
-        var results = await _sut.QueryAsync(query, CancellationToken.None);
+        // Previously this set AuditQuery.TenantId on an EMPTY store and asserted zero results -- true of a
+        // correctly scoped store, of a store that honoured the caller-supplied tenant, and of a store that
+        // returned nothing to anyone. It could not fail. Now the store belongs to a tenant that owns no
+        // events while another tenant's events are present, so zero has to be earned by scoping.
+        using var sut = new InMemoryAuditStore(
+            AuditIntegrityTestStrategy.Create(), new FixedTenantContext("tenant-nobody"));
+
+        await sut.StoreAsync(CreateEvent("evt-other-1", tenantId: "tenant-a"), CancellationToken.None);
+        await sut.StoreAsync(CreateEvent("evt-other-2", tenantId: "tenant-b"), CancellationToken.None);
+
+        var results = await sut.QueryAsync(new AuditQuery(), CancellationToken.None);
 
         results.Count.ShouldBe(0);
     }
@@ -220,9 +236,15 @@ public sealed class InMemoryAuditStoreShould : IDisposable
     [Fact]
     public async Task Count_returns_zero_for_nonexistent_tenant()
     {
-        var count = await _sut.CountAsync(
-            new AuditQuery { TenantId = "nonexistent" },
-            CancellationToken.None);
+        // Same repair as the query arm above: counting an empty store proved nothing. The store now owns
+        // no events while another tenant's are present, so a non-zero count would mean the count crossed
+        // the partition.
+        using var sut = new InMemoryAuditStore(
+            AuditIntegrityTestStrategy.Create(), new FixedTenantContext("tenant-nobody"));
+
+        await sut.StoreAsync(CreateEvent("evt-other-1", tenantId: "tenant-a"), CancellationToken.None);
+
+        var count = await sut.CountAsync(new AuditQuery(), CancellationToken.None);
 
         count.ShouldBe(0);
     }

@@ -93,6 +93,7 @@ public static class InMemoryTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			InMemoryTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Local,
 			sp => sp.GetRequiredKeyedService<InMemoryTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
@@ -150,6 +151,7 @@ public static class InMemoryTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			InMemoryTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Local,
 			sp => sp.GetRequiredKeyedService<InMemoryTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)

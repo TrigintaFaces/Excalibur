@@ -90,6 +90,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		_inner.BecameLeader += HandleBecameLeader;
 		_inner.LostLeadership += HandleLostLeadership;
 		_inner.LeaderChanged += HandleLeaderChanged;
+		_inner.AcquisitionFailed += HandleAcquisitionFailed;
 	}
 
 	/// <inheritdoc />
@@ -102,10 +103,16 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
 	/// <inheritdoc />
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+	/// <inheritdoc />
 	public string CandidateId => _inner.CandidateId;
 
 	/// <inheritdoc />
 	public bool IsLeader => _inner.IsLeader;
+
+	/// <inheritdoc />
+	public Leadership? CurrentLeadership => _inner.CurrentLeadership;
 
 	/// <inheritdoc />
 	public string? CurrentLeaderId => _inner.CurrentLeaderId;
@@ -162,6 +169,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		_inner.BecameLeader -= HandleBecameLeader;
 		_inner.LostLeadership -= HandleLostLeadership;
 		_inner.LeaderChanged -= HandleLeaderChanged;
+		_inner.AcquisitionFailed -= HandleAcquisitionFailed;
 
 		// Do not dispose _meter and _activitySource here -- they are owned by
 		// TelemetryLeaderElectionFactory and shared across election instances.
@@ -217,6 +225,20 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	private void HandleLeaderChanged(object? sender, LeaderChangedEventArgs e)
 	{
 		LeaderChanged?.Invoke(this, e);
+	}
+
+	private void HandleAcquisitionFailed(object? sender, LeaderElectionAcquisitionFailedEventArgs e)
+	{
+		var guardedInstance = _instanceGuard.Guard(e.CandidateId);
+		var tags = new TagList
+		{
+			{ LeaderElectionTelemetryConstants.TagNames.Instance, guardedInstance },
+			{ LeaderElectionTelemetryConstants.TagNames.Provider, _providerName },
+			{ LeaderElectionTelemetryConstants.TagNames.Result, "failed" },
+		};
+		_acquisitionsCounter.Add(1, tags);
+
+		AcquisitionFailed?.Invoke(this, e);
 	}
 
 	private void RecordLeaseDurationIfActive()

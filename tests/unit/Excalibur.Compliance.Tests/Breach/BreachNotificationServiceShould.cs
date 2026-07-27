@@ -48,17 +48,26 @@ public sealed class BreachNotificationServiceShould
     }
 
     [Fact]
-    public async Task Auto_notify_when_option_is_enabled()
+    public async Task Refuse_auto_notify_but_still_record_the_breach()
     {
         var options = new BreachNotificationOptions { AutoNotify = true };
         var sut = new BreachNotificationService(
             Microsoft.Extensions.Options.Options.Create(options),
             NullLogger<BreachNotificationService>.Instance);
 
-        var result = await sut.ReportBreachAsync(CreateReport(), CancellationToken.None);
+        // FLIPPED: previously asserted that AutoNotify stamps SubjectsNotified. That is the same
+        // fabricated attestation as the manual path, reached automatically and therefore more quietly.
+        _ = await Should.ThrowAsync<NotSupportedException>(
+            () => sut.ReportBreachAsync(CreateReport(), CancellationToken.None));
 
-        result.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
-        result.SubjectsNotifiedAt.ShouldNotBeNull();
+        // The breach itself must still be recorded — losing the report and its Art. 33 deadline would be
+        // a worse outcome than the defect being fixed.
+        var recorded = await sut.GetBreachStatusAsync("breach-001", CancellationToken.None);
+
+        recorded.ShouldNotBeNull();
+        recorded.NotificationDeadline.ShouldNotBeNull();
+        recorded.Status.ShouldNotBe(BreachNotificationStatus.SubjectsNotified);
+        recorded.SubjectsNotifiedAt.ShouldBeNull();
     }
 
     [Fact]
@@ -81,14 +90,23 @@ public sealed class BreachNotificationServiceShould
     }
 
     [Fact]
-    public async Task Notify_affected_subjects()
+    public async Task Refuse_to_attest_notification_it_cannot_perform()
     {
+        // FLIPPED: this test previously asserted that a transport-less service returns SubjectsNotified
+        // with a timestamp — it certified the fabricated attestation rather than catching it. Under GDPR
+        // Art. 34 that status and timestamp are the evidence a controller produces to a supervisory
+        // authority, so writing them without notifying anybody manufactures a false regulatory record.
+        // The contract is now: refuse, and leave no attestation behind.
         await _sut.ReportBreachAsync(CreateReport("breach-003"), CancellationToken.None);
 
-        var result = await _sut.NotifyAffectedSubjectsAsync("breach-003", CancellationToken.None);
+        _ = await Should.ThrowAsync<NotSupportedException>(
+            () => _sut.NotifyAffectedSubjectsAsync("breach-003", CancellationToken.None));
 
-        result.Status.ShouldBe(BreachNotificationStatus.SubjectsNotified);
-        result.SubjectsNotifiedAt.ShouldNotBeNull();
+        var after = await _sut.GetBreachStatusAsync("breach-003", CancellationToken.None);
+
+        after.ShouldNotBeNull();
+        after.Status.ShouldNotBe(BreachNotificationStatus.SubjectsNotified);
+        after.SubjectsNotifiedAt.ShouldBeNull();
     }
 
     [Fact]
@@ -99,12 +117,18 @@ public sealed class BreachNotificationServiceShould
     }
 
     [Fact]
-    public async Task Throw_when_notifying_already_notified_breach()
+    public async Task Refuse_every_notification_attempt_not_just_the_first()
     {
+        // FLIPPED: the double-notification guard could only be reached by first performing a notification
+        // that never happened. With the attestation refused, the first call is the one that throws — the
+        // guard itself is unreachable for this implementation and asserting it would require re-creating
+        // the false record to set it up.
         await _sut.ReportBreachAsync(CreateReport("breach-004"), CancellationToken.None);
-        await _sut.NotifyAffectedSubjectsAsync("breach-004", CancellationToken.None);
 
-        await Should.ThrowAsync<InvalidOperationException>(
+        _ = await Should.ThrowAsync<NotSupportedException>(
+            () => _sut.NotifyAffectedSubjectsAsync("breach-004", CancellationToken.None));
+
+        _ = await Should.ThrowAsync<NotSupportedException>(
             () => _sut.NotifyAffectedSubjectsAsync("breach-004", CancellationToken.None));
     }
 

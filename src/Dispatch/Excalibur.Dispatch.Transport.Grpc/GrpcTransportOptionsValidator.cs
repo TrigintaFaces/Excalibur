@@ -42,6 +42,11 @@ internal sealed class GrpcTransportOptionsValidator : IValidateOptions<GrpcTrans
 			return ValidateOptionsResult.Fail("MaxReceiveMessageSize must be at least 1 byte when specified.");
 		}
 
+		if (options.MaxPayloadBytes is < 1)
+		{
+			return ValidateOptionsResult.Fail("MaxPayloadBytes must be at least 1 byte when specified. Set it to null to opt out of the payload-size limit.");
+		}
+
 		if (options.KeepAlivePingTimeoutSeconds >= options.KeepAlivePingDelaySeconds)
 		{
 			return ValidateOptionsResult.Fail("KeepAlivePingTimeoutSeconds must be less than KeepAlivePingDelaySeconds.");

@@ -153,4 +153,12 @@ public sealed record InboxMessage : IInboxMessage
 	/// </summary>
 	/// <value>The current <see cref="DispatcherTimeout"/> value.</value>
 	public DateTimeOffset? DispatcherTimeout { get; set; }
+
+	/// <summary>
+	/// Gets the tenant identifier this message was received under, or <see langword="null"/> when no tenant
+	/// scope is carried. Populated from the persisted inbox entry so the re-admission drain re-establishes the
+	/// entry's tenant scope before dispatch.
+	/// </summary>
+	/// <value>The current <see cref="TenantId"/> value.</value>
+	public string? TenantId { get; init; }
 }

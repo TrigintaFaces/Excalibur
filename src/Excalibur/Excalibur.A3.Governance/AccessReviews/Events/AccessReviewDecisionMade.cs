@@ -20,8 +20,6 @@ internal sealed class AccessReviewDecisionMade : IDomainEvent
 	public string? DelegateToReviewerId { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => CampaignId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(AccessReviewDecisionMade);
 	public IDictionary<string, object>? Metadata { get; init; }

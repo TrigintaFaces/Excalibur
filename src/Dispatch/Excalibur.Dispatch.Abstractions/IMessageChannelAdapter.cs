@@ -7,84 +7,19 @@ namespace Excalibur.Dispatch;
 /// <summary>
 /// Defines a contract for adapting message channels to a common interface.
 /// </summary>
+/// <remarks>
+/// This composite aggregates the focused send, receive, acknowledge, and connection contracts.
+/// Consumers that only need one capability can depend on the narrow interface
+/// (<see cref="IMessageChannelSender{TMessage}" />, <see cref="IMessageChannelReceiver{TMessage}" />,
+/// <see cref="IMessageChannelAcknowledger{TMessage}" />, or <see cref="IMessageChannelConnection" />);
+/// implementers of a full adapter continue to implement this aggregate.
+/// </remarks>
 /// <typeparam name="TMessage"> The type of message handled by the adapter. </typeparam>
-public interface IMessageChannelAdapter<TMessage>
+public interface IMessageChannelAdapter<TMessage> :
+	IMessageChannelSender<TMessage>,
+	IMessageChannelReceiver<TMessage>,
+	IMessageChannelAcknowledger<TMessage>,
+	IMessageChannelConnection
 	where TMessage : class
 {
-	/// <summary>
-	/// Gets the channel name or identifier.
-	/// </summary>
-	/// <value> The logical identifier of the channel. </value>
-	string ChannelName { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether the adapter is currently connected.
-	/// </summary>
-	/// <value> <see langword="true" /> when the adapter maintains an active connection; otherwise, <see langword="false" />. </value>
-	bool IsConnected { get; }
-
-	/// <summary>
-	/// Sends a message through the channel.
-	/// </summary>
-	/// <param name="message"> The message to send. </param>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous send operation. </returns>
-	Task SendAsync(TMessage message, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Sends a batch of messages through the channel.
-	/// </summary>
-	/// <param name="messages"> The messages to send. </param>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous batch send operation. </returns>
-	Task SendBatchAsync(IEnumerable<TMessage> messages, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Receives a message from the channel.
-	/// </summary>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns>
-	/// A task that represents the asynchronous receive operation. The task result contains the received message, or null if no message is available.
-	/// </returns>
-	Task<TMessage?> ReceiveAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Receives a batch of messages from the channel.
-	/// </summary>
-	/// <param name="maxMessages"> The maximum number of messages to receive. </param>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous batch receive operation. The task result contains the received messages. </returns>
-	Task<IEnumerable<TMessage>>
-		ReceiveBatchAsync(int maxMessages, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Acknowledges successful processing of a message.
-	/// </summary>
-	/// <param name="message"> The message to acknowledge. </param>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous acknowledge operation. </returns>
-	Task AcknowledgeAsync(TMessage message, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Rejects a message, potentially moving it to a dead letter queue.
-	/// </summary>
-	/// <param name="message"> The message to reject. </param>
-	/// <param name="reason"> The reason for rejection. </param>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous reject operation. </returns>
-	Task RejectAsync(TMessage message, string reason, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Connects to the channel.
-	/// </summary>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous connect operation. </returns>
-	Task ConnectAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Disconnects from the channel.
-	/// </summary>
-	/// <param name="cancellationToken"> A cancellation token to cancel the operation. </param>
-	/// <returns> A task that represents the asynchronous disconnect operation. </returns>
-	Task DisconnectAsync(CancellationToken cancellationToken);
 }

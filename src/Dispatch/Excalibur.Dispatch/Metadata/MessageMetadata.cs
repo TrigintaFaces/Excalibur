@@ -53,9 +53,7 @@ public sealed record MessageMetadata : IMessageMetadata
 		ContentType = "application/json";
 		CreatedTimestampUtc = DateTimeOffset.UtcNow;
 		Headers = EmptyStringDictionary;
-		Attributes = EmptyObjectDictionary;
 		Properties = EmptyObjectDictionary;
-		Items = EmptyObjectDictionary;
 		Identity = new MessageIdentity { MessageVersion = "1.0", SerializerVersion = "1.0", ContractVersion = "1.0.0" };
 		Security = new MessageSecurity();
 	}
@@ -119,18 +117,6 @@ public sealed record MessageMetadata : IMessageMetadata
 	public IReadOnlyDictionary<string, string> Headers { get; init; }
 
 	// ===== Extensibility bags (record-only) =====
-
-	/// <summary>
-	/// Gets the dictionary of message attributes.
-	/// </summary>
-	/// <value> The current <see cref="Attributes" /> value. </value>
-	public IReadOnlyDictionary<string, object> Attributes { get; init; }
-
-	/// <summary>
-	/// Gets the dictionary of message items.
-	/// </summary>
-	/// <value> The current <see cref="Items" /> value. </value>
-	public IReadOnlyDictionary<string, object> Items { get; init; }
 
 	// ===== Composed focused value-type groups (each <=10 properties) =====
 
@@ -256,10 +242,12 @@ public sealed record MessageMetadata : IMessageMetadata
 		_ = builder.WithRoles(Security.Roles);
 		_ = builder.WithClaims(Security.Claims);
 
-		// Add extensible collections
+		// Add extensible collections. Attributes/Items are read from their canonical bag store via
+		// GetAttributes()/GetItems() (the well-known Properties keys) — the former typed props were
+		// builder-unreachable and always empty (kmrpx4 CUT), so copying them lost the real bag data.
 		_ = builder.AddHeaders(Headers);
-		_ = builder.AddAttributes(Attributes);
-		_ = builder.AddItems(Items);
+		_ = builder.AddAttributes(this.GetAttributes());
+		_ = builder.AddItems(this.GetItems());
 
 		// Add explicit properties (excluding well-known keys that are already handled via typed fields)
 		var customProperties = Properties.Where(p => !IsWellKnownPropertyKey(p.Key));

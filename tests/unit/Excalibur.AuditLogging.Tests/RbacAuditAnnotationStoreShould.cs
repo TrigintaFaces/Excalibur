@@ -332,8 +332,22 @@ public sealed class RbacAuditAnnotationStoreShould
 
         var result = await _sut.GetAnnotationsAsync(TestEventId, CancellationToken.None);
 
-        // ComplianceOfficer sees ALL annotations including personal
-        result.Bookmarks.Count.ShouldBe(2);
+        // This arm asserted 2 — that a ComplianceOfficer saw ANOTHER actor's PERSONAL annotation. That
+        // privilege was deliberately removed: reads are scoped by authorship for every role, and no role
+        // bypasses it. Administering the annotation log is not a licence to read private notes, so the
+        // elevated role now sees shared annotations and its own, exactly like anyone else.
+        // SAFETY: another actor's personal bookmark stays hidden even from the highest role.
+        result.Bookmarks.ShouldNotContain(
+            b => b.Id == "b-1",
+            "a Personal annotation authored by other-actor must not be visible to a different actor, "
+            + "whatever their role — administration is not authorship.");
+
+        // LIVENESS: the shared one is still returned, so a filter that hid everything would not pass.
+        result.Bookmarks.Count.ShouldBe(
+            1,
+            "the shared bookmark must still come back; 0 would mean the filter is blind rather than "
+            + "selective, and 2 would mean the role bypass is back.");
+        result.Bookmarks[0].Visibility.ShouldBe(AuditAnnotationVisibility.Shared);
     }
 
     // ========================================
@@ -466,18 +480,42 @@ public sealed class RbacAuditAnnotationStoreShould
     // ========================================
 
     [Fact]
-    public async Task Query_by_annotation_async_delegates_to_inner_store()
+    public async Task Query_by_annotation_async_returns_only_candidates_the_caller_may_actually_read()
     {
+        // This arm previously asserted pure delegation — whatever the inner store returned came back
+        // untouched. The decorator deliberately stopped doing that: a query result discloses through
+        // MEMBERSHIP, so returning an event id because it carries an annotation the caller may not read
+        // tells them that annotation exists, one method away from GetAnnotationsAsync denying the same
+        // content. Every candidate is now re-checked through the predicate the direct read uses, and this
+        // arm binds that filtering instead of the delegation it replaced.
         SetRole(AuditLogRole.ComplianceOfficer);
         var query = new AuditAnnotationQuery { Tags = ["suspicious"] };
-        IReadOnlyList<string> expected = ["evt-1", "evt-2"];
 
         A.CallTo(() => _fakeInnerStore.QueryByAnnotationAsync(query, A<CancellationToken>._))
-            .Returns(expected);
+            .Returns<IReadOnlyList<string>>(["evt-readable", "evt-hidden"]);
+
+        // evt-readable carries a tag, and tags have no personal-visibility concept, so they are readable.
+        A.CallTo(() => _fakeInnerStore.GetAnnotationsAsync("evt-readable", A<CancellationToken>._))
+            .Returns(new AuditAnnotations("evt-readable", ["suspicious"], [], []));
+
+        // evt-hidden matched the query but exposes nothing this caller may read.
+        A.CallTo(() => _fakeInnerStore.GetAnnotationsAsync("evt-hidden", A<CancellationToken>._))
+            .Returns(new AuditAnnotations("evt-hidden", [], [], []));
 
         var result = await _sut.QueryByAnnotationAsync(query, CancellationToken.None);
 
-        result.ShouldBe(expected);
+        // SAFETY: the unreadable candidate must not appear — its presence alone confirms a matching
+        // annotation exists on it.
+        result.ShouldNotContain(
+            "evt-hidden",
+            "returning an id whose annotations are all unreadable leaks the existence of those annotations, "
+            + "which is exactly what the direct read refuses to disclose.");
+
+        // LIVENESS: paired deliberately — a decorator returning an empty list to everybody would satisfy
+        // the safety arm above while destroying the query.
+        result.ShouldContain(
+            "evt-readable",
+            "a candidate the caller CAN read must still come back, or the query is inert.");
     }
 
     // ========================================

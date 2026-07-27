@@ -29,7 +29,7 @@ public static class MetadataBuilderCollectionExtensions
 
 	/// <summary>
 	/// Adds (merges) the supplied attributes into the message metadata, preserving any already-added
-	/// attributes (yhoc4c). Same-key entries are overwritten; other keys are retained. For a full
+	/// attributes. Same-key entries are overwritten; other keys are retained. For a full
 	/// reset, pass <see langword="null"/> to <see cref="IMessageMetadataBuilder.WithProperty"/> with
 	/// the attributes key.
 	/// </summary>
@@ -80,7 +80,7 @@ public static class MetadataBuilderCollectionExtensions
 
 	/// <summary>
 	/// Adds (merges) the supplied items into the message metadata, preserving any already-added items
-	/// (yhoc4c). Same-key entries are overwritten; other keys are retained. For a full reset, pass
+	/// Same-key entries are overwritten; other keys are retained. For a full reset, pass
 	/// <see langword="null"/> to <see cref="IMessageMetadataBuilder.WithProperty"/> with the items key.
 	/// </summary>
 	/// <param name="builder"> The builder instance. </param>

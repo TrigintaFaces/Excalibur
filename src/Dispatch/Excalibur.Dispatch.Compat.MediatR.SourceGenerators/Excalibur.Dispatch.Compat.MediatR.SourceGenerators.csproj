@@ -24,7 +24,7 @@
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
-    <Description>Source generator for Excalibur.Dispatch.Compat.MediatR: emits AOT-safe canonical wrapper-actions + adapter-handlers + registration that bridge the MediatR-compatible surface onto Excalibur.Dispatch (ADR-341 §9). Shipped as an analyzer asset of the Compat.MediatR package.</Description>
+    <Description>Source generator for Excalibur.Dispatch.Compat.MediatR: emits AOT-safe canonical wrapper-actions + adapter-handlers + registration that bridge the MediatR-compatible surface onto Excalibur.Dispatch. Shipped as an analyzer asset of the Compat.MediatR package.</Description>
     <PackageTags>excalibur;dispatch;mediatr;migration;compat;source-generator;analyzer;aot</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

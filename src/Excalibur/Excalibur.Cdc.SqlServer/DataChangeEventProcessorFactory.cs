@@ -63,6 +63,7 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 		ArgumentNullException.ThrowIfNull(stateStoreConnection);
 
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
+		var timeProvider = _serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
 		var stateStoreOptions = _serviceProvider.GetService<IOptions<SqlServerCdcStateStoreOptions>>();
 		var fatalErrorOptions = _serviceProvider.GetService<IOptions<CdcFatalErrorOptions<DataChangeEvent>>>();
 		var idempotencyFilter = _serviceProvider.GetService<ICdcIdempotencyFilter>();
@@ -75,6 +76,7 @@ public sealed class DataChangeEventProcessorFactory : IDataChangeEventProcessorF
 				stateStoreOptions,
 				_serviceProvider,
 				_policyFactory,
+				timeProvider,
 				logger,
 				fatalErrorOptions,
 				idempotencyFilter);

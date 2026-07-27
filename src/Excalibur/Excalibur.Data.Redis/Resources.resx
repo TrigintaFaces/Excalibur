@@ -72,16 +72,4 @@
   <data name="RedisRetryPolicy_NoExceptionCapturedDuringRetryAttempts" xml:space="preserve">
     <value>No exception captured during retry attempts</value>
   </data>
-  <data name="RedisTransactionScope_CannotCommitTransactionInStateFormat" xml:space="preserve">
-    <value>Cannot commit transaction in {0} state</value>
-  </data>
-  <data name="RedisTransactionScope_CannotRollbackTransactionInStateFormat" xml:space="preserve">
-    <value>Cannot rollback transaction in {0} state</value>
-  </data>
-  <data name="RedisTransactionScope_OnlySupportsCreatingProvider" xml:space="preserve">
-    <value>Redis transaction scope only supports creating provider.</value>
-  </data>
-  <data name="RedisTransactionScope_SavepointsNotSupported" xml:space="preserve">
-    <value>Redis does not support savepoints</value>
-  </data>
 </root>

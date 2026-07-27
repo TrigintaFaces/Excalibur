@@ -61,7 +61,7 @@ services.AddSqlServerAuditStore(options =>
 {
     options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
     options.SchemaName = "compliance";
-    options.RetentionPeriod = TimeSpan.FromDays(7 * 365); // 7 years for SOC2
+    options.Retention.RetentionPeriod = TimeSpan.FromDays(7 * 365); // 7 years for SOC2
     options.EnableHashChain = true;
 });
 
@@ -282,7 +282,7 @@ Audit queries are optimized for indexed fields:
 |-------|---------|-----------------|
 | StartDate/EndDate | Yes | Always include time range |
 | ActorId | Yes | User activity reports |
-| TenantId | Yes | Multi-tenant isolation |
+| TenantId | Yes | Backs the ambient tenant predicate applied to every search |
 | ApplicationName | Yes | Multi-app shared backends |
 | ResourceId | Yes | Resource history |
 | CorrelationId | Yes | Request tracing |
@@ -351,6 +351,47 @@ public sealed record AuditIntegrityResult
 
 ## Multi-Tenant Isolation
 
+:::warning Reads are tenant-scoped and fail closed; chain verification is estate-wide by signature
+
+Read this before relying on audit isolation in a multi-tenant deployment or citing it as a control. The
+scoping guarantee is **per read method**, not blanket — and the two methods it does not cover are the ones
+most easily mistaken for covered.
+
+**`QueryAsync` and `CountAsync` are scoped from ambient context, and they fail closed.** The tenant
+predicate is taken from the registered tenant context, never from the query object, so a caller cannot
+widen a read by omitting a tenant nor redirect it by naming another one. If multi-tenancy is registered
+but resolves no tenant, the read raises `TenantRequiredException` rather than widening. With no
+multi-tenancy registered at all, reads bind the reserved untenanted partition. `GetLastEventAsync` is
+scoped the same way.
+
+The predicate is `NULL`-safe: a row whose `TenantId` column is `NULL` and the reserved untenanted sentinel
+name the same partition, so an untenanted caller reads its own rows rather than nothing.
+
+**`GetByIdAsync` is tenant-scoped too.** An event stored under another tenant is reported as **not found**, on
+the SQL Server, PostgreSQL and in-memory stores alike. An identifier alone does not address an event — it is
+addressed by identifier *within* the ambient tenant, so holding an audit event id obtained from a log line, an
+export, or a correlation trail does not grant access to it. You do not need to re-check the returned event's
+`TenantId` yourself.
+
+**`VerifyChainIntegrityAsync(startDate, endDate, ct)` takes no tenant argument** and verifies across every
+tenant in the range. Its result attests the integrity of the whole chain, not of a single tenant's slice, so
+do not present it to a tenant as evidence about their own data, and treat it as an operator-level operation
+regardless of who can currently call it.
+
+Whether that breadth is intended is not stated in the contract, and unlike the dead-letter queue there is no
+separate administrative interface here that would mark an estate-wide operation as deliberate. Until that is
+settled, assume the narrower thing: restrict who can call it.
+
+**What conformance enforces.** The shipped audit-store conformance kit exercises tenant scoping on
+`QueryAsync` — that an unscoped query does not return another tenant's events, that naming another tenant
+does not reach it, and that a scoped caller still receives its **own** events — plus `GetLastEventAsync`.
+Those arms run against real SQL Server and PostgreSQL containers.
+
+The kit also exercises tenant scoping on `GetByIdAsync` — that another tenant's event is reported as not
+found, and that a caller's **own** event is still returned. No arm exercises `VerifyChainIntegrityAsync`,
+which takes no tenant argument.
+:::
+
 Each tenant has an isolated hash chain:
 
 ```csharp
@@ -361,11 +402,9 @@ await _auditStore.StoreAsync(new AuditEvent
     // ...other properties
 }, ct);
 
-// Query within tenant
-var query = new AuditQuery
-{
-    TenantId = "tenant-abc"
-};
+// Search is scoped from ambient context — no TenantId on the query is needed,
+// and supplying another tenant's will not reach it.
+var query = new AuditQuery();
 
 // Verify chain integrity (covers all tenants in the date range)
 var result = await _auditStore.VerifyChainIntegrityAsync(
@@ -588,7 +627,7 @@ public async Task Should_Detect_Tampering()
 | Integrity checks | Run daily verification of hash chain |
 | Sensitive data | Mask PII/PHI before logging |
 | Performance | Use indexed fields for queries |
-| Multi-tenant | Always include TenantId for isolation |
+| Multi-tenant | Reads are scoped from ambient context and fail closed; treat chain verification as operator-level |
 
 ## Compliance Mapping
 
@@ -664,9 +703,26 @@ services.AddSqlServerAuditAnnotationStore(options =>
     options.CommandTimeoutSeconds = 30;  // default
 });
 
-// With RBAC enforcement (requires IAuditRoleProvider registration)
+// With RBAC enforcement. BOTH registrations are required: the decorator resolves the
+// caller's role through IAuditRoleProvider, and the framework ships NO implementation
+// of it — you supply one, because a role is a property of your caller's identity.
+services.AddScoped<IAuditRoleProvider, ClaimsBasedRoleProvider>();
 services.AddRbacAuditAnnotationStore();
 ```
+
+:::warning Registering the RBAC store without a role provider is not a partial configuration — it is a broken one
+
+The framework ships **no** `IAuditRoleProvider` implementation, and it cannot: a role is a property of *your*
+caller's identity, so there is no default that is both safe and useful. `Administrator` would see everything —
+which is the defect the control exists to prevent — and `None` would deny every read.
+
+You write the provider. A worked `ClaimsBasedRoleProvider` mapping claims to `AuditLogRole` is in
+[audit logging security](../security/audit-logging.md).
+
+Readability is scoped by **authorship**, not rank: an annotation is readable when it is `Shared` or when the
+caller wrote it, and no role bypasses that.
+
+:::
 
 ### Tagging Events
 
@@ -768,8 +824,32 @@ When `AddRbacAuditAnnotationStore()` is registered, annotation access is control
 |------|-----|----------|----------|--------------------------|
 | Developer | No | No | No | No |
 | SecurityAnalyst | Yes | Yes | Yes | Shared only |
-| ComplianceOfficer | Yes | Yes | Yes | All |
-| Administrator | Yes | Yes | Yes | All |
+| ComplianceOfficer | Yes | Yes | Yes | Shared only |
+| Administrator | Yes | Yes | Yes | Shared only |
+
+**Readability is decided by authorship, not by rank.** An annotation is readable when it is marked `Shared`,
+or when the caller is the actor who wrote it. **No role bypasses that** — rank grants the ability to
+*administer* annotations, not to read another actor's private ones, so `ComplianceOfficer` and `Administrator`
+do not see other actors' `Personal` annotations. Role still governs whether you may tag, bookmark or annotate
+at all, which is what the first three columns describe.
+
+:::warning Annotation reads are bounded by AUTHORSHIP, and separately by tenant — the tenant half only on the SQL Server store
+
+**The table above governs the WRITE capabilities and the shared-vs-private read axis; it does not express a
+tenant boundary at all.** The tenant boundary is a separate mechanism, described below.
+
+**On the SQL Server annotation store the tenant boundary does hold**, and the table below is why it needs no
+`TenantId` column: the tenant is **derived by joining the annotated audit event**, so an annotation inherits
+the tenancy of the event it describes. That join is applied on every read and every write, using a
+`NULL`-safe predicate so untenanted rows resolve to the reserved untenanted partition rather than vanishing.
+
+**On the in-memory annotation store there is no tenant term at all**, and it is the default before a
+database provider is registered. Authorship scoping still applies there, but it is orthogonal to tenancy: a
+caller reading **shared** annotations reads every tenant's shared annotations. Annotations are auditor commentary — which events your compliance staff flagged, and why — so
+treat that as more sensitive than the audited events themselves, and do not run the in-memory store in a
+multi-tenant host.
+
+:::
 
 Annotation creation automatically emits a meta-audit event (`AuditEventType.Administrative`) for traceability.
 

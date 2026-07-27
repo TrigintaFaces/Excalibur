@@ -31,8 +31,8 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Arrange — 20000ms > 15s * 1000 = 15000ms
 		var options = new KubernetesLeaderElectionOptions
 		{
-			RenewIntervalMilliseconds = 20000,
-			LeaseDurationSeconds = 15,
+			RenewInterval = TimeSpan.FromMilliseconds(20000),
+			LeaseDuration = TimeSpan.FromSeconds(15),
 		};
 
 		// Act
@@ -40,8 +40,8 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("RenewIntervalMilliseconds");
-		result.FailureMessage.ShouldContain("LeaseDurationSeconds");
+		result.FailureMessage.ShouldContain("RenewInterval");
+		result.FailureMessage.ShouldContain("LeaseDuration");
 	}
 
 	[Fact]
@@ -50,8 +50,8 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Arrange — 15000ms == 15s * 1000
 		var options = new KubernetesLeaderElectionOptions
 		{
-			RenewIntervalMilliseconds = 15000,
-			LeaseDurationSeconds = 15,
+			RenewInterval = TimeSpan.FromMilliseconds(15000),
+			LeaseDuration = TimeSpan.FromSeconds(15),
 		};
 
 		// Act
@@ -59,7 +59,7 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("RenewIntervalMilliseconds");
+		result.FailureMessage.ShouldContain("RenewInterval");
 	}
 
 	[Fact]
@@ -68,9 +68,9 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Arrange — GracePeriod=20s > LeaseDuration=15s
 		var options = new KubernetesLeaderElectionOptions
 		{
-			GracePeriodSeconds = 20,
-			LeaseDurationSeconds = 15,
-			RenewIntervalMilliseconds = 5000, // valid
+			GracePeriod = TimeSpan.FromSeconds(20),
+			LeaseDuration = TimeSpan.FromSeconds(15),
+			RenewInterval = TimeSpan.FromMilliseconds(5000), // valid
 		};
 
 		// Act
@@ -78,8 +78,8 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("GracePeriodSeconds");
-		result.FailureMessage.ShouldContain("LeaseDurationSeconds");
+		result.FailureMessage.ShouldContain("GracePeriod");
+		result.FailureMessage.ShouldContain("LeaseDuration");
 	}
 
 	[Fact]
@@ -88,9 +88,9 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Arrange — GracePeriod=15s == LeaseDuration=15s
 		var options = new KubernetesLeaderElectionOptions
 		{
-			GracePeriodSeconds = 15,
-			LeaseDurationSeconds = 15,
-			RenewIntervalMilliseconds = 5000, // valid
+			GracePeriod = TimeSpan.FromSeconds(15),
+			LeaseDuration = TimeSpan.FromSeconds(15),
+			RenewInterval = TimeSpan.FromMilliseconds(5000), // valid
 		};
 
 		// Act
@@ -98,7 +98,7 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("GracePeriodSeconds");
+		result.FailureMessage.ShouldContain("GracePeriod");
 	}
 
 	[Fact]
@@ -114,9 +114,9 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Arrange
 		var options = new KubernetesLeaderElectionOptions
 		{
-			RenewIntervalMilliseconds = 1000,
-			LeaseDurationSeconds = 30,
-			GracePeriodSeconds = 5,
+			RenewInterval = TimeSpan.FromMilliseconds(1000),
+			LeaseDuration = TimeSpan.FromSeconds(30),
+			GracePeriod = TimeSpan.FromSeconds(5),
 		};
 
 		// Act
@@ -132,9 +132,9 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 		// Arrange — both violations, but renew check comes first
 		var options = new KubernetesLeaderElectionOptions
 		{
-			RenewIntervalMilliseconds = 20000,
-			LeaseDurationSeconds = 15,
-			GracePeriodSeconds = 20,
+			RenewInterval = TimeSpan.FromMilliseconds(20000),
+			LeaseDuration = TimeSpan.FromSeconds(15),
+			GracePeriod = TimeSpan.FromSeconds(20),
 		};
 
 		// Act
@@ -142,7 +142,7 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 
 		// Assert — should fail on renew interval first
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("RenewIntervalMilliseconds");
+		result.FailureMessage.ShouldContain("RenewInterval");
 	}
 
 	[Fact]
@@ -159,19 +159,183 @@ public sealed class KubernetesLeaderElectionOptionsValidatorShould
 	}
 
 	[Fact]
-	public void IncludeLeaseDurationInMillisecondsInFailureMessage()
+	public void IncludeLeaseDurationAndRenewIntervalInFailureMessage()
 	{
 		// Arrange
 		var options = new KubernetesLeaderElectionOptions
 		{
-			RenewIntervalMilliseconds = 20000,
-			LeaseDurationSeconds = 10,
+			RenewInterval = TimeSpan.FromSeconds(20),
+			LeaseDuration = TimeSpan.FromSeconds(10),
 		};
 
 		// Act
 		var result = _sut.Validate(null, options);
 
-		// Assert — should show "10s = 10000ms"
-		result.FailureMessage.ShouldContain("10000ms");
+		// Assert — the failure names both properties and shows their TimeSpan values.
+		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.RenewInterval));
+		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.LeaseDuration));
+		result.FailureMessage.ShouldContain(TimeSpan.FromSeconds(10).ToString());
+		result.FailureMessage.ShouldContain(TimeSpan.FromSeconds(20).ToString());
+	}
+
+	// --- Split-brain self-demotion sum-invariant (bgo7g3) ---
+	// The derived Kubernetes validator MUST enforce the base combined invariant
+	// RenewInterval + GracePeriod + clock-skew < LeaseDuration, not only the two
+	// pairwise (< LeaseDuration) checks. A config that passes BOTH pairwise checks but
+	// violates the sum still guarantees a split-brain overlap window, so it must fail.
+
+	[Fact]
+	public void FailWhenSelfDemotionDeadlineReachesLeaseDurationDespitePairwiseChecksPassing()
+	{
+		// Arrange — Renew=5s, Grace=5s, Lease=8s.
+		// Pairwise: 5s < 8s (renew) and 5s < 8s (grace) both PASS, yet the self-demotion
+		// deadline 5s + 5s + 1s clock-skew = 11s >= 8s lease → guaranteed split-brain window.
+		var options = new KubernetesLeaderElectionOptions
+		{
+			RenewInterval = TimeSpan.FromSeconds(5),
+			GracePeriod = TimeSpan.FromSeconds(5),
+			LeaseDuration = TimeSpan.FromSeconds(8),
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert — must reject; the pairwise-only validator (pre-fix) accepts this.
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.LeaseDuration));
+		result.FailureMessage.ShouldContain("split-brain");
+	}
+
+	[Fact]
+	public void FailWhenSelfDemotionDeadlineExactlyEqualsLeaseDuration()
+	{
+		// Arrange — Renew=4s, Grace=5s, Lease=10s. Pairwise both pass (4<10, 5<10).
+		// Sum with clock-skew: 4s + 5s + 1s = 10s, which is NOT strictly less than the
+		// 10s lease → boundary case must still fail (self-demotion at lease expiry).
+		var options = new KubernetesLeaderElectionOptions
+		{
+			RenewInterval = TimeSpan.FromSeconds(4),
+			GracePeriod = TimeSpan.FromSeconds(5),
+			LeaseDuration = TimeSpan.FromSeconds(10),
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.LeaseDuration));
+	}
+
+	[Fact]
+	public void SucceedWhenSelfDemotionDeadlineIsStrictlyBelowLeaseDuration()
+	{
+		// Arrange — Renew=4s, Grace=4s, Lease=10s. Sum 4s + 4s + 1s = 9s < 10s → valid.
+		var options = new KubernetesLeaderElectionOptions
+		{
+			RenewInterval = TimeSpan.FromSeconds(4),
+			GracePeriod = TimeSpan.FromSeconds(4),
+			LeaseDuration = TimeSpan.FromSeconds(10),
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+	}
+
+	// --- Retry/timing lower-bound checks (vffppp follow-up) ---
+	// The derived validator restores the lower-bound guards dropped when the int-ms knobs
+	// moved to TimeSpan (which lost their [Range] attributes): RetryInterval > 0,
+	// MaxRetries >= 0, MaxRetryDelay >= 0. Rejected at ValidateOnStart rather than surfacing
+	// as a runtime Task.Delay ArgumentOutOfRangeException. RED if any guard is removed.
+
+	[Fact]
+	public void FailWhenRetryIntervalIsZero()
+	{
+		// Arrange — lease/renew/grace left at valid defaults so the base validator passes
+		// and the derived RetryInterval lower-bound check is reached.
+		var options = new KubernetesLeaderElectionOptions
+		{
+			RetryInterval = TimeSpan.Zero,
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(LeaderElectionOptions.RetryInterval));
+	}
+
+	[Fact]
+	public void FailWhenRetryIntervalIsNegative()
+	{
+		// Arrange
+		var options = new KubernetesLeaderElectionOptions
+		{
+			RetryInterval = TimeSpan.FromSeconds(-1),
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(LeaderElectionOptions.RetryInterval));
+	}
+
+	[Fact]
+	public void FailWhenMaxRetriesIsNegative()
+	{
+		// Arrange
+		var options = new KubernetesLeaderElectionOptions
+		{
+			MaxRetries = -1,
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.MaxRetries));
+	}
+
+	[Fact]
+	public void FailWhenMaxRetryDelayIsNegative()
+	{
+		// Arrange
+		var options = new KubernetesLeaderElectionOptions
+		{
+			MaxRetryDelay = TimeSpan.FromSeconds(-1),
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Failed.ShouldBeTrue();
+		result.FailureMessage.ShouldContain(nameof(KubernetesLeaderElectionOptions.MaxRetryDelay));
+	}
+
+	[Fact]
+	public void SucceedWhenRetryKnobsAtValidBoundaries()
+	{
+		// Arrange — MaxRetries=0 and MaxRetryDelay=0 are the valid lower boundaries (non-negative),
+		// RetryInterval strictly positive. Guards non-vacuity of the failure tests above.
+		var options = new KubernetesLeaderElectionOptions
+		{
+			RetryInterval = TimeSpan.FromMilliseconds(1),
+			MaxRetries = 0,
+			MaxRetryDelay = TimeSpan.Zero,
+		};
+
+		// Act
+		var result = _sut.Validate(null, options);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
 	}
 }

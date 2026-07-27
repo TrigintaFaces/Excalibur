@@ -25,17 +25,18 @@ public sealed class DomainEventContractShould
 	[Fact]
 	public void Interface_HasExpectedMembers()
 	{
-		// Contract guard: IDomainEvent must have these properties to maintain backward compatibility.
-		// Adding new required members is a breaking change.
+		// Contract guard: IDomainEvent carries the members a message genuinely has — and deliberately
+		// NOT a stream version/aggregate id (those live in the persistence envelope, not the messaging
+		// contract). Re-adding AggregateId/Version re-opens the dispatch-vs-excalibur boundary leak.
 		var properties = typeof(IDomainEvent).GetProperties();
 		var propertyNames = properties.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
 
 		propertyNames.ShouldContain("EventId");
-		propertyNames.ShouldContain("AggregateId");
-		propertyNames.ShouldContain("Version");
 		propertyNames.ShouldContain("OccurredAt");
 		propertyNames.ShouldContain("EventType");
 		propertyNames.ShouldContain("Metadata");
+		propertyNames.ShouldNotContain("AggregateId", "AggregateId is a persistence concern, not a messaging one");
+		propertyNames.ShouldNotContain("Version", "the stream version lives in the persistence envelope, not the event");
 	}
 
 	[Fact]
@@ -137,11 +138,11 @@ public sealed class DomainEventContractShould
 		var props = typeof(IDomainEvent).GetProperties().ToDictionary(p => p.Name, p => p.PropertyType);
 
 		props["EventId"].ShouldBe(typeof(string));
-		props["AggregateId"].ShouldBe(typeof(string));
-		props["Version"].ShouldBe(typeof(long));
 		props["OccurredAt"].ShouldBe(typeof(DateTimeOffset));
 		props["EventType"].ShouldBe(typeof(string));
 		props["Metadata"].ShouldBe(typeof(IDictionary<string, object>));
+		props.ShouldNotContainKey("AggregateId", "AggregateId was removed from the messaging contract");
+		props.ShouldNotContainKey("Version", "Version was removed from the messaging contract");
 	}
 
 	/// <summary>

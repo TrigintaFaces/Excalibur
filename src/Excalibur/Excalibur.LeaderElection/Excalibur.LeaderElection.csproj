@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">

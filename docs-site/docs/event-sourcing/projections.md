@@ -105,7 +105,7 @@ public class OrderSummaryProjectionConfig : IProjectionConfiguration<OrderSummar
 // 2. Register all projections via assembly scanning
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
+    builder.UseInMemory().AddRepository<OrderAggregate, Guid>();
     builder.AddProjectionsFromAssembly(typeof(OrderSummary).Assembly);
 }));
 ```
@@ -141,7 +141,7 @@ For simple cases or AOT scenarios, register projections directly with inline lam
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
-    builder.AddAggregate<OrderAggregate>(agg => agg.UseInMemoryStore());
+    builder.UseInMemory().AddRepository<OrderAggregate, Guid>();
 
     builder.AddProjection<OrderSummary>(p => p
         .Inline()
@@ -511,7 +511,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
     builder.AddImmutableProjection<OrderSummaryRecord>(p => p
         .Inline()
         .WhenCreating<OrderPlaced>(e =>
-            new OrderSummaryRecord(e.AggregateId, e.Amount, "Placed"))
+            new OrderSummaryRecord(e.OrderId.ToString(), e.Amount, "Placed"))
         .WhenTransforming<OrderShipped>((proj, e) =>
             proj with { Status = "Shipped", ShippedAt = e.ShippedAt }));
 }));
@@ -805,7 +805,7 @@ services.AddPostgresProjections(pgConnectionString, projections =>
 services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
     projections.Add<OrderSummary>();
-    projections.Add<CustomerProfile>(o => o.IndexName = "customers");
+    projections.Add<CustomerProfile>(o => o.Index.IndexName = "customers");
 });
 // Tip: Implement IElasticIndexConfiguration<T> on your projection class
 // for explicit field mappings (full-text search, keyword vs text, etc.).
@@ -1202,7 +1202,7 @@ A common CQRS pattern uses separate projections for list and detail views, backe
 // List view: ElasticSearch for fast search
 services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
 {
-    projections.Add<OrderListItem>(o => o.IndexPrefix = $"{env}-projections");
+    projections.Add<OrderListItem>(o => o.Index.IndexPrefix = $"{env}-projections");
 });
 
 // Detail view: SQL Server for strong consistency
@@ -1347,28 +1347,6 @@ public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
 `ElasticSearchProjectionIndexConvention.GetIndexName<T>()` ensures both `IProjectionStore<T>` and your custom repository resolve to the same index from a single source of truth.
 :::
 
-### Incremental Snapshots
-
-Incremental snapshots reduce storage overhead by saving only the **delta** (changes) since the last full snapshot:
-
-:::info Unique Feature
-
-No competing .NET event sourcing framework offers incremental snapshots.
-:::
-
-```csharp
-builder.AddAggregate<OrderAggregate>(agg =>
-{
-    agg.UseInMemoryStore();
-    agg.UseSnapshotStrategy(new IncrementalSnapshotStrategy(compactionThreshold: 10));
-});
-```
-
-How it works:
-1. **Every commit:** A delta snapshot is saved (only changes)
-2. **On load:** Base + ordered deltas are merged to reconstruct full state
-3. **Compaction:** After `compactionThreshold` deltas (default 10), a full snapshot replaces the base
-
 ### ElasticSearch Projection Lifecycle
 
 When projections are backed by ElasticSearch, use the lifecycle services for index management:
@@ -1408,7 +1386,7 @@ public class OrderSummaryProjectionTests
     [Fact]
     public async Task Projects_OrderCreated_To_Summary()
     {
-        var @event = new OrderCreated("order-123", 1)
+        var @event = new OrderCreated
         {
             OrderId = Guid.NewGuid(),
             CustomerId = "customer-1",
@@ -1537,9 +1515,9 @@ Both inline and async projections may replay events during recovery or rebuild:
 // Wrong: replays double-count
 report.OrderCount++;
 
-// Correct: guard against replays
+// Correct: guard against replays (use the store-assigned version from the handler context)
 var existing = await _store.GetByIdAsync(key, ct);
-if (existing?.LastProcessedVersion >= @event.Version) return;
+if (existing?.LastProcessedVersion >= context.CommittedVersion) return;
 ```
 
 ---

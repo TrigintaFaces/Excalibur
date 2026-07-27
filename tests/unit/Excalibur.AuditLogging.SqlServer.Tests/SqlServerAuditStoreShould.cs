@@ -12,7 +12,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentNullException>(() =>
 			new SqlServerAuditStore(
 				null!,
-				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Fact]
@@ -24,7 +24,7 @@ public sealed class SqlServerAuditStoreShould
 		});
 
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerAuditStore(options, AuditIntegrityTestStrategy.Create(), null!));
+			new SqlServerAuditStore(options, AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, null!));
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Theory]
@@ -72,7 +72,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Theory]
@@ -92,7 +92,7 @@ public sealed class SqlServerAuditStoreShould
 		Should.Throw<ArgumentException>(() =>
 			new SqlServerAuditStore(
 				options,
-				AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>()));
+				AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>()));
 	}
 
 	[Theory]
@@ -111,7 +111,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+			AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldNotBeNull();
 		store.Dispose();
@@ -132,7 +132,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+			AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldNotBeNull();
 		store.Dispose();
@@ -148,7 +148,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+			AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		// Should not throw
 		store.Dispose();
@@ -164,7 +164,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+			AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		// Double dispose should not throw
 		store.Dispose();
@@ -181,7 +181,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+			AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldBeAssignableTo<Excalibur.Compliance.IAuditStore>();
 		store.Dispose();
@@ -197,7 +197,7 @@ public sealed class SqlServerAuditStoreShould
 
 		var store = new SqlServerAuditStore(
 			options,
-			AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+			AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 
 		store.ShouldBeAssignableTo<IDisposable>();
 		store.Dispose();
@@ -270,12 +270,17 @@ public sealed class SqlServerAuditStoreShould
 	}
 
 	[Fact]
-	public async Task Throw_when_sql_unavailable_for_enforce_retention_async()
+	public async Task Throw_when_sql_unavailable_for_purge_expired_async()
 	{
+		// Rebound from EnforceRetentionAsync, which no longer exists on the store: deletion moved to the
+		// purge capability, and retention is now expressed as an estate-wide member plus a tenant-scoped one.
+		// The property this arm holds is unchanged — an unreachable database must surface as a failure rather
+		// than a quiet no-op, because a retention pass that cannot reach its data must not look like one that
+		// found nothing to delete.
 		using var store = CreateUnavailableStore();
 
 		await Should.ThrowAsync<Exception>(() =>
-			store.EnforceRetentionAsync(DateTimeOffset.UtcNow.AddDays(-30), CancellationToken.None));
+			store.PurgeExpiredAsync(DateTimeOffset.UtcNow.AddDays(-30), CancellationToken.None));
 	}
 
 	[Fact]
@@ -330,9 +335,23 @@ public sealed class SqlServerAuditStoreShould
 	[Fact]
 	public void Build_query_clauses_include_all_filters()
 	{
+		// BuildQueryClauses became an INSTANCE method when the store gained an ambient ITenantContext:
+		// the tenant term is now resolved from the instance rather than passed in. Binding it as Static
+		// returned null and Invoke(null, ...) threw NullReferenceException at RUNTIME — invisible to the
+		// compiler, because the member is bound by string.
+		var store = new SqlServerAuditStore(
+			Microsoft.Extensions.Options.Options.Create(new SqlServerAuditOptions
+			{
+				ConnectionString = "Server=localhost;Database=Audit"
+			}),
+			AnnotationOptions(),
+			AuditIntegrityTestStrategy.Create(),
+			tenantContext: null,
+			EnabledTestLogger.Create<SqlServerAuditStore>());
+
 		var method = typeof(SqlServerAuditStore).GetMethod(
 			"BuildQueryClauses",
-			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 		var query = new Excalibur.Compliance.AuditQuery
 		{
 			StartDate = DateTimeOffset.UtcNow.AddDays(-1),
@@ -349,7 +368,7 @@ public sealed class SqlServerAuditStoreShould
 			IpAddress = "127.0.0.1"
 		};
 
-		var tuple = method.Invoke(null, [query])!;
+		var tuple = method.Invoke(store, [query])!;
 		var whereClauses = (List<string>)(tuple.GetType().GetProperty("WhereClauses")?.GetValue(tuple)
 			?? tuple.GetType().GetField("Item1")?.GetValue(tuple)!)!;
 
@@ -361,7 +380,10 @@ public sealed class SqlServerAuditStoreShould
 		whereClauses.ShouldContain("ResourceId = @ResourceId");
 		whereClauses.ShouldContain("ResourceType = @ResourceType");
 		whereClauses.ShouldContain("ResourceClassification >= @MinClassification");
-		whereClauses.ShouldContain("TenantId = @TenantId");
+		// NULL-safe form. A bare "TenantId = @TenantId" never matches a row whose tenant column is
+		// NULL, which is how every untenanted row became unreadable through QueryAsync. Asserting the
+		// bare form here would re-encode that defect; COALESCE is the corrected shape.
+		whereClauses.ShouldContain("COALESCE(TenantId, @UntenantedSentinel) = @TenantId");
 		whereClauses.ShouldContain("CorrelationId = @CorrelationId");
 		whereClauses.ShouldContain("[Action] = @Action");
 		whereClauses.ShouldContain("IpAddress = @IpAddress");
@@ -409,7 +431,7 @@ public sealed class SqlServerAuditStoreShould
 			CommandTimeoutSeconds = 1
 		});
 
-		return new SqlServerAuditStore(options, AuditIntegrityTestStrategy.Create(), EnabledTestLogger.Create<SqlServerAuditStore>());
+		return new SqlServerAuditStore(options, AnnotationOptions(), AuditIntegrityTestStrategy.Create(), tenantContext: null, EnabledTestLogger.Create<SqlServerAuditStore>());
 	}
 
 	private static Excalibur.Compliance.AuditEvent CreateAuditEvent(string eventId) => new()
@@ -423,4 +445,17 @@ public sealed class SqlServerAuditStoreShould
 		ResourceClassification = Excalibur.Compliance.DataClassification.Confidential,
 		EventHash = "hash"
 	};
+
+	/// <summary>
+	/// The annotation-store options the audit store now requires so retention can cascade into annotations.
+	/// A valid instance is supplied at every site so the argument-null arms keep testing the parameter they
+	/// name — inserting a null here would silently change which parameter each of those arms is about.
+	/// </summary>
+	private static Microsoft.Extensions.Options.IOptions<SqlServerAuditAnnotationStoreOptions> AnnotationOptions() =>
+		Microsoft.Extensions.Options.Options.Create(new SqlServerAuditAnnotationStoreOptions
+		{
+			ConnectionString = "Server=(local);Database=Test;Integrated Security=true;",
+			SchemaName = "audit",
+			TableName = "AuditAnnotations",
+		});
 }

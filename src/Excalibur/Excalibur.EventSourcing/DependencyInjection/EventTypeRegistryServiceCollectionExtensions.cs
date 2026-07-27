@@ -7,6 +7,7 @@ using Excalibur.EventSourcing.TypeMapping;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -72,7 +73,11 @@ public static class EventTypeRegistryServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.AddOptions<EventTypeRegistryOptions>()
-			.Bind(configuration);
+			.Bind(configuration)
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<EventTypeRegistryOptions>, EventTypeRegistryOptionsValidator>());
 
 		services.TryAddSingleton<IEventTypeRegistry, EventTypeRegistry>();
 

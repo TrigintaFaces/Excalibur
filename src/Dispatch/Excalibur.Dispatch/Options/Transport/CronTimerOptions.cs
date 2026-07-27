@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Transport;
+
 namespace Excalibur.Dispatch.Options.Transport;
 
 /// <summary>
@@ -26,4 +28,21 @@ public sealed class CronTimerOptions
 	/// </summary>
 	/// <value> <see langword="true" /> to skip runs when a previous execution is still active. </value>
 	public bool PreventOverlap { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the policy controlling how occurrences that elapse while an execution is
+	/// running (or while the host is paused) are handled.
+	/// </summary>
+	/// <value>
+	/// The catch-up policy. Default is <see cref="CronTimerCatchUpPolicy.Skip" />, which drops
+	/// missed occurrences and resumes at the next future occurrence.
+	/// </value>
+	public CronTimerCatchUpPolicy CatchUpPolicy { get; set; } = CronTimerCatchUpPolicy.Skip;
+
+	/// <summary>
+	/// Gets or sets the maximum number of missed occurrences fired in a single catch-up pass
+	/// when <see cref="CatchUpPolicy" /> is <see cref="CronTimerCatchUpPolicy.FireAll" />.
+	/// </summary>
+	/// <value> The upper bound on catch-up fires per pass. Default is 100. </value>
+	public int MaxCatchUpOccurrences { get; set; } = 100;
 }

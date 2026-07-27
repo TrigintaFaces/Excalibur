@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -64,7 +64,7 @@ jobs:
           df -h
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -72,7 +72,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -80,12 +80,17 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore shipping projects
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+        # --locked-mode: fail the build if any packages.lock.json disagrees with the project's
+        # package references, instead of silently rewriting the lock file. Without it the 251
+        # committed lock files are documentation: a drifted (or downgraded) dependency restores
+        # green and the pinned version is overwritten in place. NU1004 names the package and both
+        # versions. Samples carry no lock files, so this flag is deliberately NOT applied there.
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
 
-      # bd-afu8wj: Build the Dispatch core FIRST (clean, --no-incremental) before the transitive store
-      # projects. A core public-API lag (RS0016/RS0017 — a public symbol missing its PublicAPI.*.txt
+      # Build the Dispatch core FIRST (clean, --no-incremental) before the transitive store
+      # projects. A core public-API lag (RS0016/RS0017 -- a public symbol missing its PublicAPI.*.txt
       # entry) then fails fast HERE with a clear "core public API" error, instead of surfacing late and
-      # confusingly as a downstream store-project build failure (the recurring S859 churn pattern).
+      # confusingly as a downstream store-project build failure (a recurring core-public-API-lag pattern).
       - name: Build core first (fail fast on core public-API lag)
         run: dotnet build src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --configuration Release --no-restore --no-incremental --verbosity quiet
 
@@ -134,20 +139,50 @@ jobs:
     secrets: inherit
 
   # Documentation validation (independent, no build dependency)
+  dashboard-spa:
+    name: Dashboard SPA (tests, types, asset drift)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/Excalibur/Excalibur.Operations.Dashboard.Spa/ClientApp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/Excalibur/Excalibur.Operations.Dashboard.Spa/ClientApp
+        run: npm ci
+
+      # Runs vitest, svelte-check, and the asset-drift check. Before this job existed none of
+      # the three ran in any pipeline: the SPA's tests were invoked by nothing, and its type
+      # gate sat behind an MSBuild target defaulting to BuildSpaAssets=false.
+      - name: SPA gate
+        run: bash eng/ci/spa-gate.sh
+
+      # The gate is only evidence if it can fail. This plants a source change with stale
+      # assets and asserts the drift check goes RED, then restores the file.
+      - name: Prove the gate is non-vacuous
+        run: bash eng/ci/spa-gate.test.sh
+
   documentation-validation:
     name: Documentation Verification (T5.4)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'
@@ -164,6 +199,22 @@ jobs:
       - name: Validate version-safe docs links
         working-directory: docs-site
         run: npm run validate:version-links
+
+      # Diff-scoped: fails only when a doc changed in THIS PR introduces a C# snippet
+      # referencing a framework type that does not exist in the real public surface.
+      # Pre-existing phantoms in untouched docs are tolerated (cleaned up separately);
+      # intentional placeholders opt out with a ```csharp ignore fence. CI, not pre-commit.
+      - name: Docs C# snippet phantom gate (diff-scoped)
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref || 'main' }}" || true
+          export DOCS_GATE_BASE_REF="origin/${{ github.base_ref || 'main' }}"
+          bash eng/ci/docs-csharp-phantom-gate.sh
+
+      # The gate is only evidence if it can fail: safety (a new phantom -> RED), liveness
+      # (a real API -> GREEN), diff-scope (a pre-existing phantom in an unchanged doc -> GREEN),
+      # and the ignore-marker opt-out. Proves all arms against a throwaway fixture.
+      - name: Prove the docs phantom gate is non-vacuous
+        run: bash eng/ci/docs-csharp-phantom-gate.test.sh
 
       - name: Build Docusaurus (enforcing zero warnings)
         working-directory: docs-site
@@ -182,12 +233,16 @@ jobs:
             exit 1
           fi
           if [ "$WARNING_COUNT" -gt 0 ]; then
-            echo "Found $WARNING_COUNT warnings in Docusaurus build"
             echo "DOCS_WARNINGS=$WARNING_COUNT" >> $GITHUB_ENV
-          else
-            echo "Docusaurus build completed with zero warnings"
-            echo "DOCS_WARNINGS=0" >> $GITHUB_ENV
+            echo "::error::Docusaurus build produced $WARNING_COUNT warning(s); this step enforces zero."
+            grep -E "(warning|Warning)" build-output.txt
+            # Until now this step COUNTED the warnings, wrote the count to a summary table, and
+            # exited 0 -- its name asserted an enforcement its body never performed. Fail, so the
+            # name is true. A step whose name promises a gate must be able to go red.
+            exit 1
           fi
+          echo "Docusaurus build completed with zero warnings"
+          echo "DOCS_WARNINGS=0" >> $GITHUB_ENV
 
       - name: Verify build output exists
         run: |
@@ -235,7 +290,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -265,7 +320,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -293,13 +348,15 @@ jobs:
       matrix:
         shard:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
-          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf" }
+          # moe5g9: run the transport shard serial (xUnit.MaxParallelThreads=1 + no collection parallelism)
+          # to avoid the concurrency-dependent librdkafka native-thread leak that roots the vstest host.
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", extra-run-settings: "xUnit.MaxParallelThreads=1 xUnit.ParallelizeTestCollections=false" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
           - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
       fail-fast: false
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -310,6 +367,7 @@ jobs:
           collect-coverage: 'true'
           results-prefix: unit-tests-${{ matrix.shard.name }}
           free-disk-space: 'true'
+          extra-run-settings: ${{ matrix.shard.extra-run-settings }}
 
       - name: Upload test results
         if: always()
@@ -342,7 +400,7 @@ jobs:
       fail-fast: false
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -369,6 +427,55 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  # ── Honest cross-shard aggregation ──
+  # The per-shard jobs fail their own run on a test failure, but nothing asserted that the EXPECTED set
+  # of blocking unit assemblies actually compiled and produced results: a project that fails to compile
+  # (or is silently dropped) emits no trx, contributes 0 failures, and reads as CLEAN;
+  # and an assembly in >1 shard is double-counted in any naive sum. This job gathers every unit
+  # trx, dedupes by assembly, and REDs on any missing/non-compiling assembly or distinct failure.
+  unit-shard-aggregation:
+    name: Unit Shard Aggregation (honest set + compile + de-dup)
+    runs-on: ubuntu-latest
+    needs: [unit-tests, unit-tests-async-risk]
+    if: always()
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+      - name: Download unit test result artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: test-results-unit-*
+          path: AggregatedTrx
+          merge-multiple: true
+      - name: Verify honest aggregation (expected set compiled + ran, de-duped)
+        shell: pwsh
+        run: |
+          # Expected assemblies = the BLOCKING (deterministic) tier projects. Every one MUST have produced
+          # results; the advisory async-risk tier is reported but not enforced here (it stays advisory on
+          # PRs per the shard policy). Assembly name = <ProjectFileBaseName>.dll.
+          $det = Get-Content eng/ci/shards/UnitTests-Deterministic.slnf -Raw | ConvertFrom-Json
+          $expected = @($det.solution.projects |
+            Where-Object { $_ -like 'tests\unit\*' } |
+            ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) + '.dll' } |
+            Sort-Object -Unique)
+          Write-Host "Enforcing $($expected.Count) blocking-tier assemblies."
+          # Non-vacuity floor: if the slnf derivation ever yields far fewer than the tier really holds,
+          # the gate must refuse (exit 2) rather than pass a shrunken set (fmvdpg/tpu8m2 trap). 40 is a
+          # conservative floor well below the current ~53 blocking-tier assemblies.
+          ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir management/reports/ShardAggregation
+      - name: Upload aggregation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-shard-aggregation-report
+          path: management/reports/ShardAggregation/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
   # ── Cross-platform: Windows deterministic ──
   unit-tests-windows:
     name: Unit Tests (Windows - Deterministic)
@@ -379,7 +486,7 @@ jobs:
       VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -410,7 +517,7 @@ jobs:
       VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -439,7 +546,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -468,7 +575,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -498,7 +605,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -546,9 +653,17 @@ jobs:
 
       - name: Run Integration Tests
         id: run-integration
-        continue-on-error: true
+        # No step-level continue-on-error. The JOB already declares
+        #   continue-on-error: ${{ github.event_name == 'pull_request' }}
+        # which is the intended contract: advisory on a PR, blocking on push.
+        # An unconditional `continue-on-error: true` here meant this step could
+        # never fail, so the job could never fail, so that job-level guard was
+        # unreachable — a correct control nullified by a nested one eleven lines
+        # below it. Failures now propagate to the job, which decides by event.
         run: |
-          dotnet test eng/ci/shards/IntegrationTests.slnf \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.INTEGRATION_TEST_FILTER }}" -- \
+            eng/ci/shards/IntegrationTests.slnf \
             -m:1 \
             --configuration Release \
             --no-build \
@@ -557,7 +672,6 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            --filter "${{ env.INTEGRATION_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Cleanup orphaned Docker containers
@@ -573,7 +687,7 @@ jobs:
         run: |
           $trxFiles = Get-ChildItem -Path ./TestResults -Filter "*.trx" -Recurse -ErrorAction SilentlyContinue
           if ($trxFiles.Count -eq 0) {
-            Write-Error "No TRX result files found — test run may have failed to start"
+            Write-Error "No TRX result files found -- test run may have failed to start"
             exit 1
           }
           $totalFailed = 0
@@ -618,7 +732,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -636,7 +750,9 @@ jobs:
 
       - name: Run Functional Tests
         run: |
-          dotnet test eng/ci/shards/TestsOnly.slnf \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.FUNCTIONAL_TEST_FILTER }}" -- \
+            eng/ci/shards/TestsOnly.slnf \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
@@ -644,7 +760,6 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            --filter "${{ env.FUNCTIONAL_TEST_FILTER }}" \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload test results
@@ -672,7 +787,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -718,7 +833,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -764,7 +879,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -792,13 +907,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -806,7 +921,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -830,7 +945,9 @@ jobs:
 
       - name: Restore dependencies
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf --verbosity quiet
+        # --locked-mode: see the shipping-restore step. Verified to pass on this shard before
+        # being applied; a drifted lock file here fails with NU1004 rather than being rewritten.
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf --locked-mode --verbosity quiet
 
       - name: Build
         if: env.FLAKY_TEST_COUNT != '0'
@@ -839,14 +956,15 @@ jobs:
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'
         run: |
-          dotnet test eng/ci/shards/TestsOnly.slnf \
+          bash eng/ci/run-filtered-tests.sh \
+            --filter "${{ env.FLAKY_TEST_FILTER }}" -- \
+            eng/ci/shards/TestsOnly.slnf \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=flaky-quarantine.trx" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
-            --filter "${{ env.FLAKY_TEST_FILTER }}"
 
       - name: Upload quarantined test results
         if: always()
@@ -865,12 +983,12 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -905,12 +1023,12 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -966,7 +1084,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -990,17 +1108,70 @@ jobs:
           echo "Validating architecture boundaries..."
           pwsh -File eng/validate-architecture-boundaries.ps1
 
+      # A failed install used to be swallowed by `|| true`, so `security-scan` was simply absent on the
+      # next step -- which ALSO ended in `|| true`. The result was a green "Run security analysis" step
+      # that had run no analysis at all. A tool that cannot be installed is a REFUSE (nothing was
+      # checked), never a PASS; it must not be discoverable only by noticing a missing artifact.
       - name: Install security scan tools
         run: |
-          dotnet tool install --global security-scan --version 5.6.7 || true
-          dotnet tool install --global dotnet-sonarscanner --version 6.2.0 || true
+          set -euo pipefail
+          dotnet tool install --global security-scan --version 5.6.7
+          dotnet tool install --global dotnet-sonarscanner --version 6.2.0
 
+      # SELF-CERTIFIED -- NOT INDEPENDENTLY LOCKED. The three-state contract below and the arms that prove it
+      # were written by the same author, so this gate does not carry the independence a liveness arm needs to be
+      # trustworthy on its own: arms written for one's own code cannot distinguish "the contract was tested" from
+      # "the author's assumptions about the contract were tested". The arms ARE non-vacuous -- driven with a
+      # stubbed scanner under GitHub's `bash -e`, the pre-fix code returned exit 0 for both a missing scanner and
+      # a crashed one, where this returns exit 1 -- but non-vacuity and independence are different properties and
+      # only the first has been demonstrated. A second author re-deriving the arms from the contract alone
+      # ("the step must be 3-state PASS/FAIL/REFUSE and the SARIF must actually be consumed") retires the caveat.
+      #
+      # Three-state contract, same disposition as the staged-secret-scan gate:
+      #   PASS    -- scanner ran, produced a SARIF, no findings above threshold.
+      #   FAIL    -- scanner ran and reported findings (surfaced in code scanning, see next step).
+      #   REFUSE  -- scanner could not be evaluated (absent, crashed, wrote no SARIF). BLOCKS.
+      # REFUSE blocks because "the scan did not run" and "the scan found nothing" were previously
+      # indistinguishable in this job's output, and only one of them is a clean bill of health.
       - name: Run security analysis
         run: |
+          set -uo pipefail
           echo "Running security analysis..."
-          security-scan . --report-format sarif --output security-results.sarif || true
 
-      - name: Upload security results
+          if ! command -v security-scan >/dev/null 2>&1; then
+            echo "::error::REFUSED: security-scan is not on PATH -- the install step did not produce it."
+            echo "::error::This is NOT a clean bill of health; no code was analysed."
+            exit 1
+          fi
+
+          # GitHub runs `run:` blocks as `bash -e {0}`, so errexit is ALREADY on and a non-zero
+          # security-scan would abort here before the SARIF check below could classify it. Capture the
+          # status without letting errexit fire -- `|| scan_rc=$?` is the safe idiom; a bare `$?` on the
+          # following line would never be reached.
+          scan_rc=0
+          security-scan . --report-format sarif --output security-results.sarif || scan_rc=$?
+
+          # A scanner that exits non-zero WITHOUT writing a SARIF did not analyse anything -- that is a
+          # REFUSE, distinct from "analysed and found issues" (which yields a SARIF the next step reads).
+          if [ ! -s security-results.sarif ]; then
+            echo "::error::REFUSED: security-scan exited ${scan_rc} and wrote no SARIF report."
+            echo "::error::Nothing was analysed. Fix the scanner -- do not route around it."
+            exit 1
+          fi
+
+          echo "security-scan completed (exit ${scan_rc}); SARIF written."
+
+      # The SARIF was previously uploaded ONLY as a build artifact, so no gate, dashboard, or human ever
+      # read it -- findings were retained for 30 days and looked at by nobody. Uploading to code scanning
+      # is what makes the result actually consumed, and matches how secret-scan.yml already does it.
+      - name: Upload security results to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: security-results.sarif
+          category: security-scan
+
+      - name: Upload security results artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -1016,7 +1187,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -1162,12 +1333,12 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -1191,13 +1362,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -1205,7 +1376,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1317,13 +1488,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -1331,7 +1502,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1368,19 +1539,19 @@ jobs:
 
   # ── AOT sample validation ──
   aot-sample-validation:
-    name: AOT Sample Validation (S462.4)
+    name: AOT Sample Validation
     runs-on: ubuntu-latest
     needs: [package, sample-validation]
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -1388,7 +1559,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1429,23 +1600,41 @@ jobs:
       - name: Check for trimming/AOT warnings
         run: |
           echo "Checking for trimming/AOT warnings..."
+          # `grep -E ... | wc -l` prints a clean integer (0 on no match, since wc always emits a number);
+          # the `|| true` only guards the pipeline's exit status so `set -e` cannot abort before the count
+          # is read. It does NOT mask the count itself — an unmatched grep still yields "0", never empty.
           TRIM_WARNINGS=$(grep -E "(IL2\d{3}|IL3\d{3}|trim|Trim|RequiresUnreferencedCode|DynamicallyAccessedMembers)" aot-build-output.txt | wc -l || true)
           echo "Trimming-related warnings found: $TRIM_WARNINGS"
           echo "AOT_WARNINGS=$TRIM_WARNINGS" >> $GITHUB_ENV
           if [ "$TRIM_WARNINGS" -gt 0 ]; then
-            echo "Found $TRIM_WARNINGS trimming-related warnings"
+            echo "::error::Found $TRIM_WARNINGS trimming/AOT warning(s) in the AOT sample build. Native-AOT safety is a published property of this framework, so an unsuppressed IL2xxx/IL3xxx (trim/AOT) warning FAILS the build. A genuinely unavoidable warning must carry an [UnconditionalSuppressMessage] with a justification AND a matching entry in eng/ci/aot-suppression-baseline.json — a suppressed+baselined warning does not appear in this build output, so anything that reaches here is an un-sanctioned regression."
             grep -E "(IL2\d{3}|IL3\d{3}|trim|Trim|RequiresUnreferencedCode|DynamicallyAccessedMembers)" aot-build-output.txt || true
-          else
-            echo "No trimming warnings found in sample code"
+            exit 1
           fi
+          echo "No trimming warnings found in sample code"
 
       - name: Run AOT sample (smoke test)
         run: |
           echo "Running AOT sample as smoke test..."
+          # The exit status is the whole point of a smoke test, so it is captured on the
+          # statement immediately after the run and nothing is allowed to overwrite it.
+          # A trailing command here would replace the status with its own and the step
+          # would report success for a crashed sample.
+          set +e
           timeout 30 dotnet run --project samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj \
             --configuration Release \
-            --no-build || true
-          echo "AOT sample smoke test completed"
+            --no-build
+          SMOKE_EXIT=$?
+          set -e
+          if [ "$SMOKE_EXIT" -eq 124 ]; then
+            echo "::error::AOT sample smoke test TIMED OUT after 30s (exit 124). The sample did not terminate."
+            exit 1
+          fi
+          if [ "$SMOKE_EXIT" -ne 0 ]; then
+            echo "::error::AOT sample smoke test FAILED with exit $SMOKE_EXIT."
+            exit 1
+          fi
+          echo "AOT sample smoke test passed (exit 0)"
 
       - name: Upload build output on failure
         if: failure()
@@ -1458,7 +1647,7 @@ jobs:
       - name: AOT sample validation summary
         if: always()
         run: |
-          echo "## AOT Sample Validation (S462.4)" >> $GITHUB_STEP_SUMMARY
+          echo "## AOT Sample Validation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Purpose:** Validate Native AOT sample builds and runs with source generators" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1526,7 +1715,7 @@ jobs:
           echo "| Governance | ${{ needs.call-governance.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Serialization Policy (R0.14) | ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Sample Validation (T3.4) | ${{ needs.sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| AOT Sample Validation (S462.4) | ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AOT Sample Validation | ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Performance Gates | ${{ needs.call-performance.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1539,7 +1728,7 @@ jobs:
 
   # ── Test result trend reporting ──
   test-result-reporter:
-    name: Test Result Reporter (${{ matrix.report.name }})
+    name: Test Result Reporter
     runs-on: ubuntu-latest
     needs: [unit-tests, unit-tests-async-risk, integration-tests]
     if: always()
@@ -1549,20 +1738,9 @@ jobs:
       checks: write
       pull-requests: write
     timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        report:
-          - { name: unit-core, artifact: test-results-unit-core, path: "**/*.trx" }
-          - { name: unit-transport, artifact: test-results-unit-transport, path: "**/*.trx" }
-          - { name: unit-middleware, artifact: test-results-unit-middleware, path: "**/*.trx" }
-          - { name: unit-excalibur, artifact: test-results-unit-excalibur, path: "**/*.trx" }
-          - { name: unit-observability, artifact: test-results-unit-async-risk-observability, path: "**/*.trx" }
-          - { name: unit-async-risk-messaging, artifact: test-results-unit-async-risk-messaging, path: "**/*.trx" }
-          - { name: integration, artifact: test-results-integration, path: "**/*.trx" }
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
@@ -1570,10 +1748,16 @@ jobs:
       - name: Trust workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Download test results
+      # ONE reporter job for every shard. This was a 7-entry matrix whose members differed only by
+      # which artifact they downloaded; each paid runner allocation, a checkout and an artifact
+      # download to publish one shard's trx. download-artifact's pattern + merge-multiple collects
+      # them all into one directory, so the reporter publishes a single combined check. The reported
+      # content is the same; six job startups are not.
+      - name: Download all test results
         uses: actions/download-artifact@v8
         with:
-          name: ${{ matrix.report.artifact }}
+          pattern: test-results-*
+          merge-multiple: true
           path: test-results
         continue-on-error: true
 
@@ -1581,7 +1765,7 @@ jobs:
         if: hashFiles('test-results/**/*.trx') != ''
         uses: dorny/test-reporter@v3
         with:
-          name: "Test Results - ${{ matrix.report.name }}"
-          path: "test-results/${{ matrix.report.path }}"
+          name: Test Results
+          path: test-results/**/*.trx
           reporter: dotnet-trx
           fail-on-error: false

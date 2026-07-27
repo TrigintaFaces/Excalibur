@@ -40,22 +40,61 @@ internal sealed partial class KafkaDeadLetterConsumer : IDisposable
 		IOptions<KafkaOptions> kafkaOptions,
 		IOptions<KafkaDeadLetterOptions> dlqOptions,
 		ILogger<KafkaDeadLetterConsumer> logger)
+		: this(BuildConsumer(kafkaOptions, dlqOptions), dlqOptions, logger)
 	{
-		ArgumentNullException.ThrowIfNull(kafkaOptions);
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="KafkaDeadLetterConsumer"/> class around an
+	/// already-constructed consumer.
+	/// </summary>
+	/// <param name="consumer"> The Kafka consumer this instance owns and disposes. </param>
+	/// <param name="dlqOptions"> The dead letter queue configuration options. </param>
+	/// <param name="logger"> The logger instance. </param>
+	/// <remarks>
+	/// Exists so a test can drive this class without a broker. The public constructor builds a live
+	/// librdkafka consumer as a side effect of construction, which means merely NEWING THIS TYPE opens
+	/// network connections -- and against an absent broker those connections retry on background threads
+	/// for the life of the process. Under a parallel test run that accumulates handles until the native
+	/// library aborts the host AFTER every test has passed, so the failure surfaces as an exit code with
+	/// no failing test attached to it.
+	///
+	/// It also makes the assertions honest. A "returns no messages" test that runs against no broker at
+	/// all passes for the wrong reason: it cannot distinguish a correctly-drained topic from a consumer
+	/// that never connected. Handing in the consumer lets the test state which one it is.
+	/// </remarks>
+	internal KafkaDeadLetterConsumer(
+		IConsumer<string, byte[]> consumer,
+		IOptions<KafkaDeadLetterOptions> dlqOptions,
+		ILogger<KafkaDeadLetterConsumer> logger)
+	{
+		_consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
 		_dlqOptions = dlqOptions?.Value ?? throw new ArgumentNullException(nameof(dlqOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+		LogConsumerStarted(_logger, _dlqOptions.ConsumerGroupId);
+	}
+
+	/// <summary>Builds the live consumer used by the public constructor.</summary>
+	/// <param name="kafkaOptions"> The Kafka connection options. </param>
+	/// <param name="dlqOptions"> The dead letter queue configuration options. </param>
+	/// <returns> A connected Kafka consumer. </returns>
+	private static IConsumer<string, byte[]> BuildConsumer(
+		IOptions<KafkaOptions> kafkaOptions,
+		IOptions<KafkaDeadLetterOptions> dlqOptions)
+	{
+		ArgumentNullException.ThrowIfNull(kafkaOptions);
+		ArgumentNullException.ThrowIfNull(dlqOptions);
 
 		var config = new ConsumerConfig
 		{
 			BootstrapServers = kafkaOptions.Value.BootstrapServers,
-			GroupId = _dlqOptions.ConsumerGroupId,
+			GroupId = dlqOptions.Value.ConsumerGroupId,
 			AutoOffsetReset = AutoOffsetReset.Earliest,
 			EnableAutoCommit = false,
 		};
 
-		_consumer = new ConsumerBuilder<string, byte[]>(config).Build();
-
-		LogConsumerStarted(_logger, _dlqOptions.ConsumerGroupId);
+		return new ConsumerBuilder<string, byte[]>(config).Build();
 	}
 
 	/// <summary>

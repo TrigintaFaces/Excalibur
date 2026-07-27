@@ -182,7 +182,10 @@ public sealed class DynamoDbSnapshotDocumentShould
 	public void CreatePK_ReturnsCorrectPartitionKey()
 	{
 		// Arrange
-		var method = _documentType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
+		// CreatePK is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
+		// partition keys (e6t62k) — disambiguate the single-arg overload to avoid AmbiguousMatchException.
+		var method = _documentType.GetMethod(
+			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
 
 		// Act
 		var result = (string)method!.Invoke(null, new object[] { "aggregate-123" })!;
@@ -195,13 +198,43 @@ public sealed class DynamoDbSnapshotDocumentShould
 	public void CreatePK_PreservesSpecialCharacters()
 	{
 		// Arrange
-		var method = _documentType.GetMethod("CreatePK", BindingFlags.Public | BindingFlags.Static);
+		// CreatePK is now overloaded (aggregateId) and (aggregateId, tenantId) for tenant-inclusive
+		// partition keys (e6t62k) — disambiguate the single-arg overload to avoid AmbiguousMatchException.
+		var method = _documentType.GetMethod(
+			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
 
 		// Act - DynamoDB allows special characters in keys unlike CosmosDB
 		var result = (string)method!.Invoke(null, new object[] { "aggregate/with/slashes" })!;
 
 		// Assert
 		result.ShouldBe("SNAPSHOT#aggregate/with/slashes");
+	}
+
+	[Fact]
+	public void CreatePK_WithTenant_DiffersFromUnscoped_AndBetweenTenants()
+	{
+		// STRENGTHEN (e6t62k): the tenant is embedded in the PARTITION key so a tenant-scoped snapshot
+		// never collides with an unscoped one, nor with another tenant's snapshot of the same aggregate.
+		var aggregateId = "aggregate-123";
+		var single = _documentType.GetMethod(
+			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string) }, modifiers: null);
+		var tenanted = _documentType.GetMethod(
+			"CreatePK", BindingFlags.Public | BindingFlags.Static, binder: null, types: new[] { typeof(string), typeof(string) }, modifiers: null);
+		tenanted.ShouldNotBeNull("CreatePK(aggregateId, tenantId) overload must exist for tenant-inclusive partition keys.");
+
+		var unscoped = (string)single!.Invoke(null, new object[] { aggregateId })!;
+		var tenantA = (string)tenanted!.Invoke(null, new object?[] { aggregateId, "tenant-a" })!;
+		var tenantB = (string)tenanted.Invoke(null, new object?[] { aggregateId, "tenant-b" })!;
+
+		unscoped.ShouldBe("SNAPSHOT#aggregate-123");
+		tenantA.ShouldNotBe(unscoped);
+		tenantB.ShouldNotBe(unscoped);
+		tenantA.ShouldNotBe(tenantB);
+		tenantA.ShouldContain("tenant-a");
+
+		// A null/empty tenant keeps the existing single-tenant partition key shape.
+		var tenantNull = (string)tenanted.Invoke(null, new object?[] { aggregateId, null })!;
+		tenantNull.ShouldBe(unscoped);
 	}
 
 	#endregion

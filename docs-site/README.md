@@ -51,17 +51,20 @@ Announcement bar is env-driven in `docusaurus.config.ts`:
 Example:
 
 ```bash
-DOCS_ANNOUNCEMENT_TEXT="Release 1.0.0 is live." npm run start
+DOCS_ANNOUNCEMENT_TEXT="Release 10.0.0 is live." npm run start
 ```
 
 ## Version Workflow
+
+Docs versions are snapshotted per .NET-major release line, matching the package version scheme
+(first stable release is `10.x`).
 
 Run from `docs-site/`:
 
 1. Create a stable docs version at release time:
 
 ```bash
-npm run docusaurus docs:version 1.0.0
+npm run docusaurus docs:version 10.0.0
 ```
 
 2. Commit generated versioned docs + `versions.json`.

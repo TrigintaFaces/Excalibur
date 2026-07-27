@@ -34,6 +34,15 @@ namespace Excalibur.EventSourcing.Views;
 internal sealed partial class MaterializedViewProcessor : IMaterializedViewProcessor
 {
 	private readonly IMaterializedViewStore _viewStore;
+
+	/// <summary>
+	/// The same store, narrowed to its atomic capability, or <see langword="null"/> when every registered
+	/// projection is <see cref="ViewDeliverySemantics.AtLeastOnceIdempotent"/> and the store is not atomic
+	/// (Elasticsearch/OpenSearch). Non-null whenever any <see cref="ViewDeliverySemantics.ExactlyOnce"/>
+	/// projection is registered: such a store is required in the constructor, so the exactly-once write path
+	/// can never be reached with a store that would silently degrade to at-least-once.
+	/// </summary>
+	private readonly IAtomicMaterializedViewStore? _atomicViewStore;
 	private readonly IGlobalStreamQuery _globalStreamQuery;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IOptions<MaterializedViewOptions> _options;
@@ -48,6 +57,13 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// Maps viewName -> list of builderRegistrations for catch-up/rebuild by view.
 	/// </summary>
 	private readonly Dictionary<string, List<MaterializedViewBuilderRegistration>> _viewNameRoutes;
+
+	/// <summary>
+	/// Maps view type -> a strongly-typed accessor over the store's generic <c>GetAsync</c>/<c>SaveAsync</c>,
+	/// instantiated once per view type at construction so per-event access is a plain <c>await</c> (no
+	/// per-call reflection, no <see cref="ValueTask"/> double-consume).
+	/// </summary>
+	private readonly Dictionary<Type, ViewStoreAccessor> _viewStoreAccessors;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MaterializedViewProcessor"/> class.
@@ -73,12 +89,26 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		ArgumentNullException.ThrowIfNull(registrations);
+		var registrationList = registrations as IReadOnlyCollection<MaterializedViewBuilderRegistration> ?? registrations.ToList();
+
+		// An exactly-once (accumulating) projection MUST have an atomic view store: the view mutation and the
+		// checkpoint advance are one durable unit, else a crash replays the last event and double-counts it.
+		// An at-least-once idempotent projection tolerates that replay (upsert-by-view-id), so it may run on a
+		// non-atomic store (Elasticsearch/OpenSearch). Require atomicity only when at least one exactly-once
+		// projection is registered; the same rule is enforced earlier at startup by
+		// AtomicMaterializedViewStoreValidator, so an exactly-once projection on a non-atomic store fails fast.
+		var requiresAtomic = registrationList.Any(r => r.Semantics == ViewDeliverySemantics.ExactlyOnce);
+		_atomicViewStore = requiresAtomic
+			? AtomicViewStoreRequirement.Require(viewStore)
+			: viewStore as IAtomicMaterializedViewStore;
 
 		_eventTypeRoutes = new Dictionary<Type, List<BuilderRoute>>();
 		_viewNameRoutes = new Dictionary<string, List<MaterializedViewBuilderRegistration>>(StringComparer.Ordinal);
+		_viewStoreAccessors = new Dictionary<Type, ViewStoreAccessor>();
 
-		BuildRoutingMaps(registrations);
+		BuildRoutingMaps(registrationList);
 	}
+
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("AOT", "IL3050",
@@ -97,16 +127,12 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			return;
 		}
 
+		// Apply and checkpoint atomically per view: the view mutation and the position advance are one
+		// durable unit, so a crash cannot leave the view updated while the checkpoint lags (which would
+		// replay this event on restart and double-count the view).
 		foreach (var route in routes)
 		{
-			await ApplyEventToBuilderAsync(route.Registration, @event, cancellationToken).ConfigureAwait(false);
-		}
-
-		// Save position for each affected view after processing
-		foreach (var route in routes)
-		{
-			var viewName = GetViewName(route.Registration);
-			await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
+			await ApplyEventToBuilderAsync(route.Registration, @event, position, cancellationToken).ConfigureAwait(false);
 		}
 
 		LogEventProcessed(@event.EventType, position);
@@ -137,9 +163,12 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 				continue;
 			}
 
+			// Each event's view mutation and checkpoint advance are one atomic durable unit (see
+			// ProcessEventAsync). A view's recorded position is the last event that actually affected it;
+			// the monotonic position advance means a crash-replayed event is a safe no-op.
 			foreach (var route in routes)
 			{
-				await ApplyEventToBuilderAsync(route.Registration, domainEvent, cancellationToken)
+				await ApplyEventToBuilderAsync(route.Registration, domainEvent, position, cancellationToken)
 					.ConfigureAwait(false);
 
 				affectedViews.Add(GetViewName(route.Registration));
@@ -148,15 +177,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			lastPosition = position;
 		}
 
-		// Save position for all affected views after the entire batch
 		if (lastPosition >= 0)
 		{
-			foreach (var viewName in affectedViews)
-			{
-				await _viewStore.SavePositionAsync(viewName, lastPosition, cancellationToken)
-					.ConfigureAwait(false);
-			}
-
 			LogBatchProcessed(affectedViews.Count, lastPosition);
 		}
 	}
@@ -268,7 +290,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 						{
 							foreach (var route in routes)
 							{
-								await ApplyEventToBuilderAsync(route.Registration, domainEvent, cancellationToken)
+								await ApplyEventToBuilderAsync(route.Registration, domainEvent, storedEvent.Version, cancellationToken)
 									.ConfigureAwait(false);
 							}
 						}
@@ -282,7 +304,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 							{
 								if (string.Equals(GetViewName(route.Registration), viewNameFilter, StringComparison.Ordinal))
 								{
-									await ApplyEventToBuilderAsync(route.Registration, domainEvent, cancellationToken)
+									await ApplyEventToBuilderAsync(route.Registration, domainEvent, storedEvent.Version, cancellationToken)
 										.ConfigureAwait(false);
 								}
 							}
@@ -330,6 +352,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	private async Task ApplyEventToBuilderAsync(
 		MaterializedViewBuilderRegistration registration,
 		IDomainEvent domainEvent,
+		long position,
 		CancellationToken cancellationToken)
 	{
 		var viewName = GetViewName(registration);
@@ -337,12 +360,15 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 
 		if (viewId is null)
 		{
-			// Builder says this event should not update any view
+			// The event matched the builder's handled types but maps to no view instance — there is no
+			// view write to make atomic, yet the checkpoint must still advance so catch-up/rebuild does
+			// not re-scan this no-op event forever. A crash before this point simply re-reads a no-op.
+			await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
-		// Use reflection to call the generic GetAsync/SaveAsync on the store.
-		// The view type is known at registration time but not at compile time here.
+		// The view type is known at registration time but not at compile time here; the per-view-type
+		// accessor bridges to the store's generic methods without reflection.
 		var viewType = registration.ViewType;
 
 		var existingView = await GetViewFromStoreAsync(viewType, viewName, viewId, cancellationToken)
@@ -352,79 +378,62 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 
 		var updatedView = ApplyEvent(registration, view, domainEvent);
 
-		await SaveViewToStoreAsync(viewType, viewName, viewId, updatedView, cancellationToken)
-			.ConfigureAwait(false);
+		// Persist the view and advance the checkpoint. An exactly-once projection commits both ATOMICALLY, so a
+		// crash cannot leave the view ahead of its checkpoint and double-count on replay. An at-least-once
+		// idempotent projection writes the view then advances the checkpoint separately — safe on a non-atomic
+		// store because a replayed event re-applies identically (upsert-by-view-id).
+		if (registration.Semantics == ViewDeliverySemantics.ExactlyOnce)
+		{
+			await SaveViewAndPositionToStoreAsync(viewType, viewName, viewId, updatedView, position, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		else
+		{
+			await SaveViewThenPositionToStoreAsync(viewType, viewName, viewId, updatedView, position, cancellationToken)
+				.ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>
-	/// Loads a view from the store using reflection to call the generic method.
+	/// Loads a view from the store via the per-view-type accessor (plain <c>await</c>, no reflection).
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "View types are registered at startup; MakeGenericMethod is safe for known types.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2060",
-		Justification = "View types are registered at startup and preserved by consumer DI configuration.")]
-	private async ValueTask<object?> GetViewFromStoreAsync(
+	private ValueTask<object?> GetViewFromStoreAsync(
 		Type viewType,
 		string viewName,
 		string viewId,
 		CancellationToken cancellationToken)
-	{
-		// IMaterializedViewStore.GetAsync<TView> requires a generic call.
-		// We use the generic method pattern from the store interface.
-		var method = typeof(IMaterializedViewStore)
-			.GetMethod(nameof(IMaterializedViewStore.GetAsync))!
-			.MakeGenericMethod(viewType);
-
-		var valueTask = method.Invoke(_viewStore, [viewName, viewId, cancellationToken]);
-
-		// ValueTask<TView?> — we need to await it dynamically
-		var awaiter = valueTask!.GetType().GetMethod("GetAwaiter")!.Invoke(valueTask, null);
-		var getResult = awaiter!.GetType().GetMethod("GetResult")!;
-
-		// Check if completed synchronously
-		var isCompleted = (bool)awaiter.GetType().GetProperty("IsCompleted")!.GetValue(awaiter)!;
-		if (isCompleted)
-		{
-			return getResult.Invoke(awaiter, null);
-		}
-
-		// Need to await — convert to Task
-		var asTask = valueTask.GetType().GetMethod("AsTask")!.Invoke(valueTask, null);
-		await ((Task)asTask!).ConfigureAwait(false);
-
-		// Re-get result after await
-		var awaiter2 = valueTask.GetType().GetMethod("GetAwaiter")!.Invoke(valueTask, null);
-		return awaiter2!.GetType().GetMethod("GetResult")!.Invoke(awaiter2, null);
-	}
+		=> _viewStoreAccessors[viewType].GetAsync(_viewStore, viewName, viewId, cancellationToken);
 
 	/// <summary>
-	/// Saves a view to the store using reflection to call the generic method.
+	/// Atomically saves a view and advances its position via the per-view-type accessor (plain
+	/// <c>await</c>, no reflection). Only reached for an <see cref="ViewDeliverySemantics.ExactlyOnce"/>
+	/// projection, for which <see cref="_atomicViewStore"/> is guaranteed non-null by the constructor gate.
 	/// </summary>
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "View types are registered at startup; MakeGenericMethod is safe for known types.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2060",
-		Justification = "View types are registered at startup and preserved by consumer DI configuration.")]
-	private async ValueTask SaveViewToStoreAsync(
+	private ValueTask SaveViewAndPositionToStoreAsync(
 		Type viewType,
 		string viewName,
 		string viewId,
 		object view,
+		long position,
+		CancellationToken cancellationToken)
+		=> _viewStoreAccessors[viewType].SaveWithPositionAsync(_atomicViewStore!, viewName, viewId, view, position, cancellationToken);
+
+	/// <summary>
+	/// Saves a view, then advances its position as a separate write, via the per-view-type accessor. Used for
+	/// an <see cref="ViewDeliverySemantics.AtLeastOnceIdempotent"/> projection: a crash between the two writes
+	/// replays the last event on restart, which re-applies identically (upsert-by-view-id), so the two-write
+	/// path is safe on a non-atomic store such as Elasticsearch or OpenSearch.
+	/// </summary>
+	private async ValueTask SaveViewThenPositionToStoreAsync(
+		Type viewType,
+		string viewName,
+		string viewId,
+		object view,
+		long position,
 		CancellationToken cancellationToken)
 	{
-		var method = typeof(IMaterializedViewStore)
-			.GetMethod(nameof(IMaterializedViewStore.SaveAsync))!
-			.MakeGenericMethod(viewType);
-
-		var valueTask = method.Invoke(_viewStore, [viewName, viewId, view, cancellationToken]);
-
-		var awaiter = valueTask!.GetType().GetMethod("GetAwaiter")!.Invoke(valueTask, null);
-		var isCompleted = (bool)awaiter!.GetType().GetProperty("IsCompleted")!.GetValue(awaiter)!;
-
-		if (!isCompleted)
-		{
-			var asTask = valueTask.GetType().GetMethod("AsTask")!.Invoke(valueTask, null);
-			await ((Task)asTask!).ConfigureAwait(false);
-		}
+		await _viewStoreAccessors[viewType].SaveAsync(_viewStore, viewName, viewId, view, cancellationToken).ConfigureAwait(false);
+		await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -483,6 +492,9 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		foreach (var registration in registrations)
 		{
 			var viewName = GetViewName(registration);
+
+			// Use the strongly-typed store accessor constructed at DI registration (no runtime reflection).
+			_ = _viewStoreAccessors.TryAdd(registration.ViewType, registration.Accessor);
 
 			// Build view-name route
 			if (!_viewNameRoutes.TryGetValue(viewName, out var viewRegistrations))

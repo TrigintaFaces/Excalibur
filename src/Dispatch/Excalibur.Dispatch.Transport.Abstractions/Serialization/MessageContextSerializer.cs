@@ -40,6 +40,11 @@ public static class MessageContextSerializer
 	/// W3C standard.
 	/// </summary>
 	private const string TraceParentKey = "traceparent";
+
+	/// <summary>
+	/// W3C standard vendor trace state, carried symmetric with <see cref="TraceParentKey"/>.
+	/// </summary>
+	private const string TraceStateKey = "tracestate";
 	private const string SentTimestampKey = "X-SentTimestamp";
 
 	/// <summary>
@@ -67,6 +72,10 @@ public static class MessageContextSerializer
 		AddAttribute(attributes, MessageTypeKey, context.GetMessageType());
 		AddAttribute(attributes, ContentTypeKey, context.GetContentType());
 		AddAttribute(attributes, TraceParentKey, context.GetTraceParent());
+
+		// Serialize the W3C tracestate symmetric with traceparent so vendor trace state survives the transport
+		// hop. Stored as a context item (set by W3CTraceContextInjectionMiddleware); only added when present.
+		AddAttribute(attributes, TraceStateKey, context.GetItem<string>(TraceStateKey));
 
 		// Serialize numeric fields
 		AddAttribute(attributes, DeliveryCountKey, context.GetDeliveryCount().ToString(CultureInfo.InvariantCulture));
@@ -110,6 +119,14 @@ public static class MessageContextSerializer
 		identity.SessionId = GetAttribute(attributes, SessionIdKey);
 		identity.WorkflowId = GetAttribute(attributes, WorkflowIdKey);
 		identity.TraceParent = GetAttribute(attributes, TraceParentKey);
+
+		// Restore the W3C tracestate into the context-item slot the consumer reads
+		// (W3CTraceContextMiddleware), symmetric with traceparent. Only when present.
+		var traceState = GetAttribute(attributes, TraceStateKey);
+		if (!string.IsNullOrEmpty(traceState))
+		{
+			context.SetItem(TraceStateKey, traceState);
+		}
 
 		// Deserialize routing feature fields
 		var routing = context.GetOrCreateRoutingFeature();

@@ -116,10 +116,11 @@ public sealed class InboxMiddlewareTraceReparentShould
 
 	private static InboxMiddleware CreateMiddleware()
 	{
-		var deduplicator = A.Fake<IInMemoryDeduplicator>();
-		// Not a duplicate ⇒ light-mode processing proceeds to the handler (and the span is started first).
-		_ = A.CallTo(() => deduplicator.IsDuplicateAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
-			.Returns(false);
+		// Atomic-claim seam (2wiylb): a successful claim (true) ⇒ not a duplicate ⇒ light-mode processing
+		// proceeds to the handler (and the span is started first).
+		var deduplicator = A.Fake<IInMemoryDeduplicator>(o => o.Implements<IClaimableDeduplicator>());
+		_ = A.CallTo(() => ((IClaimableDeduplicator)deduplicator).TryClaimAsync(A<string>._, A<TimeSpan>._, A<CancellationToken>._))
+			.Returns(true);
 
 		var options = Microsoft.Extensions.Options.Options.Create(new InboxConfigurationOptions { Enabled = true });
 		return new InboxMiddleware(options, inboxStore: null, deduplicator, new DispatchJsonSerializer(), NullLogger<InboxMiddleware>.Instance);

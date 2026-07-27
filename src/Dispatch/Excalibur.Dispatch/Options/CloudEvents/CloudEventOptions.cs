@@ -45,15 +45,6 @@ public sealed class CloudEventOptions
 	public Uri DefaultSource { get; set; } = new("urn:dispatch");
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to preserve all envelope properties as CloudEvent attributes.
-	/// </summary>
-	/// <remarks>
-	/// When true, ensures MessageId, CorrelationId, TenantId, UserId, TraceId, RetryCount, ScheduledTime, and Timestamp are preserved as CE attributes.
-	/// </remarks>
-	/// <value>The current <see cref="PreserveEnvelopeProperties"/> value.</value>
-	public bool PreserveEnvelopeProperties { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets the prefix for Dispatch-specific CloudEvent extension attributes.
 	/// </summary>
 	/// <remarks> Used to namespace Excalibur.Dispatch envelope properties as CloudEvent extensions to avoid Tests.CloudProviders. </remarks>
@@ -67,16 +58,6 @@ public sealed class CloudEventOptions
 	/// <remarks> Extensions listed here will not be copied from message context to CloudEvent attributes. </remarks>
 	/// <value>The current <see cref="ExcludedExtensions"/> value.</value>
 	public HashSet<string> ExcludedExtensions { get; } = [];
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable DoD (Department of Defense) compliance Mode.
-	/// </summary>
-	/// <remarks>
-	/// When enabled, enforces stricter validation requirements for envelope properties including mandatory correlation ID, user ID, and
-	/// trace parent for audit compliance.
-	/// </remarks>
-	/// <value>The current <see cref="EnableDoDCompliance"/> value.</value>
-	public bool EnableDoDCompliance { get; set; }
 
 	/// <summary>
 	/// Gets or sets the default CloudEvents Mode when not explicitly specified.
@@ -108,7 +89,7 @@ public sealed class CloudEventSchemaOptions
 	/// Gets or sets a value indicating whether to validate CloudEvent schema.
 	/// </summary>
 	/// <value>The current <see cref="ValidateSchema"/> value.</value>
-	public bool ValidateSchema { get; set; } = true;
+	public bool ValidateSchema { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to include schema version in CloudEvents.

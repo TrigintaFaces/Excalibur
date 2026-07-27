@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.MultiTenancy.Tests</RootNamespace>
+    <AssemblyName>Excalibur.MultiTenancy.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit.v3, xunit.runner.visualstudio) provided by tests/Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Composition package under test (AddMultiTenancy + MultiTenancyOptions/Validator).
+         Transitively brings Excalibur.EventSourcing and the Dispatch packages. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.MultiTenancy\Excalibur.MultiTenancy.csproj" />
+    <!-- TenantScoped{EventStore,SagaStore,ProjectionStore} decorators + IEventStore/IProjectionStore. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <!-- ITenantContext, TenantRequiredException, ITenantScopingCapability<T>, ISagaStore, SagaState. -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <!-- Real-DI saga-isolation lock (rw2ull): AddExcalibur host entry + the SQL Server saga provider so the
+         test resolves the saga store through the real builder registration path (AddSagas().UseSqlServer()). -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+  </ItemGroup>
+</Project>

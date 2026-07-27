@@ -43,6 +43,16 @@ internal sealed class SqlServerAuditAnnotationStoreOptionsValidator
 				$"{nameof(SqlServerAuditAnnotationStoreOptions)}.{nameof(options.TableName)} must not be empty.");
 		}
 
+		// Validated here and not only at construction, because an annotation's tenant is derived by joining
+		// the events table: if this name is wrong the store does not fail loudly, it resolves a join against
+		// a table that is not the audit log, and every tenancy predicate silently matches nothing.
+		if (string.IsNullOrWhiteSpace(options.EventsTableName))
+		{
+			failures.Add(
+				$"{nameof(SqlServerAuditAnnotationStoreOptions)}.{nameof(options.EventsTableName)} must not be empty. "
+				+ "It names the audit events table that annotations derive their tenant from.");
+		}
+
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

@@ -1,0 +1,24 @@
+#nullable enable
+Excalibur.Workflows.WorkflowActivityException
+Excalibur.Workflows.WorkflowActivityException.ActivityName.get -> string!
+Excalibur.Workflows.WorkflowActivityException.StepOrdinal.get -> int
+Excalibur.Workflows.WorkflowActivityException.WorkflowActivityException(string! activityName, int stepOrdinal, string? error, System.Exception? innerException = null) -> void
+Excalibur.Workflows.WorkflowBody
+Excalibur.Workflows.WorkflowConcurrencyException
+Excalibur.Workflows.WorkflowConcurrencyException.InstanceId.get -> string!
+Excalibur.Workflows.WorkflowConcurrencyException.WorkflowConcurrencyException(string! instanceId, string? error) -> void
+Excalibur.Workflows.WorkflowNonDeterminismException
+Excalibur.Workflows.WorkflowNonDeterminismException.Actual.get -> string!
+Excalibur.Workflows.WorkflowNonDeterminismException.Expected.get -> string!
+Excalibur.Workflows.WorkflowNonDeterminismException.StepOrdinal.get -> int
+Excalibur.Workflows.WorkflowNonDeterminismException.WorkflowNonDeterminismException(int stepOrdinal, string! expected, string! actual) -> void
+Excalibur.Workflows.WorkflowVersionNotRegisteredException
+Excalibur.Workflows.WorkflowVersionNotRegisteredException.Version.get -> int
+Excalibur.Workflows.WorkflowVersionNotRegisteredException.WorkflowName.get -> string!
+Excalibur.Workflows.WorkflowVersionNotRegisteredException.WorkflowVersionNotRegisteredException(string! workflowName, int version) -> void
+Microsoft.Extensions.DependencyInjection.WorkflowsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.WorkflowsServiceCollectionExtensions.AddActivity<TActivity, TInput, TOutput>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.WorkflowsServiceCollectionExtensions.AddWorkflow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, Excalibur.Workflows.WorkflowBody! body) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.WorkflowsServiceCollectionExtensions.AddWorkflow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, int version, Excalibur.Workflows.WorkflowBody! body) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.WorkflowsServiceCollectionExtensions.AddWorkflows(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.WorkflowsServiceCollectionExtensions.RequireDurableSignalInbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

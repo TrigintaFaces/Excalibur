@@ -163,7 +163,7 @@ public sealed class RegisterPatientHandler
         var id = Guid.NewGuid();
         // ... save patient ...
 
-        await _dispatcher.DispatchChildAsync(
+        await _dispatcher.DispatchAsync(
             new PatientRegistered(id, action.Email), cancellationToken)
             .ConfigureAwait(false);
 

@@ -35,6 +35,7 @@ namespace Excalibur.LeaderElection.Postgres;
 /// </remarks>
 public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisposable
 {
+	private readonly TimeProvider _timeProvider;
 	private readonly PostgresLeaderElectionOptions _pgOptions;
 	private readonly LeaderElectionOptions _electionOptions;
 	private readonly ILogger<PostgresLeaderElection> _logger;
@@ -62,9 +63,14 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private volatile bool _disposed;
-	// Stored as UTC ticks accessed via Interlocked (a58yu6): the renewal task reads/writes this
-	// lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset would tear.
+	// Stored as a monotonic TimeProvider timestamp (3g58kl) accessed via Interlocked: the renewal task
+	// reads/writes this lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset
+	// would tear. Elapsed-time computations must use TimeProvider.GetElapsedTime, never a wall-clock delta.
 	private long _lastSuccessfulRenewalTicks;
+	// 3g58kl: the fencing token minted for the current leadership tenure (0 when no provider is
+	// configured) and the instant that tenure began, read together under _lock via CurrentLeadership.
+	private long _currentFencingToken;
+	private DateTimeOffset _leadershipAcquiredAt;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresLeaderElection"/> class.
@@ -78,11 +84,16 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	/// advanced after bounded retries the candidate relinquishes rather than leading with a stale fence.
 	/// Defaults to <see langword="null"/> (no token issued; opt-in, backward compatible).
 	/// </param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
+	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
+	/// </param>
 	public PostgresLeaderElection(
 		IOptions<PostgresLeaderElectionOptions> pgOptions,
 		IOptions<LeaderElectionOptions> electionOptions,
 		ILogger<PostgresLeaderElection> logger,
-		IFencingTokenProvider? fencingTokenProvider = null)
+		IFencingTokenProvider? fencingTokenProvider = null,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(pgOptions);
 		ArgumentNullException.ThrowIfNull(electionOptions);
@@ -92,6 +103,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 		_pgOptions.Validate();
 		_electionOptions = electionOptions.Value;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_connectionString = BuildLockConnectionString(_pgOptions.ConnectionString);
 		_fencingTokenProvider = fencingTokenProvider;
 		_fencingResourceId = _pgOptions.LockKey.ToString(CultureInfo.InvariantCulture);
@@ -133,10 +145,25 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
 	/// <inheritdoc/>
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
+
+	/// <inheritdoc/>
 	public string CandidateId { get; }
 
 	/// <inheritdoc/>
 	public bool IsLeader => _isLeader;
+
+	/// <inheritdoc/>
+	public Leadership? CurrentLeadership
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _isLeader ? new Leadership(_currentFencingToken == 0 ? null : _currentFencingToken, _leadershipAcquiredAt) : null;
+			}
+		}
+	}
 
 	/// <inheritdoc/>
 	public string? CurrentLeaderId
@@ -305,17 +332,18 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 						// renewal iteration re-attempts acquire+mint.
 						LogFencingTokenIssueError(ex, CandidateId, _fencingResourceId);
 						await ReleaseLockAsync().ConfigureAwait(false);
+						RaiseAcquisitionFailed("fencing token mint failed", ex);
 						return;
 					}
 
 					// Fence advanced — only NOW declare leadership (events fire strictly AFTER the fence advanced).
-					BecomeLeader();
+					BecomeLeader(token);
 					LogFencingTokenIssued(CandidateId, token, _fencingResourceId);
 				}
 				else
 				{
 					// No fencing configured (opt-in): declare leadership directly — backward compatible.
-					BecomeLeader();
+					BecomeLeader(fencingToken: 0);
 				}
 			}
 			else
@@ -325,11 +353,14 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 				await _connection.CloseAsync().ConfigureAwait(false);
 				await _connection.DisposeAsync().ConfigureAwait(false);
 				_connection = null;
+
+				RaiseAcquisitionFailed("lost the acquisition race", exception: null);
 			}
 		}
 		catch (Exception ex)
 		{
 			LogLockAcquisitionError(ex, CandidateId);
+			RaiseAcquisitionFailed("error during acquisition", ex);
 
 			if (_connection != null)
 			{
@@ -401,7 +432,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 					var stillLeader = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
 					if (!stillLeader)
 					{
-						var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
+						var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
 						if (elapsed > _electionOptions.GracePeriod)
 						{
 							await LoseLeadershipAsync().ConfigureAwait(false);
@@ -409,7 +440,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 					}
 					else
 					{
-						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
+						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
 					}
 				}
 			}
@@ -423,7 +454,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 				if (_isLeader)
 				{
-					var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
+					var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
 					if (elapsed > _electionOptions.GracePeriod)
 					{
 						await LoseLeadershipAsync().ConfigureAwait(false);
@@ -464,8 +495,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	/// </para>
 	/// <para>
 	/// This addresses the reachable failover/pool-reset split-brain. The orthogonal paused/stalled-leader
-	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens, tracked
-	/// separately as <c>umemwa</c>.
+	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens.
 	/// </para>
 	/// </remarks>
 	private async Task<bool> VerifyLockAsync(CancellationToken cancellationToken)
@@ -495,7 +525,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 
 	/// <summary>
 	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
-	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (y6tatp, fail-CLOSED). The caller mints
+	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (fail-closed). The caller mints
 	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
 	/// fenced leadership is granted. Mirrors the Redis reference.
 	/// </summary>
@@ -531,7 +561,24 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 			lastError);
 	}
 
-	private void BecomeLeader()
+	/// <summary>
+	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
+	/// can never break the acquisition/renewal loop.
+	/// </summary>
+	private void RaiseAcquisitionFailed(string reason, Exception? exception)
+	{
+		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		try
+		{
+			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, resource, reason, _timeProvider.GetUtcNow(), exception));
+		}
+		catch (Exception)
+		{
+			// A throwing subscriber must never break the acquire loop.
+		}
+	}
+
+	private void BecomeLeader(long fencingToken)
 	{
 		string? previousLeader;
 
@@ -545,7 +592,9 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 			previousLeader = _currentLeaderId;
 			_isLeader = true;
 			_currentLeaderId = CandidateId;
-			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
+			_currentFencingToken = fencingToken;
+			_leadershipAcquiredAt = _timeProvider.GetUtcNow();
+			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
 		}
 
 		var resource = _pgOptions.LockKey.ToString(System.Globalization.CultureInfo.InvariantCulture);

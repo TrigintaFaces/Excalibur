@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Workflows.SqlServer.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Workflows.SqlServer.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <!-- Real-infra SQL Server container for the durability regression lock. -->
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Impl under test: the durable SQL Server signal inbox + its DI wiring/marker. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Workflows.SqlServer\Excalibur.Workflows.SqlServer.csproj" />
+    <!-- Workflows core: AddWorkflows(), RequireDurableSignalInbox(), the in-memory default, the fail-fast validator. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Workflows\Excalibur.Workflows.csproj" />
+    <!-- Shared test infrastructure: ContainerFixtureBase, TestTimeouts. -->
+    <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

@@ -21,14 +21,14 @@ namespace MultiTenantEventSourcing.Commands;
 /// This is the scenario that exercises the tenant-routing decorator:
 /// <see cref="IEventSourcedRepository{TAggregate, TKey}.SaveAsync(TAggregate, CancellationToken)"/>
 /// resolves the decorated <c>IEventStore</c>, which reads
-/// <see cref="ITenantId"/> and dispatches the append to the correct shard.
+/// <see cref="ITenantContext"/> and dispatches the append to the correct shard.
 /// The handler logs the tenant → shard selection so the effect is observable
 /// in sample output.
 /// </remarks>
 public sealed class CreateTenantOrderHandler : ICommandHandler<CreateTenantOrderCommand, Guid>
 {
 	private readonly IEventSourcedRepository<TenantScopedOrder, Guid> _repository;
-	private readonly ITenantId _tenantId;
+	private readonly ITenantContext _tenantContext;
 	private readonly ITenantShardMap _shardMap;
 	private readonly ILogger<CreateTenantOrderHandler> _logger;
 
@@ -37,12 +37,12 @@ public sealed class CreateTenantOrderHandler : ICommandHandler<CreateTenantOrder
 	/// </summary>
 	public CreateTenantOrderHandler(
 		IEventSourcedRepository<TenantScopedOrder, Guid> repository,
-		ITenantId tenantId,
+		ITenantContext tenantContext,
 		ITenantShardMap shardMap,
 		ILogger<CreateTenantOrderHandler> logger)
 	{
 		_repository = repository;
-		_tenantId = tenantId;
+		_tenantContext = tenantContext;
 		_shardMap = shardMap;
 		_logger = logger;
 	}
@@ -52,7 +52,8 @@ public sealed class CreateTenantOrderHandler : ICommandHandler<CreateTenantOrder
 	{
 		ArgumentNullException.ThrowIfNull(action);
 
-		if (string.IsNullOrWhiteSpace(_tenantId.Value))
+		var tenantId = _tenantContext.TenantId;
+		if (string.IsNullOrWhiteSpace(tenantId))
 		{
 			throw new InvalidOperationException(
 				"No tenant in scope. Provide an X-Tenant-Id request header (e.g., tenant-acme).");
@@ -60,7 +61,7 @@ public sealed class CreateTenantOrderHandler : ICommandHandler<CreateTenantOrder
 
 		// Log the shard the routing decorator will pick (pure introspection; the
 		// decorator performs the same lookup internally per operation).
-		var shard = _shardMap.GetShardInfo(_tenantId.Value);
+		var shard = _shardMap.GetShardInfo(tenantId);
 
 		var orderId = Guid.NewGuid();
 		var order = TenantScopedOrder.Create(orderId, action.Total);
@@ -68,7 +69,7 @@ public sealed class CreateTenantOrderHandler : ICommandHandler<CreateTenantOrder
 		_logger.LogInformation(
 			"Saving TenantScopedOrder {OrderId} for tenant {TenantId} (total {Total:C}) via shard {ShardId} ({Region})",
 			orderId,
-			_tenantId.Value,
+			tenantId,
 			action.Total,
 			shard.ShardId,
 			shard.Region);

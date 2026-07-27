@@ -49,10 +49,13 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			_options = new SqlServerOutboxOptions
 			{
 				ConnectionString = _connectionString,
-				SchemaName = "dbo",
-				OutboxTableName = "OutboxMessages",
-				TransportsTableName = "OutboxTransports",
-				CommandTimeoutSeconds = 30
+				Tables =
+				{
+					SchemaName = "dbo",
+					OutboxTableName = "OutboxMessages",
+					TransportsTableName = "OutboxTransports",
+				},
+				Processing = { CommandTimeoutSeconds = 30 },
 			};
 
 			await InitializeDatabaseAsync().ConfigureAwait(false);
@@ -235,7 +238,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		await outboxStore.MarkSentAsync(message.Id, CancellationToken.None);
 
 		// Cleanup messages older than tomorrow (should include all sent messages)
-		var deleted = await outboxStore.CleanupSentMessagesAsync(
+		var deleted = await outboxStore.CleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow.AddDays(1),
 			100,
 			CancellationToken.None);

@@ -23,7 +23,9 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 /// Dapper requests against pre-existing <c>outbox</c> and <c>outbox_dead_letters</c> tables, so this
 /// fixture creates them. The DDL mirrors exactly the columns the store's reserve/insert/schedule
 /// requests reference (message_id, message_type, message_metadata, message_body, tenant_id,
-/// occurred_on, attempts, dispatcher_id, dispatcher_timeout, next_attempt_at, scheduled_at).
+/// destination, correlation_id, causation_id, priority, partition_key, group_key, target_transports,
+/// is_multi_transport, occurred_on, attempts, dispatcher_id, dispatcher_timeout, next_attempt_at,
+/// scheduled_at).
 /// </para>
 /// <para>
 /// The reserve request aliases every column to its PascalCase property name, so Dapper underscore
@@ -46,7 +48,6 @@ public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 	/// </remarks>
 	static PostgresOutboxStoreContainerFixture()
 	{
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 		DefaultTypeMap.MatchNamesWithUnderscores = true;
 	}
 
@@ -110,10 +111,20 @@ public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 				message_id VARCHAR(100) NOT NULL UNIQUE,
 				message_type VARCHAR(500) NOT NULL,
 				message_metadata TEXT,
-				message_body TEXT NOT NULL,
+				message_body BYTEA NOT NULL,
 				tenant_id VARCHAR(255),
+				destination VARCHAR(500),
+				correlation_id VARCHAR(255),
+				causation_id VARCHAR(255),
+				priority INT NOT NULL DEFAULT 0,
+				partition_key VARCHAR(255),
+				group_key VARCHAR(255),
+				sequence_number BIGINT NOT NULL DEFAULT 0,
+				target_transports VARCHAR(500),
+				is_multi_transport BOOLEAN NOT NULL DEFAULT FALSE,
 				occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				attempts INT NOT NULL DEFAULT 0,
+				error_message TEXT,
 				dispatcher_id VARCHAR(100),
 				dispatcher_timeout TIMESTAMPTZ,
 				next_attempt_at TIMESTAMPTZ,
@@ -125,11 +136,19 @@ public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 				message_id VARCHAR(100) NOT NULL UNIQUE,
 				message_type VARCHAR(500) NOT NULL,
 				message_metadata TEXT,
-				message_body TEXT NOT NULL,
+				message_body BYTEA NOT NULL,
 				occurred_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				attempts INT NOT NULL DEFAULT 0,
 				error_message TEXT,
 				moved_on TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+
+			-- Leadership-fencing high-water control table (one durable row per scope). The delete-on-sent
+			-- outbox deletes the winning rows, so the fence high-water cannot live in the outbox rows; this
+			-- dedicated table survives the drain. Matches the fenced-claim high-water enforcement in PostgresOutboxStore.
+			CREATE TABLE IF NOT EXISTS outbox_fence (
+				scope_key VARCHAR(600) PRIMARY KEY,
+				high_water_token BIGINT NOT NULL
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_outbox_unreserved ON outbox (occurred_on) WHERE dispatcher_id IS NULL;
@@ -160,7 +179,7 @@ public sealed class PostgresOutboxStoreContainerFixture : ContainerFixtureBase
 		await connection.OpenAsync().ConfigureAwait(false);
 
 		await using var command = new NpgsqlCommand(
-			"TRUNCATE TABLE outbox CASCADE; TRUNCATE TABLE outbox_dead_letters CASCADE;",
+			"TRUNCATE TABLE outbox CASCADE; TRUNCATE TABLE outbox_dead_letters CASCADE; TRUNCATE TABLE outbox_fence CASCADE;",
 			connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}

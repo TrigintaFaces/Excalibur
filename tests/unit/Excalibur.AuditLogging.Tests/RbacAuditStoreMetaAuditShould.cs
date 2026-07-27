@@ -20,9 +20,9 @@ public sealed class RbacAuditStoreMetaAuditShould
         new(
             _innerStore,
             _roleProvider,
+            metaLogger ?? _metaAuditLogger,
             NullLogger<RbacAuditStore>.Instance,
-            actorProvider,
-            metaLogger);
+            actorProvider);
 
     [Fact]
     public async Task Log_meta_audit_on_get_by_id_with_actor_provider()
@@ -105,9 +105,11 @@ public sealed class RbacAuditStoreMetaAuditShould
     }
 
     [Fact]
-    public async Task Not_call_meta_audit_when_no_logger_registered()
+    public async Task Log_meta_audit_since_logger_is_always_present()
     {
-        var sut = CreateSut(actorProvider: null, metaLogger: null);
+        // The meta-audit logger is a required dependency, so every authorized read is recorded — the
+        // control can never be silently disabled by leaving the logger unconfigured.
+        var sut = CreateSut(actorProvider: null, metaLogger: _metaAuditLogger);
 
         A.CallTo(() => _roleProvider.GetCurrentRoleAsync(A<CancellationToken>._))
             .Returns(AuditLogRole.Administrator);
@@ -125,7 +127,8 @@ public sealed class RbacAuditStoreMetaAuditShould
         var result = await sut.GetByIdAsync("evt-1", CancellationToken.None);
 
         result.ShouldNotBeNull();
-        // No meta-audit logger, so no calls expected
+        A.CallTo(() => _metaAuditLogger.LogAsync(A<AuditEvent>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]

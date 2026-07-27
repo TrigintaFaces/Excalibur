@@ -220,6 +220,13 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 		public ReadOnlyMemory<byte> Data => _decompressedData;
 		public string AggregateType => _original.AggregateType;
 		public IDictionary<string, object>? Metadata => _original.Metadata;
+
+		/// <summary>
+		/// Forwards the wrapped snapshot's tenant. A decorator that dropped this would strip the
+		/// discriminator in transit, so a correctly tenant-scoped store would still lose one tenant's
+		/// snapshot to another as soon as this decorator was in the chain.
+		/// </summary>
+		public string? TenantId => _original.TenantId;
 	}
 
 	/// <summary>
@@ -243,5 +250,12 @@ public sealed class CompressingSnapshotStore : DelegatingSnapshotStore
 		public ReadOnlyMemory<byte> Data => _compressedData;
 		public string AggregateType => _original.AggregateType;
 		public IDictionary<string, object>? Metadata => _original.Metadata;
+
+		/// <summary>
+		/// Forwards the wrapped snapshot's tenant. A decorator that dropped this would strip the
+		/// discriminator in transit, so a correctly tenant-scoped store would still lose one tenant's
+		/// snapshot to another as soon as this decorator was in the chain.
+		/// </summary>
+		public string? TenantId => _original.TenantId;
 	}
 }

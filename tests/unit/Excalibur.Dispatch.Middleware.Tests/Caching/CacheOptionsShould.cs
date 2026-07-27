@@ -23,14 +23,12 @@ public sealed class CacheOptionsShould : UnitTestBase
 		options.Enabled.ShouldBeFalse();
 		options.CacheMode.ShouldBe(CacheMode.Hybrid);
 		options.Behavior.DefaultExpiration.ShouldBe(TimeSpan.FromMinutes(10));
-		options.Behavior.UseSlidingExpiration.ShouldBeTrue();
 		options.DefaultTags.ShouldBeEmpty();
 		options.Behavior.CacheTimeout.ShouldBe(TimeSpan.FromMilliseconds(200));
 		options.Behavior.JitterRatio.ShouldBe(0.10);
 		options.GlobalPolicy.ShouldBeNull();
 		options.CacheKeyBuilder.ShouldBeNull();
 		options.Behavior.EnableStatistics.ShouldBeFalse();
-		options.Behavior.EnableCompression.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -239,32 +237,6 @@ public sealed class CacheOptionsShould : UnitTestBase
 
 		// Assert
 		options.Behavior.EnableStatistics.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AllowSettingEnableCompression()
-	{
-		// Arrange
-		var options = new CacheOptions();
-
-		// Act
-		options.Behavior.EnableCompression = true;
-
-		// Assert
-		options.Behavior.EnableCompression.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AllowSettingUseSlidingExpiration()
-	{
-		// Arrange
-		var options = new CacheOptions();
-
-		// Act
-		options.Behavior.UseSlidingExpiration = false;
-
-		// Assert
-		options.Behavior.UseSlidingExpiration.ShouldBeFalse();
 	}
 
 	[Fact]

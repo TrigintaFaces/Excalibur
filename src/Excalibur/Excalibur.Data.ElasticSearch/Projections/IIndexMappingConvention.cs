@@ -20,7 +20,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <code>
 /// services.AddElasticSearchProjectionStore&lt;OrderSummary&gt;(opts =&gt;
 /// {
-///     opts.IndexMappingConvention = new TextFieldConvention();
+///     opts.Index.IndexMappingConvention = new TextFieldConvention();
 /// });
 /// </code>
 /// </para>

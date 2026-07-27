@@ -9,6 +9,20 @@ namespace Excalibur.Data;
 /// <summary>
 /// Defines a contract for database access, providing basic operations to manage a database connection.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="IDb"/> models the <em>connection lifecycle</em> only (open/close and access to the underlying
+/// <see cref="IDbConnection"/>); it does not itself execute commands. Command execution — and therefore the
+/// mapping of an optimistic-concurrency conflict to a typed <see cref="ConcurrencyException"/> — happens on
+/// the execute path over <see cref="Connection"/>, notably <see cref="DbConnectionExtensions"/>. That path
+/// propagates a <see cref="ConcurrencyException"/> (and any other application exception) to the caller
+/// unchanged; only non-application infrastructure faults are wrapped as an <see cref="OperationFailedException"/>.
+/// </para>
+/// <para>
+/// The lifecycle members below neither perform writes nor raise <see cref="ConcurrencyException"/>: an
+/// implementation MUST NOT repurpose them to surface conflict semantics.
+/// </para>
+/// </remarks>
 public interface IDb
 {
 	/// <summary>

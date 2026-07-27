@@ -35,11 +35,11 @@ builder.Services.AddElasticsearchProjections(builder.Configuration);
 // Register per-type projection stores with named options
 builder.Services.AddElasticSearchProjectionStore<OrderSummary>(options =>
 {
-    options.IndexName = "order-summaries";
+    options.Index.IndexName = "order-summaries";
 });
 builder.Services.AddElasticSearchProjectionStore<CustomerDashboard>(options =>
 {
-    options.IndexName = "customer-dashboards";
+    options.Index.IndexName = "customer-dashboards";
 });
 ```
 

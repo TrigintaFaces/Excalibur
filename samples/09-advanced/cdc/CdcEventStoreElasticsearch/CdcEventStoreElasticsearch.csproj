@@ -38,6 +38,7 @@
   <!-- Identity Map (Anti-Corruption Layer ID resolution) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.IdentityMap\Excalibur.Data.IdentityMap.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.IdentityMap.SqlServer\Excalibur.Data.IdentityMap.SqlServer.csproj" />
   </ItemGroup>
   <!-- Elasticsearch projections -->
   <ItemGroup>

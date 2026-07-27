@@ -246,6 +246,8 @@ public class FailurePathBenchmarks
 
 	private static InMemoryDeadLetterStore CreateDeadLetterStore()
 	{
-		return new InMemoryDeadLetterStore(NullLogger<InMemoryDeadLetterStore>.Instance);
+		// Untenanted (null ITenantContext) is the single-tenant host shape and keeps the benchmark
+		// measuring the store's own cost rather than tenant-scope resolution.
+		return new InMemoryDeadLetterStore(tenantContext: null, NullLogger<InMemoryDeadLetterStore>.Instance);
 	}
 }

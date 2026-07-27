@@ -23,7 +23,7 @@ public sealed class AggregateTestFixtureShould
 	{
 		// Arrange & Act
 		_ = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "Test" })
+			.Given(new AggregateInitialized { Name = "Test" })
 			.When(agg => agg.Increment())
 			.Then()
 			.ShouldRaise<CounterIncremented>()
@@ -37,9 +37,9 @@ public sealed class AggregateTestFixtureShould
 		// Arrange & Act
 		_ = new AggregateTestFixture<TestAggregate>()
 			.Given(
-				new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "Test" },
-				new CounterIncremented { AggregateId = "test-id", Version = 2 },
-				new CounterIncremented { AggregateId = "test-id", Version = 3 })
+				new AggregateInitialized { Name = "Test" },
+				new CounterIncremented(),
+				new CounterIncremented())
 			.When(agg => agg.Increment())
 			.Then()
 			.StateShould(agg => agg.Counter == 3, "Counter should be 3 after 2 Given + 1 When");
@@ -50,9 +50,9 @@ public sealed class AggregateTestFixtureShould
 	{
 		// Arrange & Act
 		_ = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "Test" })
-			.Given(new CounterIncremented { AggregateId = "test-id", Version = 2 })
-			.Given(new CounterIncremented { AggregateId = "test-id", Version = 3 })
+			.Given(new AggregateInitialized { Name = "Test" })
+			.Given(new CounterIncremented())
+			.Given(new CounterIncremented())
 			.When(agg => agg.Increment())
 			.Then()
 			.StateShould(agg => agg.Counter == 3);
@@ -75,9 +75,9 @@ public sealed class AggregateTestFixtureShould
 		// Arrange
 		var events = new List<CounterIncremented>
 		{
-			new() { AggregateId = "test-id", Version = 1 },
-			new() { AggregateId = "test-id", Version = 2 },
-			new() { AggregateId = "test-id", Version = 3 }
+			new(),
+			new(),
+			new()
 		};
 
 		// Act & Assert
@@ -119,8 +119,8 @@ public sealed class AggregateTestFixtureShould
 		// Given events should NOT appear in uncommitted events
 		_ = new AggregateTestFixture<TestAggregate>()
 			.Given(
-				new CounterIncremented { AggregateId = "test-id", Version = 1 },
-				new CounterIncremented { AggregateId = "test-id", Version = 2 })
+				new CounterIncremented(),
+				new CounterIncremented())
 			.When(agg => agg.Increment())
 			.Then()
 			.AssertAggregate(agg =>
@@ -276,7 +276,7 @@ public sealed class AggregateTestFixtureShould
 	{
 		// Arrange & Act & Assert
 		_ = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "MyAggregate" })
+			.Given(new AggregateInitialized { Name = "MyAggregate" })
 			.When(agg => agg.IncrementBy(7))
 			.Then()
 			.StateShould(agg => agg.Counter == 7)
@@ -293,7 +293,7 @@ public sealed class AggregateTestFixtureShould
 	{
 		// Arrange & Act & Assert
 		_ = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "CustomTest" })
+			.Given(new AggregateInitialized { Name = "CustomTest" })
 			.When(agg => agg.IncrementBy(25))
 			.Then()
 			.AssertAggregate(agg =>
@@ -337,7 +337,7 @@ public sealed class AggregateTestFixtureShould
 	{
 		// Arrange
 		var fixture = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "Test" })
+			.Given(new AggregateInitialized { Name = "Test" })
 			.When(agg => agg.Initialize("Duplicate")) // Throws InvalidOperationException
 			.Then();
 
@@ -414,9 +414,9 @@ public sealed class AggregateTestFixtureShould
 		// Arrange & Act & Assert - Complete workflow demonstrating BDD-style testing
 		_ = new AggregateTestFixture<TestAggregate>()
 			// Given: Aggregate was initialized and had some activity
-			.Given(new AggregateInitialized { AggregateId = "order-123", Version = 1, Name = "Order" })
-			.Given(new CounterIncremented { AggregateId = "order-123", Version = 2 })
-			.Given(new CounterIncremented { AggregateId = "order-123", Version = 3 })
+			.Given(new AggregateInitialized { Name = "Order" })
+			.Given(new CounterIncremented())
+			.Given(new CounterIncremented())
 			// When: User increments by 5
 			.When(agg => agg.IncrementBy(5))
 			// Then: Proper event raised and state updated
@@ -432,7 +432,7 @@ public sealed class AggregateTestFixtureShould
 	{
 		// Arrange & Act & Assert - Exception scenario
 		new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized { AggregateId = "order-123", Version = 1, Name = "Order" })
+			.Given(new AggregateInitialized { Name = "Order" })
 			.When(agg => agg.Initialize("Duplicate")) // Should throw - already initialized
 			.ShouldThrow<InvalidOperationException>("already initialized");
 	}
@@ -443,8 +443,8 @@ public sealed class AggregateTestFixtureShould
 		// Arrange & Act & Assert - No-op scenario
 		_ = new AggregateTestFixture<TestAggregate>()
 			.Given(
-				new AggregateInitialized { AggregateId = "order-123", Version = 1, Name = "Order" },
-				new CounterIncremented { AggregateId = "order-123", Version = 2 })
+				new AggregateInitialized { Name = "Order" },
+				new CounterIncremented())
 			.When(agg => agg.DoNothing())
 			.Then()
 			.ShouldRaiseNoEvents()

@@ -8,31 +8,25 @@ namespace Excalibur.Tests.Domain.Model;
 
 // ── Test domain events ──
 
-public record OrderCreated(string OrderId, decimal Total) : DomainEvent
-{
-    public override string AggregateId => OrderId;
-}
+// AggregateId/Version moved off the event payload to the persistence envelope
+// (StoredEvent.Version → HistoricEvent). Test events carry only their own data.
+public record OrderCreated(string OrderId, decimal Total) : DomainEvent;
 
-public record OrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent
-{
-    public override string AggregateId => OrderId;
-}
+public record OrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent;
 
-public record OrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent
-{
-    public override string AggregateId => OrderId;
-}
+public record OrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent;
 
-public record OrderCancelled(string OrderId, string Reason) : DomainEvent
-{
-    public override string AggregateId => OrderId;
-}
+public record OrderCancelled(string OrderId, string Reason) : DomainEvent;
 
 // ── Test snapshot ──
 
 public record OrderSnapshot : ISnapshot
 {
     public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+    // Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+    // that this double is unscoped instead of assuming it.
+    public string? TenantId { get; init; }
     public string AggregateId { get; init; } = string.Empty;
     public long Version { get; init; }
     public string AggregateType { get; init; } = nameof(OrderAggregate);
@@ -78,7 +72,7 @@ public sealed class OrderAggregate : AggregateRoot
         RaiseEvent(new OrderCancelled(Id, reason));
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+    protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
     {
         OrderCreated e => ApplyCreated(e),
         OrderItemAdded e => ApplyItemAdded(e),
@@ -140,9 +134,10 @@ public sealed class GuidAggregate : AggregateRoot<Guid>
 {
     public string Name { get; private set; } = string.Empty;
 
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         // Simple implementation
+        	return true;
     }
 }
 
@@ -225,11 +220,11 @@ public sealed class AggregateRootFunctionalShould
     {
         // Arrange
         var aggregate = new OrderAggregate();
-        var history = new IDomainEvent[]
+        var history = new HistoricEvent[]
         {
-            new OrderCreated("order-1", 200m),
-            new OrderItemAdded("order-1", "item-1", 3),
-            new OrderShipped("order-1", DateTimeOffset.UtcNow),
+            new(new OrderCreated("order-1", 200m), 0),
+            new(new OrderItemAdded("order-1", "item-1", 3), 1),
+            new(new OrderShipped("order-1", DateTimeOffset.UtcNow), 2),
         };
 
         // Act

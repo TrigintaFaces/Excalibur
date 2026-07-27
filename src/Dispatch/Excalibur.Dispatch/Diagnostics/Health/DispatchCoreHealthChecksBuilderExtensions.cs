@@ -77,14 +77,19 @@ public static class DispatchCoreHealthChecksBuilderExtensions
 
 	/// <summary>Adds all Dispatch core health checks (serialization, pipeline integrity, streaming handler).</summary>
 	/// <param name="builder">The health checks builder.</param>
+	/// <param name="failureStatus">Optional failure status applied to every registered check.</param>
+	/// <param name="tags">Optional tags for filtering, applied to every registered check.</param>
 	/// <returns>The health checks builder for chaining.</returns>
-	public static IHealthChecksBuilder AddDispatchCoreHealthChecks(this IHealthChecksBuilder builder)
+	public static IHealthChecksBuilder AddDispatchCoreHealthChecks(
+		this IHealthChecksBuilder builder,
+		HealthStatus? failureStatus = null,
+		IEnumerable<string>? tags = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		return builder
-			.AddSerializationHealthCheck()
-			.AddPipelineIntegrityHealthCheck()
-			.AddStreamingHandlerHealthCheck();
+			.AddSerializationHealthCheck(failureStatus: failureStatus, tags: tags)
+			.AddPipelineIntegrityHealthCheck(failureStatus: failureStatus, tags: tags)
+			.AddStreamingHandlerHealthCheck(failureStatus: failureStatus, tags: tags);
 	}
 
 	private static readonly string[] DefaultTags = ["excalibur", "dispatch"];

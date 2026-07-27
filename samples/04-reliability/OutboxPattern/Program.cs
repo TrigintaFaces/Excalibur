@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 // Outbox Pattern Sample
@@ -75,12 +75,6 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 				.PollingInterval(TimeSpan.FromSeconds(2))  // Check for messages every 2 seconds
 				.MaxRetryCount(3)                  // Retry failed messages up to 3 times
 				.RetryDelay(TimeSpan.FromSeconds(10));      // Wait 10 seconds between retries
-		})
-		.WithCleanup(cleanup =>
-		{
-			cleanup.EnableAutoCleanup(true)
-				.RetentionPeriod(TimeSpan.FromHours(1))    // Keep messages for 1 hour (demo)
-				.CleanupInterval(TimeSpan.FromMinutes(5)); // Run cleanup every 5 minutes
 		})
 		.EnableBackgroundProcessing(); // Start the background processor hosted service
 }));

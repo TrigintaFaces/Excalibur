@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using System.Linq;
 
 namespace Excalibur.EventSourcing.Subscriptions;
 
@@ -35,5 +36,14 @@ internal sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpo
 
 		_checkpoints[subscriptionName] = position;
 		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc />
+	public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken)
+	{
+		// Snapshot the dictionary; ConcurrentDictionary enumeration is a moment-in-time view.
+		IReadOnlyList<SubscriptionCheckpoint> checkpoints =
+			[.. _checkpoints.Select(static kvp => new SubscriptionCheckpoint(kvp.Key, kvp.Value))];
+		return Task.FromResult(checkpoints);
 	}
 }

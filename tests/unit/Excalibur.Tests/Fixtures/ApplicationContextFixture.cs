@@ -17,7 +17,7 @@ public sealed class ApplicationContextFixture : IDisposable
 	public ApplicationContextFixture()
 	{
 		// Initialize the activity context for testing with fake dependencies
-		var tenantId = A.Fake<ITenantId>();
+		var tenantId = "tenant-1";
 		var correlationId = A.Fake<ICorrelationId>();
 		var eTag = A.Fake<IETag>();
 		var configuration = A.Fake<IConfiguration>();

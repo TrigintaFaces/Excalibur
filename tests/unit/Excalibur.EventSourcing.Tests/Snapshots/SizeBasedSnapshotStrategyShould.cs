@@ -142,7 +142,7 @@ public sealed class SizeBasedSnapshotStrategyShould
 			Data = data;
 		}
 
-		protected override void ApplyEventInternal(Dispatch.IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(Dispatch.IDomainEvent @event) => true;
 
 		public override ISnapshot CreateSnapshot() => new Snapshot
 		{
@@ -167,7 +167,7 @@ public sealed class SizeBasedSnapshotStrategyShould
 			Data = data;
 		}
 
-		protected override void ApplyEventInternal(Dispatch.IDomainEvent @event) { }
+		protected override bool ApplyEventInternal(Dispatch.IDomainEvent @event) => true;
 
 		public override ISnapshot CreateSnapshot() => new Snapshot
 		{

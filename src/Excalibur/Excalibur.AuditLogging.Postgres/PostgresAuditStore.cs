@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,15 +23,23 @@ namespace Excalibur.AuditLogging.Postgres;
 /// <para>
 /// This implementation provides:
 /// - Hash-chain integrity for tamper detection
-/// - Retention policy enforcement
-/// - Batch insert support for high-throughput scenarios
-/// - Optimized indexes for compliance queries
+/// - Tenant-scoped reads, resolved from the ambient tenant context rather than from the caller's query
+/// - Indexes for the compliance query patterns this store issues, in the provisioning script shipped
+///   under <c>scripts/</c> in this package
+/// </para>
+/// <para>
+/// Not provided by this type, so that the absence is explicit rather than inferred: it implements no
+/// retention or purge path — it exposes no <c>EnforceRetentionAsync</c> and no purge capability, so a host
+/// that needs audit retention on PostgreSQL must delete by its own policy. It also offers no batch or bulk
+/// insert; <c>StoreAsync</c> writes one event per call, which the hash chain requires in order to link each
+/// event to the tag preceding it.
 /// </para>
 /// </remarks>
-public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
+public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore, IDisposable
 {
 	private readonly PostgresAuditOptions _options;
 	private readonly IAuditIntegrityStrategy _integrity;
+	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<PostgresAuditStore> _logger;
 	private readonly SemaphoreSlim _hashChainLock = new(1, 1);
 	private volatile bool _disposed;
@@ -41,10 +50,12 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 	public PostgresAuditStore(
 		IOptions<PostgresAuditOptions> options,
 		IAuditIntegrityStrategy integrity,
+		ITenantContext? tenantContext,
 		ILogger<PostgresAuditStore> logger)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_integrity = integrity ?? throw new ArgumentNullException(nameof(integrity));
+		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		if (string.IsNullOrEmpty(_options.ConnectionString))
@@ -58,6 +69,39 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 
 		ValidateSqlIdentifier(_options.SchemaName, nameof(PostgresAuditOptions.SchemaName));
 		ValidateSqlIdentifier(_options.TableName, nameof(PostgresAuditOptions.TableName));
+	}
+
+	/// <summary>
+	/// Adds the tenant scope to a query being built. This is the <strong>only</strong> place the tenant
+	/// predicate is constructed, so a second read path cannot acquire a subtly different one.
+	/// </summary>
+	/// <param name="whereClauses">The clause list being built.</param>
+	/// <param name="parameters">The parameter set being built.</param>
+	/// <remarks>
+	/// <c>COALESCE</c> is load-bearing: a bare <c>tenant_id = @TenantId</c> never matches a NULL-tenant row,
+	/// so an untenanted caller would read nothing at all rather than its own rows. Every spelling of "no
+	/// tenant" must name the same partition, and this is where they are reconciled.
+	/// </remarks>
+	private void AddTenantScope(List<string> whereClauses, DynamicParameters parameters)
+	{
+		whereClauses.Add("COALESCE(tenant_id, @UntenantedSentinel) = @TenantId");
+		parameters.Add("UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
+		parameters.Add("TenantId", ResolveTenantTerm());
+	}
+
+	/// <summary>
+	/// Resolves the tenant term every read is confined to — a <em>scope</em> from ambient context, never a
+	/// filter supplied by the caller.
+	/// </summary>
+	/// <returns>The ambient tenant identifier, or the reserved untenanted sentinel.</returns>
+	/// <exception cref="TenantRequiredException">
+	/// Multi-tenancy is registered but resolves no tenant — the read fails closed.
+	/// </exception>
+	private string ResolveTenantTerm()
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+
+		return scope.IsScoped ? scope.TenantId! : KeyedTenantPartition.Untenanted.TenantId;
 	}
 
 	/// <inheritdoc />
@@ -104,7 +148,15 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		parameters.Add("ResourceType", auditEvent.ResourceType);
 		parameters.Add("ResourceClassification",
 			auditEvent.ResourceClassification.HasValue ? (int)auditEvent.ResourceClassification.Value : null);
-		parameters.Add("TenantId", auditEvent.TenantId);
+		// tenant_id is NOT NULL with the untenanted sentinel as its default, so the raw nullable cannot be
+		// bound here: an event captured with no ambient tenant carries a null TenantId by design, and binding
+		// it throws on every untenanted audit write.
+		//
+		// FromStoredValue rather than a null-coalesce because it is total over every value that cannot name a
+		// real tenant — null, empty and whitespace all resolve to the sentinel. A bare `?? sentinel` would
+		// satisfy NOT NULL while letting whitespace through and persisting a row that no tenant-scoped
+		// predicate can match, which is the fail-open this column was made NOT NULL to prevent.
+		parameters.Add("TenantId", KeyedTenantPartition.FromStoredValue(auditEvent.TenantId).TenantId);
 		parameters.Add("ApplicationName", auditEvent.ApplicationName);
 		parameters.Add("CorrelationId", auditEvent.CorrelationId);
 		parameters.Add("SessionId", auditEvent.SessionId);
@@ -156,6 +208,15 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// A lookup by primary key is still a tenant-scoped read. The identifier alone does not authorise the
+		// row: without this predicate a caller holding an event id obtained from anywhere — a log line, an
+		// export, a correlation trail — reads another tenant's audit record verbatim. Composed from the same
+		// AddTenantScope every other read path uses, so the tenant term has exactly one definition per store.
+		var whereClauses = new List<string> { "event_id = @EventId" };
+		var parameters = new DynamicParameters();
+		parameters.Add("@EventId", eventId);
+		AddTenantScope(whereClauses, parameters);
+
 		var sql = $@"
 			SELECT event_id AS EventId, event_type AS EventType, action AS Action, outcome AS Outcome,
 				   timestamp AS Timestamp, actor_id AS ActorId, actor_type AS ActorType,
@@ -166,10 +227,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 				   reason AS Reason, metadata AS Metadata,
 				   previous_event_hash AS PreviousEventHash, event_hash AS EventHash
 			FROM {_options.FullyQualifiedTableName}
-			WHERE event_id = @EventId";
+			WHERE {string.Join(" AND ", whereClauses)}";
 
 		var row = await connection.QuerySingleOrDefaultAsync<AuditEventRow>(
-				new CommandDefinition(sql, new { EventId = eventId }, commandTimeout: _options.CommandTimeoutSeconds,
+				new CommandDefinition(sql, parameters, commandTimeout: _options.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -348,11 +409,9 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
 
-		if (tenantId is not null)
-		{
-			whereClauses.Add("tenant_id = @TenantId");
-			parameters.Add("TenantId", tenantId);
-		}
+		// SECURITY: scope, not filter — bound unconditionally from ambient context. The caller-supplied
+		// tenantId is deliberately not consulted: passing null widened this read to every tenant.
+		AddTenantScope(whereClauses, parameters);
 
 		if (!string.IsNullOrEmpty(applicationName))
 		{
@@ -386,7 +445,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 		return row is null ? null : MapToAuditEvent(row);
 	}
 
-	private static (List<string> WhereClauses, DynamicParameters Parameters) BuildQueryClauses(AuditQuery query)
+	private (List<string> WhereClauses, DynamicParameters Parameters) BuildQueryClauses(AuditQuery query)
 	{
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
@@ -439,11 +498,10 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDisposable
 			parameters.Add("MinClassification", (int)query.MinimumClassification.Value);
 		}
 
-		if (!string.IsNullOrEmpty(query.TenantId))
-		{
-			whereClauses.Add("tenant_id = @TenantId");
-			parameters.Add("TenantId", query.TenantId);
-		}
+		// SECURITY: the tenant term is a SCOPE taken from ambient context, added unconditionally.
+		// query.TenantId is deliberately not consulted — omitting it returned every tenant's audit
+		// events, and naming another tenant returned theirs.
+		AddTenantScope(whereClauses, parameters);
 
 		if (!string.IsNullOrEmpty(query.ApplicationName))
 		{

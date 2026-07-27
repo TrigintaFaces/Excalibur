@@ -85,6 +85,16 @@ public sealed class RedisOutboxOptions
 	public int LeaseTimeoutSeconds { get; set; } = 300;
 
 	/// <summary>
+	/// Gets or sets the failure-backoff floor F, in seconds: after a plain <c>MarkFailedAsync</c>, the message
+	/// becomes re-claimable only after F elapses (its <c>NextAttemptAt</c> gate). This bounds the plain-path
+	/// retry cadence so it cannot hot-loop the drain, while the message stays eventually re-claimable
+	/// (at-least-once). F must exceed the drain polling interval; the validator enforces that cross-options invariant.
+	/// </summary>
+	/// <value>The failure-backoff floor in seconds. Defaults to 30 (uniform across the outbox family).</value>
+	[Range(1, int.MaxValue)]
+	public int FailureBackoffFloorSeconds { get; set; } = 30;
+
+	/// <summary>
 	/// Gets or sets the identifier recorded as the lease owner of a claimed message (for diagnostics and
 	/// parity with the SQL Server outbox's <c>LeasedBy</c> column).
 	/// </summary>

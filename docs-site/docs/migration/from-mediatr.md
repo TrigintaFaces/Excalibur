@@ -303,7 +303,7 @@ await _dispatcher.DispatchAsync(
 **Key Changes:**
 - `INotification` → `IDomainEvent` (richer interface with metadata)
 - `INotificationHandler<T>` → `IEventHandler<T>`
-- Events include: `EventId`, `AggregateId`, `Version`, `OccurredAt`, `EventType`, `Metadata`
+- Events include: `EventId`, `OccurredAt`, `EventType`, `Metadata`, `CorrelationId`, `CausationId` (aggregate id and stream version are owned by the event store, not the event)
 - Better support for event sourcing and auditing
 
 ### Pipeline Behaviors
@@ -664,7 +664,7 @@ public class Order : AggregateRoot
     }
 
     // Event application
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
@@ -672,7 +672,9 @@ public class Order : AggregateRoot
                 Id = e.OrderId;
                 CustomerId = e.CustomerId;
                 TotalValue = e.Items.Sum(i => i.Price * i.Quantity);
-                break;
+                return true;
+            default:
+                return false;
         }
     }
 }
@@ -897,19 +899,21 @@ public class MyCommandHandler : IActionHandler<MyCommand>
 // Events applied in order
 public class Order : AggregateRoot
 {
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
             case OrderCreatedEvent e:
                 ApplyEvent(e);
-                break;
+                return true;
             case OrderItemAddedEvent e:
                 ApplyEvent(e);
-                break;
+                return true;
             case OrderSubmittedEvent e:
                 ApplyEvent(e);
-                break;
+                return true;
+            default:
+                return false;
         }
     }
 

@@ -43,7 +43,11 @@ public static class OutboxPipelineExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		return builder.UseMiddleware<OutboxMiddleware>();
+		// Cascade runs at DispatchMiddlewareStage.Cascade (inside outbox staging); stage-sorting places it
+		// correctly regardless of registration order, and it is a no-op unless a handler returns ICascade.
+		return builder
+			.UseMiddleware<OutboxStagingMiddleware>()
+			.UseMiddleware<CascadeMiddleware>();
 	}
 
 	/// <summary>
@@ -58,6 +62,8 @@ public static class OutboxPipelineExtensions
 		ArgumentNullException.ThrowIfNull(configure);
 
 		builder.Services.Configure(configure);
-		return builder.UseMiddleware<OutboxMiddleware>();
+		return builder
+			.UseMiddleware<OutboxStagingMiddleware>()
+			.UseMiddleware<CascadeMiddleware>();
 	}
 }

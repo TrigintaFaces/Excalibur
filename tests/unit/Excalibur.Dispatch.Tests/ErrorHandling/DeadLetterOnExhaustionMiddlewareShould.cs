@@ -5,11 +5,13 @@
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Middleware.Resilience;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Shouldly;
@@ -134,6 +136,99 @@ public sealed class DeadLetterOnExhaustionMiddlewareShould
 
 		// The OCE must NOT be swallowed by the fail-open catch — cooperative cancellation propagates.
 		_ = await Should.ThrowAsync<OperationCanceledException>(Invoke(dlq, exhausted));
+	}
+
+	/// <summary>
+	/// SAFETY — a host that opted in to <see cref="NullDeadLetterQueue"/> has its exhausted messages reported
+	/// as <em>discarded</em>, never as dead-lettered.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the arm that keeps the fabricated entry id unreachable. Without the guard the middleware enqueues
+	/// into the no-op, receives <see cref="Guid.Empty"/>, discards it, and logs "routed message … to the
+	/// dead-letter queue" over a message that was dropped — an operator reading that log would go looking for an
+	/// entry that was never written.
+	/// </para>
+	/// <para>
+	/// Asserted through the emitted log rather than through a call-count, because <see cref="NullDeadLetterQueue"/>
+	/// is sealed with a private constructor and cannot be spied on. The log is also the surface an operator
+	/// actually reads, which makes it the honest thing to bind.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task ReportDiscardRatherThanDeadLettering_WhenTheHostOptedIntoTheNoOpQueue()
+	{
+		var logger = new RecordingLogger();
+		var middleware = new DeadLetterOnExhaustionMiddleware(NullDeadLetterQueue.Instance, logger);
+
+		DispatchRequestDelegate next = (_, _, _) =>
+			new ValueTask<IMessageResult>(Failed(RetryProblemTypes.RetryExhausted, "exhausted"));
+
+		_ = await middleware.InvokeAsync(
+			A.Fake<IDispatchMessage>(), CreateContext(), next, CancellationToken.None);
+
+		logger.EventIds.ShouldContain(
+			DeliveryEventId.DeadLetterOnExhaustionDiscarded,
+			"an opted-in discard must be reported as a discard");
+
+		logger.EventIds.ShouldNotContain(
+			DeliveryEventId.DeadLetterOnExhaustionEnqueued,
+			"a discarded message must never be logged as routed to the dead-letter queue");
+	}
+
+	/// <summary>
+	/// LIVENESS — a real queue still reports the routing. Without this arm a middleware that logged nothing at
+	/// all, or that discarded unconditionally, would satisfy the safety arm above.
+	/// </summary>
+	[Fact]
+	public async Task StillReportDeadLettering_WhenARealQueueIsConfigured()
+	{
+		var logger = new RecordingLogger();
+		var dlq = A.Fake<IDeadLetterQueue>();
+		var middleware = new DeadLetterOnExhaustionMiddleware(dlq, logger);
+
+		DispatchRequestDelegate next = (_, _, _) =>
+			new ValueTask<IMessageResult>(Failed(RetryProblemTypes.RetryExhausted, "exhausted"));
+
+		_ = await middleware.InvokeAsync(
+			A.Fake<IDispatchMessage>(), CreateContext(), next, CancellationToken.None);
+
+		logger.EventIds.ShouldContain(
+			DeliveryEventId.DeadLetterOnExhaustionEnqueued,
+			"a real dead-letter queue must still report the routing");
+
+		logger.EventIds.ShouldNotContain(
+			DeliveryEventId.DeadLetterOnExhaustionDiscarded,
+			"a stored message must never be reported as discarded");
+
+		A.CallTo(() => dlq.EnqueueAsync<IDispatchMessage>(
+				A<IDispatchMessage>._, A<DeadLetterReason>._, A<CancellationToken>._,
+				A<Exception?>._, A<IDictionary<string, string>?>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	/// <summary>
+	/// Records emitted event ids. Implements <see cref="ILogger{TCategoryName}"/> directly rather than deriving
+	/// from a first-party base, so the assertion binds the logging the middleware actually performs.
+	/// </summary>
+	private sealed class RecordingLogger : ILogger<DeadLetterOnExhaustionMiddleware>
+	{
+		private readonly List<int> _eventIds = [];
+
+		public IReadOnlyList<int> EventIds => _eventIds;
+
+		public IDisposable? BeginScope<TState>(TState state)
+			where TState : notnull => null;
+
+		public bool IsEnabled(LogLevel logLevel) => true;
+
+		public void Log<TState>(
+			LogLevel logLevel,
+			EventId eventId,
+			TState state,
+			Exception? exception,
+			Func<TState, Exception?, string> formatter) =>
+			_eventIds.Add(eventId.Id);
 	}
 
 	private static void AssertNoEnqueue(IDeadLetterQueue dlq) =>

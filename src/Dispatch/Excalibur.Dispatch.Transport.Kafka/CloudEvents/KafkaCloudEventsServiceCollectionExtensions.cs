@@ -43,6 +43,7 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
+		_ = services.AddCloudEventOptionsValidation();
 		if (configureOptions is not null)
 		{
 			_ = services.Configure(configureOptions);
@@ -63,7 +64,7 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 	/// <param name="configureKafka"> Action to configure Kafka-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForKafka(
+	public static IServiceCollection AddCloudEventsForKafka(
 		this IServiceCollection services,
 		Action<KafkaCloudEventOptions>? configureKafka = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -75,6 +76,8 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 
 		_ = services.AddOptions<KafkaCloudEventOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KafkaCloudEventOptions>, KafkaCloudEventOptionsValidator>());
 		if (configureKafka is not null)
 		{
 			_ = services.Configure(configureKafka);
@@ -83,7 +86,7 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(static sp => sp.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value);
 
 		services.TryAddSingleton<IKafkaCloudEventAdapter, KafkaCloudEventAdapter>();
-		services.TryAddSingleton<ICloudEventMapper<Message<string, string>>>(static sp =>
+		services.AddCloudEventMapper<Message<string, string>>(static sp =>
 			(KafkaCloudEventAdapter)sp.GetRequiredService<IKafkaCloudEventAdapter>());
 
 		return services;
@@ -111,8 +114,8 @@ public static class KafkaCloudEventsServiceCollectionExtensions
 				var hasTraceParent = cloudEvent.GetAttribute("traceparent") != null;
 				var hasTimestamp = cloudEvent.Time.HasValue;
 
-				// At minimum require tracing for audit compliance
-				return Task.FromResult(hasTraceParent || hasCorrelationId);
+				// DoD compliance requires correlationId, userId, and traceParent — all mandatory.
+				return Task.FromResult(hasCorrelationId && hasUserId && hasTraceParent);
 			});
 		}
 

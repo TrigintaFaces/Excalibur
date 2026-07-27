@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Health;
 using Excalibur.EventSourcing.Services;
@@ -37,10 +35,15 @@ public static class MaterializedViewsBuilderExtensions
 		_ = builder.Services.AddSingleton(builderFactory);
 
 		_ = builder.Services.AddSingleton(sp =>
-			new MaterializedViewBuilderRegistration(
+		{
+			var viewBuilder = sp.GetRequiredService<IMaterializedViewBuilder<TView>>();
+			return new MaterializedViewBuilderRegistration(
 				typeof(TView),
 				typeof(IMaterializedViewBuilder<TView>),
-				sp.GetRequiredService<IMaterializedViewBuilder<TView>>()));
+				viewBuilder,
+				new ViewStoreAccessor<TView>(),
+				viewBuilder.DeliverySemantics);
+		});
 
 		return builder;
 	}
@@ -88,10 +91,6 @@ public static class MaterializedViewsBuilderExtensions
 	/// <param name="builder">The builder.</param>
 	/// <param name="configure">Action to configure refresh options.</param>
 	/// <returns>The builder for fluent configuration.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IMaterializedViewsBuilder UseRefreshService(this IMaterializedViewsBuilder builder, Action<MaterializedViewRefreshOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -100,6 +99,9 @@ public static class MaterializedViewsBuilderExtensions
 		_ = builder.Services.AddOptions<MaterializedViewRefreshOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MaterializedViewRefreshOptions>, MaterializedViewRefreshOptionsValidator>());
 
 		builder.Services.TryAddSingleton(TimeProvider.System);
 		_ = builder.Services.AddHostedService<MaterializedViewRefreshService>();
@@ -123,10 +125,6 @@ public static class MaterializedViewsBuilderExtensions
 	/// <param name="builder">The builder.</param>
 	/// <param name="configure">Action to configure health check options.</param>
 	/// <returns>The builder for fluent configuration.</returns>
-	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
-		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
-		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	public static IMaterializedViewsBuilder WithHealthChecks(this IMaterializedViewsBuilder builder, Action<MaterializedViewHealthCheckOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

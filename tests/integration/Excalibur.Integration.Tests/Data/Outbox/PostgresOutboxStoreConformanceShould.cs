@@ -77,6 +77,39 @@ public sealed class PostgresOutboxStoreConformanceShould : OutboxStoreConformanc
 	}
 
 	/// <inheritdoc/>
+	protected override async Task<IOutboxStore?> CreateStoreWithReclaimFloorAsync(int floorSeconds)
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"Postgres container must be available - real-infra re-claim-floor conformance is never skipped.");
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+
+		var db = A.Fake<IDb>();
+		_ = A.CallTo(() => db.Connection).ReturnsLazily(() => _fixture.CreateConnection());
+
+		var options = Options.Create(new PostgresOutboxStoreOptions
+		{
+			SchemaName = _fixture.SchemaName,
+			OutboxTableName = _fixture.OutboxTableName,
+			DeadLetterTableName = _fixture.DeadLetterTableName,
+			ReservationTimeout = 300,
+			MaxAttempts = 3,
+			FailureBackoffFloorSeconds = floorSeconds,
+		});
+
+		return new PostgresOutboxStore(db, options, NullLogger<PostgresOutboxStore>.Instance);
+	}
+
+	/// <inheritdoc/>
+	protected override async Task<bool> TryReserveMessageUnderForeignDispatcherAsync(IOutboxStore store, string messageId)
+	{
+		// Reserve under a dispatcher id distinct from PostgresOutboxStore's static per-process id, so the row's
+		// owner differs from the caller of IOutboxStore.MarkFailedAsync — the only way to exercise the R2 guard.
+		var reserved = await ((PostgresOutboxStore)store)
+			.ReserveOutboxMessagesAsync("conformance-foreign-leader", 50, CancellationToken.None).ConfigureAwait(false);
+		return reserved.Any(m => m.MessageId == messageId);
+	}
+
+	/// <inheritdoc/>
 	protected override async Task CleanupAsync()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);

@@ -718,9 +718,6 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	}
 
 	/// <summary>
-	/// Copies collection data to the cloned envelope.
-	/// </summary>
-	/// <summary>
 	/// Gets a value from headers.
 	/// </summary>
 	/// <param name="key"> The header key. </param>
@@ -846,6 +843,10 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		Region = null;
 	}
 
+	/// <summary>
+	/// Copies collection data to the cloned envelope.
+	/// </summary>
+	/// <param name="clone"> The envelope receiving the copied collections. </param>
 	private void CopyCollectionsTo(MessageEnvelope clone)
 	{
 		foreach (var item in _items)

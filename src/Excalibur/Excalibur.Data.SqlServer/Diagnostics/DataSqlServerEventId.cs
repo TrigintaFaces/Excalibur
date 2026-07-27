@@ -843,6 +843,9 @@ public static class DataSqlServerEventId
 	/// <summary>Unhandled exception during CDC event processing.</summary>
 	public const int CdcConsumerUnhandledException = 100961;
 
+	/// <summary>Fatal fault on the CDC checkpoint write (e.g. superseded leadership); processing stops.</summary>
+	public const int CdcConsumerFatalCheckpoint = 100962;
+
 	// ========================================
 	// 100970-100979: CdcCheckpointManager
 	// ========================================

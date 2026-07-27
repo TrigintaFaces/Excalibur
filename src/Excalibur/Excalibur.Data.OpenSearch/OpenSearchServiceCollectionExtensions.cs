@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Data.OpenSearch;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 using OpenSearch.Client;
 
@@ -162,6 +163,8 @@ public static class OpenSearchServiceCollectionExtensions
 			services.AddOptions<OpenSearchConfigurationOptions>()
 				.BindConfiguration(osBuilder.BindConfigurationPath)
 				.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OpenSearchConfigurationOptions>, OpenSearchConfigurationOptionsValidator>());
 
 			services.TryAddSingleton(sp =>
 			{

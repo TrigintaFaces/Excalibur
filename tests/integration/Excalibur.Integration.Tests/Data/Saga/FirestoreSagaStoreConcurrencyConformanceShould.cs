@@ -42,6 +42,20 @@ public sealed class FirestoreSagaStoreConcurrencyConformanceShould : SagaStoreCo
 	/// <inheritdoc/>
 	protected override bool SupportsOptimisticConcurrency => true;
 
+	// FirestoreSagaStore DOES implement ISagaStore.PurgeCompletedBeforeAsync. This was declared false back
+	// when the store fell through to the interface default that throws NotSupportedException; the store has
+	// since grown a real implementation, and the declaration went stale rather than wrong-at-the-time.
+	//
+	// Leaving it false is not the harmless side of the mistake: the base gate then asserts the store THROWS,
+	// so the arm demanded the absence of a feature that exists, and would have kept passing if the working
+	// implementation were deleted.
+	//
+	// The store refuses only a tenant-SCOPED purge, because it persists saga state as a serialized document
+	// and cannot build a tenant predicate -- servicing that call would delete every other tenant's completed
+	// sagas. This suite runs unscoped, which is the path the store supports.
+	/// <inheritdoc/>
+	protected override bool SupportsCompletedPurge => true;
+
 	/// <inheritdoc/>
 	protected override Task<ISagaStore> CreateStoreAsync()
 	{

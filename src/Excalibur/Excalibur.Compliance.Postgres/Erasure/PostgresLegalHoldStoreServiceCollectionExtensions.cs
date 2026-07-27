@@ -38,6 +38,7 @@ public static class PostgresLegalHoldStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresLegalHoldStoreOptions>,
 				PostgresLegalHoldStoreOptionsValidator>());
 
+		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
 		services.TryAddSingleton<PostgresLegalHoldStore>();
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<PostgresLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<PostgresLegalHoldStore>());

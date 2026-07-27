@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>$(AssemblyName)</PackageId>
+    <Description>Embedded Svelte single-page app for the Excalibur Operations Dashboard. Serves the read-only dashboard UI as AOT-neutral embedded static assets under a configurable path prefix with a strict Content-Security-Policy.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>operations;dashboard;spa;observability;aspnetcore;dotnet</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <!-- Embedded static assets are served via ManifestEmbeddedFileProvider. -->
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+
+    <!-- SPA build policy:
+         Default `dotnet build` embeds the committed wwwroot/ bytes (node-free,
+         AOT-neutral, reproducible). Pass -p:BuildSpaAssets=true to rebuild the
+         Svelte app from ClientApp/ first (requires Node + npm). -->
+    <BuildSpaAssets Condition="'$(BuildSpaAssets)' == ''">false</BuildSpaAssets>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
+  </ItemGroup>
+
+  <!-- Embed the built SPA assets. -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**\*" />
+  </ItemGroup>
+
+  <!-- Keep the Svelte source and build tooling out of the NuGet package and the
+       compiler's view; they are inputs to wwwroot, not shipped content. -->
+  <ItemGroup>
+    <None Remove="ClientApp\**\*" />
+    <Compile Remove="ClientApp\**\*" />
+    <Content Remove="ClientApp\**\*" />
+    <None Include="ClientApp\**\*" Pack="false" Visible="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Operations.Dashboard.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!-- Optional: rebuild the Svelte SPA before embedding (opt-in, Node required). -->
+  <Target Name="BuildSpaClientApp" BeforeTargets="BeforeBuild"
+          Condition="'$(BuildSpaAssets)' == 'true'">
+    <Message Importance="high" Text="Building dashboard SPA from ClientApp/ (BuildSpaAssets=true)..." />
+    <Exec Command="npm ci" WorkingDirectory="ClientApp" />
+    <Exec Command="npm run build" WorkingDirectory="ClientApp" />
+  </Target>
+
+</Project>

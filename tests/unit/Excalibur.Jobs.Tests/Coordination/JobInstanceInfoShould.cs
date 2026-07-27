@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Extensions.Time.Testing;
 
 namespace Excalibur.Jobs.Tests.Coordination;
 
@@ -184,7 +185,7 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure time difference
 
 		// Act
-		info.UpdateHeartbeat();
+		info.UpdateHeartbeat(TimeProvider.System);
 
 		// Assert
 		info.LastHeartbeat.ShouldBeGreaterThanOrEqualTo(originalHeartbeat);
@@ -197,7 +198,7 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		var info = new JobInstanceInfo("instance-1", "host", CreateTestCapabilities());
 
 		// Act & Assert
-		info.IsHealthy(TimeSpan.FromMinutes(5)).ShouldBeTrue();
+		info.IsHealthy(TimeSpan.FromMinutes(5), TimeProvider.System).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -208,7 +209,7 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		info.Status = JobInstanceStatus.Draining;
 
 		// Act & Assert
-		info.IsHealthy(TimeSpan.FromMinutes(5)).ShouldBeFalse();
+		info.IsHealthy(TimeSpan.FromMinutes(5), TimeProvider.System).ShouldBeFalse();
 	}
 
 	[Fact]
@@ -219,7 +220,7 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		info.Status = JobInstanceStatus.Failed;
 
 		// Act & Assert
-		info.IsHealthy(TimeSpan.FromMinutes(5)).ShouldBeFalse();
+		info.IsHealthy(TimeSpan.FromMinutes(5), TimeProvider.System).ShouldBeFalse();
 	}
 
 	[Fact]
@@ -234,6 +235,43 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 
 		// Assert
 		info.LastHeartbeat.ShouldBe(oldTime);
-		info.IsHealthy(TimeSpan.FromMinutes(5)).ShouldBeFalse();
+		info.IsHealthy(TimeSpan.FromMinutes(5), TimeProvider.System).ShouldBeFalse();
+	}
+
+	[Fact]
+	public void FlipToUnhealthyWhenHeartbeatTimeoutIsExceeded()
+	{
+		// Arrange — a controllable clock makes the liveness boundary deterministic.
+		var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+		var timeProvider = new FakeTimeProvider(start);
+		var info = new JobInstanceInfo("instance-1", "host", CreateTestCapabilities());
+		info.UpdateHeartbeat(timeProvider);
+		var timeout = TimeSpan.FromMinutes(5);
+
+		// Act & Assert — healthy right up to the timeout boundary...
+		info.IsHealthy(timeout, timeProvider).ShouldBeTrue();
+
+		timeProvider.Advance(timeout);
+		info.IsHealthy(timeout, timeProvider).ShouldBeTrue(); // exactly at the boundary (<=)
+
+		// ...and unhealthy once the elapsed time exceeds the timeout.
+		timeProvider.Advance(TimeSpan.FromTicks(1));
+		info.IsHealthy(timeout, timeProvider).ShouldBeFalse();
+	}
+
+	[Fact]
+	public void UpdateHeartbeatToTheProvidedClockTime()
+	{
+		// Arrange — deterministic: heartbeat records exactly the provider's current time.
+		var start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+		var timeProvider = new FakeTimeProvider(start);
+		var info = new JobInstanceInfo("instance-1", "host", CreateTestCapabilities());
+
+		// Act
+		timeProvider.Advance(TimeSpan.FromMinutes(3));
+		info.UpdateHeartbeat(timeProvider);
+
+		// Assert
+		info.LastHeartbeat.ShouldBe(start.AddMinutes(3));
 	}
 }

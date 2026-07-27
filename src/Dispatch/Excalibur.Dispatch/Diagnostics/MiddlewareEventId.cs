@@ -255,7 +255,7 @@ public static class MiddlewareEventId
 	// 30700-30799: Outbox Middleware
 	// ========================================
 
-	/// <summary>Outbox middleware executing.</summary>
+	/// <summary>Outbox staging middleware executing.</summary>
 	public const int OutboxMiddlewareExecuting = 30700;
 
 	/// <summary>Message staged in outbox.</summary>
@@ -266,6 +266,12 @@ public static class MiddlewareEventId
 
 	/// <summary>Outbox staging failed.</summary>
 	public const int OutboxStagingFailed = 30703;
+
+	/// <summary>Cascade middleware staged follow-up messages to the outbox.</summary>
+	public const int CascadeStaged = 30710;
+
+	/// <summary>Cascade requested but no outbox is staged in the pipeline.</summary>
+	public const int CascadeWithoutOutbox = 30711;
 
 	// ========================================
 	// 30800-30899: Inbox Middleware

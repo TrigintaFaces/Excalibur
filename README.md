@@ -194,7 +194,7 @@ For detailed benchmarks, methodology caveats, and raw reports, see:
 Run the full suite locally:
 
 ```bash
-dotnet build Excalibur.sln
+dotnet build Excalibur.sln -p:BuildExamplesAndTests=true
 dotnet test Excalibur.sln
 ```
 

@@ -171,7 +171,12 @@ builder.Services.AddCdcProcessor(cdc =>
 		{
 			sql.ConnectionString(cdcSourceConnectionString)
 				.DatabaseName("LegacyDb")
-				.StopOnMissingTableHandler(false)
+				// Fail-closed, and this is also the framework default
+				// (DatabaseOptionsDefaults.CdcDefaultStopOnMissingTableHandler = true).
+				// Keep it on: it makes a tracked table with no handler fail at STARTUP
+				// instead of silently processing nothing. Turning it off hides exactly the
+				// class of wiring mistake the handler registrations above prevent.
+				.StopOnMissingTableHandler(true)
 				.PollingInterval(cdcPollingInterval)
 				.BatchSize(cdcBatchSize);
 		})
@@ -227,6 +232,30 @@ builder.Services
 	.AddSingleton<IOrderLookupService, InMemoryOrderLookupService>()
 	.AddSingleton<IOrderItemLookupService, InMemoryOrderItemLookupService>();
 
+// Identity map: makes external-to-internal ID resolution idempotent ACROSS RESTARTS.
+// CDC replays the same legacy row after a restart or a capture-instance reset; without a
+// durable map the same LegacyCustomer would resolve to a NEW CustomerAggregate each time.
+// AddInMemoryIdentityMap() exists but is documented for testing/development only -- it
+// loses the mapping on every restart, defeating the guarantee the ACL exists to provide.
+// DDL: scripts/setup-databases.sql. CdcChangeHandler takes IIdentityMapStore.
+builder.Services.AddIdentityMap(identity =>
+	identity.UseSqlServer(sql => sql.ConnectionString(eventStoreConnectionString)));
+
+// THE CHANGE HANDLERS. Without these registrations the entire anti-corruption layer above
+// is dead weight: DataChangeEventProcessor builds its handler map from
+// GetServices<IDataChangeHandler>(), which returns an EMPTY enumerable -- not an error --
+// when nothing is registered, so CDC would poll all three tables and process nothing.
+//
+// SINGLETON is required, not a preference: the processor freezes the resolved handlers into
+// a FrozenDictionary for the process lifetime, so a scoped registration would either fail to
+// resolve from the root provider or become a captive dependency. Every dependency these
+// three take is a singleton (AddRepository uses TryAddSingleton; the adapters, lookups and
+// identity map are all singletons), so direct injection is safe.
+builder.Services
+	.AddSingleton<IDataChangeHandler, CdcChangeHandler>()
+	.AddSingleton<IDataChangeHandler, OrderChangeHandler>()
+	.AddSingleton<IDataChangeHandler, OrderItemChangeHandler>();
+
 // ============================================================================
 // Elasticsearch Projections
 // ============================================================================
@@ -263,42 +292,42 @@ builder.Services.AddElasticSearchProjections(
 		// Customer projections -- 2 shards for horizontal scaling, 1 replica for HA
 		projections.Add<CustomerSearchProjection>(options =>
 		{
-			options.IndexPrefix = $"{envPrefix}-customers";
-			options.CreateIndexOnInitialize = true;
-			options.NumberOfShards = 2;
-			options.NumberOfReplicas = 1;
+			options.Index.IndexPrefix = $"{envPrefix}-customers";
+			options.Index.CreateIndexOnInitialize = true;
+			options.Index.NumberOfShards = 2;
+			options.Index.NumberOfReplicas = 1;
 		});
 		projections.Add<CustomerTierSummaryProjection>(options =>
 		{
-			options.IndexPrefix = $"{envPrefix}-customers";
-			options.CreateIndexOnInitialize = true;
-			options.NumberOfShards = 1;
-			options.NumberOfReplicas = 1;
+			options.Index.IndexPrefix = $"{envPrefix}-customers";
+			options.Index.CreateIndexOnInitialize = true;
+			options.Index.NumberOfShards = 1;
+			options.Index.NumberOfReplicas = 1;
 		});
 
 		// Order projections -- higher shard count for write-heavy workloads
 		projections.Add<OrderSearchProjection>(options =>
 		{
-			options.IndexPrefix = $"{envPrefix}-orders";
-			options.CreateIndexOnInitialize = true;
-			options.NumberOfShards = 3;
-			options.NumberOfReplicas = 1;
+			options.Index.IndexPrefix = $"{envPrefix}-orders";
+			options.Index.CreateIndexOnInitialize = true;
+			options.Index.NumberOfShards = 3;
+			options.Index.NumberOfReplicas = 1;
 		});
 
 		// Analytics projections -- time-series friendly settings
 		projections.Add<OrderAnalyticsProjection>(options =>
 		{
-			options.IndexPrefix = $"{envPrefix}-analytics";
-			options.CreateIndexOnInitialize = true;
-			options.NumberOfShards = 2;
-			options.NumberOfReplicas = 1;
+			options.Index.IndexPrefix = $"{envPrefix}-analytics";
+			options.Index.CreateIndexOnInitialize = true;
+			options.Index.NumberOfShards = 2;
+			options.Index.NumberOfReplicas = 1;
 		});
 		projections.Add<DailyOrderSummaryProjection>(options =>
 		{
-			options.IndexPrefix = $"{envPrefix}-analytics";
-			options.CreateIndexOnInitialize = true;
-			options.NumberOfShards = 1;
-			options.NumberOfReplicas = 1;
+			options.Index.IndexPrefix = $"{envPrefix}-analytics";
+			options.Index.CreateIndexOnInitialize = true;
+			options.Index.NumberOfShards = 1;
+			options.Index.NumberOfReplicas = 1;
 		});
 	});
 

@@ -8,6 +8,7 @@ using Dapper;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Metadata;
 using Excalibur.Outbox.Postgres.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -15,29 +16,69 @@ using Microsoft.Extensions.Options;
 
 using Npgsql;
 
-using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using OutboxMessage = Excalibur.Outbox.OutboxMessage;
 
 namespace Excalibur.Outbox.Postgres;
 
 /// <summary>
 /// Postgres implementation of the outbox store for message persistence and processing.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="PostgresOutboxStore" /> class. </remarks>
-/// <param name="db"> Database connection interface. </param>
-/// <param name="options"> Configuration options for the Postgres outbox store. </param>
-/// <param name="logger"> Logger for diagnostic output. </param>
-/// <param name="metrics"> Metrics collector for performance monitoring. </param>
-public sealed partial class PostgresOutboxStore(
-	IDb db,
-	IOptions<PostgresOutboxStoreOptions> options,
-	ILogger<PostgresOutboxStore> logger,
-	PostgresOutboxStoreMetrics? metrics = null) : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable
+/// <remarks>
+/// Tenant isolation is enforced on the write/stage path (each message carries and persists its own
+/// <c>tenant_id</c>) and on tenant-facing queries; the drain/mark-by-Id path (mark-sent, increment-attempts,
+/// backoff, dead-letter, delete) is cross-tenant infrastructure and stays global (it addresses the
+/// globally-unique outbox <c>message_id</c>). The store reads no ambient tenant context — fail-closed enforcement
+/// is provided by the multi-tenancy composition.
+/// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+	Justification = "Store class coordinates the Dapper request set, outbox message mapping, tenant scoping, and leadership-fencing control-table CAS by design (parity with SqlServerOutboxStore).")]
+public sealed partial class PostgresOutboxStore : IOutboxStore, IFencedOutboxStore, IOutboxStoreCapabilities, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter, IDisposable
 {
-	private readonly IDb _db = db ?? throw new ArgumentNullException(nameof(db));
-	private readonly PostgresOutboxStoreOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-	private readonly ILogger<PostgresOutboxStore> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly PostgresOutboxStoreMetrics _metrics = metrics ?? new PostgresOutboxStoreMetrics();
+	private readonly IDb _db;
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The Postgres outbox deletes a message the instant it is marked sent (<see cref="MarkSentAsync(string, CancellationToken)"/>
+	/// issues a DELETE), so there is no terminal sent row to count and cleanup is a no-op.
+	/// </remarks>
+	public bool SupportsSentTracking => false;
+
+	/// <summary>
+	/// Gets the identity this process presents when it reserves outbox messages.
+	/// </summary>
+	/// <remarks>
+	/// Reserving a message and later reporting it failed must present the SAME identity, or the mark-failed
+	/// reservation guard cannot recognise the caller as the lease holder. Deriving it once here — rather than
+	/// rebuilding the string at each call site — is what makes that agreement structural: the two paths cannot
+	/// drift apart, because there is only one expression.
+	/// </remarks>
+	private static string DispatcherId { get; } = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
+
+	private readonly PostgresOutboxStoreOptions _options;
+	private readonly ILogger<PostgresOutboxStore> _logger;
+	private readonly PostgresOutboxStoreMetrics _metrics;
 	private volatile bool _disposed;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="PostgresOutboxStore"/> class. The constructor is
+	/// <see langword="internal"/>: consumers register the store via <c>AddPostgresOutboxStore()</c> and resolve it
+	/// through its public interfaces; the framework's own DI factory is the only constructor caller.
+	/// </summary>
+	/// <param name="db"> Database connection interface. </param>
+	/// <param name="options"> Configuration options for the Postgres outbox store. </param>
+	/// <param name="logger"> Logger for diagnostic output. </param>
+	/// <param name="metrics"> Metrics collector for performance monitoring. </param>
+	internal PostgresOutboxStore(
+		IDb db,
+		IOptions<PostgresOutboxStoreOptions> options,
+		ILogger<PostgresOutboxStore> logger,
+		PostgresOutboxStoreMetrics? metrics = null)
+	{
+		_db = db ?? throw new ArgumentNullException(nameof(db));
+		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_metrics = metrics ?? new PostgresOutboxStoreMetrics();
+	}
 
 	/// <summary>
 	/// Saves multiple outbox messages to the database.
@@ -64,12 +105,29 @@ public sealed partial class PostgresOutboxStore(
 			{
 				try
 				{
+					// CorrelationId/CausationId plus the routing fields (PartitionKey/GroupKey/TargetTransports/
+					// IsMultiTransport) are first-class on the concrete OutboxMessage (the canonical
+					// FromOutboundMessage seam) but not on the IOutboxMessage contract; read them off the concrete
+					// type when present so the stage→reload round-trip preserves every consumer-supplied field
+					// (null/false for other IOutboxMessage shapes, which never carried them).
+					var contextual = message as OutboxMessage;
 					var req = new InsertOutboxMessage(
 						message.MessageId,
 						message.MessageType,
 						message.MessageMetadata,
 						message.MessageBody,
+						message.CreatedAt,
 						message.TenantId,
+						message.Destination,
+						contextual?.CorrelationId,
+						contextual?.CausationId,
+						message.Priority,
+						message.ScheduledAt,
+						contextual?.PartitionKey,
+						contextual?.GroupKey,
+						contextual?.SequenceNumber ?? 0L,
+						contextual?.TargetTransports,
+						contextual?.IsMultiTransport ?? false,
 						_options.QualifiedOutboxTableName,
 						DbTimeouts.RegularTimeoutSeconds,
 						cancellationToken);
@@ -81,6 +139,18 @@ public sealed partial class PostgresOutboxStore(
 					throw new InvalidOperationException(
 						$"Outbox message '{message.MessageId}' already exists.",
 						ex);
+				}
+				// The IDb resolve layer (DbConnectionExtensions.ResolveAsync) wraps any non-ApiException in an
+				// OperationFailedException, so the underlying unique-violation arrives wrapped rather than as a bare
+				// PostgresException. Unwrap it so a duplicate MessageId surfaces as the uniform
+				// InvalidOperationException the IOutboxStore contract specifies (parity with SqlServer), not the
+				// provider-internal OperationFailedException.
+				catch (OperationFailedException ex)
+					when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } inner)
+				{
+					throw new InvalidOperationException(
+						$"Outbox message '{message.MessageId}' already exists.",
+						inner);
 				}
 			}
 
@@ -429,7 +499,18 @@ public sealed partial class PostgresOutboxStore(
 				outboxMsg.MessageType,
 				outboxMsg.MessageMetadata,
 				outboxMsg.MessageBody,
+				outboxMsg.CreatedAt,
 				outboxMsg.TenantId,
+				outboxMsg.Destination,
+				outboxMsg.CorrelationId,
+				outboxMsg.CausationId,
+				outboxMsg.Priority,
+				outboxMsg.ScheduledAt,
+				outboxMsg.PartitionKey,
+				outboxMsg.GroupKey,
+				outboxMsg.SequenceNumber,
+				outboxMsg.TargetTransports,
+				outboxMsg.IsMultiTransport,
 				_options.QualifiedOutboxTableName,
 				DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken);
@@ -481,8 +562,11 @@ public sealed partial class PostgresOutboxStore(
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 
-		// Create OutboundMessage from IDispatchMessage and context
-		var serializedPayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(message);
+		// Create OutboundMessage from IDispatchMessage and context. Serialize the RUNTIME type (not the
+		// IDispatchMessage compile-time type, which would drop every derived member) via the canonical event
+		// contract so the payload round-trips byte-for-byte with the default serializer on read.
+		var serializedPayload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+			message, message.GetType(), EventSerializationDefaults.Canonical);
 		var headers = new Dictionary<string, object>
 			(StringComparer.Ordinal)
 		{
@@ -497,10 +581,14 @@ public sealed partial class PostgresOutboxStore(
 		// are never dropped on a convenience path (xl56kb). The propagated TenantId is persisted to the
 		// outbox table's tenant_id column on both the direct (InsertOutboxMessage) and scheduled
 		// (ScheduleOutboxMessage) paths and read back on reserve/get-scheduled (bd-cd8h8t).
+		// Derive the routing destination from the message context (cys98n) — falling back to the message
+		// type name (the convention the other outbox providers use) rather than a hardcoded "default", so
+		// a consumer's configured destination is persisted and honored on dispatch.
+		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().Name;
 		var outboundMessage = OutboundMessage.FromContext(
 			message.GetType().Name,
 			serializedPayload,
-			"default", // Destination - could be enhanced to use context metadata
+			destination,
 			context,
 			headers);
 		outboundMessage.Id = context.MessageId ?? string.Empty;
@@ -527,9 +615,22 @@ public sealed partial class PostgresOutboxStore(
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
 		// Use a fixed dispatcher ID for this interface method - in practice this would need proper session management
-		var dispatcherId = $"dispatcher-{Environment.MachineName}-{Environment.ProcessId}";
+		var dispatcherId = DispatcherId;
 		var reservedMessages = await ReserveOutboxMessagesAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false);
 
+		return ConvertReservedToOutbound(reservedMessages);
+	}
+
+	/// <summary>
+	/// Converts reserved <see cref="IOutboxMessage"/> rows into <see cref="OutboundMessage"/> instances,
+	/// rehydrating the metadata header blob. A row that fails conversion is logged and skipped.
+	/// </summary>
+	[RequiresUnreferencedCode(
+		"JSON deserialization of message metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
+	[RequiresDynamicCode(
+		"JSON deserialization of message metadata requires dynamic code generation for reflection-based type construction and property setting.")]
+	private List<OutboundMessage> ConvertReservedToOutbound(IEnumerable<IOutboxMessage> reservedMessages)
+	{
 		// Convert IOutboxMessage to OutboundMessage
 		var outboundMessages = new List<OutboundMessage>();
 		foreach (var msg in reservedMessages)
@@ -538,15 +639,36 @@ public sealed partial class PostgresOutboxStore(
 			{
 				var headers = string.IsNullOrEmpty(msg.MessageMetadata)
 					? []
-					: System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(msg.MessageMetadata) ??
+					: System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(msg.MessageMetadata, EventSerializationDefaults.Canonical) ??
 					  [];
 
+				// CorrelationId/CausationId + the routing fields (PartitionKey/GroupKey/TargetTransports/
+				// IsMultiTransport) are first-class on the concrete OutboxMessage the reserve RETURNING
+				// hydrates, but not on the IOutboxMessage contract; read them off the concrete type so every
+				// consumer-supplied field survives the reload (null/false for other IOutboxMessage shapes).
+				var contextual = msg as OutboxMessage;
 				var outboundMessage = new OutboundMessage(
 					msg.MessageType,
-					System.Text.Encoding.UTF8.GetBytes(msg.MessageBody),
-					"default", // Destination - would need to be stored in metadata
+					msg.MessageBody,
+					msg.Destination ?? string.Empty, // round-tripped from the persisted destination column
 					headers)
-				{ Id = msg.MessageId, TenantId = msg.TenantId };
+				{
+					Id = msg.MessageId,
+					TenantId = msg.TenantId,
+					CorrelationId = contextual?.CorrelationId,
+					CausationId = contextual?.CausationId,
+					Priority = msg.Priority,
+					ScheduledAt = msg.ScheduledAt,
+					PartitionKey = contextual?.PartitionKey,
+					GroupKey = contextual?.GroupKey,
+					SequenceNumber = contextual?.SequenceNumber ?? 0,
+					TargetTransports = contextual?.TargetTransports,
+					IsMultiTransport = contextual?.IsMultiTransport ?? false,
+					// Preserve the persisted created-at (occurred_on) end-to-end: the OutboundMessage ctor
+					// re-stamps CreatedAt to UtcNow, so the drain reload must restore it or the caller's
+					// timestamp (and its ordering/audit fidelity) is lost on the consumer path.
+					CreatedAt = msg.CreatedAt,
+				};
 
 				outboundMessages.Add(outboundMessage);
 			}
@@ -573,6 +695,92 @@ public sealed partial class PostgresOutboxStore(
 		var deleted = await DeleteOutboxRecord(messageId, cancellationToken).ConfigureAwait(false);
 
 		if (deleted == 0)
+		{
+			throw new InvalidOperationException($"Message {messageId} not found or already sent.");
+		}
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The delete-on-sent Postgres outbox deletes the winning rows on mark-sent, so a live-row
+	/// <c>MAX(fencing_token)</c> cannot survive the drain. The fencing high-water is therefore kept in a
+	/// dedicated single-row-per-scope control table (<see cref="PostgresOutboxStoreOptions.FenceTableName"/>)
+	/// and enforced by an atomic <c>INSERT … ON CONFLICT DO UPDATE … RETURNING</c> compare-and-swap before
+	/// the claim runs. A stale token yields zero claimable rows — a set-based, non-throwing signal — while
+	/// the high-water advances monotonically to the maximum of its current value and the presented token.
+	/// </remarks>
+	[RequiresUnreferencedCode(
+		"JSON deserialization of message payload and metadata may reference types not preserved during trimming. Ensure all deserialized types are annotated with DynamicallyAccessedMembers.")]
+	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[UnconditionalSuppressMessage("AOT", "IL3051", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
+	[RequiresDynamicCode(
+		"JSON deserialization of message payload and metadata requires dynamic code generation for reflection-based type construction and property setting.")]
+	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
+		int batchSize,
+		long fencingToken,
+		CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+
+		// The fence-CAS and the claim are folded into ONE atomic statement (the FencedReserveOutboxMessages
+		// wCTE): the fence INSERT … ON CONFLICT DO UPDATE takes the per-scope fence row lock and advances the
+		// high-water, and the SKIP-LOCKED claim is gated on the fence returning EXACTLY the presented token —
+		// all under the fence row lock held through the single statement's implicit transaction. A fresher
+		// leader cannot advance the high-water between this caller's fence check and its reservation (the
+		// check-then-act window is closed by construction). A superseded (stale) token makes the gate false
+		// for every row, so the claim yields a set-based empty result — it MUST NOT throw here
+		// (IFencedOutboxStore claim contract). No explicit BeginTransaction is held on the shared
+		// _db.Connection (which would monopolize/poison it for the rest of the drain).
+		var dispatcherId = DispatcherId;
+		var request = new FencedReserveOutboxMessages(
+			dispatcherId,
+			batchSize,
+			_options.ReservationTimeout,
+			fencingToken,
+			_options.QualifiedOutboxTableName,
+			_options.QualifiedFenceTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var reservedMessages = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+		return ConvertReservedToOutbound(reservedMessages);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Enforces the fencing high-water and deletes the row in a SINGLE atomic statement (fence
+	/// compare-and-swap folded with the delete under the fence row lock), so no fresher leader can advance
+	/// the high-water between the fence check and the delete. A superseded (stale) token is rejected
+	/// fail-closed with <see cref="StaleOutboxFencingTokenException"/> and nothing is deleted.
+	/// </remarks>
+	public async ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+
+		var request = new FencedDeleteOutboxMessage(
+			messageId,
+			_options.QualifiedOutboxTableName,
+			fencingToken,
+			_options.QualifiedFenceTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
+
+		var result = await _db.Connection.ResolveAsync(request).ConfigureAwait(false);
+
+		// GREATEST(existing, token) == token exactly when the token was >= the previous high-water (accepted).
+		// A strictly greater stored high-water means a successor already advanced past this token (stale leader):
+		// the folded statement deleted nothing, and we reject fail-closed.
+		if (result.HighWaterToken != fencingToken)
+		{
+			throw new StaleOutboxFencingTokenException(
+				$"The presented outbox fencing token ({fencingToken}) is below the recorded high-water mark ({result.HighWaterToken}) for scope '{_options.QualifiedOutboxTableName}' (superseded leader).")
+			{
+				PresentedToken = fencingToken,
+				HighWaterToken = result.HighWaterToken,
+			};
+		}
+
+		if (result.DeletedCount == 0)
 		{
 			throw new InvalidOperationException($"Message {messageId} not found or already sent.");
 		}
@@ -633,22 +841,34 @@ public sealed partial class PostgresOutboxStore(
 		ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
 		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
 
-		// Increase attempts first
-		_ = await IncreaseAttempts(messageId, cancellationToken).ConfigureAwait(false);
+		// Persist the failure on the row (authoritative retry count + last error) so a sub-ceiling failure is
+		// observable via GetFailedMessagesAsync/GetStatistics BEFORE it dead-letters — the delete-on-sent
+		// design's failed-state signal (error_message IS NOT NULL), matching the Oracle outbox. This replaces
+		// the bare attempt-increment, which recorded no error and left the failure invisible until the ceiling.
+		// Presenting this dispatcher's identity restricts the unreserve to a message this caller actually holds
+		// (or one nobody holds). Reporting a failure against a lease another dispatcher has since taken is a
+		// no-op rather than a silent theft of its reservation — see SetOutboxMessageFailed for why an
+		// unconditional unreserve is a double-delivery bug.
+		var req = new SetOutboxMessageFailed(
+			messageId,
+			retryCount,
+			errorMessage,
+			DispatcherId,
+			_options.FailureBackoffFloorSeconds,
+			_options.QualifiedOutboxTableName,
+			DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken);
 
-		// If max retries exceeded, move to dead letter
-		if (retryCount >= _options.MaxAttempts)
-		{
-			_ = await MoveToDeadLetter(messageId, cancellationToken).ConfigureAwait(false);
-		}
+		_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
 
-		// Otherwise, unreserve so it can be retried
-		// Note: This is a simplified implementation - in practice you'd need better session management
+		// The message stays a RETRIEVABLE failed message (error_message set); the dead-letter transition at the
+		// retry ceiling is the OutboxProcessor's job (RouteToDeadLetterQueueAsync, attempts >= MaxAttempts), NOT
+		// the store's — matching the InMemory reference contract (one load-bearing postcondition per family).
 	}
 
 	/// <summary>
 	/// Marks a message as failed and records an exponential-backoff schedule so it is not re-claimed for retry
-	/// until <paramref name="nextAttemptAt"/> has elapsed (q29qfg, the Postgres half of the outbox backoff).
+	/// until <paramref name="nextAttemptAt"/> has elapsed (the Postgres half of the outbox mark-failed-with-backoff path).
 	/// </summary>
 	/// <param name="messageId"> Unique identifier of the message that failed. </param>
 	/// <param name="errorMessage"> Error message describing the failure. </param>
@@ -670,20 +890,21 @@ public sealed partial class PostgresOutboxStore(
 		// Increment attempts, persist next_attempt_at, and free the reservation in one atomic statement so the
 		// reservation claim re-evaluates the message -- gated by next_attempt_at, so the computed backoff delay
 		// genuinely throttles re-delivery rather than the coarse reservation timeout.
+		// Presenting this dispatcher's identity restricts the unreserve to a message this caller actually
+		// holds (or one nobody holds) — see SetOutboxMessageBackoff for why an unconditional unreserve is a
+		// double-delivery bug on this path too, not just the mark-failed one.
 		var req = new SetOutboxMessageBackoff(
 			messageId,
 			nextAttemptAt,
+			DispatcherId,
 			_options.QualifiedOutboxTableName,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
 		_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
 
-		// If max retries exceeded, move to dead letter (same ceiling as MarkFailedAsync).
-		if (retryCount >= _options.MaxAttempts)
-		{
-			_ = await MoveToDeadLetter(messageId, cancellationToken).ConfigureAwait(false);
-		}
+		// The message stays a RETRIEVABLE failed message; the dead-letter transition at the retry ceiling is the
+		// OutboxProcessor's job (RouteToDeadLetterQueueAsync), NOT the store's — matching the InMemory reference.
 	}
 
 	/// <summary>
@@ -704,8 +925,11 @@ public sealed partial class PostgresOutboxStore(
 		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
-			var req = new GetDeadLetterMessages(
-				_options.QualifiedDeadLetterTableName,
+			// Read failed-but-retryable messages from the MAIN table (error_message IS NOT NULL, attempts within
+			// the ceiling), not the terminal dead-letter table — so a sub-ceiling failure is observable here
+			// before it dead-letters (delete-on-sent failed-state semantics, Oracle-parity).
+			var req = new GetFailedOutboxMessages(
+				_options.QualifiedOutboxTableName,
 				maxRetries,
 				olderThan,
 				batchSize,
@@ -719,7 +943,7 @@ public sealed partial class PostgresOutboxStore(
 			{
 				Id = r.MessageId,
 				MessageType = r.MessageType,
-				Payload = System.Text.Encoding.UTF8.GetBytes(r.MessageBody),
+				Payload = r.MessageBody,
 				CreatedAt = r.OccurredOn,
 				RetryCount = r.Attempts,
 				LastError = r.ErrorMessage,
@@ -795,6 +1019,7 @@ public sealed partial class PostgresOutboxStore(
 				message.MessageMetadata,
 				message.MessageBody,
 				message.TenantId,
+				message.Destination,
 				scheduledAt,
 				_options.QualifiedOutboxTableName,
 				DbTimeouts.RegularTimeoutSeconds,
@@ -822,7 +1047,7 @@ public sealed partial class PostgresOutboxStore(
 	/// <param name="batchSize"> Maximum number of messages to clean up in one operation. </param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> Number of messages cleaned up. </returns>
-	public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
+	public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
 	{
 		// Postgres implementation automatically deletes sent messages via MarkSentAsync So there are no sent messages to clean up in the
 		// outbox table
@@ -918,7 +1143,7 @@ public sealed partial class PostgresOutboxStore(
 	private partial void LogGetScheduledMessages(int batchSize);
 
 	[LoggerMessage(OutboxPostgresEventId.OutboxCleanupSentMessagesNotNeeded, LogLevel.Debug,
-		"CleanupSentMessagesAsync called but Postgres implementation automatically deletes sent messages")]
+		"CleanupAllTenantsSentMessagesAsync called but Postgres implementation automatically deletes sent messages")]
 	private partial void LogCleanupSentMessagesNotNeeded();
 
 	[LoggerMessage(OutboxPostgresEventId.OutboxGetStatisticsBasic, LogLevel.Debug,

@@ -1,8 +1,6 @@
 #nullable enable
 Excalibur.Jobs.Core.ConfigurationExtensions
 Excalibur.Jobs.Core.IJobOptionsHostedWatcherService
-Excalibur.Jobs.Core.IJobOptionsHostedWatcherServiceFactory
-Excalibur.Jobs.Core.IJobOptionsHostedWatcherServiceFactory.CreateAsync<TJob, TOptions>() -> System.Threading.Tasks.Task<Excalibur.Jobs.Core.IJobOptionsHostedWatcherService!>!
 Excalibur.Jobs.Core.JobHeartbeatTracker
 Excalibur.Jobs.Core.JobHeartbeatTracker.GetLastHeartbeat(string! jobName) -> System.DateTimeOffset?
 Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker() -> void
@@ -23,12 +21,9 @@ Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.get -> System.TimeSpan
 Excalibur.Jobs.Core.JobOptions.UnhealthyThreshold.init -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.Dispose() -> void
-Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.JobOptionsHostedWatcherService(Quartz.IScheduler? scheduler, Microsoft.Extensions.Options.IOptionsMonitor<TOptions!>! configMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions!>!>! logger) -> void
+Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.JobOptionsHostedWatcherService(Quartz.ISchedulerFactory! schedulerFactory, Microsoft.Extensions.Options.IOptionsMonitor<TOptions!>! configMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions!>!>! logger) -> void
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Core.JobOptionsHostedWatcherService<TJob, TOptions>.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Jobs.Core.JobOptionsHostedWatcherServiceFactory
-Excalibur.Jobs.Core.JobOptionsHostedWatcherServiceFactory.CreateAsync<TJob, TOptions>() -> System.Threading.Tasks.Task<Excalibur.Jobs.Core.IJobOptionsHostedWatcherService!>!
-Excalibur.Jobs.Core.JobOptionsHostedWatcherServiceFactory.JobOptionsHostedWatcherServiceFactory(System.IServiceProvider! serviceProvider) -> void
 Excalibur.Jobs.Diagnostics.JobsEventId
 Excalibur.Jobs.Jobs.HealthCheckJob
 Excalibur.Jobs.Jobs.HealthCheckJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -119,6 +114,7 @@ const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobFailed = 147514 -
 const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobStarting = 147510 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorNoMessages = 147513 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorOutboxMissing = 147511 -> int
+const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorSkippedNotLeader = 147515 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.PausingJob = 147109 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.ProjectionRebuildJobCompleted = 147812 -> int
 const Excalibur.Jobs.Diagnostics.JobsEventId.ProjectionRebuildJobFailed = 147813 -> int

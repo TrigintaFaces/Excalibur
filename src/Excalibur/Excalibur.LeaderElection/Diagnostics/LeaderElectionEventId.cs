@@ -115,6 +115,12 @@ public static class LeaderElectionEventId
 	/// <summary>Error during leadership monitoring.</summary>
 	public const int ConsulErrorDuringMonitoring = 181022;
 
+	/// <summary>A monotonic fencing token was minted on Consul leadership acquisition.</summary>
+	public const int ConsulFencingTokenIssued = 181023;
+
+	/// <summary>Consul fencing token domain exhausted; leadership relinquished (fail-closed).</summary>
+	public const int ConsulFencingTokenExhausted = 181024;
+
 	// ========================================
 	// 182000-182099: Kubernetes
 	// ========================================
@@ -203,6 +209,9 @@ public static class LeaderElectionEventId
 
 	/// <summary>Stopping Kubernetes leader election hosted service.</summary>
 	public const int KubernetesServiceStopping = 182101;
+
+	/// <summary>Kubernetes Lease.spec.leaseTransitions (int32 fencing token) exhausted; leadership relinquished (fail-closed).</summary>
+	public const int KubernetesFencingTokenExhausted = 182105;
 
 	/// <summary>This instance became the leader.</summary>
 	public const int KubernetesServiceBecameLeader = 182102;

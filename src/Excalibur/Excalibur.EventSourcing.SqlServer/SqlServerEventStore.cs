@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 using Excalibur.EventSourcing.Observability;
+using Excalibur.EventSourcing.Sharding;
 using Excalibur.EventSourcing.SqlServer.Requests;
 
 using Microsoft.Data.SqlClient;
@@ -39,7 +40,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore
+public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore, IEventStoreArchive
 {
 	// Format markers for envelope detection (ADR-058)
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -51,6 +52,14 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly string _schema;
 	private readonly string _table;
+	private readonly ITenantContext? _tenantContext;
+
+	/// <summary>
+	/// Clock used to evaluate age-based archive policy. Injectable so a conformance test can drive
+	/// <see cref="ArchivePolicy.MaxAge"/> deterministically instead of racing wall-clock time; internal
+	/// because the production path always uses the system clock.
+	/// </summary>
+	internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerEventStore"/> class.
@@ -59,7 +68,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(string connectionString, ILogger<SqlServerEventStore> logger)
@@ -75,7 +84,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(
@@ -95,7 +104,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer, IPayloadSerializer, string, string, ITenantContext)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(
@@ -119,6 +128,13 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <param name="schema">The schema name for the event store table. Default: "dbo".</param>
 	/// <param name="table">The event store table name. Default: "EventStoreEvents".</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context. When supplied and a tenant is resolved, every query is scoped to the
+	/// current tenant (row-level <c>TenantId</c> discriminator) in the same atomic statement. When
+	/// <see langword="null"/> (the default, non-multi-tenant path) no tenant scoping is applied and behavior
+	/// is unchanged. Fail-closed enforcement (throwing when a tenant is required but absent) is provided by
+	/// the tenant-scoping store decorator registered by the multi-tenancy composition, not by this base store.
+	/// </param>
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
@@ -145,15 +161,17 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		ISerializer? internalSerializer = null,
 		IPayloadSerializer? payloadSerializer = null,
 		string schema = "dbo",
-		string table = "EventStoreEvents")
+		string table = "EventStoreEvents",
+		ITenantContext? tenantContext = null)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
 		_schema = schema;
 		_table = table;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -162,6 +180,8 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		return await LoadAsync(aggregateId, aggregateType, -1, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -172,6 +192,8 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		using var activity = EventSourcingActivitySource.StartLoadActivity(aggregateId, aggregateType, fromVersion);
@@ -182,7 +204,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, cancellationToken, _schema, _table))
+					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -214,6 +236,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 		// Performance optimization: AD-250-1 - avoid ToList() when possible
@@ -223,7 +248,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		if (eventList.Count == 0)
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, 0);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -275,7 +300,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		{
 			// No events means no integration messages to stage; nothing to do atomically.
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, 0);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -326,21 +351,37 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// READ COMMITTED, deliberately. The UNIQUE constraint is the concurrency control.
+		//
+		// This was Serializable, which bought range locks to prevent a phantom that
+		// UQ_EventStoreEvents_Stream (AggregateId, AggregateType, Version, TenantId) already makes
+		// UNWRITABLE -- and charged deadlocks for it. Measured on an empty table: of ten concurrent appends
+		// to ten DISTINCT aggregates, eight were chosen as deadlock victims, because with no row yet for any
+		// of them every transaction range-locked the same key gap and then needed to upgrade it. A fresh
+		// deployment is exactly that empty-table case.
+		//
+		// Serializable was not carrying anything else. Outbox atomicity comes from transaction SCOPE, not
+		// isolation level. Global Position ordering was never protected by it: Position is IDENTITY, and
+		// IDENTITY values are allocated outside transaction scope with no guarantee of committing in
+		// allocation order, which is why the tailing consumers use watermarks rather than trusting
+		// monotonicity. Tenant isolation is carried by the predicate and by TenantId being in the unique key.
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
-				IsolationLevel.Serializable, cancellationToken)
+				IsolationLevel.ReadCommitted, cancellationToken)
 			.ConfigureAwait(false);
 
 		try
 		{
-			// Optimistic concurrency check on the same transaction.
+			// Optimistic concurrency check. This read is ADVISORY: at READ COMMITTED a concurrent writer can
+			// claim the same version between this SELECT and the INSERT below. That is expected, not a hole
+			// -- the INSERT then violates the unique constraint and is translated to a conflict below.
 			var currentVersion = await connection.ResolveAsync(
-					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken, _schema, _table))
+					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (currentVersion != expectedVersion)
 			{
-				// Roll back to release Serializable locks immediately. Do NOT invoke stageOutbox on a
-				// conflict — nothing must be staged when the append is rejected (EC-K.2).
+				// Roll back immediately. Do NOT invoke stageOutbox on a conflict — nothing must be staged
+				// when the append is rejected (EC-K.2).
 				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
@@ -364,20 +405,97 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			activity.SetOperationResult(EventSourcingTagValues.Success);
 			return AppendResult.CreateSuccess(version, firstPosition);
 		}
+		catch (SqlException ex) when (IsStreamUniqueViolation(ex))
+		{
+			// This IS the concurrency control firing, so it is a conflict result and not an error.
+			//
+			// A concurrent writer claimed this (aggregate, version, tenant) between the advisory read above
+			// and this INSERT. The unique constraint refused the duplicate, which is the guarantee working
+			// exactly as intended -- the second writer is told it lost, and nothing was written or staged.
+			await RollbackQuietlyAsync(transaction).ConfigureAwait(false);
+			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+
+			return AppendResult.CreateConcurrencyConflict(
+				expectedVersion,
+				await ReadCurrentVersionAfterConflictAsync(
+					connection, aggregateId, aggregateType, expectedVersion, cancellationToken).ConfigureAwait(false));
+		}
 		catch
 		{
-			try
-			{
-				// Roll back with an uncancellable token so cleanup completes even if the failure was a
-				// cancellation; the transaction must not be left to a deferred dispose.
-				await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-			}
-			catch
-			{
-				// A rollback failure must not mask the original exception.
-			}
+			await RollbackQuietlyAsync(transaction).ConfigureAwait(false);
 
 			throw;
+		}
+	}
+
+	/// <summary>
+	/// Determines whether the exception is the stream unique-constraint violation used for optimistic
+	/// concurrency.
+	/// </summary>
+	/// <param name="ex"> The SQL exception to classify. </param>
+	/// <returns> <see langword="true"/> when the error is a unique-key violation. </returns>
+	/// <remarks>
+	/// 2627 is a unique CONSTRAINT violation and 2601 a unique INDEX violation; the same logical collision
+	/// is reported under either number depending on how the uniqueness was declared, so both are treated as
+	/// a concurrency conflict.
+	/// </remarks>
+	private static bool IsStreamUniqueViolation(SqlException ex) =>
+		ex.Number is 2627 or 2601;
+
+	/// <summary>Rolls back without letting a rollback failure mask the original fault.</summary>
+	/// <param name="transaction"> The transaction to roll back. </param>
+	private static async Task RollbackQuietlyAsync(SqlTransaction transaction)
+	{
+		try
+		{
+			// Uncancellable so cleanup completes even when the failure was a cancellation; the transaction
+			// must not be left to a deferred dispose.
+			await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+		catch
+		{
+			// A rollback failure must not mask the original exception.
+		}
+	}
+
+	/// <summary>
+	/// Re-reads the persisted version after a constraint conflict so the caller is told what it lost to.
+	/// </summary>
+	/// <param name="connection"> The open connection, whose transaction has already been rolled back. </param>
+	/// <param name="aggregateId"> The aggregate whose stream conflicted. </param>
+	/// <param name="aggregateType"> The aggregate type whose stream conflicted. </param>
+	/// <param name="expectedVersion"> The version this caller attempted to write against. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns> The current persisted version, or <paramref name="expectedVersion"/> if it cannot be read. </returns>
+	/// <remarks>
+	/// Runs outside a transaction (the conflicting one is rolled back) and only on the conflict path, so it
+	/// costs a round trip precisely when the caller has to reload anyway. Reporting the winner's version
+	/// rather than echoing the expected one back is what makes the conflict actionable; if the re-read
+	/// itself fails, the conflict is still reported rather than converted into a hard error.
+	/// </remarks>
+	private async Task<long> ReadCurrentVersionAfterConflictAsync(
+		SqlConnection connection,
+		string aggregateId,
+		string aggregateType,
+		long expectedVersion,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			return await connection.ResolveAsync(
+					new GetCurrentVersionRequest(
+						aggregateId,
+						aggregateType,
+						transaction: null,
+						TenantScope.FromContext(_tenantContext),
+						cancellationToken,
+						_schema,
+						_table))
+				.ConfigureAwait(false);
+		}
+		catch (SqlException)
+		{
+			return expectedVersion;
 		}
 	}
 
@@ -392,36 +510,58 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// READ COMMITTED for the same reason as the outbox-staging path above: the unique constraint on
+		// (AggregateId, AggregateType, Version, TenantId) already makes a duplicate unwritable, so
+		// Serializable was paying deadlocks to prevent a phantom that cannot occur.
 		await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
-				IsolationLevel.Serializable, cancellationToken)
+				IsolationLevel.ReadCommitted, cancellationToken)
 			.ConfigureAwait(false);
 
-		// Check current version using IDataRequest
-		var currentVersion = await connection.ResolveAsync(
-				new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, cancellationToken, _schema, _table))
-			.ConfigureAwait(false);
-
-		if (currentVersion != expectedVersion)
+		try
 		{
-			// Explicit rollback to release Serializable locks immediately instead of
-			// waiting for DisposeAsync, reducing lock contention under concurrency.
-			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
-			return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
+			// Advisory read — see the sibling path. A racing writer is caught by the constraint, not here.
+			var currentVersion = await connection.ResolveAsync(
+					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+				.ConfigureAwait(false);
+
+			if (currentVersion != expectedVersion)
+			{
+				// Explicit rollback rather than waiting for DisposeAsync.
+				await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
+				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
+			}
+
+			var (version, firstPosition) = await InsertEventsAsync(
+					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
+				.ConfigureAwait(false);
+
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+			_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
+				eventList.Count, aggregateType, aggregateId, version);
+
+			_ = (activity?.SetTag(EventSourcingTags.Version, version));
+			activity.SetOperationResult(EventSourcingTagValues.Success);
+			return AppendResult.CreateSuccess(version, firstPosition);
 		}
+		catch (SqlException ex) when (IsStreamUniqueViolation(ex))
+		{
+			// The constraint refused a duplicate (aggregate, version, tenant): a lost race, not an error.
+			await RollbackQuietlyAsync(transaction).ConfigureAwait(false);
+			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 
-		var (version, firstPosition) = await InsertEventsAsync(
-				connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
-			.ConfigureAwait(false);
+			return AppendResult.CreateConcurrencyConflict(
+				expectedVersion,
+				await ReadCurrentVersionAfterConflictAsync(
+					connection, aggregateId, aggregateType, expectedVersion, cancellationToken).ConfigureAwait(false));
+		}
+		catch
+		{
+			await RollbackQuietlyAsync(transaction).ConfigureAwait(false);
 
-		await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
-		_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
-			eventList.Count, aggregateType, aggregateId, version);
-
-		_ = (activity?.SetTag(EventSourcingTags.Version, version));
-		activity.SetOperationResult(EventSourcingTagValues.Success);
-		return AppendResult.CreateSuccess(version, firstPosition);
+			throw;
+		}
 	}
 
 	private async ValueTask<(long Version, long FirstPosition)> InsertEventsAsync(
@@ -462,8 +602,11 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 
 		// The position of the lowest-version event in this append is the append's first position. OUTPUT
 		// row order is not guaranteed, so positions are matched to events by version, not by row index.
+		// Use a nullable sentinel (0n4m8q): a magic 0 default is ambiguous when the Position IDENTITY column
+		// is seeded at 0, since a legitimately-returned position of 0 would be indistinguishable from
+		// "not yet found". null means "no OUTPUT row matched the first version" — a real invariant breach.
 		var firstVersion = currentVersion + 1;
-		long firstPosition = 0;
+		long? firstPosition = null;
 
 		for (var offset = 0; offset < rows.Count; offset += InsertEventsBatchRequest.MaxEventsPerStatement)
 		{
@@ -471,7 +614,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			var chunk = rows.GetRange(offset, count);
 
 			var inserted = await connection.ResolveAsync(
-					new InsertEventsBatchRequest(chunk, transaction, cancellationToken, _schema, _table))
+					new InsertEventsBatchRequest(chunk, transaction, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			foreach (var row in inserted)
@@ -483,7 +626,14 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			}
 		}
 
-		return (version, firstPosition);
+		if (firstPosition is null)
+		{
+			throw new InvalidOperationException(
+				$"Event store append inserted {rows.Count} event(s) but the INSERT ... OUTPUT returned no position " +
+				$"for the first event (version {firstVersion}); the append cannot report a valid first position.");
+		}
+
+		return (version, firstPosition.Value);
 	}
 
 	private static void RecordAppendTelemetry(string result, TimeSpan elapsed)
@@ -661,7 +811,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, cancellationToken, _schema, _table))
+			new Requests.EraseEventsRequest(aggregateId, aggregateType, erasureRequestId, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 
@@ -675,7 +825,53 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.IsErasedRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
+			new Requests.IsErasedRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Discovery is intentionally cross-tenant: the archive service makes one pass over every tenant, so a
+	/// tenant-scoped enumeration would stall archival for all but one. The tenant is projected onto each
+	/// candidate instead, and the destructive leg below consumes it explicitly.
+	/// </remarks>
+	public async Task<IReadOnlyList<ArchiveCandidate>> GetArchiveCandidatesAsync(
+		ArchivePolicy policy,
+		int batchSize,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(policy);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.GetArchiveCandidatesRequest(
+				policy, batchSize, TimeProvider.GetUtcNow(), cancellationToken, _schema, _table))
+			.ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The tenant term is taken from the caller, never from ambient context. This runs under the archive
+	/// service's all-tenant pass, where no ambient tenant exists; resolving one here would delete under an
+	/// arbitrary term while the cold write was confirmed under another.
+	/// </remarks>
+	public async Task<int> DeleteEventsUpToVersionAsync(
+		KeyedTenantPartition tenant,
+		string aggregateId,
+		string aggregateType,
+		long toVersion,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(tenant);
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		return await connection.ResolveAsync(
+			new Requests.DeleteEventsUpToVersionRequest(
+				tenant, aggregateId, aggregateType, toVersion, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
 }

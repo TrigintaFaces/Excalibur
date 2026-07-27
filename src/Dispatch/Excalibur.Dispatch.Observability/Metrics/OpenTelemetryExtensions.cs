@@ -40,9 +40,10 @@ public static class OpenTelemetryExtensions
 		// Dispatch Transport (from TransportMeter)
 		TransportMeter.MeterName,                      // "Excalibur.Dispatch.Transport"
 
-		// Dispatch Observability (local)
-		DeadLetterQueueMetrics.MeterName,              // "Excalibur.Dispatch.DeadLetterQueue"
-		CircuitBreakerMetrics.MeterName,               // "Excalibur.Dispatch.CircuitBreaker"
+		// Dispatch core resilience/error-handling meters (the real emitters)
+		DispatchTelemetryConstants.Meters.PoisonMessage,            // "Excalibur.Dispatch.PoisonMessage.Middleware" (dead-letter routing)
+		DispatchTelemetryConstants.Meters.CircuitBreakerMiddleware, // "Excalibur.Dispatch.CircuitBreakerMiddleware"
+		DispatchTelemetryConstants.Meters.ExactlyOnce,             // "Excalibur.Dispatch.ExactlyOnce" (dedup duplicates-suppressed counter)
 
 		// Dispatch Streaming (from StreamingHandlerTelemetryConstants)
 		StreamingHandlerTelemetryConstants.MeterName,  // "Excalibur.Dispatch.Streaming"

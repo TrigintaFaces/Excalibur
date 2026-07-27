@@ -34,6 +34,17 @@ public sealed class OutboxProcessorJob(
 			return;
 		}
 
+		// Fail-closed leadership gate. When an IProcessingGate is registered (e.g. via WithLeaderElection),
+		// only the instance the gate authorizes runs the dispatch cycle; the ILeaderProcessingGate impl
+		// fail-closes on a null leadership snapshot, so a lost/absent tenure never dispatches. Absent a gate
+		// (single-instance / no leader election) the job dispatches unconditionally, exactly as before.
+		var gate = scope.ServiceProvider.GetService<IProcessingGate>();
+		if (gate is not null && !gate.ShouldProcess)
+		{
+			OutboxProcessorJobLog.SkippedNotLeader(_logger);
+			return;
+		}
+
 		try
 		{
 			// Generate a unique dispatcher ID for this job instance

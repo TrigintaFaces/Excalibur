@@ -87,6 +87,8 @@ public static class OutboxBuilderSqlServerExtensions
 		Justification = "Options validation/binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
+	[SuppressMessage("Maintainability", "CA1506:AvoidExcessiveClassCoupling",
+		Justification = "DI composition root wires many provider types by design; matches the store's existing suppression.")]
 	public static IOutboxBuilder UseSqlServer(
 		this IOutboxBuilder builder,
 		Action<ISqlServerOutboxBuilder> configure)
@@ -107,19 +109,7 @@ public static class OutboxBuilderSqlServerExtensions
 			|| sqlBuilder.ConnectionStringNameValue is not null;
 
 		// Register options from builder state
-		_ = builder.Services.Configure<SqlServerOutboxOptions>(opt =>
-		{
-			opt.ConnectionString = sqlOptions.ConnectionString;
-			opt.SchemaName = sqlOptions.SchemaName;
-			opt.OutboxTableName = sqlOptions.OutboxTableName;
-			opt.TransportsTableName = sqlOptions.TransportsTableName;
-			opt.DeadLetterTableName = sqlOptions.DeadLetterTableName;
-			opt.CommandTimeoutSeconds = sqlOptions.CommandTimeoutSeconds;
-			opt.UseRowLocking = sqlOptions.UseRowLocking;
-			opt.DefaultBatchSize = sqlOptions.DefaultBatchSize;
-			opt.MaxRetryCount = sqlOptions.MaxRetryCount;
-			opt.RetryDelayMinutes = sqlOptions.RetryDelayMinutes;
-		});
+		_ = builder.Services.Configure<SqlServerOutboxOptions>(opt => CopyBuilderOptions(sqlOptions, opt));
 
 		// Register BindConfiguration if set
 		if (sqlBuilder.BindConfigurationPath is not null)
@@ -140,13 +130,22 @@ public static class OutboxBuilderSqlServerExtensions
 			}
 		}
 
-		// Register ValidateOnStart with connection awareness
-		builder.Services.AddSingleton<IValidateOptions<SqlServerOutboxOptions>>(
-			new SqlServerOutboxOptionsValidator { HasBuilderConnection = hasBuilderConnection });
+		// Register ValidateOnStart with connection awareness. The validator also enforces the cross-options
+		// FailureBackoffFloorSeconds > PollingInterval invariant, so it resolves IOptions<OutboxProcessingOptions>
+		// from the provider (a factory registration, since HasBuilderConnection is set here by the builder).
+		builder.Services.AddSingleton<IValidateOptions<SqlServerOutboxOptions>>(sp =>
+			new SqlServerOutboxOptionsValidator(
+				sp.GetRequiredService<IOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions>>(),
+				sp.GetRequiredService<IOptions<Excalibur.Outbox.Partitioning.OutboxPartitionOptions>>())
+			{
+				HasBuilderConnection = hasBuilderConnection,
+			});
 		builder.Services.AddOptions<SqlServerOutboxOptions>().ValidateOnStart();
 
 		// Register SQL Server outbox store using resolved connection factory
-		builder.Services.TryAddSingleton(sp =>
+		// Fail-closed single-tenant default so the dep-gated AddTenantScopedStore seam resolves ITenantContext.
+		builder.Services.AddDefaultTenantContext();
+		builder.Services.AddTenantScopedStore<IOutboxStore, SqlServerOutboxStore>((sp, _) =>
 		{
 			var factory = connectionFactory(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerOutboxOptions>>().Value;
@@ -157,10 +156,19 @@ public static class OutboxBuilderSqlServerExtensions
 		builder.Services.AddKeyedSingleton<IOutboxStore>("sqlserver", (sp, _) =>
 		{
 			var inner = sp.GetRequiredService<SqlServerOutboxStore>();
+
+			// The decorator forwards capability resolution to the store it wraps, so wrapping cannot erase
+			// a capability SqlServerOutboxStore provides. Consumers resolve capabilities with
+			// GetService(typeof(...)); casting the decorated instance would see only the decorator's own type.
 			return new Excalibur.Outbox.Diagnostics.TelemetryOutboxStoreDecorator(inner);
 		});
 		builder.Services.TryAddKeyedSingleton<IOutboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IOutboxStore>("sqlserver"));
+
+		// The ITenantScopingCapability<IOutboxStore> marker is emitted by AddTenantScopedStore above,
+		// inseparably from the store registration (S886 rw2ull — the marker cannot exist without the store
+		// factory). The outbox honors the ambient tenant by stamping + persisting TenantId on enqueue and
+		// returning it on drain for the processor's per-message BeginScope.
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
@@ -201,6 +209,23 @@ public static class OutboxBuilderSqlServerExtensions
 		builder.Services.TryAddSingleton<IDeadLetterQueueAdmin>(sp => sp.GetRequiredService<SqlServerDeadLetterQueue>());
 
 		return builder;
+	}
+
+	/// <summary>
+	/// Copies the builder-configured options onto the registered options instance.
+	/// </summary>
+	private static void CopyBuilderOptions(SqlServerOutboxOptions source, SqlServerOutboxOptions target)
+	{
+		target.ConnectionString = source.ConnectionString;
+		target.Tables.SchemaName = source.Tables.SchemaName;
+		target.Tables.OutboxTableName = source.Tables.OutboxTableName;
+		target.Tables.TransportsTableName = source.Tables.TransportsTableName;
+		target.Tables.DeadLetterTableName = source.Tables.DeadLetterTableName;
+		target.Processing.CommandTimeoutSeconds = source.Processing.CommandTimeoutSeconds;
+		target.Processing.UseRowLocking = source.Processing.UseRowLocking;
+		target.Processing.DefaultBatchSize = source.Processing.DefaultBatchSize;
+		target.Processing.MaxRetryCount = source.Processing.MaxRetryCount;
+		target.Processing.RetryDelayMinutes = source.Processing.RetryDelayMinutes;
 	}
 
 	/// <summary>

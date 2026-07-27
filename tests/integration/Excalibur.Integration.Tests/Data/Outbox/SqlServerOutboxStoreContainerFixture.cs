@@ -107,6 +107,7 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 				GroupKey NVARCHAR(256) NULL,
 				SequenceNumber BIGINT NOT NULL DEFAULT 0,
 				NextAttemptAt DATETIMEOFFSET NULL,
+				FencingToken BIGINT NULL,
 				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
 				INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 			)
@@ -126,6 +127,7 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 				RetryCount INT NOT NULL DEFAULT 0,
 				LastError NVARCHAR(MAX) NULL,
 				TransportMetadata NVARCHAR(MAX) NULL,
+				TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
 				FOREIGN KEY (MessageId) REFERENCES [dbo].[OutboxMessages](Id)
 			)
 			""";
@@ -141,6 +143,21 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 		await using (var createTransports = new SqlCommand(createTransportsTableSql, connection))
 		{
 			_ = await createTransports.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
+
+		// Durable leadership-fence control table — the high-water lives here, not on the message rows, so it
+		// survives the cleanup that purges token-bearing rows. Cleanup MUST NOT touch it.
+		const string createFenceTableSql = """
+			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxFence' AND xtype='U')
+			CREATE TABLE [dbo].[OutboxFence] (
+				OutboxTable NVARCHAR(512) NOT NULL PRIMARY KEY,
+				HighWaterToken BIGINT NOT NULL
+			)
+			""";
+
+		await using (var createFence = new SqlCommand(createFenceTableSql, connection))
+		{
+			_ = await createFence.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
 		_initialized = true;
@@ -169,6 +186,14 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 		await using (var deleteMessages = new SqlCommand("DELETE FROM [dbo].[OutboxMessages]", connection))
 		{
 			_ = await deleteMessages.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
+
+		// Reset the durable fence high-water between tests. In production this table intentionally outlives
+		// message cleanup; between conformance tests it MUST be cleared so one test's advanced high-water
+		// does not leak into the next (which would fence off the next test's valid tokens).
+		await using (var deleteFence = new SqlCommand("DELETE FROM [dbo].[OutboxFence]", connection))
+		{
+			_ = await deleteFence.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 	}
 

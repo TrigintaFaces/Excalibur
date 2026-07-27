@@ -231,23 +231,26 @@ internal sealed partial class PersistenceProviderFactory(
 	private static partial void LogProviderUnregistered(ILogger logger, string providerName);
 
 	/// <summary>
-	/// Creates a provider instance based on options.
+	/// Creates a provider instance by resolving the configured provider from keyed dependency injection.
 	/// </summary>
+	/// <remarks>
+	/// Each provider package registers its <see cref="IPersistenceProvider"/> implementation under a
+	/// stable string key (e.g. <c>"sqlserver"</c>, <c>"inmemory"</c>) via
+	/// <see cref="ServiceCollectionServiceExtensions"/> keyed registrations. This method resolves the
+	/// implementation that matches the configured provider key rather than the single ambient
+	/// <see cref="IPersistenceProvider"/>, so distinct configured providers resolve to distinct
+	/// implementations. An unregistered key fails fast with an actionable message.
+	/// </remarks>
 	private IPersistenceProvider CreateProviderInstance(PersistenceProviderOptions options)
 	{
-		// Resolve provider type from service container based on configuration
-		var providerType = options.Type switch
-		{
-			PersistenceProviderType.SqlServer => typeof(IPersistenceProvider), // Would be SqlServerProvider
-			PersistenceProviderType.Postgres => typeof(IPersistenceProvider), // Would be PostgresProvider
-			PersistenceProviderType.MongoDB => typeof(IPersistenceProvider), // Would be MongoDbProvider
-			PersistenceProviderType.Elasticsearch => typeof(IPersistenceProvider), // Would be ElasticsearchProvider
-			PersistenceProviderType.Redis => typeof(IPersistenceProvider), // Would be RedisProvider
-			PersistenceProviderType.InMemory => typeof(IPersistenceProvider), // Would be InMemoryProvider
-			_ => typeof(IPersistenceProvider),
-		};
+		var providerKey = ResolveProviderKey(options);
 
-		var provider = (IPersistenceProvider)_serviceProvider.GetRequiredService(providerType);
+		var provider = _serviceProvider.GetKeyedService<IPersistenceProvider>(providerKey)
+			?? throw new InvalidOperationException(
+				$"No persistence provider is registered for key '{providerKey}' " +
+				$"(provider '{options.Name}', type {options.Type}). " +
+				$"Register the provider before requesting it (e.g. call the provider package's " +
+				$"Add…Persistence extension), or correct the configured provider type.");
 
 		// Configure the provider if it supports configuration
 		if (provider is IConfigurableProvider configurable)
@@ -257,4 +260,26 @@ internal sealed partial class PersistenceProviderFactory(
 
 		return provider;
 	}
+
+	/// <summary>
+	/// Maps a configured provider to the keyed-DI key under which its implementation is registered.
+	/// </summary>
+	/// <remarks>
+	/// The keys mirror the string keys used by each provider package's keyed registration. A
+	/// <see cref="PersistenceProviderType.Custom"/> provider is resolved by its configured
+	/// <see cref="PersistenceProviderOptions.Name"/>, allowing provider packages that are not part of
+	/// the closed enum (e.g. MySQL, OpenSearch) to be registered and resolved by name.
+	/// </remarks>
+	private static string ResolveProviderKey(PersistenceProviderOptions options) => options.Type switch
+	{
+		PersistenceProviderType.SqlServer => "sqlserver",
+		PersistenceProviderType.Postgres => "postgres",
+		PersistenceProviderType.MongoDB => "mongodb",
+		PersistenceProviderType.Elasticsearch => "elasticsearch",
+		PersistenceProviderType.Redis => "redis",
+		PersistenceProviderType.InMemory => "inmemory",
+		PersistenceProviderType.Custom => options.Name,
+		_ => throw new InvalidOperationException(
+			$"Unknown persistence provider type '{options.Type}' for provider '{options.Name}'."),
+	};
 }

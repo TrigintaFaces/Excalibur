@@ -139,37 +139,38 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddAwsLambdaServerless(options =>
 {
     options.EnableColdStartOptimization = true;
-    options.GracefulShutdownTimeout = TimeSpan.FromSeconds(5);
-});
-
-// Configure Lambda-specific options
-builder.Services.Configure<AwsLambdaOptions>(options =>
-{
-    options.Runtime = "dotnet10";
-    options.EnableProvisionedConcurrency = true;
-    options.ReservedConcurrency = 100;
+    options.ExecutionTimeout = TimeSpan.FromSeconds(30);
+    options.MemoryLimitMB = 512;
 });
 ```
 
-### AwsLambdaOptions
+Deploy-plane concerns such as the runtime version, provisioned/reserved concurrency, package
+type, and handler name are configured through your infrastructure-as-code (SAM/CDK/Terraform)
+or the Lambda console — the messaging runtime does not read them, so they are not surfaced as
+framework options.
+
+### ServerlessHostOptions
 
 ```csharp
-public class AwsLambdaOptions
+public sealed class ServerlessHostOptions
 {
-    // Enable provisioned concurrency (default: false)
-    public bool EnableProvisionedConcurrency { get; set; }
+    // Preferred platform; null = auto-detect.
+    public ServerlessPlatform? PreferredPlatform { get; set; }
 
-    // Reserved concurrency limit (null = no limit)
-    public int? ReservedConcurrency { get; set; }
+    // Enable cold start optimization (default: true).
+    public bool EnableColdStartOptimization { get; set; } = true;
 
-    // Lambda runtime (default: "dotnet10")
-    public string Runtime { get; set; } = "dotnet10";
+    // Tracing/metrics/logging toggles (platform-provisioned).
+    public ServerlessTelemetryOptions Telemetry { get; set; } = new();
 
-    // Handler name for deployment
-    public string? Handler { get; set; }
+    // Handler execution timeout; null = platform default.
+    public TimeSpan? ExecutionTimeout { get; set; }
 
-    // Package type: "Zip" or "Image" (default: "Zip")
-    public string PackageType { get; set; } = "Zip";
+    // Memory limit in MB; null = platform default.
+    public int? MemoryLimitMB { get; set; }
+
+    // Custom environment variables.
+    public IDictionary<string, string> EnvironmentVariables { get; }
 }
 ```
 

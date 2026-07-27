@@ -105,20 +105,4 @@ public sealed class EventStoreMessageShould
 		msg.AggregateId.ShouldBe(guid);
 	}
 
-	[Fact]
-	public void FromEventStoreMessage_ThrowNotSupported()
-	{
-		var source = new EventStoreMessage<string>
-		{
-			AggregateId = "agg-1",
-			OccurredOn = DateTimeOffset.UtcNow,
-			EventId = "evt-1",
-			EventType = "test",
-			EventBody = "{}",
-			EventMetadata = "{}",
-		};
-
-		Should.Throw<NotSupportedException>(() =>
-			EventStoreMessage<int>.FromEventStoreMessage(source));
-	}
 }

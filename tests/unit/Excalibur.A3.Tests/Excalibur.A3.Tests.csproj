@@ -13,6 +13,7 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.A3\Excalibur.A3.csproj" />

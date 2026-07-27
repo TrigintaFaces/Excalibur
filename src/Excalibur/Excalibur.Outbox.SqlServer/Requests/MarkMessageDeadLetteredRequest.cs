@@ -28,6 +28,12 @@ public sealed class MarkMessageDeadLetteredRequest : DataRequestBase<IDbConnecti
 	/// <param name="reason">The reason the message was dead-lettered.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// The mark targets the globally-unique outbox <c>Id</c>, which addresses exactly one row, so no tenant
+	/// predicate is applied: the drain is cross-tenant infrastructure and must always be able to mark the row
+	/// it claimed, regardless of any ambient tenant context. Tenant isolation lives on the write/stage path
+	/// (<c>TenantId</c> stamping) and on tenant-facing queries.
+	/// </remarks>
 	public MarkMessageDeadLetteredRequest(
 		string tableName,
 		string messageId,

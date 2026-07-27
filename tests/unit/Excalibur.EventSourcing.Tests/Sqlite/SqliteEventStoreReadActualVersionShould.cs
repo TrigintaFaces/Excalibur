@@ -91,6 +91,20 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 	}
 
 	[Fact]
+	public async Task ReturnNullFirstEventPosition_ForEmptyAppend()
+	{
+		// w5u4l1: an empty append has no first-event position, so it must report the canonical null
+		// "no position" sentinel (shared with InMemory/SqlServer/Postgres) — never a real position like 0.
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+
+		var result = await store.AppendAsync(
+			Guid.NewGuid().ToString(), AggregateType, [], expectedVersion: -1, CancellationToken.None).ConfigureAwait(false);
+
+		result.Success.ShouldBeTrue();
+		result.FirstEventPosition.ShouldBeNull();
+	}
+
+	[Fact]
 	public async Task ReturnCommittedMaxVersion_ForSeededAggregate()
 	{
 		// Arrange — seed versions 0, 1, 2 via the store (creates the Events table).
@@ -167,6 +181,40 @@ public sealed class SqliteEventStoreReadActualVersionShould : IDisposable
 
 		// Assert — non-cancellation re-read failure is swallowed to null (callers fall back).
 		actual.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task SurfaceRealActualVersion_NotMinusOne_OnConcurrencyConflict()
+	{
+		// e25wz5 (xhygd8 S869 coverage edge): the isolation tests above prove ReadActualVersion returns the
+		// real version, but none prove it end-to-end — that a stale-expectedVersion AppendAsync surfaces the
+		// REAL committed version on the conflict result (via NextExpectedVersion), never the -1 "no events"
+		// sentinel. NON-VACUITY: if the conflict path reported -1 (the S869 bug), ShouldBe(2L) → RED.
+		var store = new SqliteEventStore(_connectionString, NullLogger<SqliteEventStore>.Instance, _tableName);
+		var aggregateId = Guid.NewGuid().ToString();
+		await SeedAsync(store, aggregateId, count: 3).ConfigureAwait(false); // -> versions 0,1,2 (current = 2)
+
+		// Append with a STALE expectedVersion (0) against a current version of 2 → concurrency conflict.
+		var result = await store.AppendAsync(
+			aggregateId,
+			AggregateType,
+			[
+				new TestDomainEvent
+				{
+					EventId = Guid.NewGuid().ToString(),
+					AggregateId = aggregateId,
+					OccurredAt = DateTimeOffset.UtcNow,
+					Data = "stale-append",
+				},
+			],
+			expectedVersion: 0,
+			CancellationToken.None).ConfigureAwait(false);
+
+		result.Success.ShouldBeFalse();
+		result.IsConcurrencyConflict.ShouldBeTrue();
+		result.NextExpectedVersion.ShouldBe(
+			2L,
+			"e25wz5: a concurrency conflict must carry the REAL current version (2), not the -1 no-events sentinel.");
 	}
 
 	private static async Task SeedAsync(SqliteEventStore store, string aggregateId, int count)

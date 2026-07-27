@@ -53,30 +53,7 @@ public sealed class TransportReceiverBuilderExtensionsShould : IDisposable
 		result.ShouldBeOfType<DeadLetterTransportReceiver>();
 	}
 
-	[Fact]
-	public void UseCloudEvents_Wraps_With_CloudEventsTransportReceiver()
-	{
-		var mapper = A.Fake<ICloudEventMapper<TransportReceivedMessage>>();
-		var result = new TransportReceiverBuilder(_innerReceiver)
-			.UseCloudEvents(mapper)
-			.Build();
 
-		result.ShouldBeOfType<CloudEventsTransportReceiver>();
-	}
-
-	[Fact]
-	public void Stacking_Order_Preserved_Telemetry_Then_DLQ_Then_CloudEvents()
-	{
-		var mapper = A.Fake<ICloudEventMapper<TransportReceivedMessage>>();
-		var result = new TransportReceiverBuilder(_innerReceiver)
-			.UseTelemetry("Kafka", _meter, _activitySource)
-			.UseDeadLetterQueue("test-transport", (_, _, _) => Task.CompletedTask)
-			.UseCloudEvents(mapper)
-			.Build();
-
-		// Outermost should be CloudEvents (last registered)
-		result.ShouldBeOfType<CloudEventsTransportReceiver>();
-	}
 
 	[Fact]
 	public void UseTelemetry_Returns_Builder_For_Chaining()

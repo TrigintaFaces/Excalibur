@@ -26,6 +26,7 @@ public sealed class ErasureServiceShould
 			_keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			_legalHoldService,
 			_dataInventoryService);
 	}
@@ -298,7 +299,7 @@ public sealed class ErasureServiceShould
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
 		SetupNoLegalHolds();
 
@@ -308,8 +309,10 @@ public sealed class ErasureServiceShould
 
 		// Assert
 		result.Success.ShouldBeTrue();
-		result.KeysDeleted.ShouldBe(2);
-		A.CallTo(() => _store.RecordCompletionAsync(requestId, 2, 0, A<Guid>._, A<CancellationToken>._))
+		// Crypto-shred: erasure now also destroys the per-subject key (status.DataSubjectIdHash) in
+		// addition to the 2 inventory keys -> 3 keys deleted (ErasureService adds the subject-id hash).
+		result.KeysDeleted.ShouldBe(3);
+		A.CallTo(() => _store.RecordCompletionAsync(requestId, 3, 0, A<Guid>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -496,6 +499,7 @@ public sealed class ErasureServiceShould
 		var sut = new ErasureService(
 			_store, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 			null, // no legal hold service
 			null); // no data inventory service
 
@@ -516,6 +520,7 @@ public sealed class ErasureServiceShould
 			new ErasureService(null!, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 				null, null));
 	}
 
@@ -527,6 +532,7 @@ public sealed class ErasureServiceShould
 			new ErasureService(_store, _keyAdmin,
 				null!,
 				NullLogger<ErasureService>.Instance,
+			TestDataSubjectHasher.Instance,
 				null, null));
 	}
 
@@ -537,6 +543,7 @@ public sealed class ErasureServiceShould
 			new ErasureService(_store, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
+				TestDataSubjectHasher.Instance,
 				null, null));
 	}
 
@@ -595,7 +602,8 @@ public sealed class ErasureServiceShould
 		var sut = new ErasureService(
 			_store, _keyAdmin, options,
 			NullLogger<ErasureService>.Instance,
-			_legalHoldService, null,
+			TestDataSubjectHasher.Instance,
+			_legalHoldService, _dataInventoryService,
 			[contributor]);
 
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
@@ -603,6 +611,16 @@ public sealed class ErasureServiceShould
 		A.CallTo(() => _store.UpdateStatusAsync(requestId, ErasureRequestStatus.InProgress, null, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 		SetupNoLegalHolds();
+
+		// 88xrgq affirmative-proof coverage gate: a verified (empty) inventory proves coverage so the
+		// Completed/Success path is reachable. The contributor loop runs BEFORE the gate, so this
+		// strengthens the test to the fail-closed contract without weakening the Success assertion.
+		var inventory = new DataInventory { DataSubjectId = "abc123hash", Locations = [], AssociatedKeys = [] };
+		A.CallTo(() => _dataInventoryService.DiscoverAsync(
+				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(inventory));
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
 		// Act
 		var result = await sut.ExecuteAsync(requestId, CancellationToken.None)

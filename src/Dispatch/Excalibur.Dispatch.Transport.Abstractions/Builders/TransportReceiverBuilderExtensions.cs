@@ -43,18 +43,4 @@ public static class TransportReceiverBuilderExtensions
 		Func<TransportReceivedMessage, string?, CancellationToken, Task> deadLetterHandler,
 		Meter? meter = null) =>
 		builder.Use(inner => new DeadLetterTransportReceiver(inner, deadLetterHandler, transportName, meter));
-
-	/// <summary>
-	/// Adds CloudEvents detection and unwrapping to the receiver pipeline.
-	/// Detects CloudEvents-encoded messages and optionally transforms them.
-	/// </summary>
-	/// <param name="builder">The receiver builder.</param>
-	/// <param name="mapper">The CloudEvent mapper for detecting CloudEvents.</param>
-	/// <param name="unwrapper">Optional function to transform messages after CloudEvent detection.</param>
-	/// <returns>The builder for chaining.</returns>
-	public static TransportReceiverBuilder UseCloudEvents(
-		this TransportReceiverBuilder builder,
-		ICloudEventMapper<TransportReceivedMessage> mapper,
-		Func<TransportReceivedMessage, TransportReceivedMessage>? unwrapper = null) =>
-		builder.Use(inner => new CloudEventsTransportReceiver(inner, mapper, unwrapper));
 }

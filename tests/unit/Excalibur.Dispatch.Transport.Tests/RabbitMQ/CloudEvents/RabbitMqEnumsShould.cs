@@ -39,23 +39,4 @@ public sealed class RabbitMqEnumsShould
 		Enum.GetValues<RabbitMqPersistence>().Length.ShouldBe(2);
 	}
 
-	[Theory]
-	[InlineData(RabbitMqRoutingStrategy.EventType, 0)]
-	[InlineData(RabbitMqRoutingStrategy.Source, 1)]
-	[InlineData(RabbitMqRoutingStrategy.Subject, 2)]
-	[InlineData(RabbitMqRoutingStrategy.CorrelationId, 3)]
-	[InlineData(RabbitMqRoutingStrategy.TenantId, 4)]
-	[InlineData(RabbitMqRoutingStrategy.TypeAndSource, 5)]
-	[InlineData(RabbitMqRoutingStrategy.Custom, 6)]
-	[InlineData(RabbitMqRoutingStrategy.Static, 7)]
-	public void HaveCorrectRoutingStrategyValues(RabbitMqRoutingStrategy strategy, int expected)
-	{
-		((int)strategy).ShouldBe(expected);
-	}
-
-	[Fact]
-	public void HaveAllRoutingStrategyMembers()
-	{
-		Enum.GetValues<RabbitMqRoutingStrategy>().Length.ShouldBe(8);
-	}
 }

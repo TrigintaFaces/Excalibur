@@ -22,9 +22,12 @@ namespace Excalibur.Saga.Services;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service periodically checks <see cref="ISagaTimeoutStore.GetDueTimeoutsAsync"/> for timeouts
-/// that are ready for delivery, deserializes the timeout message, and dispatches it through
-/// <see cref="IDispatcher"/> where saga handling middleware routes it to the correct saga instance.
+/// This service periodically calls <see cref="ISagaTimeoutStore.ClaimDueTimeoutsAsync"/> to atomically
+/// claim a bounded batch of timeouts that are ready for delivery, deserializes each timeout message, and
+/// dispatches it through <see cref="IDispatcher"/> where saga handling middleware routes it to the correct
+/// saga instance. Delivery never uses <see cref="ISagaTimeoutStore.GetDueTimeoutsAsync"/>, which is a
+/// read-only diagnostic query that claims nothing: under multiple instances it would deliver the same
+/// timeout more than once.
 /// </para>
 /// <para>
 /// <b>Reliability:</b> Timeouts are marked as delivered only after successful dispatch, ensuring
@@ -109,26 +112,26 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 	{
 		using var activity = SagaActivitySource.StartActivity("ProcessDueTimeouts");
 
-		var dueTimeouts = await _timeoutStore
-			.GetDueTimeoutsAsync(DateTimeOffset.UtcNow, cancellationToken)
+		// ClaimDueTimeoutsAsync atomically leases due timeouts to this processor, so under a
+		// multi-instance deployment two SagaTimeoutDeliveryService instances polling concurrently
+		// never claim (and therefore never deliver) the same due timeout.
+		var claimedTimeouts = await _timeoutStore
+			.ClaimDueTimeoutsAsync(DateTimeOffset.UtcNow, _options.BatchSize, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (dueTimeouts.Count == 0)
+		if (claimedTimeouts.Count == 0)
 		{
 			return;
 		}
 
-		_ = (activity?.SetTag("timeout.count", dueTimeouts.Count));
+		_ = (activity?.SetTag("timeout.count", claimedTimeouts.Count));
 
 		if (_options.EnableVerboseLogging)
 		{
-			LogProcessingTimeouts(dueTimeouts.Count);
+			LogProcessingTimeouts(claimedTimeouts.Count);
 		}
 
-		// Process up to batch size
-		var batch = dueTimeouts.Take(_options.BatchSize);
-
-		foreach (var timeout in batch)
+		foreach (var timeout in claimedTimeouts)
 		{
 			if (cancellationToken.IsCancellationRequested)
 			{
@@ -148,6 +151,26 @@ internal sealed partial class SagaTimeoutDeliveryService : BackgroundService
 		_ = (activity?.SetTag("timeout.id", timeout.TimeoutId));
 		_ = (activity?.SetTag("timeout.type", timeout.TimeoutType));
 		_ = (activity?.SetTag("timeout.due_at", timeout.DueAt.ToString("O")));
+
+		// Re-establish the timeout's OWN tenant for the whole of its delivery.
+		//
+		// The claim that produced this timeout is deliberately estate-wide — a background loop leases due
+		// timeouts across every tenant in one batch, because a tenant-scoped claim would lease only the
+		// untenanted partition and every tenant's timeouts would sit due forever. Isolation is therefore not
+		// enforced at the claim; it is enforced HERE, by running each timeout under the tenant it was scheduled
+		// by. Without this the handler runs with no ambient tenant, so the saga it loads resolves the untenanted
+		// partition rather than the one the saga was saved under, finds nothing, and the timeout is a silent
+		// no-op — no exception, no log, just a saga that never advances.
+		//
+		// The scope wraps the entire method, not just the dispatch, because the MarkDeliveredAsync calls on the
+		// unresolvable-type and invalid-message paths retire the row by (TenantId, TimeoutId) and would otherwise
+		// match nothing, redelivering that timeout forever.
+		//
+		// BeginScope takes null — not the sentinel — for an untenanted timeout: the sentinel is reserved and is
+		// rejected as a tenant name, and a null ambient is what resolves back to the untenanted partition.
+		var partition = KeyedTenantPartition.FromStoredValue(timeout.TenantId);
+		using var tenantScope = TenantContextHolder.BeginScope(partition.IsRealTenant ? partition.TenantId : null);
+		_ = (activity?.SetTag("tenant.id", partition.TenantId));
 
 		try
 		{

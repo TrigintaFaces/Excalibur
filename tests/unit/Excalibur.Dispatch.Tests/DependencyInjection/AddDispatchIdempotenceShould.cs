@@ -199,5 +199,7 @@ public sealed class AddDispatchIdempotenceShould
 		public bool RemoveProfile(string profileName) => false;
 
 		public void SetDefaultProfile(string profileName) { }
+
+		public string? GetDefaultProfileName() => null;
 	}
 }

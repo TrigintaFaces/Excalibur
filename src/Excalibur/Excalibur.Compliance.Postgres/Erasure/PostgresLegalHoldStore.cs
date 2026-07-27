@@ -362,8 +362,47 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
+		else
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		_initialized = true;
+	}
+
+	/// <summary>
+	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// </summary>
+	/// <remarks>
+	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
+	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
+	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
+	{
+		const string ExistsSql = "SELECT to_regclass(@TableName) IS NOT NULL";
+
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullTableName })
+		{
+			var exists = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!exists)
+			{
+				throw new InvalidOperationException(
+					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
+					$"Either create the schema out of band, or set {nameof(PostgresLegalHoldStoreOptions)}."
+					+ $"{nameof(PostgresLegalHoldStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+			}
+		}
 	}
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)

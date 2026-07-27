@@ -375,19 +375,34 @@ public interface ISnapshotStore
 ### SQL Server
 
 ```sql
-CREATE TABLE [snapshots].[Snapshots] (
-    [Id] BIGINT IDENTITY(1,1) NOT NULL,
-    [AggregateId] NVARCHAR(100) NOT NULL,
-    [AggregateType] NVARCHAR(500) NOT NULL,
+CREATE TABLE [dbo].[EventStoreSnapshots] (
+    [SnapshotId] NVARCHAR(256) NULL,
+    [AggregateId] NVARCHAR(256) NOT NULL,
+    [AggregateType] NVARCHAR(256) NOT NULL,
     [Version] BIGINT NOT NULL,
-    [SnapshotData] NVARCHAR(MAX) NOT NULL,
-    [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    [Data] VARBINARY(MAX) NOT NULL,
+    -- DATETIME2, not DATETIMEOFFSET: the read path maps this to DateTime and
+    -- re-stamps UTC kind, which a DATETIMEOFFSET column does not round-trip through.
+    [CreatedAt] DATETIME2 NOT NULL,
+    [Metadata] VARBINARY(MAX) NULL,
+    -- The reserved '__untenanted__' sentinel in a single-tenant host -- never NULL and never
+    -- an empty string. NOT NULL because SQL Server does not allow a nullable column in a
+    -- primary key.
+    --
+    -- Deliberately NO DEFAULT. The store always supplies this column -- a single-tenant
+    -- save writes the '__untenanted__' sentinel explicitly, not by omission. A DEFAULT here would be
+    -- unreachable in normal operation and harmful in abnormal operation: it would let an
+    -- INSERT that omitted the tenant succeed silently, taking the default and colliding
+    -- every tenant onto one row. Without it, such a statement fails outright.
+    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NOT NULL,
 
-    CONSTRAINT [PK_Snapshots] PRIMARY KEY CLUSTERED ([Id]),
-    CONSTRAINT [UQ_Snapshots_Aggregate] UNIQUE ([AggregateId])
+    -- One row per aggregate PER TENANT. Saves MERGE on these columns and the read path issues
+    -- a single-row query with no TOP 1, so a second matching row makes it throw. Without
+    -- TenantId in the key, two tenants holding the same aggregate id are that second row:
+    -- one tenant's save overwrites the other's. Keying on AggregateId alone also wrongly
+    -- rejects a second aggregate TYPE that happens to share an id.
+    CONSTRAINT [PK_EventStoreSnapshots_Aggregate] PRIMARY KEY CLUSTERED ([AggregateId], [AggregateType], [TenantId])
 );
-
-CREATE INDEX [IX_Snapshots_AggregateId] ON [snapshots].[Snapshots] ([AggregateId]);
 ```
 
 ## Custom Snapshot Strategies

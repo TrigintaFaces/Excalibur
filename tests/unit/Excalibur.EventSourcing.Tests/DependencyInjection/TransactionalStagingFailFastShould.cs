@@ -66,7 +66,34 @@ public sealed class TransactionalStagingFailFastShould
 		var services = new ServiceCollection();
 		_ = services.AddSingleton(A.Fake<ITransactionalOutboxWriter>());
 		_ = services.AddSingleton<IEventStore>(new FakeTransactionalEventStore());
+		// The capability is attested by the wire-time marker (as AddSqlServer/AddOracleEventStore register it),
+		// not by the resolved store instance — the marker-probe seam checks registration, never resolves.
+		_ = services.AddSingleton<TransactionalEventStoreMarker>();
 		using var provider = services.BuildServiceProvider();
+		var validator = new TransactionalStagingCapabilityValidator(provider);
+
+		var result = validator.Validate(null, new EventSourcedRepositoryOptions
+		{
+			OutboxStagingStrategy = OutboxStagingStrategy.Transactional,
+		});
+
+		result.Succeeded.ShouldBeTrue();
+	}
+
+	// AC3 liveness — a transactional event store registered SCOPED (the common per-request lifetime) must NOT
+	// trip the guard. The pre-fix validator root-resolved GetService<IEventStore>(), which THROWS when a scoped
+	// service is resolved from the root provider under scope validation — a false-fail that blocked a legitimate
+	// host. The marker-probe seam resolves nothing, so a scoped store is fine. RED on the old root-resolve
+	// (scope-throw), GREEN on the marker. This liveness arm IS the bug orzsq5 fixed — a safety-only suite passes
+	// against a validator that fails everything.
+	[Fact]
+	public void Succeed_WhenTransactionalStoreRegisteredScoped_WithMarkerAndWriter()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(A.Fake<ITransactionalOutboxWriter>());
+		_ = services.AddScoped<IEventStore>(_ => new FakeTransactionalEventStore());
+		_ = services.AddSingleton<TransactionalEventStoreMarker>();
+		using var provider = services.BuildServiceProvider(validateScopes: true);
 		var validator = new TransactionalStagingCapabilityValidator(provider);
 
 		var result = validator.Validate(null, new EventSourcedRepositoryOptions

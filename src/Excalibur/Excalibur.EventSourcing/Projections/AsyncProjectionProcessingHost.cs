@@ -142,6 +142,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 
 				// Dispatch only the good prefix (events before any poison), grouped by aggregate so each
 				// apply delegate receives a coherent batch with the correct EventNotificationContext.
+				var applyFaultEncountered = false;
 				if (deserialized.Count > 0)
 				{
 					foreach (var group in GroupByAggregate(deserialized))
@@ -152,31 +153,43 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 							group.LastVersion,
 							group.LastTimestamp);
 
-						await DispatchToProjectionsAsync(
+						var groupFaulted = await DispatchToProjectionsAsync(
 							asyncRegistrations, group.DomainEvents, context, stoppingToken).ConfigureAwait(false);
+						if (groupFaulted)
+						{
+							applyFaultEncountered = true;
+						}
 					}
 
-					// Advance ONLY to the last good-prefix event's GLOBAL ordinal (GlobalPosition), never the
-					// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
-					var lastGood = deserialized[deserialized.Count - 1].Stored;
-					_currentPosition = new GlobalStreamPosition(lastGood.GlobalPosition + 1, lastGood.Timestamp);
-					_eventsSinceCheckpoint += deserialized.Count;
-
-					// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
-					if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
+					// HALT-at-failure: when any projection's apply faulted, DO NOT advance the checkpoint past
+					// this batch. Leaving the position unadvanced means the batch is reprocessed on the next
+					// read (at-least-once; applies are idempotent) rather than silently skipped — the read
+					// model can never drift from the event log. Mirrors the deserialize-poison halt above and
+					// GlobalStreamProjectionHost. A clean batch advances normally.
+					if (!applyFaultEncountered)
 					{
-						await _checkpointStore.StoreCheckpointAsync(
-							checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
-						LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
-						_eventsSinceCheckpoint = 0;
-					}
+						// Advance ONLY to the last good-prefix event's GLOBAL ordinal (GlobalPosition), never the
+						// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
+						var lastGood = deserialized[deserialized.Count - 1].Stored;
+						_currentPosition = new GlobalStreamPosition(lastGood.GlobalPosition + 1, lastGood.Timestamp);
+						_eventsSinceCheckpoint += deserialized.Count;
 
-					LogAsyncProjectionBatchProcessed(deserialized.Count, _currentPosition.Position);
+						// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
+						if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
+						{
+							await _checkpointStore.StoreCheckpointAsync(
+								checkpointName, _currentPosition.Position, stoppingToken).ConfigureAwait(false);
+							LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
+							_eventsSinceCheckpoint = 0;
+						}
+
+						LogAsyncProjectionBatchProcessed(deserialized.Count, _currentPosition.Position);
+					}
 				}
 
-				// On a poison event, back off before re-reading so we don't tight-loop on a permanent
-				// failure; the next read resumes from the unadvanced checkpoint (reprocess, not skip).
-				if (poisonEncountered)
+				// On a poison event OR an apply fault, back off before re-reading so we don't tight-loop on a
+				// permanent failure; the next read resumes from the unadvanced checkpoint (reprocess, not skip).
+				if (poisonEncountered || applyFaultEncountered)
 				{
 					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
 				}
@@ -287,7 +300,13 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	/// <summary>
 	/// Dispatches domain events to all async projection registrations concurrently.
 	/// </summary>
-	private async Task DispatchToProjectionsAsync(
+	/// <returns>
+	/// <see langword="true"/> if at least one projection's apply faulted (each projection is still
+	/// attempted — fault-independence); otherwise <see langword="false"/>. The caller MUST NOT advance the
+	/// checkpoint past a batch that reports a fault, so a failed apply is reprocessed rather than silently
+	/// skipped (read-model integrity; parity with the deserialize-poison halt and GlobalStreamProjectionHost).
+	/// </returns>
+	private async Task<bool> DispatchToProjectionsAsync(
 		IReadOnlyList<ProjectionRegistration> registrations,
 		List<IDomainEvent> domainEvents,
 		EventNotificationContext context,
@@ -313,16 +332,21 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 			}
 		}
 
+		var anyFaulted = false;
 		for (var j = 0; j < tasks.Length; j++)
 		{
 			try
 			{
 				await tasks[j].ConfigureAwait(false);
 			}
-#pragma warning disable CA1031 // Catch general exceptions -- partial failure; log and continue
+#pragma warning disable CA1031 // Catch general exceptions -- partial failure; log, record, and report to halt the batch
 			catch (Exception ex)
 #pragma warning restore CA1031
 			{
+				// Fault-independence: still await every projection so an independent one is not abandoned.
+				// But REPORT the fault so the caller does not advance the checkpoint past it (halt-at-failure),
+				// preventing silent read-model drift from the event log.
+				anyFaulted = true;
 				var projectionName = registrations[j].ProjectionType.Name;
 				LogAsyncProjectionDispatchError(projectionName, ex);
 
@@ -337,6 +361,8 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 				}
 			}
 		}
+
+		return anyFaulted;
 	}
 
 	private async Task ApplyInScopeAsync(

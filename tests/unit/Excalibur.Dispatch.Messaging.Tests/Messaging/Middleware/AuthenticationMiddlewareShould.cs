@@ -89,7 +89,7 @@ public sealed class AuthenticationMiddlewareShould
 			A.Fake<ITelemetrySanitizer>(),
 			NullLogger<AuthenticationMiddleware>.Instance);
 
-		sut.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+		sut.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
 	}
 
 	[Fact]

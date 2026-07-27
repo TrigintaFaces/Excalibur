@@ -20,10 +20,17 @@ namespace Excalibur.Outbox.MultiTransport;
 /// <see cref="OutboundMessage.IsMultiTransport"/> properties before delegating
 /// to the inner store.
 /// </para>
+/// <para>
+/// It derives from <see cref="OutboxStoreDecorator"/> so capability resolution flows through
+/// <see cref="IServiceProvider.GetService(Type)"/> to the wrapped store: a request for a capability the
+/// router does not itself provide (fencing, admin, batch, dead-lettering, backoff) is answered by the inner
+/// store. Wrapping therefore never strips a capability the inner store advertises — for example, wrapping a
+/// fencing-capable store keeps that store discoverable as <see cref="IFencedOutboxStore"/>, so leadership
+/// fencing on the drain path is preserved through the router.
+/// </para>
 /// </remarks>
-public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRouter
+public sealed partial class MultiTransportOutboxStore : OutboxStoreDecorator, IMultiTransportOutboxRouter
 {
-	private readonly IOutboxStore _innerStore;
 	private readonly MultiTransportOutboxOptions _options;
 	private readonly ILogger<MultiTransportOutboxStore> _logger;
 
@@ -37,12 +44,11 @@ public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRou
 		IOutboxStore innerStore,
 		IOptions<MultiTransportOutboxOptions> options,
 		ILogger<MultiTransportOutboxStore> logger)
+		: base(innerStore)
 	{
-		ArgumentNullException.ThrowIfNull(innerStore);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_innerStore = innerStore;
 		_options = options.Value;
 		_logger = logger;
 	}
@@ -61,7 +67,7 @@ public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRou
 
 		LogPublishToTransport(message.Id, transportName);
 
-		await _innerStore.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
+		await Inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -90,7 +96,7 @@ public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRou
 
 		LogPublishToMultipleTransports(message.Id, transportNames.Count);
 
-		await _innerStore.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
+		await Inner.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -110,7 +116,7 @@ public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRou
 	}
 
 	/// <inheritdoc />
-	public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
+	public override ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
@@ -118,31 +124,7 @@ public sealed partial class MultiTransportOutboxStore : IMultiTransportOutboxRou
 		var transport = ResolveTransport(message.MessageType);
 		message.TargetTransports = transport;
 
-		return _innerStore.StageMessageAsync(message, cancellationToken);
-	}
-
-	/// <inheritdoc />
-	public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
-	{
-		return _innerStore.EnqueueAsync(message, context, cancellationToken);
-	}
-
-	/// <inheritdoc />
-	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken)
-	{
-		return _innerStore.GetUnsentMessagesAsync(batchSize, cancellationToken);
-	}
-
-	/// <inheritdoc />
-	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
-	{
-		return _innerStore.MarkSentAsync(messageId, cancellationToken);
-	}
-
-	/// <inheritdoc />
-	public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
-	{
-		return _innerStore.MarkFailedAsync(messageId, errorMessage, retryCount, cancellationToken);
+		return Inner.StageMessageAsync(message, cancellationToken);
 	}
 
 	private string ResolveTransport(string messageType)

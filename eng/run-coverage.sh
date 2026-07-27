@@ -65,13 +65,32 @@ fi
 # Run tests with coverage
 echo ""
 echo "Running tests with coverage collection..."
+# --blame-hang-timeout: a wedged test host has no self-recovery. Without a bound this
+# invocation blocks forever instead of failing, silently consuming a phase (observed on the
+# Transport shard: three live processes, ~zero CPU, 25 minutes wall, no output). The CI
+# workflows already pass this; a local/ad-hoc runner that omits it is the same run with the
+# safety removed. Override with COVERAGE_HANG_TIMEOUT for a legitimately slower suite.
+HANG_TIMEOUT="${COVERAGE_HANG_TIMEOUT:-10m}"
+
+# `set -e` is in force (:5), and this command is EXPECTED to fail on a red suite — we still
+# want the coverage report. So errexit is suspended for exactly this one command and restored
+# immediately. Not `|| true`: that is what produced the bug below.
+set +e
 eval dotnet test "$SOLUTION_ROOT/Excalibur.sln" \
     --collect:"XPlat Code Coverage" \
     --settings "$RUNSETTINGS_PATH" \
     --results-directory "$ARTIFACTS_DIR" \
-    -c Release --no-build -v q $FILTER || true
-
+    --blame-hang-timeout "$HANG_TIMEOUT" \
+    -c Release --no-build -v q $FILTER
+# Captured on the VERY NEXT statement — nothing, not even an echo, may run between.
+#
+# This previously read `... || true` followed by `TEST_EXIT_CODE=$?`, which recorded the exit
+# of `true` — always 0. The script then `exit $TEST_EXIT_CODE`s at the end, so EVERY failing
+# coverage run exited 0 and reported success to its caller. The `|| true` was there to let
+# coverage collection continue past a red suite; that intent is preserved by `set +e` instead,
+# which suspends errexit WITHOUT overwriting the status we are about to read.
 TEST_EXIT_CODE=$?
+set -e
 
 # Find coverage files
 echo ""

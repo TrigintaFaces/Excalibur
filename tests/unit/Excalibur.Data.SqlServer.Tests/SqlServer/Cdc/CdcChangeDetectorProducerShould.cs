@@ -154,6 +154,7 @@ public sealed class CdcChangeDetectorProducerShould : UnitTestBase
 			new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true"),
 			stateStoreOptions: null,
 			policyFactory,
+			TimeProvider.System,
 			logger);
 	}
 

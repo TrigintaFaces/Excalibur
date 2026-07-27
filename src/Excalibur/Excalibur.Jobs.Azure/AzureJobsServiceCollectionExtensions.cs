@@ -11,6 +11,9 @@ using Excalibur.Jobs.Azure;
 
 using Microsoft.Extensions.Configuration;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -39,6 +42,8 @@ public static class AzureJobsServiceCollectionExtensions
 		_ = services.AddOptions<AzureLogicAppsOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureLogicAppsOptions>, AzureLogicAppsOptionsValidator>());
 		_ = services.AddSingleton(static provider =>
 			new ArmClient(new DefaultAzureCredential()));
 		_ = services.AddSingleton<AzureLogicAppsJobProvider>();
@@ -69,6 +74,8 @@ public static class AzureJobsServiceCollectionExtensions
 		_ = services.AddOptions<AzureLogicAppsOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AzureLogicAppsOptions>, AzureLogicAppsOptionsValidator>());
 		_ = services.AddSingleton(static provider =>
 			new ArmClient(new DefaultAzureCredential()));
 		_ = services.AddSingleton<AzureLogicAppsJobProvider>();

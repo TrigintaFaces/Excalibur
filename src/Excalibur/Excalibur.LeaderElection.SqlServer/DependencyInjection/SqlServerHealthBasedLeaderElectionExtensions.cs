@@ -92,6 +92,11 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 
 		_ = services.AddOptions<SqlServerHealthBasedLeaderElectionOptions>()
 			.Configure(configureHealth)
+			.PostConfigure(o =>
+			{
+				o.ConnectionString = connectionString;
+				o.LockResource = lockResource;
+			})
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -107,7 +112,7 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 			var innerLogger = sp.GetRequiredService<ILogger<SqlServerLeaderElection>>();
 			// ot72w3: optional classifier-accelerated self-demotion (null when none registered → grace-only).
 			var failureClassifier = sp.GetService<IMessageFailureClassifier>();
-			return new SqlServerHealthBasedLeaderElection(connectionString, lockResource, electionOptions, healthOptions, logger, innerLogger, failureClassifier);
+			return new SqlServerHealthBasedLeaderElection(electionOptions, healthOptions, logger, innerLogger, failureClassifier);
 		});
 
 		services.TryAddSingleton<IHealthBasedLeaderElection>(sp =>
@@ -123,6 +128,13 @@ public static class SqlServerHealthBasedLeaderElectionExtensions
 		});
 		services.TryAddKeyedSingleton<ILeaderElection>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<ILeaderElection>("sqlserver"));
+
+		// Also register unkeyed. Consumers of a single leader election resolve ILeaderElection directly —
+		// including the outbox leader gate — and a keyed registration does not satisfy an unkeyed request.
+		// Without this, a host that registers leader election here resolves nothing and drains unfenced.
+		// TryAdd, so a consumer's own unkeyed registration still wins.
+		services.TryAddSingleton<ILeaderElection>(sp =>
+			sp.GetRequiredKeyedService<ILeaderElection>("default"));
 
 		return services;
 	}

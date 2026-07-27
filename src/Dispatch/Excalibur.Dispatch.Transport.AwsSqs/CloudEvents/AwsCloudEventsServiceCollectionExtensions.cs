@@ -49,12 +49,20 @@ public static class AwsCloudEventsServiceCollectionExtensions
 
 		_ = services.AddOptions<CloudEventOptions>()
 			.ValidateOnStart();
+		_ = services.AddCloudEventOptionsValidation();
 		_ = services.AddOptions<AwsSqsCloudEventOptions>()
 			.ValidateOnStart();
 		_ = services.AddOptions<AwsSnsCloudEventOptions>()
 			.ValidateOnStart();
 		_ = services.AddOptions<AwsEventBridgeCloudEventOptions>()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSqsCloudEventOptions>, AwsSqsCloudEventOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSnsCloudEventOptions>, AwsSnsCloudEventOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsEventBridgeCloudEventOptions>, AwsEventBridgeCloudEventOptionsValidator>());
 
 		if (configureOptions is not null)
 		{
@@ -70,9 +78,9 @@ public static class AwsCloudEventsServiceCollectionExtensions
 		services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<AwsSnsCloudEventOptions>>().Value);
 		services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<AwsEventBridgeCloudEventOptions>>().Value);
 
-		services.TryAddSingleton<ICloudEventMapper<SendMessageRequest>, AwsSqsCloudEventAdapter>();
-		services.TryAddSingleton<ICloudEventMapper<PublishRequest>, AwsSnsCloudEventAdapter>();
-		services.TryAddSingleton<ICloudEventMapper<PutEventsRequestEntry>, AwsEventBridgeCloudEventAdapter>();
+		services.AddCloudEventMapper<SendMessageRequest, AwsSqsCloudEventAdapter>();
+		services.AddCloudEventMapper<PublishRequest, AwsSnsCloudEventAdapter>();
+		services.AddCloudEventMapper<PutEventsRequestEntry, AwsEventBridgeCloudEventAdapter>();
 
 		return services;
 	}
@@ -84,7 +92,7 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// <param name="configureSqs"> Action to configure SQS-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForSqs(
+	public static IServiceCollection AddCloudEventsForSqs(
 		this IServiceCollection services,
 		Action<AwsSqsCloudEventOptions>? configureSqs = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -111,7 +119,7 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// <param name="configureSns"> Action to configure SNS-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForSns(
+	public static IServiceCollection AddCloudEventsForSns(
 		this IServiceCollection services,
 		Action<AwsSnsCloudEventOptions>? configureSns = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -138,7 +146,7 @@ public static class AwsCloudEventsServiceCollectionExtensions
 	/// <param name="configureEventBridge"> Action to configure EventBridge-specific CloudEvent options. </param>
 	/// <param name="configureGeneral"> Optional action to configure general CloudEvent options. </param>
 	/// <returns> The service collection for chaining. </returns>
-	public static IServiceCollection UseCloudEventsForEventBridge(
+	public static IServiceCollection AddCloudEventsForEventBridge(
 		this IServiceCollection services,
 		Action<AwsEventBridgeCloudEventOptions>? configureEventBridge = null,
 		Action<CloudEventOptions>? configureGeneral = null)
@@ -180,8 +188,8 @@ public static class AwsCloudEventsServiceCollectionExtensions
 				var hasTraceParent = cloudEvent.GetAttribute("traceparent") != null;
 				var hasTimestamp = cloudEvent.Time.HasValue;
 
-				// At minimum require tracing for audit compliance
-				return Task.FromResult(hasTraceParent || hasCorrelationId);
+				// DoD compliance requires correlationId, userId, and traceParent — all mandatory.
+				return Task.FromResult(hasCorrelationId && hasUserId && hasTraceParent);
 			});
 		}
 

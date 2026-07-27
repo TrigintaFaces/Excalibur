@@ -64,6 +64,12 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 	/// </summary>
 	public const string HandlerTypeKey = "Excalibur.Dispatch.HandlerType";
 
+	// Per-layer claim-key namespace for the shared in-memory dedup engine: the business-effect idempotency
+	// layer claims under "idem:" so it cannot spuriously collide with the inbox at-most-once layer ("inbox:").
+	// Distinct layers structurally cannot steal each other's claim. Only the in-memory dedup path shares the
+	// engine with the inbox layer; the persistent inbox-store claim path keys on (messageId, handlerType).
+	private const string InMemoryClaimKeyPrefix = "idem:";
+
 	private readonly IInboxStore? _inboxStore;
 
 	private readonly IInMemoryDeduplicator _inMemoryDeduplicator;
@@ -203,8 +209,13 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 				.ConfigureAwait(false);
 		}
 
+		// Namespace the in-memory claim key per layer ("idem:") so it cannot collide with the inbox
+		// at-most-once layer on the shared engine. The persistent inbox-store path keys on (messageId,
+		// handlerType) against its own store, so it needs no prefix.
+		var dedupClaimKey = InMemoryClaimKeyPrefix + messageId;
+
 		var claimed = dedupClaim is not null
-			? await dedupClaim.TryClaimAsync(messageId, settings.Retention, cancellationToken).ConfigureAwait(false)
+			? await dedupClaim.TryClaimAsync(dedupClaimKey, settings.Retention, cancellationToken).ConfigureAwait(false)
 			: await inboxClaim!.TryClaimAsync(messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
 
 		if (!claimed)
@@ -232,10 +243,24 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		{
 			result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
-		catch
+		catch (Exception handlerEx)
 		{
-			// Handler threw -- release the claim so the message stays retryable on redelivery.
-			await ReleaseClaimAsync(inboxClaim, dedupClaim, messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+			// Handler threw -- release the claim so the message stays retryable on redelivery. A failure to
+			// release must NOT mask the original handler exception (zamxsc): if the release itself throws,
+			// surface BOTH via an AggregateException rather than losing the handler failure; otherwise
+			// re-throw the handler exception unchanged.
+			try
+			{
+				await ReleaseClaimAsync(inboxClaim, dedupClaim, messageId, dedupClaimKey, handlerTypeName, cancellationToken).ConfigureAwait(false);
+			}
+			catch (Exception releaseEx)
+			{
+				throw new AggregateException(
+					"The message handler failed and releasing its idempotency claim also failed; both errors are preserved.",
+					handlerEx,
+					releaseEx);
+			}
+
 			throw;
 		}
 
@@ -253,7 +278,7 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		}
 		else
 		{
-			await ReleaseClaimAsync(inboxClaim, dedupClaim, messageId, handlerTypeName, cancellationToken).ConfigureAwait(false);
+			await ReleaseClaimAsync(inboxClaim, dedupClaim, messageId, dedupClaimKey, handlerTypeName, cancellationToken).ConfigureAwait(false);
 		}
 
 		return result;
@@ -263,6 +288,7 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		IClaimableInboxStore? inboxClaim,
 		IClaimableDeduplicator? dedupClaim,
 		string messageId,
+		string dedupClaimKey,
 		string handlerTypeName,
 		CancellationToken cancellationToken)
 	{
@@ -272,7 +298,8 @@ public sealed partial class IdempotentHandlerMiddleware : IDispatchMiddleware
 		}
 		else if (dedupClaim is not null)
 		{
-			await dedupClaim.ReleaseAsync(messageId, cancellationToken).ConfigureAwait(false);
+			// Release under the same per-layer namespaced key used to claim.
+			await dedupClaim.ReleaseAsync(dedupClaimKey, cancellationToken).ConfigureAwait(false);
 		}
 	}
 

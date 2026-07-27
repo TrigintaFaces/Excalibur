@@ -32,7 +32,7 @@ namespace Excalibur.Dispatch.Middleware.Auth;
 /// <item> Provides extensibility for custom authorization logic </item>
 /// </list>
 /// </remarks>
-[AppliesTo(MessageKinds.Action)]
+[AppliesTo(MessageKinds.Action | MessageKinds.Event)]
 [RequiresFeatures(DispatchFeatures.Authorization)]
 public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 {
@@ -52,6 +52,8 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 	private static readonly Func<ILogger, string, string, string, IDisposable?> AuthorizationLogScope =
 		LoggerMessage.DefineScope<string, string, string>(
 			"SubjectId:{SubjectId} TenantId:{TenantId} Roles:{Roles}");
+
+	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.AuthorizationMiddleware, "1.0.0");
 
 	private readonly AuthorizationOptions _options;
 	private readonly IAuthorizationService _authorizationService;
@@ -92,10 +94,16 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// Authorization typically applies to Actions (commands/queries) rather than Events, as Events are usually internal notifications that
-	/// don't require user authorization.
+	/// Authorization applies to both Actions (commands/queries) and Events. Events are not necessarily internal: an event arriving from a
+	/// transport adapter is inbound and untrusted, and an event handler that mutates state is reachable on that path, so it is authorized on
+	/// the same terms as an Action. Documents are excluded.
+	/// <para>
+	/// This value must stay in agreement with the <c>AppliesTo</c> attribute on this type. The attribute and this property are read by
+	/// different consumers of the applicability decision, so changing one alone makes those consumers disagree about whether authorization
+	/// applies to the same message.
+	/// </para>
 	/// </remarks>
-	public MessageKinds ApplicableMessageKinds => MessageKinds.Action;
+	public MessageKinds ApplicableMessageKinds => MessageKinds.Action | MessageKinds.Event;
 
 	/// <inheritdoc />
 	public async ValueTask<IMessageResult> InvokeAsync(
@@ -107,6 +115,8 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
+
+		using var activity = ActivitySource.StartActivity("AuthorizationMiddleware.Invoke");
 
 		// Skip authorization if disabled
 		if (!_options.Enabled)

@@ -4,6 +4,8 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Projections;
 
 /// <summary>
@@ -19,6 +21,55 @@ namespace Excalibur.EventSourcing.Projections;
 internal sealed class InMemoryCursorMapStore : ICursorMapStore
 {
 	private readonly ConcurrentDictionary<string, ReadOnlyDictionary<string, long>> _cursors = new(StringComparer.Ordinal);
+	private readonly ITenantContext? _tenantContext;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InMemoryCursorMapStore"/> class.
+	/// </summary>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> when multi-tenancy is not registered. Cursor
+	/// maps are partitioned by the tenant this resolves — never by a tenant named by the caller.
+	/// </param>
+	public InMemoryCursorMapStore(ITenantContext? tenantContext = null) => _tenantContext = tenantContext;
+
+	/// <summary>
+	/// Resolves the partition every cursor map is confined to.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The cursor map was keyed on the projection NAME alone, so two tenants running the same projection
+	/// shared one cursor. The failure is silent and one-directional in the worst way: a cursor advanced by
+	/// another tenant makes this tenant's projector skip events it never processed — data missing from a
+	/// read model permanently, with no error to alert on. (A cursor moved backwards merely reprojects,
+	/// which an idempotent projection absorbs.)
+	/// </para>
+	/// <para>
+	/// The tenant is AMBIENT and resolved here, never accepted as a parameter. A <c>tenantId</c> argument
+	/// would let a caller widen the read by omitting it or redirect it by naming another tenant — the
+	/// authorisation hole the compliance stores closed by refusing to consult such a field at all.
+	/// </para>
+	/// </remarks>
+	/// <returns>The reserved partition key for the ambient tenant.</returns>
+	private string ResolveTenantKey() =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
+
+	/// <summary>
+	/// The tenant/projection key separator: ASCII UNIT SEPARATOR (U+001F).
+	/// </summary>
+	/// <remarks>
+	/// Written as an escape rather than a literal control character so it is visible in review and cannot
+	/// be mangled by an editor or an encoding round-trip. A control character is used deliberately: any
+	/// printable delimiter could legally occur inside a tenant identifier or a projection name, and then
+	/// ("a", "b-c") and ("a-b", "c") would collapse to the SAME key -- a cross-tenant collision
+	/// reintroduced by the very code meant to prevent one.
+	/// </remarks>
+	private const string PartitionSeparator = "\u001F";
+
+	/// <summary>Builds the partition-qualified key.</summary>
+	/// <param name="projectionName">The projection whose cursor map is addressed.</param>
+	/// <returns>The composite key, scoped to the ambient tenant.</returns>
+	private string KeyFor(string projectionName) =>
+		string.Concat(ResolveTenantKey(), PartitionSeparator, projectionName);
 
 	/// <inheritdoc />
 	public Task<IReadOnlyDictionary<string, long>> GetCursorMapAsync(
@@ -27,7 +78,7 @@ internal sealed class InMemoryCursorMapStore : ICursorMapStore
 	{
 		ArgumentException.ThrowIfNullOrEmpty(projectionName);
 
-		IReadOnlyDictionary<string, long> result = _cursors.TryGetValue(projectionName, out var map)
+		IReadOnlyDictionary<string, long> result = _cursors.TryGetValue(KeyFor(projectionName), out var map)
 			? map
 			: ReadOnlyDictionary<string, long>.Empty;
 
@@ -44,7 +95,7 @@ internal sealed class InMemoryCursorMapStore : ICursorMapStore
 		ArgumentNullException.ThrowIfNull(cursorMap);
 
 		// Atomic replace: store an immutable snapshot
-		_cursors[projectionName] = new ReadOnlyDictionary<string, long>(
+		_cursors[KeyFor(projectionName)] = new ReadOnlyDictionary<string, long>(
 			new Dictionary<string, long>(cursorMap));
 
 		return Task.CompletedTask;
@@ -57,7 +108,7 @@ internal sealed class InMemoryCursorMapStore : ICursorMapStore
 	{
 		ArgumentException.ThrowIfNullOrEmpty(projectionName);
 
-		_cursors.TryRemove(projectionName, out _);
+		_ = _cursors.TryRemove(KeyFor(projectionName), out _);
 
 		return Task.CompletedTask;
 	}

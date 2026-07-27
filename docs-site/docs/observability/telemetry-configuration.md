@@ -122,13 +122,11 @@ The `AddDispatchMetrics()` and `AddTransportMetrics()` convenience methods are a
 Register metrics instrumentation services for dependency injection:
 
 ```csharp
-// All observability metrics (core + circuit breaker + DLQ)
-builder.Services.AddAllDispatchMetrics();
-
-// Or individually
+// Core Dispatch metrics instrumentation
 builder.Services.AddDispatchMetricsInstrumentation();
-builder.Services.AddCircuitBreakerMetrics();
-builder.Services.AddDeadLetterQueueMetrics();
+
+// Equivalent alias
+builder.Services.AddAllDispatchMetrics();
 
 // With configuration
 builder.Services.AddDispatchMetricsInstrumentation(options =>
@@ -137,7 +135,7 @@ builder.Services.AddDispatchMetricsInstrumentation(options =>
 });
 ```
 
-These extension methods from `ObservabilityMetricsServiceCollectionExtensions` register the singleton metric classes (`DispatchMetrics`, `CircuitBreakerMetrics`, `DeadLetterQueueMetrics`) into the DI container.
+These extension methods from `ObservabilityMetricsServiceCollectionExtensions` register the singleton `DispatchMetrics` class into the DI container. Circuit-breaker and dead-letter metrics need no separate registration — they are emitted directly by the core middleware meters (`Excalibur.Dispatch.CircuitBreakerMiddleware` and `Excalibur.Dispatch.PoisonMessage.Middleware`); subscribe to them via `AddDispatchInstrumentation()`.
 
 ### Transport-Specific Meters
 

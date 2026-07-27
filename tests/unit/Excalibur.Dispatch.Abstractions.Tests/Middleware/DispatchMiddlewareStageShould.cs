@@ -170,13 +170,13 @@ public sealed class DispatchMiddlewareStageShould
 	}
 
 	[Fact]
-	public void HasExactlySeventeenValues()
+	public void HasExactlyEighteenValues()
 	{
 		// Arrange
 		var values = Enum.GetValues<DispatchMiddlewareStage>();
 
-		// Assert -- T.17 added Deduplication stage (Sprint 697)
-		values.Length.ShouldBe(17);
+		// Assert -- Cascade=750 added for handler message cascading
+		values.Length.ShouldBe(18);
 	}
 
 	#endregion

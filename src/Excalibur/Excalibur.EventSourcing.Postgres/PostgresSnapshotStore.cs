@@ -4,6 +4,7 @@
 using Excalibur.Data;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Postgres.Requests;
 
@@ -37,6 +38,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 {
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<PostgresSnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private readonly string _schema;
 	private readonly string _table;
 
@@ -46,9 +48,16 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 	/// <param name="connectionString">The Postgres connection string.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
-	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresSnapshotStore(NpgsqlDataSource, ILogger{PostgresSnapshotStore}, string, string)"/>
-	/// for advanced scenarios like multi-database setups or custom connection pooling.
+	/// <para>
+	/// This is the simple constructor for a single-tenant host. It resolves no ambient tenant context, so
+	/// every read, save, and delete spans all rows in the table regardless of which tenant wrote them.
+	/// </para>
+	/// <para>
+	/// <strong>Do not use this overload in a multi-tenant host.</strong> Use
+	/// <see cref="PostgresSnapshotStore(NpgsqlDataSource, ILogger{PostgresSnapshotStore}, string, string, ITenantContext)"/>
+	/// and supply the ambient tenant context, which restricts every operation to the resolved tenant's own
+	/// rows. That overload also covers multi-database setups and custom connection pooling.
+	/// </para>
 	/// </remarks>
 	public PostgresSnapshotStore(string connectionString, ILogger<PostgresSnapshotStore> logger)
 		: this(CreateDataSource(connectionString), logger)
@@ -75,16 +84,22 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 	/// <item><description>Integration with <see cref="IDb"/> abstraction</description></item>
 	/// </list>
 	/// </remarks>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, every
+	/// read, save, and delete is restricted to the resolved tenant's own rows.
+	/// </param>
 	public PostgresSnapshotStore(
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresSnapshotStore> logger,
 		string schema = "public",
-		string table = "event_store_snapshots")
+		string table = "event_store_snapshots",
+		ITenantContext? tenantContext = null)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_schema = schema;
 		_table = table;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -101,7 +116,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			var snapshot = await connection.ResolveAsync(
-					new GetLatestSnapshotRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
+					new GetLatestSnapshotRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (snapshot == null)
@@ -140,7 +155,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new SaveSnapshotRequest(snapshot, cancellationToken, _schema, _table))
+					new SaveSnapshotRequest(snapshot, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Saved snapshot for {AggregateType}/{AggregateId} at version {Version}",
@@ -176,7 +191,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsRequest(aggregateId, aggregateType, cancellationToken, _schema, _table))
+					new DeleteSnapshotsRequest(aggregateId, aggregateType, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots for {AggregateType}/{AggregateId}",
@@ -213,7 +228,7 @@ public sealed class PostgresSnapshotStore : ISnapshotStore
 			await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, cancellationToken, _schema, _table))
+					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots older than version {Version} for {AggregateType}/{AggregateId}",

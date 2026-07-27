@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security;
 
 using FakeItEasy;
@@ -34,7 +35,8 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
 
         _sut = new SecurityEventLogger(
             NullLogger<SecurityEventLogger>.Instance,
-            _eventStore);
+            _eventStore,
+            A.Fake<ITelemetrySanitizer>());
     }
 
     public void Dispose() => _sut.Dispose();
@@ -69,14 +71,14 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
     public void ThrowWhenLoggerIsNull()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new SecurityEventLogger(null!, _eventStore));
+            new SecurityEventLogger(null!, _eventStore, A.Fake<ITelemetrySanitizer>()));
     }
 
     [Fact]
     public void ThrowWhenEventStoreIsNull()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new SecurityEventLogger(NullLogger<SecurityEventLogger>.Instance, null!));
+            new SecurityEventLogger(NullLogger<SecurityEventLogger>.Instance, null!, A.Fake<ITelemetrySanitizer>()));
     }
 
     [Fact]
@@ -214,7 +216,8 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
         // Act & Assert - should not throw
         using var logger = new SecurityEventLogger(
             NullLogger<SecurityEventLogger>.Instance,
-            _eventStore);
+            _eventStore,
+            A.Fake<ITelemetrySanitizer>());
 
         logger.Dispose();
     }

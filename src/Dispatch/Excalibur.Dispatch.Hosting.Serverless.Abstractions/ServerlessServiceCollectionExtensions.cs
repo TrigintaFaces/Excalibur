@@ -85,11 +85,9 @@ public static class ServerlessServiceCollectionExtensions
 	/// Adds AWS Lambda hosting support to the service collection.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="configureOptions"> Optional configuration action for AWS Lambda options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddAwsLambdaHosting(
-		this IServiceCollection services,
-		Action<AwsLambdaOptions>? configureOptions = null)
+		this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -98,11 +96,6 @@ public static class ServerlessServiceCollectionExtensions
 			options.PreferredPlatform = ServerlessPlatform.AwsLambda;
 		});
 
-		if (configureOptions != null)
-		{
-			_ = services.Configure(configureOptions);
-		}
-
 		return services;
 	}
 
@@ -110,11 +103,9 @@ public static class ServerlessServiceCollectionExtensions
 	/// Adds Azure Functions hosting support to the service collection.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="configureOptions"> Optional configuration action for Azure Functions options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddAzureFunctionsHosting(
-		this IServiceCollection services,
-		Action<AzureFunctionsOptions>? configureOptions = null)
+		this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -123,11 +114,6 @@ public static class ServerlessServiceCollectionExtensions
 			options.PreferredPlatform = ServerlessPlatform.AzureFunctions;
 		});
 
-		if (configureOptions != null)
-		{
-			_ = services.Configure(configureOptions);
-		}
-
 		return services;
 	}
 
@@ -135,11 +121,9 @@ public static class ServerlessServiceCollectionExtensions
 	/// Adds Google Cloud Functions hosting support to the service collection.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
-	/// <param name="configureOptions"> Optional configuration action for Google Cloud Functions options. </param>
 	/// <returns> The service collection for chaining. </returns>
 	public static IServiceCollection AddGoogleCloudFunctionsHosting(
-		this IServiceCollection services,
-		Action<GoogleCloudFunctionsOptions>? configureOptions = null)
+		this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -147,11 +131,6 @@ public static class ServerlessServiceCollectionExtensions
 		{
 			options.PreferredPlatform = ServerlessPlatform.GoogleCloudFunctions;
 		});
-
-		if (configureOptions != null)
-		{
-			_ = services.Configure(configureOptions);
-		}
 
 		return services;
 	}

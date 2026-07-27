@@ -297,8 +297,8 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["Cdc:CdcSource:ConnectionString"] = TestConnectionString,
-				["Cdc:CdcSource:DatabaseName"] = "ConfigBoundDb",
+				["Cdc:CdcSource:Connection:ConnectionString"] = TestConnectionString,
+				["Cdc:CdcSource:Connection:DatabaseName"] = "ConfigBoundDb",
 			})
 			.Build();
 
@@ -322,8 +322,8 @@ public sealed class SqlServerCdcBuilderNewMethodsShould : UnitTestBase
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["Cdc:CdcSource:ConnectionString"] = TestConnectionString,
-				["Cdc:CdcSource:DatabaseName"] = "ConfigDb",
+				["Cdc:CdcSource:Connection:ConnectionString"] = TestConnectionString,
+				["Cdc:CdcSource:Connection:DatabaseName"] = "ConfigDb",
 			})
 			.Build();
 

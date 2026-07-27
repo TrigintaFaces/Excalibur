@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.DependencyInjection;
@@ -142,7 +143,7 @@ public static class SagaBuilderSqlServerExtensions
 			var storeOptions = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
 			var serializer = sp.GetRequiredService<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
-			return new SqlServerSagaStore(factory, storeOptions, logger, serializer);
+			return new SqlServerSagaStore(factory, storeOptions, logger, serializer, sp.GetService<ITenantContext>());
 		});
 		builder.Services.AddKeyedSingleton<ISagaStore>(
 			"sqlserver", (sp, _) => sp.GetRequiredService<SqlServerSagaStore>());

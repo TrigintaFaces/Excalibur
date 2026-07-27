@@ -41,6 +41,10 @@ public static class A3CoreServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Fallback in-memory stores: used when no persistent provider is registered.
+		// No durability attestation is emitted for the in-memory grant store, deliberately: it loses every
+		// grant on restart, and the resulting failure is a silent deny-all rather than a visible error.
+		// Nothing refuses this default at startup, so a host that needs grants to survive a restart must
+		// register a durable store itself.
 		services.TryAddSingleton<IGrantStore, InMemoryGrantStore>();
 		services.TryAddSingleton<IActivityGroupStore, InMemoryActivityGroupStore>();
 

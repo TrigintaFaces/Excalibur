@@ -100,8 +100,8 @@ internal sealed class Dispatcher(
 	// PERF: When UseLightMode is true, correlation is disabled to eliminate
 	// 2 volatile writes (MarkForLazyCorrelation/MarkForLazyCausation) per dispatch.
 	// Ambient context flow (AsyncLocal push/pop) is always enabled — it's required
-	// for DispatchChildAsync, correlation-aware logging, and middleware that reads
-	// MessageContextHolder.Current.
+	// for the ambient-context auto-child dispatch, correlation-aware logging, and
+	// middleware that reads MessageContextHolder.Current.
 	private readonly bool _correlationEnabled = ResolveCorrelationEnabled(dispatchOptions);
 
 	private readonly DirectLocalContextInitializationProfile _directLocalContextInitializationProfile =
@@ -991,11 +991,12 @@ internal sealed class Dispatcher(
 		// If the token becomes cancelled between the caller's check and handler invocation,
 		// the handler will throw OperationCanceledException which is caught below.
 
-		// PERF: Use ThreadStatic push/pop instead of AsyncLocal to avoid ~72B of
-		// ExecutionContext copies on the synchronous completion path (the common case).
-		// The handler can still read MessageContextHolder.Current during sync execution
-		// via the ThreadStatic fast path in the getter. If the handler goes async,
-		// we promote to AsyncLocal on the slow path.
+		// Ambient context flows via AsyncLocal (MessageContextHolder). It is set here BEFORE invoking
+		// the handler, so the handler captures it in its own ExecutionContext whether it completes
+		// synchronously or goes async; Pop then restores the caller's context in the synchronous frame
+		// without disturbing the handler's already-captured EC (an AsyncLocal write does not propagate
+		// from a child EC back to the parent). NOTE: a ThreadStatic dual-layer fast path was tried and
+		// reverted (experiment #1) — do not reintroduce it.
 		var previous = PushAmbientContext(context);
 
 		try
@@ -1011,8 +1012,8 @@ internal sealed class Dispatcher(
 				return true;
 			}
 
-			// Handler went async — promote ThreadStatic context to AsyncLocal for
-			// async continuation flow, then await the invocation.
+			// Handler went async — Pop the caller's ambient context in the sync frame (the handler
+			// already captured it in its EC); the Await* helper carries `context` for the continuation.
 			PopAmbientContext(previous);
 			task = AwaitDirectLocalNoResponseAsync(invocation, context);
 
@@ -1044,7 +1045,7 @@ internal sealed class Dispatcher(
 		// PERF: Cancellation check removed — caller (DispatchAsync) already checks
 		// cancellationToken.IsCancellationRequested before calling this method.
 
-		// PERF: ThreadStatic push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
+		// PERF: ambient-context push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
 		var previous = PushAmbientContext(context);
 
 		try
@@ -1061,7 +1062,7 @@ internal sealed class Dispatcher(
 				return true;
 			}
 
-			// Handler went async — promote to AsyncLocal for continuation flow.
+			// Handler went async — Pop the caller's ambient context; the handler already captured it in its EC.
 			PopAmbientContext(previous);
 			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
 
@@ -1093,7 +1094,7 @@ internal sealed class Dispatcher(
 		// checks cancellationToken.IsCancellationRequested before calling this method.
 		// Saves one branch + ShouldReturnCancelledResult per dispatch.
 
-		// PERF: ThreadStatic push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
+		// PERF: ambient-context push/pop — see TryDispatchUltraLocalNoResponseFast for rationale.
 		var previous = PushAmbientContext(context);
 
 		try
@@ -1109,7 +1110,7 @@ internal sealed class Dispatcher(
 				return true;
 			}
 
-			// Handler went async — promote to AsyncLocal for continuation flow.
+			// Handler went async — Pop the caller's ambient context; the handler already captured it in its EC.
 			PopAmbientContext(previous);
 			task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
 
@@ -2159,11 +2160,6 @@ internal sealed class Dispatcher(
 		return opts.Features.EnableCorrelation;
 	}
 
-	/// <summary>
-	/// Resolves whether ambient context flow is enabled, accounting for <c>UseLightMode</c>.
-	/// When <c>UseLightMode</c> is true, ambient context flow is disabled to eliminate
-	/// 2 AsyncLocal&lt;T&gt;.Value writes (~100B ExecutionContext copy each) per dispatch.
-	/// </summary>
 	/// <summary>
 	/// Gets combined dispatch info for a message type in a single cache lookup, replacing
 	/// repeated type checks and middleware applicability queries with one

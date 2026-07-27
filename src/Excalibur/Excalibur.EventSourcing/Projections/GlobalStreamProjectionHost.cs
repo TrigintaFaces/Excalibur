@@ -9,6 +9,7 @@ using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -40,11 +41,13 @@ namespace Excalibur.EventSourcing.Projections;
 public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundService
 	where TState : class, new()
 {
-	private readonly IGlobalStreamQuery _globalStreamQuery;
-	private readonly IGlobalStreamProjection<TState> _projection;
+	// This host is a singleton BackgroundService, but IGlobalStreamQuery / IGlobalStreamProjection /
+	// ISubscriptionCheckpointStore / ICursorMapStore are typically scoped (provider-specific SQL impls).
+	// Capturing them directly would be a captive dependency (scope-validation throw, or a connection
+	// pinned for the process lifetime), so they are resolved from a fresh scope per polling cycle (l55sbl)
+	// — the same pattern the sibling AsyncProjectionProcessingHost documents and uses.
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IEventSerializer _eventSerializer;
-	private readonly ISubscriptionCheckpointStore _checkpointStore;
-	private readonly ICursorMapStore? _cursorMapStore;
 	private readonly IOptions<GlobalStreamProjectionOptions> _options;
 	private readonly ILogger<GlobalStreamProjectionHost<TState>> _logger;
 	private readonly ProjectionObservability? _observability;
@@ -64,35 +67,26 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GlobalStreamProjectionHost{TState}"/> class.
 	/// </summary>
-	/// <param name="globalStreamQuery">The global stream query for reading events.</param>
-	/// <param name="projection">The projection to apply events to.</param>
+	/// <param name="scopeFactory">
+	/// The scope factory used to resolve the (typically scoped) global-stream query, projection, checkpoint
+	/// store, and optional cursor-map store from a fresh scope per polling cycle (avoids a captive dependency
+	/// in this singleton host).
+	/// </param>
 	/// <param name="eventSerializer">The event serializer for deserializing stored events.</param>
-	/// <param name="checkpointStore">The checkpoint store for persisting and restoring position.</param>
 	/// <param name="options">The projection host options.</param>
 	/// <param name="logger">The logger.</param>
 	/// <param name="serviceProvider">The service provider for resolving internal observability services.</param>
-	/// <param name="cursorMapStore">
-	/// Optional cursor map store for multi-stream projections. When provided,
-	/// per-stream positions are tracked in addition to the single checkpoint.
-	/// Null means single-stream checkpoint mode (unchanged behavior).
-	/// </param>
 	public GlobalStreamProjectionHost(
-		IGlobalStreamQuery globalStreamQuery,
-		IGlobalStreamProjection<TState> projection,
+		IServiceScopeFactory scopeFactory,
 		IEventSerializer eventSerializer,
-		ISubscriptionCheckpointStore checkpointStore,
 		IOptions<GlobalStreamProjectionOptions> options,
 		ILogger<GlobalStreamProjectionHost<TState>> logger,
-		IServiceProvider serviceProvider,
-		ICursorMapStore? cursorMapStore = null)
+		IServiceProvider serviceProvider)
 	{
-		_globalStreamQuery = globalStreamQuery ?? throw new ArgumentNullException(nameof(globalStreamQuery));
-		_projection = projection ?? throw new ArgumentNullException(nameof(projection));
+		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
-		_checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_cursorMapStore = cursorMapStore;
 
 		// Resolve internal observability types from DI (optional, never fails)
 		ArgumentNullException.ThrowIfNull(serviceProvider);
@@ -132,9 +126,15 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		var opts = _options.Value;
 		var state = new TState();
 
-		// Restore checkpoint position from last run
-		var lastCheckpoint = await _checkpointStore.GetCheckpointAsync(opts.ProjectionName, stoppingToken)
-			.ConfigureAwait(false);
+		// Restore checkpoint position from last run (scoped resolution — no captive dependency).
+		long? lastCheckpoint;
+		await using (var restoreScope = _scopeFactory.CreateAsyncScope())
+		{
+			var restoreCheckpointStore = restoreScope.ServiceProvider.GetRequiredService<ISubscriptionCheckpointStore>();
+			lastCheckpoint = await restoreCheckpointStore.GetCheckpointAsync(opts.ProjectionName, stoppingToken)
+				.ConfigureAwait(false);
+		}
+
 		if (lastCheckpoint.HasValue)
 		{
 			_currentPosition = new GlobalStreamPosition(lastCheckpoint.Value, DateTimeOffset.MinValue);
@@ -147,7 +147,18 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		{
 			try
 			{
-				var events = await _globalStreamQuery.ReadAllAsync(
+				// Resolve the (scoped) query/projection/stores from a fresh scope per polling cycle so this
+				// singleton host never captures a scoped dependency (l55sbl). Host-level accumulators
+				// (_currentPosition, _checkpointedPosition, _eventsSinceCheckpoint, _pendingCursorUpdates,
+				// state) stay on the host; only the DI-resolved collaborators are per-cycle.
+				await using var scope = _scopeFactory.CreateAsyncScope();
+				var provider = scope.ServiceProvider;
+				var globalStreamQuery = provider.GetRequiredService<IGlobalStreamQuery>();
+				var projection = provider.GetRequiredService<IGlobalStreamProjection<TState>>();
+				var checkpointStore = provider.GetRequiredService<ISubscriptionCheckpointStore>();
+				var cursorMapStore = provider.GetService<ICursorMapStore>();
+
+				var events = await globalStreamQuery.ReadAllAsync(
 					_currentPosition,
 					opts.BatchSize,
 					stoppingToken).ConfigureAwait(false);
@@ -180,7 +191,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 
 						domainEvent = TryUpcastEvent(domainEvent);
 
-						await _projection.ApplyAsync(domainEvent, state, stoppingToken)
+						await projection.ApplyAsync(domainEvent, state, stoppingToken)
 							.ConfigureAwait(false);
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
@@ -212,7 +223,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 
 					// Event applied successfully — track per-stream cursor (R27.55) and the last good
 					// global checkpoint position (the GLOBAL ordinal, not the per-aggregate Version).
-					if (_cursorMapStore is not null)
+					if (cursorMapStore is not null)
 					{
 						var streamKey = $"{storedEvent.AggregateType}:{storedEvent.AggregateId}";
 						_pendingCursorUpdates[streamKey] = storedEvent.Version;
@@ -245,15 +256,15 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					// Invariant: cursor-map >= checkpoint, NEVER checkpoint > cursor-map. (The two stores are
 					// decoupled and neither is transaction-bearing, so ordering — not a cross-store
 					// transaction — is the fix.)
-					if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
+					if (cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 					{
-						await _cursorMapStore.SaveCursorMapAsync(
+						await cursorMapStore.SaveCursorMapAsync(
 								opts.ProjectionName, _pendingCursorUpdates, stoppingToken)
 							.ConfigureAwait(false);
 						_pendingCursorUpdates.Clear();
 					}
 
-					await _checkpointStore.StoreCheckpointAsync(
+					await checkpointStore.StoreCheckpointAsync(
 							opts.ProjectionName, _currentPosition.Position, stoppingToken)
 						.ConfigureAwait(false);
 
@@ -306,23 +317,28 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			}
 		}
 
-		// Persist final checkpoint position on graceful shutdown
+		// Persist final checkpoint position on graceful shutdown (scoped resolution — no captive dependency).
 		if (_eventsSinceCheckpoint > 0)
 		{
 			try
 			{
+				await using var finalScope = _scopeFactory.CreateAsyncScope();
+				var finalProvider = finalScope.ServiceProvider;
+				var checkpointStore = finalProvider.GetRequiredService<ISubscriptionCheckpointStore>();
+				var cursorMapStore = finalProvider.GetService<ICursorMapStore>();
+
 				// Same ordering invariant as the periodic checkpoint: cursor map FIRST, checkpoint LAST,
 				// so a partial failure can only leave the cursor map ahead of the checkpoint, never the
 				// reverse (which would skip events on a multi-stream resume).
-				if (_cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
+				if (cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 				{
-					await _cursorMapStore.SaveCursorMapAsync(
+					await cursorMapStore.SaveCursorMapAsync(
 							opts.ProjectionName, _pendingCursorUpdates, CancellationToken.None)
 						.ConfigureAwait(false);
 					_pendingCursorUpdates.Clear();
 				}
 
-				await _checkpointStore.StoreCheckpointAsync(
+				await checkpointStore.StoreCheckpointAsync(
 						opts.ProjectionName, _currentPosition.Position, CancellationToken.None)
 					.ConfigureAwait(false);
 

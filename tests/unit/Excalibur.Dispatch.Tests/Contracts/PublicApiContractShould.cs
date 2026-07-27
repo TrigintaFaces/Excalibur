@@ -157,10 +157,33 @@ public sealed partial class PublicApiContractShould
 			}
 		}
 
+		// Types marked *REMOVED* in the Unshipped baseline are intentionally deleted from the
+		// assembly (they remain in Shipped.txt until the next ship), so exclude them.
+		var removedTypes = new HashSet<string>(StringComparer.Ordinal);
+		var unshippedPath = Path.Combine(Path.GetDirectoryName(filePath)!, "PublicAPI.Unshipped.txt");
+		if (File.Exists(unshippedPath))
+		{
+			foreach (var line in File.ReadLines(unshippedPath))
+			{
+				const string removedPrefix = "*REMOVED*";
+				if (!line.StartsWith(removedPrefix, StringComparison.Ordinal))
+				{
+					continue;
+				}
+
+				var removedMatch = TypeDeclarationExtractor().Match(line[removedPrefix.Length..]);
+				if (removedMatch.Success)
+				{
+					_ = removedTypes.Add(removedMatch.Groups[1].Value);
+				}
+			}
+		}
+
 		// Act -- check for declared types that no longer exist in the assembly
 		// Generic types in PublicAPI use <T> notation, .NET reflection uses `1 notation
 		// Strip generic parameters for comparison
 		var missingTypes = declaredTypes
+			.Where(t => !removedTypes.Contains(t))
 			.Where(t =>
 			{
 				// Try exact match first

@@ -6,6 +6,8 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.CryptoShredding;
+using Excalibur.Compliance.Encryption;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Encryption.Decorators;
 
@@ -30,6 +32,8 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 	private readonly IEventStore _innerStore;
 	private readonly IEncryptionProviderRegistry _registry;
 	private readonly IEncryptionProvider _provider;
+	private readonly SubjectFieldCryptor _subjectCryptor;
+	private readonly IEventSerializer _serializer;
 	private readonly CancellationToken _ct = CancellationToken.None;
 
 	public EncryptingEventStoreDecoratorExtendedShould()
@@ -37,6 +41,17 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 		_innerStore = A.Fake<IEventStore>();
 		_registry = A.Fake<IEncryptionProviderRegistry>();
 		_provider = A.Fake<IEncryptionProvider>();
+		_subjectCryptor = new SubjectFieldCryptor(A.Fake<IFieldEncryptor>());
+		_serializer = A.Fake<IEventSerializer>();
+
+		// These locks cover the LEGACY whole-blob decrypt path; their fixture payloads are raw bytes, not
+		// serialized domain events. A real IEventSerializer throws when asked to deserialize them, which the
+		// decorator catches and returns the event unchanged. An unconfigured fake instead returns a faked Type
+		// and a faked IDomainEvent, so the per-subject field-decrypt step would re-serialize the event and
+		// overwrite EventData with empty bytes. Model the real serializer's contract so the fallback branch,
+		// not a fake artifact, is what these locks exercise.
+		A.CallTo(() => _serializer.DeserializeEvent(A<byte[]>._, A<Type>._))
+			.Throws<InvalidOperationException>();
 	}
 
 	private EncryptingEventStoreDecorator CreateDecorator(EncryptionMode mode = EncryptionMode.EncryptAndDecrypt)
@@ -47,7 +62,7 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 			DefaultPurpose = "test",
 			DefaultTenantId = "tenant-1"
 		});
-		return new EncryptingEventStoreDecorator(_innerStore, _registry, options);
+		return new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options);
 	}
 
 	/// <summary>
@@ -417,7 +432,7 @@ public sealed class EncryptingEventStoreDecoratorExtendedShould
 		});
 
 		// Act - should not throw
-		var decorator = new EncryptingEventStoreDecorator(_innerStore, _registry, options);
+		var decorator = new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, options);
 
 		// Assert
 		decorator.ShouldNotBeNull();

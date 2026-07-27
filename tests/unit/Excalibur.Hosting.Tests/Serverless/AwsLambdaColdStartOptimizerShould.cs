@@ -25,6 +25,7 @@ public sealed class AwsLambdaColdStartOptimizerShould : UnitTestBase
 		_serviceProvider = services.BuildServiceProvider();
 		_sut = new AwsLambdaColdStartOptimizer(
 			_serviceProvider,
+			Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions()),
 			NullLogger<AwsLambdaColdStartOptimizer>.Instance);
 	}
 
@@ -32,41 +33,55 @@ public sealed class AwsLambdaColdStartOptimizerShould : UnitTestBase
 	public void Constructor_ThrowsArgumentNullException_WhenServiceProviderIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsLambdaColdStartOptimizer(null!, NullLogger<AwsLambdaColdStartOptimizer>.Instance));
+			new AwsLambdaColdStartOptimizer(
+				null!,
+				Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions()),
+				NullLogger<AwsLambdaColdStartOptimizer>.Instance));
+	}
+
+	[Fact]
+	public void Constructor_ThrowsArgumentNullException_WhenOptionsIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() =>
+			new AwsLambdaColdStartOptimizer(
+				_serviceProvider,
+				null!,
+				NullLogger<AwsLambdaColdStartOptimizer>.Instance));
 	}
 
 	[Fact]
 	public void Constructor_ThrowsArgumentNullException_WhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new AwsLambdaColdStartOptimizer(_serviceProvider, null!));
+			new AwsLambdaColdStartOptimizer(
+				_serviceProvider,
+				Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions()),
+				null!));
 	}
 
 	[Fact]
-	public void IsEnabled_ReturnsFalse_WhenEnvVarNotSet()
+	public void IsEnabled_ReturnsFalse_WhenColdStartOptimizationDisabled()
 	{
-		// Arrange
-		Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", null);
+		// IsEnabled reads the AwsLambdaOptions flag (defaulted once at the composition root from
+		// AWS_LAMBDA_FUNCTION_NAME), NOT a direct environment read on each evaluation. Default = disabled.
+		var optimizer = new AwsLambdaColdStartOptimizer(
+			_serviceProvider,
+			Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions { ColdStartOptimizationEnabled = false }),
+			NullLogger<AwsLambdaColdStartOptimizer>.Instance);
 
-		// Act & Assert
-		_sut.IsEnabled.ShouldBeFalse();
+		optimizer.IsEnabled.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void IsEnabled_ReturnsTrue_WhenEnvVarIsSet()
+	public void IsEnabled_ReturnsTrue_WhenColdStartOptimizationEnabled()
 	{
-		// Arrange
-		Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", "test-function");
+		// The flag (set true at the composition root when AWS_LAMBDA_FUNCTION_NAME is present) drives IsEnabled.
+		var optimizer = new AwsLambdaColdStartOptimizer(
+			_serviceProvider,
+			Microsoft.Extensions.Options.Options.Create(new AwsLambdaOptions { ColdStartOptimizationEnabled = true }),
+			NullLogger<AwsLambdaColdStartOptimizer>.Instance);
 
-		try
-		{
-			// Act & Assert
-			_sut.IsEnabled.ShouldBeTrue();
-		}
-		finally
-		{
-			Environment.SetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME", null);
-		}
+		optimizer.IsEnabled.ShouldBeTrue();
 	}
 
 	[Fact]

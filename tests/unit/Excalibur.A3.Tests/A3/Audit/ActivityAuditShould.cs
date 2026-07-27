@@ -30,9 +30,6 @@ public sealed class ActivityAuditShould
 		var expectedCorrelationId = Guid.NewGuid();
 		A.CallTo(() => correlationId.Value).Returns(expectedCorrelationId);
 
-		var tenantId = A.Fake<ITenantId>();
-		A.CallTo(() => tenantId.Value).Returns("tenant-1");
-
 		var config = A.Fake<IConfiguration>();
 		A.CallTo(() => config["ApplicationName"]).Returns("TestApp");
 
@@ -41,7 +38,7 @@ public sealed class ActivityAuditShould
 		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration>.That.IsNull())).Returns(config);
 		A.CallTo(() => context.GetValue("ClientAddress", A<IClientAddress>.That.IsNull())).Returns(clientAddress);
 		A.CallTo(() => context.GetValue("CorrelationId", A<ICorrelationId>.That.IsNull())).Returns(correlationId);
-		A.CallTo(() => context.GetValue("TenantId", A<ITenantId>.That.IsNull())).Returns(tenantId);
+		A.CallTo(() => context.GetValue<string?>("TenantId", null)).Returns("tenant-1");
 
 		var request = new TestRequest();
 
@@ -124,25 +121,8 @@ public sealed class ActivityAuditShould
 		audit.MessageId.ShouldBe(audit.Id.ToString());
 	}
 
-	[Fact]
-	public void Return_event_kind()
-	{
-		// Arrange
-		var audit = new ActivityAudit<TestRequest, string>(CreateContext(), new TestRequest());
-
-		// Assert
-		audit.Kind.ShouldBe(MessageKinds.Event);
-	}
-
-	[Fact]
-	public void Return_user_id_as_aggregate_id()
-	{
-		// Arrange
-		var audit = new ActivityAudit<TestRequest, string>(CreateContext(), new TestRequest());
-
-		// Assert
-		audit.AggregateId.ShouldBe(audit.UserId);
-	}
+	// Removed Return_user_id_as_aggregate_id: stream identity (AggregateId) moved to the persistence
+	// envelope (StoredEvent.AggregateId → HistoricEvent); IDomainEvent no longer carries AggregateId.
 
 	[Fact]
 	public void Return_timestamp_as_occurred_at()

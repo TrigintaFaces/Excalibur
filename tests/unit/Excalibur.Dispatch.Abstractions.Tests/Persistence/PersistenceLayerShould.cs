@@ -289,11 +289,11 @@ public sealed class PersistenceLayerShould
 		// Arrange
 		var store = A.Fake<IOutboxStoreAdmin>();
 		var olderThan = DateTimeOffset.UtcNow.AddDays(-7);
-		_ = A.CallTo(() => store.CleanupSentMessagesAsync(olderThan, 1000, A<CancellationToken>._))
+		_ = A.CallTo(() => store.CleanupAllTenantsSentMessagesAsync(olderThan, 1000, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(50));
 
 		// Act
-		var removed = await store.CleanupSentMessagesAsync(olderThan, 1000, CancellationToken.None).ConfigureAwait(false);
+		var removed = await store.CleanupAllTenantsSentMessagesAsync(olderThan, 1000, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		removed.ShouldBe(50);

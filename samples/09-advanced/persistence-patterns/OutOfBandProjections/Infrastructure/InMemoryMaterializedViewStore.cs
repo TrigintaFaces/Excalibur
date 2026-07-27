@@ -9,13 +9,51 @@ using Excalibur.EventSourcing;
 namespace OutOfBandProjections.Infrastructure;
 
 /// <summary>
-/// Simple in-memory implementation of <see cref="IMaterializedViewStore"/> for demonstration.
-/// In production, use SqlServer/Postgres/CosmosDb/MongoDB stores.
+/// Simple in-memory implementation of <see cref="IAtomicMaterializedViewStore"/> for demonstration.
+/// In production, use the SqlServer or Postgres store, or MongoDB with transactions enabled.
 /// </summary>
-public sealed class InMemoryMaterializedViewStore : IMaterializedViewStore
+/// <remarks>
+/// Implements <see cref="IAtomicMaterializedViewStore"/> because an exactly-once projection requires a store
+/// that commits the view and its checkpoint together. A store that only implements
+/// <see cref="IMaterializedViewStore"/> is refused at startup rather than silently degrading to at-least-once.
+/// </remarks>
+public sealed class InMemoryMaterializedViewStore : IAtomicMaterializedViewStore
 {
     private readonly ConcurrentDictionary<string, byte[]> _views = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, long> _positions = new(StringComparer.Ordinal);
+
+    /// <summary>Serialises the view+position write so the pair is observed all-or-nothing.</summary>
+    private readonly Lock _atomicWriteGate = new();
+
+    /// <inheritdoc />
+    public bool SupportsAtomicWrites => true;
+
+    /// <inheritdoc />
+    public ValueTask SaveViewAndPositionAsync<TView>(
+        string viewName,
+        string viewId,
+        TView view,
+        long position,
+        CancellationToken cancellationToken)
+        where TView : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(viewId);
+        ArgumentNullException.ThrowIfNull(view);
+
+        var key = $"{viewName}:{viewId}";
+        var payload = JsonSerializer.SerializeToUtf8Bytes(view);
+
+        // Both writes happen under one lock, so no reader observes the view advanced without its checkpoint.
+        // The position advance is monotonic: a delayed write never rewinds an already-higher checkpoint.
+        lock (_atomicWriteGate)
+        {
+            _views[key] = payload;
+            _ = _positions.AddOrUpdate(viewName, position, (_, existing) => Math.Max(existing, position));
+        }
+
+        return ValueTask.CompletedTask;
+    }
 
     /// <inheritdoc />
     public ValueTask<TView?> GetAsync<TView>(string viewName, string viewId, CancellationToken cancellationToken)

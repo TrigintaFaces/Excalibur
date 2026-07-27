@@ -1,4 +1,9 @@
 #nullable enable
+Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder
+Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
+Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.LogType(string! logType) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
+Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.SharedKey(string! sharedKey) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
+Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.WorkspaceId(string! workspaceId) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
 Excalibur.AuditLogging.Sentinel.SentinelAuditExporter
 Excalibur.AuditLogging.Sentinel.SentinelAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExporterHealthResult!>!
 Excalibur.AuditLogging.Sentinel.SentinelAuditExporter.ExportAsync(Excalibur.Compliance.AuditEvent! auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.AuditExportResult!>!
@@ -35,9 +40,4 @@ const Excalibur.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedS
 const Excalibur.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardFailedTimeout = 93449 -> int
 const Excalibur.AuditLogging.Sentinel.SentinelAuditLoggingEventId.ForwardRetried = 93446 -> int
 const Excalibur.AuditLogging.Sentinel.SentinelAuditLoggingEventId.HealthCheckFailed = 93447 -> int
-Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder
-Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.BindConfiguration(string! sectionPath) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
-Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.LogType(string! logType) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
-Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.SharedKey(string! sharedKey) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
-Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder.WorkspaceId(string! workspaceId) -> Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!
 static Microsoft.Extensions.DependencyInjection.SentinelServiceCollectionExtensions.AddSentinelAuditExporter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.AuditLogging.Sentinel.IAuditLoggingSentinelBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

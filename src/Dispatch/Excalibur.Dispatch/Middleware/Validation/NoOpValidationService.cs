@@ -4,10 +4,10 @@
 namespace Excalibur.Dispatch.Middleware.Validation;
 
 /// <summary>
-/// A no-operation implementation of <see cref="IValidationService" /> that always returns a successful validation result.
+/// A no-operation implementation of <see cref="IMessageValidationService" /> that always returns a successful validation result.
 /// Used as the default implementation when custom validation is not configured.
 /// </summary>
-internal sealed class NoOpValidationService : IValidationService
+internal sealed class NoOpValidationService : IMessageValidationService
 {
 	/// <inheritdoc />
 	public Task<MessageValidationResult> ValidateAsync(

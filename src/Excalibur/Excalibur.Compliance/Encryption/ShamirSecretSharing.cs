@@ -36,10 +36,6 @@ namespace Excalibur.Compliance.Encryption;
 /// </remarks>
 public static class ShamirSecretSharing
 {
-	// Lookup tables for GF(256) arithmetic using the irreducible polynomial x^8 + x^4 + x^3 + x + 1 (0x11B)
-	private static readonly byte[] ExpTable = new byte[512];
-	private static readonly byte[] LogTable = new byte[256];
-
 	// Versioned, self-describing share layout (greenfield — byte format may change freely):
 	//   [version:1][threshold:1][secretLen:2 BE][commitment:32][index:1][data:secretLen]
 	// The commitment is SHA-256 of the original secret, embedded in every share so that
@@ -55,46 +51,6 @@ public static class ShamirSecretSharing
 	private const int DataOffset = IndexOffset + 1; // 37
 	private const int HeaderLength = DataOffset; // 37 bytes of header precede the share data
 	private const int MaxSecretLength = ushort.MaxValue; // secretLen is encoded in 2 bytes
-
-	static ShamirSecretSharing()
-	{
-		// Initialize GF(256) exp and log tables
-		// Using generator 3 (0x03) which is a primitive element in GF(256) with polynomial 0x11B
-		var x = 1;
-		for (var i = 0; i < 255; i++)
-		{
-			ExpTable[i] = (byte)x;
-			ExpTable[i + 255] = (byte)x;
-			LogTable[x] = (byte)i;
-			x = GfMultiplyInit(x, 3); // Use 3 as generator (primitive element)
-		}
-
-		ExpTable[510] = ExpTable[0];
-		LogTable[0] = 0; // log(0) is undefined, but we use 0 for simplicity
-
-		// GF(256) multiplication for table initialization (before tables are ready)
-		static int GfMultiplyInit(int a, int b)
-		{
-			var result = 0;
-			while (b > 0)
-			{
-				if ((b & 1) != 0)
-				{
-					result ^= a;
-				}
-
-				a <<= 1;
-				if ((a & 0x100) != 0)
-				{
-					a ^= 0x11B; // Reduce by irreducible polynomial x^8 + x^4 + x^3 + x + 1
-				}
-
-				b >>= 1;
-			}
-
-			return result;
-		}
-	}
 
 	/// <summary>
 	/// Splits a secret into multiple shares using Shamir's Secret Sharing.
@@ -385,21 +341,73 @@ public static class ShamirSecretSharing
 	private static byte GfAdd(byte a, byte b) => (byte)(a ^ b);
 
 	/// <summary>
-	/// Multiplication in GF(256) using lookup tables.
+	/// Multiplication in GF(256) with the reduction polynomial x^8 + x^4 + x^3 + x + 1 (0x11B).
 	/// </summary>
+	/// <remarks>
+	/// Constant-time (data-independent) by construction: no operand-dependent branch and no
+	/// operand-indexed table lookup, so the running time and cache-access pattern do not vary with the
+	/// operand values (removes the timing/cache side channel of the previous table-lookup form). A zero
+	/// operand yields zero without a special-cased early return.
+	/// </remarks>
 	private static byte GfMultiply(byte a, byte b)
 	{
-		if (a == 0 || b == 0)
+		var product = 0;
+		var factor = (int)a;
+		var multiplier = (int)b;
+
+		for (var i = 0; i < 8; i++)
 		{
-			return 0;
+			// Add (XOR) the current factor into the product when the low bit of the multiplier is set,
+			// selected with a 0x00/0xFFFFFFFF mask instead of a branch so timing is operand-independent.
+			var addMask = -(multiplier & 1);
+			product ^= factor & addMask;
+
+			// xtime: factor *= x, then reduce by 0x11B when the overflow bit (0x100) is set — branchless.
+			factor <<= 1;
+			var reduceMask = -((factor >> 8) & 1);
+			factor ^= reduceMask & 0x11B;
+
+			multiplier >>= 1;
 		}
 
-		return ExpTable[LogTable[a] + LogTable[b]];
+		return (byte)product;
 	}
 
 	/// <summary>
-	/// Division in GF(256) using lookup tables.
+	/// Multiplicative inverse in GF(256): <c>a^(-1) = a^254</c> (Fermat, since <c>a^255 = 1</c>).
 	/// </summary>
+	/// <remarks>
+	/// Fixed square-and-multiply chain for the constant exponent 254, so the schedule is independent of
+	/// <paramref name="a"/> (constant-time). The inverse of 0 is 0 here, which is never used: callers
+	/// reject a zero divisor before dividing.
+	/// </remarks>
+	private static byte GfInverse(byte a)
+	{
+		var a2 = GfMultiply(a, a);       // a^2
+		var a4 = GfMultiply(a2, a2);     // a^4
+		var a8 = GfMultiply(a4, a4);     // a^8
+		var a16 = GfMultiply(a8, a8);    // a^16
+		var a32 = GfMultiply(a16, a16);  // a^32
+		var a64 = GfMultiply(a32, a32);  // a^64
+		var a128 = GfMultiply(a64, a64); // a^128
+
+		// a^254 = a^2 · a^4 · a^8 · a^16 · a^32 · a^64 · a^128
+		var result = GfMultiply(a2, a4);
+		result = GfMultiply(result, a8);
+		result = GfMultiply(result, a16);
+		result = GfMultiply(result, a32);
+		result = GfMultiply(result, a64);
+		result = GfMultiply(result, a128);
+		return result;
+	}
+
+	/// <summary>
+	/// Division in GF(256): <c>a / b = a · b^(-1)</c>.
+	/// </summary>
+	/// <remarks>
+	/// Constant-time in the operand values. A zero divisor is a caller contract violation and throws;
+	/// this is the only branch and it depends on the (non-secret) divisor, not on the dividend.
+	/// </remarks>
 	private static byte GfDivide(byte a, byte b)
 	{
 		if (b == 0)
@@ -407,11 +415,7 @@ public static class ShamirSecretSharing
 			throw new DivideByZeroException(Resources.ShamirSecretSharing_CannotDivideByZero);
 		}
 
-		if (a == 0)
-		{
-			return 0;
-		}
-
-		return ExpTable[LogTable[a] + 255 - LogTable[b]];
+		// GfMultiply yields 0 when a == 0 without a special-cased early return.
+		return GfMultiply(a, GfInverse(b));
 	}
 }

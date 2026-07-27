@@ -29,13 +29,6 @@ public sealed class OutboxDeliveryGuaranteeShould
 		((int)OutboxDeliveryGuarantee.MinimizedWindow).ShouldBe(1);
 	}
 
-	[Fact]
-	public void TransactionalWhenApplicable_HasExpectedValue()
-	{
-		// Assert
-		((int)OutboxDeliveryGuarantee.TransactionalWhenApplicable).ShouldBe(2);
-	}
-
 	#endregion
 
 	#region Enum Membership Tests
@@ -49,17 +42,16 @@ public sealed class OutboxDeliveryGuaranteeShould
 		// Assert
 		values.ShouldContain(OutboxDeliveryGuarantee.AtLeastOnce);
 		values.ShouldContain(OutboxDeliveryGuarantee.MinimizedWindow);
-		values.ShouldContain(OutboxDeliveryGuarantee.TransactionalWhenApplicable);
 	}
 
 	[Fact]
-	public void HasExactlyThreeValues()
+	public void HasExactlyTwoValues()
 	{
 		// Arrange
 		var values = Enum.GetValues<OutboxDeliveryGuarantee>();
 
 		// Assert
-		values.Length.ShouldBe(3);
+		values.Length.ShouldBe(2);
 	}
 
 	#endregion
@@ -69,7 +61,6 @@ public sealed class OutboxDeliveryGuaranteeShould
 	[Theory]
 	[InlineData(OutboxDeliveryGuarantee.AtLeastOnce, "AtLeastOnce")]
 	[InlineData(OutboxDeliveryGuarantee.MinimizedWindow, "MinimizedWindow")]
-	[InlineData(OutboxDeliveryGuarantee.TransactionalWhenApplicable, "TransactionalWhenApplicable")]
 	public void ToString_ReturnsExpectedValue(OutboxDeliveryGuarantee guarantee, string expected)
 	{
 		// Act & Assert
@@ -83,7 +74,6 @@ public sealed class OutboxDeliveryGuaranteeShould
 	[Theory]
 	[InlineData("AtLeastOnce", OutboxDeliveryGuarantee.AtLeastOnce)]
 	[InlineData("MinimizedWindow", OutboxDeliveryGuarantee.MinimizedWindow)]
-	[InlineData("TransactionalWhenApplicable", OutboxDeliveryGuarantee.TransactionalWhenApplicable)]
 	public void Parse_WithValidString_ReturnsExpectedValue(string value, OutboxDeliveryGuarantee expected)
 	{
 		// Act

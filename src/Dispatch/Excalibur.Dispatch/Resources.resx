@@ -129,12 +129,6 @@
   <data name="TransportAdapterRouter_RoutingFailureType" xml:space="preserve">
     <value>urn:dispatch:error:transport</value>
   </data>
-  <data name="DispatcherContextExtensions_ChildMessageRequiresContext" xml:space="preserve">
-    <value>Cannot dispatch child message without an active context. Use DispatchAsync with explicit context instead.</value>
-  </data>
-  <data name="DispatcherContextExtensions_ChildActionRequiresContext" xml:space="preserve">
-    <value>Cannot dispatch child action without an active context. Use DispatchAsync with explicit context instead.</value>
-  </data>
   <data name="MessageBufferPool_MinimumLengthNonNegative" xml:space="preserve">
     <value>Minimum length must be non-negative.</value>
   </data>
@@ -152,9 +146,6 @@
   </data>
   <data name="TenantIdentityMiddleware_InvalidTenantIdentifierFormat" xml:space="preserve">
     <value>Invalid tenant identifier format: {0}</value>
-  </data>
-  <data name="OutboxMiddleware_StoreNotRegistered" xml:space="preserve">
-    <value>Outbox middleware is enabled but IOutboxStore is not registered. Register an IOutboxStore implementation or disable outbox middleware.</value>
   </data>
   <data name="LoadBalancing_NoRoutesAvailable" xml:space="preserve">
     <value>No routes available for selection</value>
@@ -342,6 +333,24 @@
   <data name="PipelineBuilder_ProfileNotFoundFormat" xml:space="preserve">
     <value>Pipeline profile '{0}' not found.</value>
   </data>
+  <data name="PipelineBuilder_RequiredMiddlewareUnresolvedFormat" xml:space="preserve">
+    <value>Pipeline '{0}' cannot be built because {1} required middleware could not be resolved:{2}How to fix: each entry above names what it needs. Register the missing service(s) before building the host, or remove that middleware from the pipeline configuration. Every unresolved entry is listed together so they can be fixed in one pass rather than one build at a time.</value>
+  </data>
+  <data name="PipelineBuilder_RequiredMiddlewareUnresolvedEntryFormat" xml:space="preserve">
+    <value>  - {0}: {1}</value>
+  </data>
+  <data name="PipelineBuilder_MiddlewareNotRegistered" xml:space="preserve">
+    <value>the middleware type itself is not registered. Register it together with the services it depends on - typically by calling the Add... extension method that enables this feature.</value>
+  </data>
+  <data name="MiddlewareEntry_MissingTypeFormat" xml:space="preserve">
+    <value>Pipeline profile '{0}' declares a middleware entry at position {1} with no middleware type. An entry that was never given a type cannot be built into a pipeline. How to fix: construct the entry with the middleware type it applies to, and state its criticality explicitly.</value>
+  </data>
+  <data name="MiddlewareEntry_UnspecifiedCriticalityFormat" xml:space="preserve">
+    <value>Pipeline profile '{1}' declares middleware '{0}' at position {2} without stating whether it is required. An entry with no stated criticality is not built rather than guessed at, because guessing would decide silently whether a security middleware may be skipped. How to fix: state Required for middleware the pipeline must not run without, or Optional for best-effort middleware.</value>
+  </data>
+  <data name="PipelineBuilder_FactoryProvidedMiddleware" xml:space="preserve">
+    <value>(middleware supplied by a factory delegate)</value>
+  </data>
   <data name="Dispatcher_NotConfigured" xml:space="preserve">
     <value>Dispatcher is not properly configured. How to fix: Call services.AddDispatch() or services.AddDispatch(configure => ...) in your Program.cs/Startup.cs to register the dispatch pipeline.</value>
   </data>
@@ -350,9 +359,6 @@
   </data>
   <data name="Dispatcher_HandlerNotFoundFormat" xml:space="preserve">
     <value>No handler of type '{0}' is registered. How to fix: Register the handler with services.AddDispatch(d => d.AddHandlersFromAssembly(typeof(YourHandler).Assembly)) or register it directly with services.AddTransient&lt;IDispatchHandler&lt;TMessage&gt;, YourHandler&gt;().</value>
-  </data>
-  <data name="EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented" xml:space="preserve">
-    <value>Conversion from string to TAggregateKey not implemented.</value>
   </data>
   <data name="MemoryMessageOfT_CannotDeserializeWithoutSerializer" xml:space="preserve">
     <value>Cannot deserialize content without serializer. How to fix: Register a serializer via services.AddDispatch(d => d.UseSerialization()) or ensure ISerializer is available in DI.</value>

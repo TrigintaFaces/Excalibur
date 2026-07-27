@@ -1,42 +1,8 @@
 #nullable enable
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.AwsLambdaOptions() -> void
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.EnableProvisionedConcurrency.get -> bool
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.EnableProvisionedConcurrency.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Handler.get -> string?
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Handler.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.PackageType.get -> string!
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.PackageType.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.ReservedConcurrency.get -> int?
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.ReservedConcurrency.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Runtime.get -> string!
-Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Runtime.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.AzureFunctionsOptions() -> void
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.EnableDurableFunctions.get -> bool
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.EnableDurableFunctions.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.HostingPlan.get -> string!
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.HostingPlan.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.RuntimeVersion.get -> string!
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.RuntimeVersion.set -> void
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.StorageConnectionString.get -> string?
-Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.StorageConnectionString.set -> void
 Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase
 Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.ColdStartOptimizerBase(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.OptimizeAsync() -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.WarmupAsync() -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.GoogleCloudFunctionsOptions() -> void
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.IngressSettings.get -> string!
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.IngressSettings.set -> void
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MaxInstances.get -> int?
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MaxInstances.set -> void
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MinInstances.get -> int?
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MinInstances.set -> void
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.Runtime.get -> string!
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.Runtime.set -> void
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.VpcConnector.get -> string?
-Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.VpcConnector.set -> void
 Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer
 Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer.IsEnabled.get -> bool
 Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer.OptimizeAsync() -> System.Threading.Tasks.Task!
@@ -164,15 +130,15 @@ const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderRegistered
 const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderResolved = 50052 -> int
 const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderUnavailable = 50002 -> int
 const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.UnableToDetectPlatform = 50057 -> int
-static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAwsLambdaHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAzureFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAwsLambdaHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAzureFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddCustomServerlessProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider! provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddGoogleCloudFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddGoogleCloudFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddServerlessHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddServerlessHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseAwsLambda(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
-static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseAzureFunctions(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
-static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseGoogleCloudFunctions(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseAwsLambda(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder) -> Microsoft.Extensions.Hosting.IHostBuilder!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseAzureFunctions(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder) -> Microsoft.Extensions.Hosting.IHostBuilder!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseGoogleCloudFunctions(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder) -> Microsoft.Extensions.Hosting.IHostBuilder!
 static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseServerlessHosting(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.Hosting.IHostBuilder!
 static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseServerlessHosting(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
 virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Dispose(bool disposing) -> void

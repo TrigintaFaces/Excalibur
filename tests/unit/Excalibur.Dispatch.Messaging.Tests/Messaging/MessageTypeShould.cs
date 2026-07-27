@@ -164,16 +164,6 @@ public sealed class MessageTypeShould : UnitTestBase
 	}
 
 	[Fact]
-	public void IntegrationEvent_Kind_ReturnsEventKind()
-	{
-		// Act
-		var integrationEvent = new TestIntegrationEvent("payload");
-
-		// Assert
-		integrationEvent.Kind.ShouldBe(MessageKinds.Event);
-	}
-
-	[Fact]
 	public void IntegrationEvent_Headers_ProvidesReadOnlyDictionary()
 	{
 		// Act

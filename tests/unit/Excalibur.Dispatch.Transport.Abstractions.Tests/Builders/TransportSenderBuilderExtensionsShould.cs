@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using CloudNative.CloudEvents;
-
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Decorators;
@@ -73,25 +71,5 @@ public sealed class TransportSenderBuilderExtensionsShould : IDisposable
 			.Build();
 
 		built.ShouldBeOfType<SchedulingTransportSender>();
-	}
-
-	[Fact]
-	public void UseCloudEvents_AddsCloudEventsDecorator()
-	{
-		var inner = A.Fake<ITransportSender>();
-		var mapper = A.Fake<ICloudEventMapper<TransportMessage>>();
-		var builder = new TransportSenderBuilder(inner);
-
-		var built = builder
-			.UseCloudEvents(
-				mapper,
-				_ => new CloudEvent
-				{
-					Type = "dispatch.test",
-					Source = new Uri("urn:test"),
-				})
-			.Build();
-
-		built.ShouldBeOfType<CloudEventsTransportSender>();
 	}
 }

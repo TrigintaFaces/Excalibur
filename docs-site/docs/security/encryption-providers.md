@@ -102,24 +102,18 @@ dotnet add package Excalibur.Compliance.Azure
 ### Setup
 
 ```csharp
-// With options callback
-services.AddAzureKeyVaultKeyManagement(options =>
+// Fluent builder
+services.AddAzureKeyVaultKeyManagement(azure =>
 {
-    options.VaultUri = "https://my-vault.vault.azure.net/";
-    options.KeyName = "dispatch-encryption-key";
+    azure.VaultUri(new Uri("https://my-vault.vault.azure.net/"))
+         .KeyNamePrefix("dispatch-encryption-");
 });
 
-// With pre-built options
-var kvOptions = new AzureKeyVaultOptions
+// From a configuration section
+services.AddAzureKeyVaultKeyManagement(azure =>
 {
-    VaultUri = "https://my-vault.vault.azure.net/",
-    KeyName = "dispatch-encryption-key"
-};
-services.AddAzureKeyVaultKeyManagement(kvOptions);
-
-// From configuration section
-services.AddAzureKeyVaultKeyManagement(
-    configuration.GetSection("AzureKeyVault"));
+    azure.BindConfiguration("AzureKeyVault");
+});
 ```
 
 ### Additional Azure Security

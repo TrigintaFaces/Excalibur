@@ -1,0 +1,36 @@
+#nullable enable
+Excalibur.Dispatch.Transport.IbmMq.IIbmMqConnectionProvider
+Excalibur.Dispatch.Transport.IbmMq.IIbmMqConnectionProvider.CreateQueueManager() -> IBM.WMQ.MQQueueManager!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Channel.get -> string!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Channel.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Host.get -> string!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Host.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.IbmMqOptions() -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Password.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Password.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Port.get -> int
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Port.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.QueueManager.get -> string!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.QueueManager.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.QueueName.get -> string!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.QueueName.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Receive.get -> Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions!
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.Receive.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.ReplyToQueue.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.ReplyToQueue.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.UserId.get -> string?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions.UserId.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.IbmMqReceiveTuningOptions() -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSize.get -> int
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSize.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxOutstandingUnitsOfWork.get -> int
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxOutstandingUnitsOfWork.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxPayloadBytes.get -> int?
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxPayloadBytes.set -> void
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.WaitIntervalMilliseconds.get -> int
+Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.WaitIntervalMilliseconds.set -> void
+Microsoft.Extensions.DependencyInjection.IbmMqTransportServiceCollectionExtensions
+const Excalibur.Dispatch.Transport.IbmMq.IbmMqReceiveTuningOptions.MaxBatchSizeCeiling = 256 -> int
+static Microsoft.Extensions.DependencyInjection.IbmMqTransportServiceCollectionExtensions.AddIbmMqTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Dispatch.Transport.IbmMq.IbmMqOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

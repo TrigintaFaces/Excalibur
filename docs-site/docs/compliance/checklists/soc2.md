@@ -220,7 +220,7 @@ public class UserService
 - `docs/security/audit-logging.md` - Audit logging guide
 - Audit log samples (anonymized)
 - Hash chain integrity verification tests
-- Conformance test results (AuditStoreConformanceTestKit - 18 tests)
+- Conformance results from the arms you wrapped (`AuditStoreConformanceTestKit` — 27 available)
 
 **SSP Statement:**
 > "CC4 is satisfied through tamper-evident audit logging using cryptographic hash chains. The framework's `IAuditLogger` captures all security-relevant events with correlation IDs, timestamps, and outcomes. Audit logs are append-only with RBAC access controls."
@@ -817,7 +817,7 @@ Information designated as confidential is disposed of in accordance with the ent
 **Evidence:**
 - Erasure configuration
 - Erasure certificates
-- Conformance test results (ErasureStoreConformanceTestKit - 24 tests)
+- Conformance results from the arms you wrapped (`ErasureStoreConformanceTestKit` — 24 available)
 
 **SSP Statement:**
 > "C3 is satisfied through cryptographic erasure using the `IErasureService`. Deletion of encryption keys renders confidential data irrecoverable. Erasure certificates provide cryptographic proof of disposal."

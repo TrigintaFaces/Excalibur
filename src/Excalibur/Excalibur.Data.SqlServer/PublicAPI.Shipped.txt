@@ -38,7 +38,7 @@ Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.GetByIdAsync(str
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.GetCountAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.GetMessagesAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterFilter! filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.ErrorHandling.DeadLetterMessage!>!>!
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.MarkAsReplayedAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.SqlServerDeadLetterStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore!>! logger) -> void
+Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.SqlServerDeadLetterStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterOptions!>! options, Excalibur.Dispatch.ITenantContext? tenantContext, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore!>! logger) -> void
 Excalibur.Data.SqlServer.ErrorHandling.SqlServerDeadLetterStore.StoreAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent
 Excalibur.Data.SqlServer.Persistence.ApplicationIntent.ReadOnly = 1 -> Excalibur.Data.SqlServer.Persistence.ApplicationIntent
@@ -358,6 +358,7 @@ const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerDeque
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerDequeued = 100955 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerDisposalRequested = 100951 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerError = 100959 -> int
+const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerFatalCheckpoint = 100962 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerNoMoreRecords = 100952 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerProcessedBatch = 100957 -> int
 const Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcConsumerProcessingBatch = 100956 -> int

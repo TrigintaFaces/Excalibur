@@ -7,17 +7,6 @@ namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Enums;
 public sealed class BatchEnumsShould
 {
     [Theory]
-    [InlineData(BatchCompletionStrategy.Size, 0)]
-    [InlineData(BatchCompletionStrategy.Time, 1)]
-    [InlineData(BatchCompletionStrategy.SizeOrTime, 2)]
-    [InlineData(BatchCompletionStrategy.Dynamic, 3)]
-    [InlineData(BatchCompletionStrategy.ContentBased, 4)]
-    public void BatchCompletionStrategy_Should_Have_Correct_Values(BatchCompletionStrategy strategy, int expected)
-    {
-        ((int)strategy).ShouldBe(expected);
-    }
-
-    [Theory]
     [InlineData(BatchPriority.Low, 0)]
     [InlineData(BatchPriority.Normal, 1)]
     [InlineData(BatchPriority.High, 2)]

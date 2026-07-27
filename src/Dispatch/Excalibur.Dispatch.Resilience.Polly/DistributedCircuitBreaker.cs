@@ -28,6 +28,7 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private readonly SemaphoreSlim _metricsGate = new(1, 1);
 	private volatile bool _disposed;
 	private volatile CircuitState _lastKnownState;
+	private readonly TimeProvider _timeProvider;
 
 	// Number of buckets the rolling sampling window (SamplingDuration) is divided into for the
 	// windowed open decision (zxb7fp). Mirrors Polly v8's rolling-health bucketing shape.
@@ -40,16 +41,23 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	/// <param name="cache">The distributed cache used for coordination.</param>
 	/// <param name="options">The configuration options for the circuit breaker.</param>
 	/// <param name="logger">The logger used for diagnostic output.</param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for all trip-boundary, window, and state-transition timestamps.
+	/// Defaults to <see cref="TimeProvider.System"/>. Inject a controllable provider to make the
+	/// open-decision boundary deterministically testable.
+	/// </param>
 	public DistributedCircuitBreaker(
 		string name,
 		IDistributedCache cache,
 		IOptions<DistributedCircuitBreakerOptions> options,
-		ILogger<DistributedCircuitBreaker> logger)
+		ILogger<DistributedCircuitBreaker> logger,
+		TimeProvider? timeProvider = null)
 	{
 		Name = name ?? throw new ArgumentNullException(nameof(name));
 		_cache = cache ?? throw new ArgumentNullException(nameof(cache));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		_lastKnownState = CircuitState.Closed;
 
@@ -114,11 +122,11 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 
 		if (state == CircuitState.Open)
 		{
-			if (stateData != null && DateTimeOffset.UtcNow < stateData.OpenUntil)
+			if (stateData != null && _timeProvider.GetUtcNow() < stateData.OpenUntil)
 			{
 				// FR-116-1 / AC-116-3: translate Polly's BrokenCircuitException to the canonical exception;
 				// never leak Polly internals to callers. Carry the RetryAfter hint (AC-116-7).
-				var retryAfter = stateData.OpenUntil - DateTimeOffset.UtcNow;
+				var retryAfter = stateData.OpenUntil - _timeProvider.GetUtcNow();
 				if (retryAfter < TimeSpan.Zero)
 				{
 					retryAfter = TimeSpan.Zero;
@@ -178,10 +186,10 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			metrics.SuccessCount++;
 			metrics.ConsecutiveSuccesses++;
 			metrics.ConsecutiveFailures = 0;
-			metrics.LastSuccess = DateTimeOffset.UtcNow;
+			metrics.LastSuccess = _timeProvider.GetUtcNow();
 
 			// Count the success as an in-window attempt so the rolling failure ratio has a denominator.
-			metrics.RecordWindow(failure: false, DateTimeOffset.UtcNow.UtcTicks, WindowBucketTicks, WindowBucketCount);
+			metrics.RecordWindow(failure: false, _timeProvider.GetUtcNow().UtcTicks, WindowBucketTicks, WindowBucketCount);
 
 			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
 
@@ -222,15 +230,18 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			metrics.FailureCount++;
 			metrics.ConsecutiveFailures++;
 			metrics.ConsecutiveSuccesses = 0;
-			metrics.LastFailure = DateTimeOffset.UtcNow;
+			metrics.LastFailure = _timeProvider.GetUtcNow();
 
 			if (exception != null)
 			{
-				metrics.LastFailureReason = exception.Message;
+				// Persist the exception TYPE name, not the raw message: the message can carry PII (user
+				// input, connection strings, record identifiers) and this value is written to a shared
+				// IDistributedCache (at rest, cross-instance). The type is diagnostic and PII-safe.
+				metrics.LastFailureReason = exception.GetType().Name;
 			}
 
 			// Count the failure as an in-window attempt AND an in-window failure.
-			var nowTicks = DateTimeOffset.UtcNow.UtcTicks;
+			var nowTicks = _timeProvider.GetUtcNow().UtcTicks;
 			metrics.RecordWindow(failure: true, nowTicks, WindowBucketTicks, WindowBucketCount);
 
 			await SaveMetricsAsync(metrics, cancellationToken).ConfigureAwait(false);
@@ -243,8 +254,10 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 			// by wall-clock; minor inter-instance clock skew merely smears counts across adjacent buckets,
 			// which is acceptable for a breaker heuristic (not a fencing/safety invariant).
 			var (windowAttempts, windowFailureRatio) = metrics.GetWindow(nowTicks, WindowBucketTicks, WindowBucketCount);
+			// Trip on ratio >= threshold, matching Polly v8 AdvancedCircuitBreaker boundary semantics
+			// (it opens when the failure ratio reaches FailureRatio, not only when it strictly exceeds it).
 			var windowedRatioTrips = windowAttempts >= _options.MinimumThroughput
-				&& windowFailureRatio > _options.FailureRatio;
+				&& windowFailureRatio >= _options.FailureRatio;
 			if (windowedRatioTrips ||
 				metrics.ConsecutiveFailures >= _options.ConsecutiveFailureThreshold)
 			{
@@ -389,8 +402,8 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		var state = new DistributedCircuitState
 		{
 			State = CircuitState.Open,
-			OpenedAt = DateTimeOffset.UtcNow,
-			OpenUntil = DateTimeOffset.UtcNow.Add(_options.BreakDuration),
+			OpenedAt = _timeProvider.GetUtcNow(),
+			OpenUntil = _timeProvider.GetUtcNow().Add(_options.BreakDuration),
 			InstanceId = Environment.MachineName,
 		};
 
@@ -410,7 +423,7 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 		var state = new DistributedCircuitState
 		{
 			State = CircuitState.HalfOpen,
-			TransitionedAt = DateTimeOffset.UtcNow,
+			TransitionedAt = _timeProvider.GetUtcNow(),
 			InstanceId = Environment.MachineName,
 		};
 
@@ -456,8 +469,8 @@ public partial class DistributedCircuitBreaker : IDistributedCircuitBreaker, IAs
 	private partial void LogStateChanged(string name, CircuitState state);
 
 	[LoggerMessage(ResilienceEventId.CircuitBreakerThresholdExceeded, LogLevel.Error,
-		"Circuit breaker '{Name}' failure threshold exceeded: {Failures}/{Threshold}")]
-	private partial void LogThresholdExceeded(string name, int failures, int threshold);
+		"Circuit breaker '{Name}' opened: window attempts {WindowAttempts} reached minimum throughput {MinimumThroughput} with the failure ratio at or above the configured threshold")]
+	private partial void LogThresholdExceeded(string name, int windowAttempts, int minimumThroughput);
 
 	[LoggerMessage(ResilienceEventId.CircuitBreakerOpened, LogLevel.Warning,
 		"Distributed circuit breaker '{Name}' opened across all instances")]

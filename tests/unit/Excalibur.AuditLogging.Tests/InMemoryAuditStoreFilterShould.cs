@@ -143,7 +143,10 @@ public sealed class InMemoryAuditStoreFilterShould : IDisposable
     [Fact]
     public async Task Count_by_tenant_with_filters()
     {
-        await _sut.StoreAsync(new AuditEvent
+        using var sut = new InMemoryAuditStore(
+            AuditIntegrityTestStrategy.Create(), new FixedTenantContext("tenant-1"));
+
+        await sut.StoreAsync(new AuditEvent
         {
             EventId = "evt-t1-a",
             EventType = AuditEventType.Authentication,
@@ -154,7 +157,7 @@ public sealed class InMemoryAuditStoreFilterShould : IDisposable
             TenantId = "tenant-1"
         }, CancellationToken.None);
 
-        await _sut.StoreAsync(new AuditEvent
+        await sut.StoreAsync(new AuditEvent
         {
             EventId = "evt-t1-b",
             EventType = AuditEventType.DataAccess,
@@ -165,12 +168,11 @@ public sealed class InMemoryAuditStoreFilterShould : IDisposable
             TenantId = "tenant-1"
         }, CancellationToken.None);
 
-        var count = await _sut.CountAsync(
-            new AuditQuery
-            {
-                TenantId = "tenant-1",
-                EventTypes = [AuditEventType.Authentication]
-            },
+        // The tenant term comes from the ambient scope; only the EventTypes filter is the caller's to
+        // supply. Passing TenantId on the query and asserting it narrowed the count would have required
+        // the store to honour a caller-supplied tenant -- the impersonation defect.
+        var count = await sut.CountAsync(
+            new AuditQuery { EventTypes = [AuditEventType.Authentication] },
             CancellationToken.None);
 
         count.ShouldBe(1);

@@ -39,7 +39,7 @@ public sealed class PipelineProfileShould
 		// Assert
 		profile.Name.ShouldBe("TestProfile");
 		profile.Description.ShouldBe("Test description");
-		profile.MiddlewareTypes.Count.ShouldBe(1);
+		profile.MiddlewareEntries.Count.ShouldBe(1);
 		profile.IsStrict.ShouldBeTrue();
 		profile.SupportedMessageKinds.ShouldBe(MessageKinds.Action);
 	}
@@ -54,7 +54,7 @@ public sealed class PipelineProfileShould
 			Array.Empty<Type>());
 
 		// Assert
-		profile.MiddlewareTypes.ShouldBeEmpty();
+		profile.MiddlewareEntries.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -111,32 +111,6 @@ public sealed class PipelineProfileShould
 	#endregion
 
 	#region Static Factory Methods Tests
-
-	[Fact]
-	public void CreateStrictProfile_HasExpectedConfiguration()
-	{
-		// Act
-		var profile = PipelineProfile.CreateStrictProfile();
-
-		// Assert
-		profile.Name.ShouldBe("Strict");
-		profile.IsStrict.ShouldBeTrue();
-		profile.SupportedMessageKinds.ShouldBe(MessageKinds.Action);
-		profile.MiddlewareTypes.ShouldNotBeEmpty();
-	}
-
-	[Fact]
-	public void CreateInternalEventProfile_HasExpectedConfiguration()
-	{
-		// Act
-		var profile = PipelineProfile.CreateInternalEventProfile();
-
-		// Assert
-		profile.Name.ShouldBe("InternalEvent");
-		profile.IsStrict.ShouldBeFalse();
-		profile.SupportedMessageKinds.ShouldBe(MessageKinds.Event);
-		profile.MiddlewareTypes.ShouldBeEmpty(); // Zero middleware overhead
-	}
 
 	#endregion
 
@@ -301,6 +275,24 @@ public sealed class PipelineProfileShould
 		_ = applicable.ShouldNotBeNull();
 	}
 
+	[Fact]
+	public void GetApplicableMiddleware_DoesNotExcludeByAttributeKind_akwb5j()
+	{
+		// akwb5j convergence lock (non-vacuous): the profile no longer filters by the [AppliesTo] attribute —
+		// message-kind applicability is the single-source-of-truth runtime IMiddlewareApplicabilityStrategy's
+		// job (each middleware's ApplicableMessageKinds property). So an [AppliesTo(Action)]-decorated
+		// middleware is STILL returned when querying a DIFFERENT kind (Event). This was RED before convergence
+		// (the attribute kinds-filter excluded it); GREEN after (kind filtering moved to the property strategy).
+		var profile = new PipelineProfile(
+			"Test",
+			"Test",
+			new[] { typeof(ActionScopedTestMiddleware) });
+
+		var applicable = profile.GetApplicableMiddleware(MessageKinds.Event);
+
+		applicable.ShouldContain(typeof(ActionScopedTestMiddleware));
+	}
+
 	#endregion
 
 	#region IPipelineProfile Interface Tests
@@ -337,6 +329,21 @@ public sealed class PipelineProfileShould
 	}
 
 	public sealed class TestMiddleware2 : IDispatchMiddleware
+	{
+		public DispatchMiddlewareStage? Stage => null;
+
+		public ValueTask<IMessageResult> InvokeAsync(
+			IDispatchMessage message,
+			IMessageContext context,
+			DispatchRequestDelegate nextDelegate,
+			CancellationToken cancellationToken)
+			=> nextDelegate(message, context, cancellationToken);
+	}
+
+	// akwb5j: decorated with [AppliesTo(Action)] to prove the profile no longer honors the attribute for
+	// kind-applicability — it is returned for Event, because kind filtering is the runtime property strategy's job.
+	[AppliesTo(MessageKinds.Action)]
+	public sealed class ActionScopedTestMiddleware : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => null;
 

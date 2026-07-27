@@ -29,12 +29,6 @@ public sealed class TypePoolOptions
 	public bool Enabled { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets the reset strategy for this type.
-	/// </summary>
-	/// <value> The current <see cref="ResetStrategy" /> value. </value>
-	public ResetStrategy ResetStrategy { get; set; } = ResetStrategy.Auto;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to pre-warm the pool.
 	/// </summary>
 	/// <value> The current <see cref="PreWarm" /> value. </value>

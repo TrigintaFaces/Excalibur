@@ -10,6 +10,7 @@ using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.ElasticSearch;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -96,7 +97,16 @@ public static class InboxBuilderElasticsearchExtensions
 		RegisterClientFromBuilder(builder.Services, esBuilder);
 
 		// Register store services
-		builder.Services.TryAddSingleton<ElasticsearchInboxStore>();
+		// AddTenantScopedStore injects ITenantContext AND emits the ITenantScopingCapability<IInboxStore>
+		// marker inseparably from that wiring, so an unwired provider cannot advertise a capability it does
+		// not have. Registering the store alone would leave the dedup id tenant-blind behind a truthful-looking
+		// marker.
+		builder.Services.AddTenantScopedStore<IInboxStore, ElasticsearchInboxStore>((sp, tenantContext) =>
+			new ElasticsearchInboxStore(
+				sp.GetRequiredService<ElasticsearchClient>(),
+				sp.GetRequiredService<IOptions<ElasticsearchInboxOptions>>(),
+				sp.GetRequiredService<ILogger<ElasticsearchInboxStore>>(),
+				tenantContext));
 		builder.Services.AddKeyedSingleton<IInboxStore>("elasticsearch", (sp, _) => sp.GetRequiredService<ElasticsearchInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("elasticsearch"));

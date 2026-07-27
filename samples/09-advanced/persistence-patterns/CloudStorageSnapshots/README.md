@@ -15,7 +15,10 @@
 > POST /archive-cycle                     -> ManualArchiveRunner
 >   -> IEventStoreArchive.GetArchiveCandidatesAsync(ArchivePolicy)
 >   -> IColdEventStore.WriteAsync          (moves old events to S3/Blob/GCS)
+>                                          RETURNS the durable low-water mark
 >   -> IEventStoreArchive.DeleteEventsUpToVersionAsync
+>                                          bounded BY that watermark, never by
+>                                          the version we asked to archive
 >
 > GET  /orders/{id}                       -> IEventSourcedRepository.GetByIdAsync
 >   -> TieredEventStoreDecorator stitches cold + hot reads
@@ -25,6 +28,18 @@
 > The background `EventArchiveService` still runs when tiered storage is
 > enabled; `POST /archive-cycle` gives the demo a synchronous trigger so the
 > hot→cold boundary can be exercised without waiting for the background timer.
+
+> **Deleting from hot: bound it by the watermark, not by your request.**
+>
+> `IColdEventStore.WriteAsync` returns the **durable low-water mark** — the highest version
+> the cold tier has actually committed — or `-1` when the call durably added nothing. A
+> partial or deferred cold write returns *less* than you asked it to archive.
+>
+> Delete hot events only up to that returned value. Deleting up to the version you
+> *requested* destroys any event the cold tier did not durably store, and the hot copy was
+> the only other one. When the watermark is `-1`, delete nothing and let the next cycle
+> retry. `ManualArchiveRunner` shows the safe shape; copy it rather than the shorter version
+> that ignores the result.
 
 Demonstrates tiered event-sourcing storage: hot events live in a SQL Server
 event store; once they age past the archive policy they roll into an object

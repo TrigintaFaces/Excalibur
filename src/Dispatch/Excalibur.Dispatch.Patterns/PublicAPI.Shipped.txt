@@ -1,16 +1,4 @@
 #nullable enable
-Excalibur.Dispatch.Patterns.BusinessDayStatus
-Excalibur.Dispatch.Patterns.BusinessDayStatus.BusinessDayStatus() -> void
-Excalibur.Dispatch.Patterns.BusinessDayStatus.HolidayName.get -> string?
-Excalibur.Dispatch.Patterns.BusinessDayStatus.HolidayName.set -> void
-Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessDay.get -> bool
-Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessDay.set -> void
-Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessHours.get -> bool
-Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessHours.set -> void
-Excalibur.Dispatch.Patterns.BusinessDayStatus.IsHoliday.get -> bool
-Excalibur.Dispatch.Patterns.BusinessDayStatus.IsHoliday.set -> void
-Excalibur.Dispatch.Patterns.BusinessDayStatus.NextBusinessDay.get -> System.DateOnly
-Excalibur.Dispatch.Patterns.BusinessDayStatus.NextBusinessDay.set -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.ClaimCheckCleanupOptions() -> void
 Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.CleanupBatchSize.get -> int
@@ -158,97 +146,7 @@ Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.DeleteAsync(Excalibur
 Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference! reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
 Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.ShouldUseClaimCheck(byte[]! payload) -> bool
 Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.StoreAsync(byte[]! payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata? metadata = null) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference!>!
-Excalibur.Dispatch.Patterns.DateRange
-Excalibur.Dispatch.Patterns.DateRange.Contains(System.DateOnly date) -> bool
-Excalibur.Dispatch.Patterns.DateRange.DateRange() -> void
-Excalibur.Dispatch.Patterns.DateRange.EndDate.get -> System.DateOnly
-Excalibur.Dispatch.Patterns.DateRange.EndDate.set -> void
-Excalibur.Dispatch.Patterns.DateRange.StartDate.get -> System.DateOnly
-Excalibur.Dispatch.Patterns.DateRange.StartDate.set -> void
 Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId
-Excalibur.Dispatch.Patterns.IRoutingStrategy
-Excalibur.Dispatch.Patterns.IRoutingStrategy.CanHandle(Excalibur.Dispatch.Routing.RoutingContext! context) -> bool
-Excalibur.Dispatch.Patterns.IRoutingStrategy.Name.get -> string!
-Excalibur.Dispatch.Patterns.IRoutingStrategy.SelectRoutesAsync(System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.Routing.RouteDefinition!>! availableRoutes, Excalibur.Dispatch.Routing.RoutingContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Routing.RouteDefinition!>!>!
-Excalibur.Dispatch.Patterns.RouteEvaluation
-Excalibur.Dispatch.Patterns.RouteEvaluation.MatchingRules.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeBasedRoutingRule!>!
-Excalibur.Dispatch.Patterns.RouteEvaluation.Reason.get -> string!
-Excalibur.Dispatch.Patterns.RouteEvaluation.Reason.set -> void
-Excalibur.Dispatch.Patterns.RouteEvaluation.Route.get -> Excalibur.Dispatch.Routing.RouteDefinition!
-Excalibur.Dispatch.Patterns.RouteEvaluation.Route.set -> void
-Excalibur.Dispatch.Patterns.RouteEvaluation.RouteEvaluation() -> void
-Excalibur.Dispatch.Patterns.RouteEvaluation.Score.get -> double
-Excalibur.Dispatch.Patterns.RouteEvaluation.Score.set -> void
-Excalibur.Dispatch.Patterns.RoutingMetrics
-Excalibur.Dispatch.Patterns.RoutingMetrics.AverageDecisionTime.get -> System.TimeSpan
-Excalibur.Dispatch.Patterns.RoutingMetrics.AverageDecisionTime.set -> void
-Excalibur.Dispatch.Patterns.RoutingMetrics.FailedRoutings.get -> long
-Excalibur.Dispatch.Patterns.RoutingMetrics.FailedRoutings.set -> void
-Excalibur.Dispatch.Patterns.RoutingMetrics.LastReset.get -> System.DateTimeOffset
-Excalibur.Dispatch.Patterns.RoutingMetrics.LastReset.set -> void
-Excalibur.Dispatch.Patterns.RoutingMetrics.RouteUsage.get -> System.Collections.Generic.Dictionary<string!, long>!
-Excalibur.Dispatch.Patterns.RoutingMetrics.RoutingMetrics() -> void
-Excalibur.Dispatch.Patterns.RoutingMetrics.RuleMatches.get -> System.Collections.Generic.Dictionary<string!, long>!
-Excalibur.Dispatch.Patterns.RoutingMetrics.SuccessfulRoutings.get -> long
-Excalibur.Dispatch.Patterns.RoutingMetrics.SuccessfulRoutings.set -> void
-Excalibur.Dispatch.Patterns.RoutingMetrics.TotalRoutingDecisions.get -> long
-Excalibur.Dispatch.Patterns.RoutingMetrics.TotalRoutingDecisions.set -> void
-Excalibur.Dispatch.Patterns.RoutingResult
-Excalibur.Dispatch.Patterns.RoutingResult.AlternativeRoutes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Routing.RouteDefinition!>!
-Excalibur.Dispatch.Patterns.RoutingResult.AppliedRule.get -> Excalibur.Dispatch.Patterns.TimeBasedRoutingRule?
-Excalibur.Dispatch.Patterns.RoutingResult.AppliedRule.set -> void
-Excalibur.Dispatch.Patterns.RoutingResult.FailureReason.get -> string?
-Excalibur.Dispatch.Patterns.RoutingResult.FailureReason.set -> void
-Excalibur.Dispatch.Patterns.RoutingResult.IsSuccess.get -> bool
-Excalibur.Dispatch.Patterns.RoutingResult.IsSuccess.set -> void
-Excalibur.Dispatch.Patterns.RoutingResult.Metadata.get -> System.Collections.Generic.Dictionary<string!, object!>!
-Excalibur.Dispatch.Patterns.RoutingResult.RoutingResult() -> void
-Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.get -> Excalibur.Dispatch.Routing.RouteDefinition?
-Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.set -> void
-Excalibur.Dispatch.Patterns.RoutingResult.Timestamp.get -> System.DateTimeOffset
-Excalibur.Dispatch.Patterns.RoutingResult.Timestamp.set -> void
-Excalibur.Dispatch.Patterns.SpecialConditions
-Excalibur.Dispatch.Patterns.SpecialConditions.BusinessDaysOnly.get -> bool
-Excalibur.Dispatch.Patterns.SpecialConditions.BusinessDaysOnly.set -> void
-Excalibur.Dispatch.Patterns.SpecialConditions.CustomHolidays.get -> System.Collections.ObjectModel.Collection<System.DateOnly>!
-Excalibur.Dispatch.Patterns.SpecialConditions.ExcludeHolidays.get -> bool
-Excalibur.Dispatch.Patterns.SpecialConditions.ExcludeHolidays.set -> void
-Excalibur.Dispatch.Patterns.SpecialConditions.PeakHours.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeRange!>!
-Excalibur.Dispatch.Patterns.SpecialConditions.PeakHoursOnly.get -> bool
-Excalibur.Dispatch.Patterns.SpecialConditions.PeakHoursOnly.set -> void
-Excalibur.Dispatch.Patterns.SpecialConditions.SpecialConditions() -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Conditions.get -> Excalibur.Dispatch.Patterns.TimeConditions!
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Conditions.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Description.get -> string?
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Description.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Id.get -> string!
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Id.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.IsEnabled.get -> bool
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.IsEnabled.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Metadata.get -> System.Collections.Generic.Dictionary<string!, object!>!
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Name.get -> string!
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Name.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Priority.get -> int
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Priority.set -> void
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Routes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Routing.RouteDefinition!>!
-Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.TimeBasedRoutingRule() -> void
-Excalibur.Dispatch.Patterns.TimeConditions
-Excalibur.Dispatch.Patterns.TimeConditions.ActiveDates.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.DateRange!>!
-Excalibur.Dispatch.Patterns.TimeConditions.ActiveDaysOfWeek.get -> System.Collections.ObjectModel.Collection<System.DayOfWeek>!
-Excalibur.Dispatch.Patterns.TimeConditions.ActiveTimeRanges.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeRange!>!
-Excalibur.Dispatch.Patterns.TimeConditions.SpecialConditions.get -> Excalibur.Dispatch.Patterns.SpecialConditions?
-Excalibur.Dispatch.Patterns.TimeConditions.SpecialConditions.set -> void
-Excalibur.Dispatch.Patterns.TimeConditions.TimeConditions() -> void
-Excalibur.Dispatch.Patterns.TimeConditions.TimeZoneId.get -> string!
-Excalibur.Dispatch.Patterns.TimeConditions.TimeZoneId.set -> void
-Excalibur.Dispatch.Patterns.TimeRange
-Excalibur.Dispatch.Patterns.TimeRange.Contains(System.TimeSpan time) -> bool
-Excalibur.Dispatch.Patterns.TimeRange.EndTime.get -> System.TimeSpan
-Excalibur.Dispatch.Patterns.TimeRange.EndTime.set -> void
-Excalibur.Dispatch.Patterns.TimeRange.StartTime.get -> System.TimeSpan
-Excalibur.Dispatch.Patterns.TimeRange.StartTime.set -> void
-Excalibur.Dispatch.Patterns.TimeRange.TimeRange() -> void
 Microsoft.Extensions.DependencyInjection.ClaimCheckHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleteError = 91204 -> int

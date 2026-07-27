@@ -54,10 +54,10 @@ internal sealed class StreamingPullOptionsValidator : IValidateOptions<Streaming
 				$"{nameof(StreamingPullOptions.StreamAckDeadlineSeconds)} ({options.StreamAckDeadlineSeconds} seconds).");
 		}
 
-		if (options.HealthCheckInterval >= options.StreamIdleTimeout)
+		if (options.Monitoring.HealthCheckInterval >= options.StreamIdleTimeout)
 		{
 			failures.Add(
-				$"{nameof(StreamingPullOptions.HealthCheckInterval)} ({options.HealthCheckInterval}) must be less than " +
+				$"{nameof(StreamingPullMonitoringOptions.HealthCheckInterval)} ({options.Monitoring.HealthCheckInterval}) must be less than " +
 				$"{nameof(StreamingPullOptions.StreamIdleTimeout)} ({options.StreamIdleTimeout}).");
 		}
 

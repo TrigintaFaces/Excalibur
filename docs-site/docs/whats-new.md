@@ -8,9 +8,307 @@ description: Release history, recent changes, and upgrade notes for Excalibur.
 
 Track what's changed across Excalibur releases. For upgrade guidance, see [Versioning Strategy](./migration/version-upgrades.md).
 
-## Current Version: 3.0.0-alpha
+## Current Version: 10.0.0 (pre-release)
 
-Excalibur is in active pre-release development. The framework is functionally complete with 112,000+ automated tests across 170 packages.
+Excalibur is in active pre-release development, targeting a first stable release of **10.0.0** (single-targeting `net10.0`). The framework is functionally complete with 112,000+ automated tests across 170 packages.
+
+---
+
+## July 2026 — Tenant-isolation hardening, default-on store durability & a host-less startup trigger
+
+### The production authorization stack fails closed on a volatile grant store by default
+
+The full-stack `AddA3()` authorization composition now installs the grant-durability gate as part of the production registration, so a host wired with a volatile (in-memory) grant store **fails fast at startup** instead of booting into a state where lost grants silently deny every user. The lightweight core registration used for development and test stays gate-free. To accept a volatile grant store deliberately, set `GrantDurabilityOptions.AllowVolatileGrantStore = true`. The audit-store, key-provider, and schedule-store durability gates apply the same contract through their respective `AllowVolatile…` opt-outs.
+
+### Host-less containers can trigger the fail-fast startup gates explicitly
+
+The durability gates and missing-provider prerequisite checks run from the host's startup validation, which fires only when the application calls `IHost.StartAsync`. A consumer who builds an `IServiceProvider` manually and never starts a host — a custom serverless runtime, a manual `BuildServiceProvider()` — previously left those checks inert. Such a host can now call the new **`IServiceProvider.ValidateStartupGates()`** immediately after building the provider to run every `ValidateOnStart()` gate at once. It validates every registered gate (including ones added later), no-ops when nothing registered startup validation, and returns the same provider for chaining. Hosts that build an `IHost` and call `StartAsync` — including Azure Functions and AWS Lambda on the isolated-worker model — already run these gates and do not need it. See [Startup Prerequisite Validation](./core-concepts/dependency-injection.md#host-less-containers-must-trigger-the-gates-explicitly).
+
+### Removed: the failed-message bulk-cleanup outbox method
+
+`IOutboxBulkCleanup.BulkCleanupFailedMessagesAsync` has been **removed** because bulk-deleting failed messages discards records that still need inspection or retry. Cleanup of successfully-sent messages is unchanged — `BulkCleanupAllTenantsSentMessagesAsync` remains for that purpose.
+
+> **Upgrade note:** if you called `BulkCleanupFailedMessagesAsync`, review those failed messages through the dead-letter and retry paths instead of deleting them in bulk.
+
+---
+
+## July 2026 — Secure-by-default pipeline entry points, durability verification & type-based message-kind classification
+
+### `AddDefaultDispatchPipelines()` builds clean out of the box; opt into strict security with `AddStrictDispatchPipelines()`
+
+`AddDefaultDispatchPipelines()` now registers a **non-strict working default** — it wires the default and event pipelines only, declares no security middleware as `Required`, and builds without forcing you to register authentication, authorization, and validation first. When you want a fail-closed posture — a host that refuses to start unless those controls are registered — call the new **`AddStrictDispatchPipelines()`** instead. The convenient default and the strict posture are now separate entry points, so neither is a footgun: a fresh project builds, and strict security stays explicit.
+
+### Compliance stores verify their schema instead of provisioning it
+
+The SQL Server and PostgreSQL compliance stores now default **`AutoCreateSchema = false`**. This covers all three store families on both providers — the **erasure store**, the **legal-hold store**, and the **data-inventory store**. On startup each store verifies that its schema and tables exist and **fails fast** if they are missing, rather than creating them — matching the expectation that a production application identity does not hold DDL privileges. Set `AutoCreateSchema = true` on that store's options to restore automatic creation (suitable for development). See [GDPR Erasure → Database Schema](./compliance/gdpr-erasure.md#database-schema).
+
+> **Upgrade note:** if you relied on a store creating its tables automatically, either provision the tables from the store's own definition or set `AutoCreateSchema = true` explicitly. The setting is per store, so a host registering erasure, legal-hold, and data-inventory must set it on each one it wants to keep provisioning.
+
+### Opt-in durability verification for audit, grant, and key stores
+
+Audit, authorization-grant, and encryption-key durability expose an opt-in startup gate that validates the **registered store is durable** and refuses to boot on a volatile one, rather than silently accepting an in-memory store whose data is lost on restart. When compliance encryption is configured, the key-durability gate is active and fails fast on a volatile key provider. Each store's `AllowVolatile…` option remains the deliberate, stated way to accept a volatile store for development and test.
+
+### Message kind is classified from the message type, not a `Kind` property
+
+The `Kind` property has been **removed** from the built-in message base types (`CommandBase`, `JobBase`, `NotificationBase`, `QueryBase<TResponse>`) and message types (`MemoryMessage`, `CloudEventMessage`, `GenericDispatchMessage`, `TimerInfo`). A message's kind is derived from the **dispatch interface it implements** — `IDispatchAction<TResponse>`, `IDispatchEvent`, or `IDispatchDocument` — the single source of truth the pipeline already uses for routing.
+
+> **Upgrade note:** replace a `message.Kind == MessageKinds.Event` check with a type check such as `message is IDispatchEvent`.
+
+---
+
+## July 2026 — GDPR erasure through the store decorator chain & durable SQL Server outbox fencing
+
+### Durable SQL Server outbox fencing
+
+The SQL Server outbox now records its leadership fencing high-water mark in a **durable `OutboxFence` control table** (created by the outbox schema script), joining PostgreSQL, Oracle, and MongoDB. The mark is advanced by a single serializable `MERGE` (a compare-and-advance under `HOLDLOCK`) that raises it monotonically and never lowers it, in a table that outbox cleanup never touches — so a superseded leader's stale token is rejected fail-closed even after cleanup has purged the sent, token-bearing rows. This closes the split-brain window that previously existed when SQL Server derived the mark from `MAX(FencingToken)` over the outbox rows. The table name defaults to `OutboxFence` (override via `SqlServerOutboxOptions.FenceTableName`). See [Outbox → Multi-Instance (Leader-Fenced) Processing](./patterns/outbox.md#multi-instance-leader-fenced-processing).
+
+### Right-to-erasure honored through the whole event-store decorator chain
+
+Right-to-erasure is now forwarded through the **entire event-store decoration chain** — telemetry, metrics, encrypting, and tenant-scoping decorators all delegate the erase to the inner store, so a decorator can no longer silently strip the capability by not re-implementing it. Under multi-tenancy the erase is **fail-closed**: it requires a resolved ambient tenant and refuses an unscoped (predicate-less) erase before it can run, so a multi-tenant deployment can never over-erase across every tenant's rows on the default per-subject erase path. A non-multi-tenant deployment erases its single partition unchanged.
+
+---
+
+## July 2026 — Provider parity: transactional inbox, atomic outbox fencing & sent-tracking
+
+### Transactional inbox parity for SQL Server & PostgreSQL
+
+The **provider-native transactional inbox** — duplicate check, handler, and processed-mark inside one native transaction — now covers the relational stores alongside MongoDB and Cosmos DB. On SQL Server and PostgreSQL it is **always on** (no option to set): the handler runs inside a local `IDbTransaction`, and you enlist your own writes on it with `scope.AsSqlTransaction()` so they commit atomically with the mark. This closes the crash window between handler and mark — there is no state where the handler's effect is durable but the message is left un-marked. If the handler throws, the whole transaction rolls back and the message is redelivered. See [Inbox Pattern](./patterns/inbox.md#provider-native-transactional-inbox-sql-server-postgresql-mongodb--cosmos-db).
+
+### Atomic outbox fencing (PostgreSQL & Oracle)
+
+For a leader-elected outbox running single-active across instances, the fenced drain (`GetUnsentMessagesAsync`) and mark-sent (`MarkSentAsync`) on the PostgreSQL and Oracle stores are now a **single-statement compare-and-swap**: the fencing-token check and the mutation execute atomically under one database statement, so a demoted leader whose token has been superseded cannot delete or claim a message between the check and the write. This closes a check-then-act window that could duplicate a delivery across a leader handover. (Outbox delivery is at-least-once; this removes one specific duplicate source rather than making it exactly-once.) Fenced deployments add a small **fence control table** (`outbox_fence` by default) holding one monotonic high-water mark per scope — see the [Outbox schema notes](./patterns/outbox.md#postgresql). Single-instance outboxes are unaffected and need no fence table.
+
+### Sent-tracking capability
+
+`IOutboxStoreCapabilities.SupportsSentTracking` reports whether a store retains a successfully-sent message as a countable, cleanup-eligible `Sent` row. Tracking stores keep the row; the relational **delete-on-sent** stores (PostgreSQL, Oracle) remove it on mark-sent and report `false`, so statistics and cleanup behave correctly instead of assuming one uniform storage model. A store that does not implement the interface is treated as a tracking store (the default).
+
+### Durable MongoDB leader-election fencing by default
+
+MongoDB leader election now defaults to a **durable per-resource fencing counter** (a separate, TTL-free collection) when you don't supply your own `IFencingTokenProvider`. The previous store-arbitrated token lived in the lock document, which is destroyed on graceful release and by the TTL index — resetting the token to 1 on restart and letting a zombie's stale token validate as current. The durable counter never resets, closing that split-brain window. Supplying your own provider still overrides the default. See [Leader Election](./leader-election/index.md#fencing-tokens).
+
+---
+
+## July 2026 — Single-active CDC, durable workflow signals & provider correctness
+
+### Single-active CDC with leadership fencing
+
+When an `ILeaderElection` provider is registered, the change-data-capture (CDC) pipeline now runs **single-active** across instances: only the elected leader advances the change feed, and every checkpoint write is guarded by a **monotonic fencing token**. A demoted instance whose token has been superseded cannot move the checkpoint — its write is rejected with `CdcLeadershipSupersededException`, signaling it to stand down quietly rather than double-process changes. Without a leader-election provider CDC runs single-instance exactly as before, so this is opt-in with no default behavior change. See [Change Data Capture](./patterns/cdc.md).
+
+### Durable workflow signal inbox (SQL Server)
+
+The new `Excalibur.Workflows.SqlServer` package adds a **restart-durable** backing store for workflow external signals. `AddSqlServerWorkflowSignalInbox(...)` persists each `(instanceId, signalId)` with idempotent dedup, so a producer's post-restart redelivery is admitted exactly once, and signals drain in durable append order. Call `RequireDurableSignalInbox()` to **fail host startup** when only the in-memory inbox is wired — turning "signals silently lost on restart" into a startup error rather than a runtime surprise. See [Durable Execution](./event-sourcing/durable-execution.md).
+
+### Provider correctness
+
+This release hardens reliable-persistence correctness across providers:
+
+- **Oracle** — event-store appends read their assigned positions back per row (eliminating a self-conflicting range read under `SERIALIZABLE`); the outbox round-trips every consumer-supplied field (correlation/causation, priority, schedule, partition/group keys, multi-transport routing); saga-summary `Guid` identifiers round-trip as `RAW(16)`; and the outbox failed-message model records the failure reason.
+- **Multi-tenant inbox** — SQL Server and Postgres inbox reads and claims now derive their tenant predicate solely from the ambient tenant context and **fail closed** when a tenant is active but unresolved, closing a cross-tenant fail-open.
+- **In-memory inbox** — eviction preserves processed-dedup and in-flight-claim markers, keeping idempotency intact under memory pressure.
+
+---
+
+## July 2026 — Durable execution, crypto-shredding, multi-tenancy, MQTT & IBM MQ
+
+### Durable execution (workflows)
+
+A new **durable-execution** foundation lets you define a replayable workflow whose progress survives process restarts. Register the engine with `AddWorkflows()` and a workflow body with `AddWorkflow(name, body)`; steps run through journaled **activities** (`CallActivityAsync`) so a crashed workflow resumes from where it left off without re-running completed steps. Replay is exactly-once per step (deduplicated by instance + step ordinal) with single-writer optimistic concurrency.
+
+```csharp
+services.AddWorkflows();
+services.AddActivity<ChargeCard, ChargeRequest, ChargeResult>("charge");
+services.AddWorkflow("checkout", async (ctx, input, ct) =>
+{
+    var charge = await ctx.CallActivityAsync<ChargeResult>("charge", input, ct);
+    return charge;
+});
+```
+
+Workflow bodies get a full **determinism surface** on `IWorkflowContext` — journaled time (`UtcNowAsync`), identifiers (`NewGuidAsync`), durable timers (`CreateTimerAsync`), and external signals (`WaitForSignalAsync`) — so non-deterministic work replays deterministically. External signals are delivered exactly-once via `IWorkflowExecutor.SignalAsync` (dedup-keyed by a producer-supplied `signalId`). The opt-in `Excalibur.Workflows.Analyzers` / `.CodeFixes` packages flag non-deterministic calls inside a workflow body at build time and rewrite them to the matching context member. See [Durable Execution](./event-sourcing/durable-execution.md).
+
+### Per-subject crypto-shredding (GDPR)
+
+`AddCryptoShredding()` adds **per-subject field-level crypto-shredding**: personal-data fields (marked `[PersonalData]`, keyed by a `[DataSubjectId]`) are encrypted with a per-subject key (AES-256-GCM, CSPRNG-generated), and erasing that subject's key destroys **all** its key versions — rendering every field encrypted under that key unrecoverable. The guarantee is bounded by what was encrypted under the subject's key: the inbox/outbox at-rest decorators are not subject-keyed, so message payloads are unaffected by destroying an individual subject's key. The field cryptor is **fail-closed**: a type declared to carry personal data that resolves no personal-data fields throws rather than silently persisting plaintext, and the reflection path is AOT/trim-safe. See [Crypto-Shredding](./compliance/crypto-shredding.md).
+
+### First-class multi-tenancy
+
+`AddTenantContext()` introduces an **ambient tenant context** for the dispatch pipeline. The tenant is resolved from the message items, falling back to a configured default. Set `RequireTenant = true` to make a missing tenant **fail fast** with `TenantRequiredException` — a tenant-isolation guarantee, not a silent default.
+
+On the storage side, a single `AddMultiTenancy(o => o.Strategy = ...)` call now wires **first-class persistence isolation** — either `RowDiscriminator` (tenant-scoped decorators over shared stores) or `Sharding` (per-tenant physical stores). It is **fail-closed by construction**: selecting `RowDiscriminator` with no tenant-aware store registered, or `Sharding` without tenant routing enabled, throws at composition time rather than leaving stores silently unscoped. Leader-election leases can also be tenant-scoped and fail-closed via `CreateTenantScopedElection`. See [Multi-Tenancy](./multi-tenancy.md).
+
+### MQTT and IBM MQ transports
+
+Two new transport primitive packages join the family — `Excalibur.Dispatch.Transport.Mqtt` (`AddMqttTransport`, QoS-honored with MQTT-5 shared subscriptions for competing consumers) and `Excalibur.Dispatch.Transport.IbmMq` (`AddIbmMqTransport`, unit-of-work per message). Both register keyed `ITransportSender`/`ITransportReceiver` you resolve by name. See [MQTT](./transports/mqtt.md) and [IBM MQ](./transports/ibm-mq.md).
+
+### Google Cloud Spanner foundation
+
+`Excalibur.Data.Spanner` ships the **connection foundation** — `AddSpannerDataProvider` + `ISpannerConnectionProvider` with retryable-transaction support. Persistence stores on Spanner are not yet available. See [Spanner](./data-providers/spanner.md).
+
+### Leaner domain-event contract
+
+`IDomainEvent` (and its `DomainEvent` base record) no longer carry `AggregateId` or `Version`. A domain event now models only its own business data; stream identity and position are persistence facts owned by the event store:
+
+- The **aggregate id** is passed to the store as an explicit parameter (`AppendAsync`/`LoadAsync(aggregateId, aggregateType, …)`).
+- The **stream version** is assigned by the store at append time and surfaced on the replay envelope (`HistoricEvent.Version` / `StoredEvent.Version`) — never read from the event payload.
+
+**Upgrade:** remove any `public override string AggregateId => …;` and `Version` members from your event records — they no longer exist to override. Reads of `evt.AggregateId` / `evt.Version` should use the event's own business id or the store-supplied version. `IDomainEvent` now exposes `EventId`, `OccurredAt`, `EventType`, `Metadata`, `CorrelationId`, and `CausationId`. See [Domain Events](./event-sourcing/domain-events.md).
+
+---
+
+## July 2026 — Oracle & Pulsar providers, aggregate handlers, dashboard hardening
+
+### Oracle Database provider
+
+Excalibur's reliable-persistence subsystems now run on **Oracle Database**. Four opt-in, Dapper-based packages sit behind the existing store abstractions — `Excalibur.EventSourcing.Oracle` (event store + snapshots), `Excalibur.Outbox.Oracle`, `Excalibur.Inbox.Oracle`, and `Excalibur.Saga.Oracle` — each registered with its own `AddOracle*` / `UseOracle` extension. Application code is unchanged; only the registration differs.
+
+```csharp
+services.AddOracleEventStore(() => new OracleConnection(connectionString));
+```
+
+See [Oracle Provider](./data-providers/oracle.md).
+
+### Apache Pulsar transport (primitives)
+
+A new `Excalibur.Dispatch.Transport.Pulsar` package registers the Pulsar **transport primitives** — a keyed `ITransportSender` and `ITransportReceiver` over DotPulsar — via `AddPulsarTransport`.
+
+```csharp
+services.AddPulsarTransport("events", pulsar =>
+    pulsar.ServiceUrl("pulsar://localhost:6650")
+          .Topic("orders")
+          .SubscriptionName("order-processors"));
+```
+
+:::info First-wave scope
+This package provides the low-level sender/receiver only. Full dispatch-pipeline integration (publishing and consuming typed dispatch messages end-to-end through middleware and serialization) is **not** part of this package and is provided separately. For pipeline-integrated messaging today, use Kafka, RabbitMQ, Azure Service Bus, AWS SQS, or Google Pub/Sub.
+:::
+
+See [Apache Pulsar Transport](./transports/pulsar.md).
+
+### Aggregate handlers (Decider) and cascading
+
+`Excalibur.EventSourcing.Handlers` adds `AddAggregateHandler`, a **Decider** registration that routes a dispatched command straight to an event-sourced aggregate — resolve identity, load, decide, save with optimistic concurrency — with no hand-written handler class and no reflection (AOT-safe). A handler can also stage follow-up messages to the outbox by returning a result that implements `ICascade` (opt-in by return-type convention). See [Aggregate Handlers & Cascading](./event-sourcing/aggregate-handlers.md).
+
+### Operational dashboard hardening
+
+The [operational dashboard](./operations/dashboard.md) gains a built-in `ReadActionsPolicy` for gating read endpoints with an authorization policy (symmetric with mutating actions), and list endpoints now clamp their page size to `[1, MaxPageSize]` so a caller cannot request an unbounded result set.
+
+---
+
+## July 2026 — Free OSS Operational Dashboard
+
+### Live operational dashboard for the reliability subsystems
+
+A new **free, open-source, read-only-by-default** operational dashboard surfaces live state of the subsystems Excalibur already instruments — **outbox, dead-letter queue, inbox, saga, projection/CDC-lag, and leader election** — across every configured storage provider, with no paid license and no bespoke admin UI to build. Add one package and map it onto your ASP.NET Core app:
+
+```csharp
+builder.Services.AddDashboard();
+app.MapDashboard();   // read API at /dashboard/api, embedded SPA at /dashboard
+```
+
+The dashboard is a thin aggregation over existing admin read-models (point-in-time state) and OpenTelemetry meters (throughput). A capability-discovery endpoint lets the embedded single-page app render only the panels backed by a configured subsystem; absent subsystems **fail open** (report "not configured") rather than erroring. The SPA is served as embedded static assets under a strict Content-Security-Policy and the serving/serialization paths are trim- and native-AOT-safe.
+
+The read API is **unauthenticated by default** (read-only). Some reads can be sensitive (DLQ exception messages/correlation ids, saga tenant ids) — gate the whole dashboard by mapping it inside a parent `RequireAuthorization` route group. **Mutating actions** (dead-letter replay) are **opt-in** (`DashboardOptions.EnableMutatingActions`, default `false` → the endpoints are not mapped at all, returning 404) and, when enabled, are auth-gated. The projection/CDC-lag panel ships in a separate `Excalibur.Operations.Dashboard.EventSourcing` add-on (`AddProjectionLagDashboard()`) so the base package carries no event-sourcing dependency.
+
+See [Operations → Operational Dashboard](./operations/dashboard.md).
+
+---
+
+## July 2026 — Wiring Completion & Correctness
+
+A remediation sprint completing partially-wired features, removing dead scaffolding, and closing correctness gaps.
+
+### Kafka: Confluent Schema Registry framing is decoded on consume
+
+A Confluent Schema Registry-configured Kafka transport now strips the 5-byte Confluent wire-format header (magic byte + schema id) from inbound payloads before handing them to the canonical deserializer. Previously the raw Confluent-framed bytes were passed downstream and failed to deserialize. Non-framed payloads pass through untouched.
+
+### Exactly-once transactional inbox on MongoDB and Cosmos DB
+
+The MongoDB and Azure Cosmos DB inbox stores can now run the duplicate check, the handler, and the processed-mark inside a **single provider-native transaction** — closing the crash window that leaves the default two-step claim protocol at at-least-once. Opt in per provider (`MongoDbInboxOptions.EnableTransactions` on a replica set; `CosmosDbInboxOptions.SharedPartitionKey` on Cosmos), and enlist a handler's own writes on the same transaction via `context.GetInboxTransactionScope()?.AsMongoSession()` / `?.AsCosmosBatch()`. When not configured, the store advertises no transactional capability and the middleware falls back transparently to the idempotent claim path. See [Inbox Pattern → Provider-Native Transactional Inbox](./patterns/inbox.md#provider-native-transactional-inbox-sql-server-postgresql-mongodb--cosmos-db).
+
+### Saga retention purge is now available on every store
+
+Completed-saga retention purge (`ISagaStore.PurgeCompletedBeforeAsync`) now works on **all** saga stores — the document stores **Azure Cosmos DB, AWS DynamoDB, and Google Firestore** join the in-memory, relational, and MongoDB providers for full parity. A hosted background service periodically purges completed sagas older than the retention window; configure it on `SagaOptions` (`EnableAutomaticCleanup`, `SagaRetentionPeriod`, `CleanupInterval`), or call `PurgeCompletedBeforeAsync` directly to drive your own schedule. See [Sagas → Retention & Cleanup](./sagas/index.md#retention--cleanup).
+
+### Caching honors `ICacheable.ShouldCache`
+
+The caching middleware now evaluates a handler result's `ICacheable.ShouldCache` decision (via `IMessageResult.UntypedReturnValue`), so a result can opt out of caching per-invocation instead of being cached unconditionally.
+
+### New decorrelated-jitter backoff strategy
+
+`BackoffStrategy.DecorrelatedJitter` adds AWS-style decorrelated jitter for the in-process retry path — each delay is sampled from `[baseDelay, previousDelay * 3]` (capped at `maxDelay`), threading the previous delay forward for smoother, less-correlated growth than full jitter. Durable retry paths (outbox/inbox schedulable stores) continue to use attempt-derived strategies.
+
+### Circuit-breaker and dead-letter metrics come straight from the middleware
+
+The separate circuit-breaker / dead-letter metrics registration classes have been removed. Circuit-breaker and dead-letter telemetry are now emitted directly by the core middleware meters (`Excalibur.Dispatch.CircuitBreakerMiddleware` and `Excalibur.Dispatch.PoisonMessage.Middleware`) with no opt-in observability service required — subscribe to them via `AddDispatchInstrumentation()`. See [Metrics Reference](./observability/metrics-reference.md).
+
+### SQL Server inbox builder enforces the SQL-identifier allowlist
+
+The builder-based SQL Server inbox registration path now applies the same SQL-identifier allowlist validation as the options-based path, closing a configuration-validation parity gap.
+
+---
+
+## July 2026 — Fencing Tokens, Interface Refinements & Correctness
+
+A hardening sprint adding fencing-token safety to every leader-election backend, splitting wide interfaces into focused roles, and closing correctness gaps.
+
+### Fencing tokens on every leader-election backend
+
+Consul, Kubernetes, and MongoDB now ship fencing-token providers (`AddConsulFencingTokenProvider()`, `AddKubernetesFencingTokenProvider()`, `AddMongoDbFencingTokenProvider()`), and every backend's leader election accepts an optional `IFencingTokenProvider`. Fencing tokens are **strictly monotonic** — a wrapped or reused value could let a stale leader validate as current (split-brain), so when a provider's token domain is exhausted it throws `FencingTokenExhaustedException` and **fails closed**: it refuses to mint, leadership cannot be granted or renewed on an unsafe token, and a leader that hits exhaustion mid-tenure relinquishes. Exhaustion is practically unreachable for the 64-bit self-minting domains (Consul/MongoDB) and reachable only for a narrow native counter such as a Kubernetes `Lease.spec.leaseTransitions` (32-bit). See [Leader Election → Fencing tokens](./leader-election/index.md#fencing-tokens).
+
+### Channel-adapter and audit-store interfaces split by role
+
+`IMessageChannelAdapter` is now composed from focused role interfaces — `IMessageChannelSender<TMessage>`, `IMessageChannelReceiver<TMessage>`, `IMessageChannelAcknowledger<TMessage>`, and `IMessageChannelConnection` — so a component depends only on the capability it uses. Similarly, the compliance audit store splits into `IAuditQuery` (reads) and `IAuditWriter` (writes), and new master-key backup/recovery contracts (`IMasterKeyBackupExporter` with Shamir threshold shares, `IMasterKeyRestoreService`) support export/import and reconstruction.
+
+### CronTimer catch-up policy for missed occurrences
+
+The cron-timer transport gains a `CatchUpPolicy` (`Skip` — the default, drop missed occurrences and resume at the next future one; `FireOnce`; `FireAll`) plus `MaxCatchUpOccurrences` (default 100, bounding a `FireAll` pass). This controls what happens after a downtime window where scheduled occurrences were missed.
+
+### Correctness and security fixes
+
+- **Vault key-suspension fails closed on a missing mount** — a suspended key can no longer read as active if the KV suspension mount becomes unavailable mid-run.
+- **`AppendResult.FirstEventPosition` is now `long?`** — `null` for event stores with no global sequence, instead of an ambiguous sentinel.
+- **B3 trace-context propagation** via `UseB3TraceContextInjection()` for interop with B3-instrumented services.
+- **Per-queue RabbitMQ `MaxPayloadBytes`** for a queue-scoped inbound payload cap.
+
+---
+
+## July 2026 — Ingress Hardening & Observability Seams
+
+A focused-correctness sprint extending the payload-size DoS guard across every transport, adding an optional keyed telemetry pepper, and surfacing failed leader-acquisition attempts.
+
+### Payload-size guard now covers every transport
+
+The inbound payload-size guard — previously wired only on the outbox publish path and the RabbitMQ consumer — now enforces a configurable maximum inbound payload at the receive/subscribe ingress of **all six** transports (AWS SQS, Azure Service Bus, Google Pub/Sub, gRPC, Kafka, RabbitMQ), before the body is deserialized. An over-limit message is rejected at the boundary (nacked / dead-lettered / abandoned per transport) and logged, never deserialized, so one oversized message cannot exhaust memory, poison-loop, or strand a batch. Each transport ships a bounded default sized to its broker profile and is tuned or disabled via `MaxPayloadBytes` (`null` opts out). See the [Runtime Contract → Payload Size Contract](./operations/runtime-contract.md#payload-size-contract).
+
+### Optional keyed telemetry pepper
+
+Telemetry tag fingerprints can now be upgraded from an unkeyed SHA-256 digest to keyed **HMAC-SHA-256** by supplying a secret pepper (`TelemetrySanitizerOptions.Pepper` for the observability sanitizer, `MaskingTelemetrySanitizerOptions.Pepper` for the security-audit masking sanitizer). This protects low-entropy identifiers (short user IDs, source IPs) against brute-force and rainbow-table correlation. The pepper is optional and fingerprinting **never throws** on the telemetry path regardless of the setting (fail-open). See [PII-Safe Telemetry → Keyed fingerprints](./observability/pii-safe-telemetry.md#keyed-fingerprints-pepper).
+
+### Leader election surfaces failed acquisitions
+
+`ILeaderElection` gains an `AcquisitionFailed` event, raised when an instance fails to acquire leadership — either by losing the acquisition race or because an error occurred during the attempt. The telemetry decorator also records these on the acquisitions counter with a `result=failed` tag. The event fires per failed acquisition attempt (i.e. per poll), not per leadership state transition — use it to observe contention and backend errors that a `BecameLeader`/`LostLeadership`-only view would miss. See [Leader Election → Acquisition failures](./leader-election/index.md#observing-acquisition-failures).
+
+---
+
+## June 2026 — Reliability Seams, Provider Validation & Safe Defaults
+
+A hardening sprint focused on DoS guards, honest defaults, and closing advertised-but-unwired gaps.
+
+### Payload-size DoS guards
+
+The outbox publish path and the RabbitMQ consumer now reject oversized messages at the boundary (bounded at 4 MiB by default). RabbitMQ nacks an over-limit delivery with `requeue: false` (dead-lettered when configured) and keeps processing the rest of the batch, so one large message can no longer poison-loop or strand a batch. Tune or disable via `MaxPayloadBytes`.
+
+### Security auditing is PII-safe by default
+
+`AddSecurityAuditing()` now masks/hashes PII by default — raw passthrough is opt-in only. A security-audit sink no longer emits raw `UserId`/`SourceIp` out of the box.
+
+### GDPR data-subject hashing hardened
+
+Data-subject identifiers are pseudonymized with a keyed HMAC (`IDataSubjectHasher`) requiring a secret pepper (≥ 32 chars, validated at startup, fails closed). The hasher is now registered on the standalone legal-hold and data-inventory paths too.
+
+### Distributed tracing and retry
+
+W3C `tracestate` now propagates symmetrically with `traceparent` across the outbox. A new `BackoffStrategy.FullJitter` (AWS full jitter) maximally decorrelates concurrent retries. New Secrets-backed signing key providers for Azure Key Vault and AWS Secrets Manager (fail-closed, bounded-TTL cache).
 
 ---
 
@@ -134,7 +432,7 @@ A focused hardening sweep across error handling, CDC, serialization, observabili
 
 ### Opt-in auto-dead-letter on retry exhaustion
 
-- **The new opt-in `DeadLetterOnExhaustionMiddleware` (registered via `AddDeadLetterOnExhaustion()`) automatically routes an in-process dispatch to the dead-letter queue once it exhausts every retry attempt**, dead-lettering with reason `DeadLetterReason.MaxRetriesExceeded`. Place it upstream of the retry middleware. It composes with `PoisonMessageMiddleware` (which owns the poison/deserialization reasons) rather than duplicating it, and registers a fail-safe no-op `NullDeadLetterQueue` via `TryAdd` so a consumer without a real `IDeadLetterQueue` is logged rather than crashed. See [Dead Letter → Auto-Dead-Letter on Retry Exhaustion](./patterns/dead-letter.md#auto-dead-letter-on-retry-exhaustion).
+- **The new opt-in `DeadLetterOnExhaustionMiddleware` (registered via `AddDeadLetterOnExhaustion()`) automatically routes an in-process dispatch to the dead-letter queue once it exhausts every retry attempt**, dead-lettering with reason `DeadLetterReason.MaxRetriesExceeded`. Place it upstream of the retry middleware. It composes with `PoisonMessageMiddleware` (which owns the poison/deserialization reasons) rather than duplicating it. **An `IDeadLetterQueue` is required — there is no default store.** Because the middleware exists to stop exhausted messages being dropped, a host without one throws `InvalidOperationException` on first resolve rather than silently discarding; note that `BuildServiceProvider()` itself still returns normally, so resolve `DeadLetterOnExhaustionMiddleware` itself at startup if you want the failure on your machine. Discarding remains available as an explicit choice via `services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance)`, which logs each message as discarded rather than reporting it as dead-lettered. See [Dead Letter → Auto-Dead-Letter on Retry Exhaustion](./patterns/dead-letter.md#auto-dead-letter-on-retry-exhaustion).
 
 ### Avro serialization fails closed on schema skew
 
@@ -655,7 +953,7 @@ builder.AddProjection<OrderSummary>(p => p
 
 ## Pre-Release Versioning
 
-During the alpha phase, each NuGet publish increments the alpha suffix (`3.0.0-alpha.1`, `3.0.0-alpha.2`, etc.). See [Versioning Strategy](./migration/version-upgrades.md) for the full release stage roadmap.
+During the pre-release phase, each NuGet publish increments the pre-release suffix (`10.0.0-alpha.1`, `10.0.0-alpha.2`, etc.). The major version matches the targeted .NET major (`net10.0` → `10.x`). See [Versioning Strategy](./migration/version-upgrades.md) for the full release stage roadmap.
 
 ## Breaking Changes
 

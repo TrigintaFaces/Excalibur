@@ -818,7 +818,17 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 			EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
 			AllowBulkExecution = _options.AllowBulkExecution,
 			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
-			EnableTcpConnectionEndpointRediscovery = _options.EnableTcpConnectionEndpointRediscovery
+			EnableTcpConnectionEndpointRediscovery = _options.EnableTcpConnectionEndpointRediscovery,
+
+			// Force deterministic camelCase property naming on the SDK's default serializer. Without this the
+			// Cosmos SDK v3 default (Newtonsoft, no naming policy) emits PascalCase keys, so a generic TDocument
+			// with a PascalCase 'Id' serializes to 'Id' instead of the Cosmos-required lowercase 'id' — breaking
+			// point-read-by-id (NotFound / auto-GUID id) and the serialize→store→reload round-trip. Mirrors the
+			// CdcStateStore reference fix so every store-owned document on this provider round-trips.
+			SerializerOptions = new CosmosSerializationOptions
+			{
+				PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
+			},
 		};
 
 		if (_options.Client.ConsistencyLevel.HasValue)

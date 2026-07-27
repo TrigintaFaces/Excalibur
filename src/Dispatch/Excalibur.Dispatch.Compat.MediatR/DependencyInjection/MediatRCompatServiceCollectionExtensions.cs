@@ -37,8 +37,15 @@ public static class MediatRCompatServiceCollectionExtensions
         // a consumer that also calls AddDispatch() explicitly is unaffected.
         services.AddDispatch();
 
+        // Invoke the consumer's 'configure' delegate exactly once, on a probe. The registry build below
+        // needs the resolved options at registration time, and the DI options instance is populated by
+        // copying the probe (not by re-running 'configure') — so a delegate with observable side effects
+        // (logging, counters) runs once, matching MediatR's single-invocation behavior (d2kokz).
+        var probe = new MediatRCompatOptions();
+        configure(probe);
+
         services.AddOptions<MediatRCompatOptions>()
-            .Configure(configure)
+            .Configure(options => options.CopyFrom(probe))
             .ValidateOnStart();
 
         services.TryAddEnumerable(
@@ -47,8 +54,6 @@ public static class MediatRCompatServiceCollectionExtensions
         // Register the generated handlers/behaviors into DI and build the per-container request→bridge
         // registry from the source-generated registrations (populated by module initializers at load),
         // filtered to the consumer's registered assemblies.
-        var probe = new MediatRCompatOptions();
-        configure(probe);
         services.TryAddSingleton(RegisterGeneratedComponents(services, probe));
 
         // Facade: ISender/IPublisher resolve the single IMediator implementation.

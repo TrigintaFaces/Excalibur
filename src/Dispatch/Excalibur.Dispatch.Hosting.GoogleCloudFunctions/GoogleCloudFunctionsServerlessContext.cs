@@ -3,7 +3,7 @@
 
 
 
-namespace Excalibur.Dispatch.Hosting.GoogleCloud;
+namespace Excalibur.Dispatch.Hosting.GoogleCloudFunctions;
 
 /// <summary>
 /// Google Cloud Functions specific implementation of serverless context.

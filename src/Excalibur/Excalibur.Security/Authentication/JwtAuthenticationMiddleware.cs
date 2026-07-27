@@ -306,7 +306,7 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 	private string? ExtractToken(IDispatchMessage message, IMessageContext context)
 	{
 		// Try to get token from context
-		if (context.TryGetValue<string>(_options.TokenContextKey, out var contextToken) &&
+		if (context.TryGetValue<string>(_options.TokenExtraction.TokenContextKey, out var contextToken) &&
 			contextToken != null &&
 			!string.IsNullOrEmpty(contextToken))
 		{
@@ -315,7 +315,7 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 
 		// Try to get token from message headers/metadata
 		if (message is IMessageWithHeaders msgWithHeaders &&
-			msgWithHeaders.Headers.TryGetValue(_options.TokenHeaderName, out var headerToken) &&
+			msgWithHeaders.Headers.TryGetValue(_options.TokenExtraction.TokenHeaderName, out var headerToken) &&
 			!string.IsNullOrEmpty(headerToken))
 		{
 			// Remove "Bearer " prefix if present
@@ -328,9 +328,9 @@ public sealed partial class JwtAuthenticationMiddleware : IDispatchMiddleware
 		}
 
 		// Try to get token from message property via reflection (if enabled)
-		if (_options.EnablePropertyExtraction && message is not null)
+		if (_options.TokenExtraction.EnablePropertyExtraction && message is not null)
 		{
-			var tokenProperty = message.GetType().GetProperty(_options.TokenPropertyName);
+			var tokenProperty = message.GetType().GetProperty(_options.TokenExtraction.TokenPropertyName);
 			if (tokenProperty?.GetValue(message) is string propToken && !string.IsNullOrEmpty(propToken))
 			{
 				return propToken;

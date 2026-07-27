@@ -10,8 +10,6 @@ namespace Excalibur.Outbox.Tests.Outbox;
 [Trait("Component", "Core")]
 public sealed class OutboxBulkCleanupAdapterFunctionalShould
 {
-	private static readonly byte[] TestPayload = [0x01];
-
 	[Fact]
 	public void Constructor_WithNullAdmin_ShouldThrow()
 	{
@@ -33,7 +31,7 @@ public sealed class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(
-			() => adapter.BulkCleanupSentMessagesAsync(DateTimeOffset.UtcNow, 0, CancellationToken.None).AsTask())
+			() => adapter.BulkCleanupAllTenantsSentMessagesAsync(DateTimeOffset.UtcNow, 0, CancellationToken.None).AsTask())
 			;
 	}
 
@@ -41,13 +39,13 @@ public sealed class OutboxBulkCleanupAdapterFunctionalShould
 	public async Task BulkCleanupSentMessages_WithNoMessages_ShouldReturnZero()
 	{
 		var admin = A.Fake<IOutboxStoreAdmin>();
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
+		A.CallTo(() => admin.CleanupAllTenantsSentMessagesAsync(
 				A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(0));
 
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
-		var result = await adapter.BulkCleanupSentMessagesAsync(
+		var result = await adapter.BulkCleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow, 100, CancellationToken.None);
 
 		result.ShouldBe(0);
@@ -58,17 +56,17 @@ public sealed class OutboxBulkCleanupAdapterFunctionalShould
 	{
 		var admin = A.Fake<IOutboxStoreAdmin>();
 		// Return 50 (less than batch size 100) indicating single batch
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
+		A.CallTo(() => admin.CleanupAllTenantsSentMessagesAsync(
 				A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<int>(50));
 
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
-		var result = await adapter.BulkCleanupSentMessagesAsync(
+		var result = await adapter.BulkCleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow, 100, CancellationToken.None);
 
 		result.ShouldBe(50);
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
+		A.CallTo(() => admin.CleanupAllTenantsSentMessagesAsync(
 			A<DateTimeOffset>._, 100, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
@@ -77,7 +75,7 @@ public sealed class OutboxBulkCleanupAdapterFunctionalShould
 	{
 		var admin = A.Fake<IOutboxStoreAdmin>();
 		var callCount = 0;
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
+		A.CallTo(() => admin.CleanupAllTenantsSentMessagesAsync(
 				A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
@@ -88,101 +86,12 @@ public sealed class OutboxBulkCleanupAdapterFunctionalShould
 
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
-		var result = await adapter.BulkCleanupSentMessagesAsync(
+		var result = await adapter.BulkCleanupAllTenantsSentMessagesAsync(
 			DateTimeOffset.UtcNow, 100, CancellationToken.None);
 
 		result.ShouldBe(330); // 100 + 100 + 100 + 30
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
+		A.CallTo(() => admin.CleanupAllTenantsSentMessagesAsync(
 			A<DateTimeOffset>._, 100, A<CancellationToken>._)).MustHaveHappened(4, Times.Exactly);
-	}
-
-	[Fact]
-	public async Task BulkCleanupFailedMessages_WithBatchSizeZero_ShouldThrow()
-	{
-		var admin = A.Fake<IOutboxStoreAdmin>();
-		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
-
-		await Should.ThrowAsync<ArgumentOutOfRangeException>(
-			() => adapter.BulkCleanupFailedMessagesAsync(3, DateTimeOffset.UtcNow, 0, CancellationToken.None).AsTask())
-			;
-	}
-
-	[Fact]
-	public async Task BulkCleanupFailedMessages_WithNoMessages_ShouldReturnZero()
-	{
-		var admin = A.Fake<IOutboxStoreAdmin>();
-		A.CallTo(() => admin.GetFailedMessagesAsync(
-				A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>()));
-
-		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
-
-		var result = await adapter.BulkCleanupFailedMessagesAsync(
-			3, DateTimeOffset.UtcNow, 100, CancellationToken.None);
-
-		result.ShouldBe(0);
-	}
-
-	[Fact]
-	public async Task BulkCleanupFailedMessages_SingleBatch_ShouldProcessAll()
-	{
-		var admin = A.Fake<IOutboxStoreAdmin>();
-		var failedMessages = CreateOutboundMessages(30);
-
-		A.CallTo(() => admin.GetFailedMessagesAsync(
-				A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(failedMessages));
-
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
-				A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
-			.Returns(new ValueTask<int>(30));
-
-		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
-
-		var result = await adapter.BulkCleanupFailedMessagesAsync(
-			3, DateTimeOffset.UtcNow, 100, CancellationToken.None);
-
-		result.ShouldBe(30);
-	}
-
-	[Fact]
-	public async Task BulkCleanupFailedMessages_MultipleBatches_ShouldIterateUntilNoMore()
-	{
-		var admin = A.Fake<IOutboxStoreAdmin>();
-		var firstBatch = CreateOutboundMessages(100);
-		var secondBatch = CreateOutboundMessages(40);
-
-		var getCallCount = 0;
-		A.CallTo(() => admin.GetFailedMessagesAsync(
-				A<int>._, A<DateTimeOffset?>._, A<int>._, A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				getCallCount++;
-				return getCallCount switch
-				{
-					1 => new ValueTask<IEnumerable<OutboundMessage>>((IEnumerable<OutboundMessage>)firstBatch),
-					2 => new ValueTask<IEnumerable<OutboundMessage>>((IEnumerable<OutboundMessage>)secondBatch),
-					_ => new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>())
-				};
-			});
-
-		A.CallTo(() => admin.CleanupSentMessagesAsync(
-				A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
-			.ReturnsLazily(call => new ValueTask<int>((int)call.Arguments[1]!));
-
-		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
-
-		var result = await adapter.BulkCleanupFailedMessagesAsync(
-			3, DateTimeOffset.UtcNow, 100, CancellationToken.None);
-
-		result.ShouldBe(140); // 100 + 40
-	}
-
-	private static List<OutboundMessage> CreateOutboundMessages(int count)
-	{
-		return Enumerable.Range(0, count)
-			.Select(_ => new OutboundMessage("TestType", TestPayload, "test-dest"))
-			.ToList();
 	}
 }
 

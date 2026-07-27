@@ -241,7 +241,7 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 		try
 		{
 			var client = await MetricServiceClient.CreateAsync(cancellationToken).ConfigureAwait(false);
-			var projectName = global::Google.Api.Gax.ResourceNames.ProjectName.FromProject(_options.ProjectId);
+			var projectName = global::Google.Api.Gax.ResourceNames.ProjectName.FromProject(_options.Connection.ProjectId);
 
 			// Create time series for custom metrics
 			var timeSeries = new List<TimeSeries>();
@@ -256,7 +256,7 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 					"custom.googleapis.com/pubsub/throughput",
 					throughput,
 					interval,
-					_options.SubscriptionName));
+					_options.Connection.SubscriptionName));
 			}
 
 			// Add active streams metric
@@ -264,7 +264,7 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 				"custom.googleapis.com/pubsub/active_streams",
 				_currentActiveStreams,
 				interval,
-				_options.SubscriptionName));
+				_options.Connection.SubscriptionName));
 
 			if (timeSeries.Count > 0)
 			{
@@ -318,7 +318,7 @@ internal sealed class PubSubTelemetryProvider : IDisposable
 			{
 				["cloud.provider"] = "gcp",
 				["cloud.platform"] = "gcp_pubsub",
-				["cloud.account.id"] = _options.ProjectId,
+				["cloud.account.id"] = _options.Connection.ProjectId,
 			});
 
 		// Configure metrics

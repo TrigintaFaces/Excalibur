@@ -101,7 +101,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		// Arrange
 		using var cts = new CancellationTokenSource();
 		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				_ = firstPollObserved.TrySetResult();
@@ -127,7 +127,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		}
 
 		// Assert
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -146,7 +146,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			JsonSerializer.SerializeToUtf8Bytes(new TestTimeoutMessage { Value = "test" }));
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -200,7 +200,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		// Arrange
 		using var cts = new CancellationTokenSource();
 		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				_ = firstPollObserved.TrySetResult();
@@ -243,7 +243,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			null);
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -295,7 +295,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			JsonSerializer.SerializeToUtf8Bytes(new TestTimeoutMessage { Value = "test" }));
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -358,13 +358,18 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var hasReturned = false;
 		var dispatchCount = 0;
 		var secondDispatchObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
-			.ReturnsLazily(() =>
+
+		// Bounding the batch is the STORE's obligation now: the service passes BatchSize to
+		// ClaimDueTimeoutsAsync and no longer trims the result itself. The fake must honor the
+		// requested batchSize, or it would return all 5 seeded timeouts and the service would
+		// dispatch every one of them.
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily((DateTimeOffset _, int batchSize, CancellationToken _) =>
 			{
 				if (!hasReturned)
 				{
 					hasReturned = true;
-					return timeouts;
+					return timeouts.Take(batchSize).ToList();
 				}
 				return new List<SagaTimeout>();
 			});
@@ -403,6 +408,12 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		// Assert - only batch size (2) should be processed in first cycle
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustHaveHappened(2, Times.Exactly);
+
+		// The configured batch size must reach the store's lease call, not merely bound the dispatch count.
+		// Without this, the service could claim an unbounded batch and the dispatch assertion above would
+		// still pass whenever the fake happened to return exactly two timeouts.
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, 2, A<CancellationToken>._))
+			.MustHaveHappened();
 	}
 
 	[Fact]
@@ -418,7 +429,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			null); // No data - should create default instance
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -473,7 +484,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			JsonSerializer.SerializeToUtf8Bytes(new NonDispatchMessage { Data = "test" }));
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -521,7 +532,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		// Arrange
 		var callCount = 0;
 		var observedSecondPoll = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				var currentCallCount = Interlocked.Increment(ref callCount);
@@ -572,7 +583,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			JsonSerializer.SerializeToUtf8Bytes(new TestTimeoutMessage { Value = "fallback" }));
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -627,7 +638,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			null);
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)
@@ -688,7 +699,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		typeRegistry.RegisterType(typeof(TestTimeoutMessage));
 
 		var hasReturned = false;
-		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+		A.CallTo(() => _timeoutStore.ClaimDueTimeoutsAsync(A<DateTimeOffset>._, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				if (!hasReturned)

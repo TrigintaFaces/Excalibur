@@ -429,6 +429,8 @@ public class CosmosDbEventStore : IEventStore
     {
         var batch = _container.CreateTransactionalBatch(new PartitionKey(aggregateId));
 
+        // The store assigns each event's stream version; the event payload no longer carries one.
+        var version = expectedVersion;
         foreach (var @event in events)
         {
             var eventDocument = new EventDocument
@@ -437,7 +439,7 @@ public class CosmosDbEventStore : IEventStore
                 AggregateId = aggregateId,
                 EventType = @event.EventType,
                 EventData = JsonSerializer.Serialize(@event),
-                Version = @event.Version,
+                Version = ++version,
                 OccurredAt = @event.OccurredAt
             };
 

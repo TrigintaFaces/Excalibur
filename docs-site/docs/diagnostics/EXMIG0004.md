@@ -48,6 +48,14 @@ public class CreateOrderHandler : IRequestHandler<CreateOrder, OrderResult>
 Other signature deltas (parameter shape, return type) have no automatic rewrite and are described in
 the diagnostic message for manual migration.
 
+:::note Code-fix scope: renames the declaration only
+The code-fix renames the flagged method's identifier. It does not update other references to that
+method name within the same type — for example, a handler that recursively calls its own `HandleAsync`
+from within the method body keeps calling `HandleAsync` after the fix, which no longer exists and will
+not compile. If your handler self-calls its handler method, update those call sites by hand after
+applying the fix.
+:::
+
 :::note Compat vs canonical handler names
 This applies to handlers implementing the **compat** `IRequestHandler` (method `Handle`). If you are
 rewriting to the **canonical** `IActionHandler`, that interface uses `HandleAsync` — see the

@@ -345,8 +345,17 @@ Recommended local reproduction sequence:
 ```bash
 dotnet restore Excalibur.sln
 dotnet build Excalibur.sln -c Release --no-restore
-dotnet test Excalibur.sln -c Release --no-build --filter "Category=Integration|Category=EndToEnd" -- RunConfiguration.TestSessionTimeout=1200000
+dotnet test Excalibur.sln -c Release --no-build \
+  --blame-hang-timeout 5m \
+  --filter "Category=Integration|Category=EndToEnd" \
+  -- RunConfiguration.TestSessionTimeout=1200000
 ```
+
+The two bounds do different jobs, and the local sequence needs both for the same reason the pipeline does.
+`RunConfiguration.TestSessionTimeout` caps the **whole session**, so a wedged run still ends — after twenty
+minutes, with no evidence of what wedged. `--blame-hang-timeout` bounds an **individual test** and writes a
+hang dump identifying it. Integration tests wait on real containers, which is where a hang is most likely and
+least self-explanatory, so dropping the per-test bound locally removes the diagnostic exactly where you need it.
 
 ## Best Practices
 

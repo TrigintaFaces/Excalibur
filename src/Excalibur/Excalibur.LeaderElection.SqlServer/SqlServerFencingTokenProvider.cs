@@ -87,9 +87,31 @@ SELECT @token;";
 		await using var command = new SqlCommand(sql, connection);
 		_ = command.Parameters.AddWithValue("@name", sequenceName);
 
-		var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-		return Convert.ToInt64(result, CultureInfo.InvariantCulture);
+		try
+		{
+			var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+			return Convert.ToInt64(result, CultureInfo.InvariantCulture);
+		}
+		catch (SqlException ex) when (ex.Number == SequenceExhaustedErrorNumber)
+		{
+			// A NO CYCLE bigint SEQUENCE raises error 11732 ("reached its minimum or maximum value") at its
+			// ceiling rather than wrapping; translate to the contract's FencingTokenExhaustedException so a
+			// consumer's fail-closed catch relinquishes rather than seeing a raw SqlException (nxjn2k — a
+			// wrapped/reused fencing token would be a split-brain catastrophe).
+			throw new FencingTokenExhaustedException(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"SQL Server fencing token domain is exhausted for resource '{0}'.",
+					resourceId),
+				ex)
+			{
+				ResourceId = resourceId,
+			};
+		}
 	}
+
+	/// <summary>SQL Server error number raised when a NO CYCLE sequence reaches its min/max value.</summary>
+	private const int SequenceExhaustedErrorNumber = 11732;
 
 	/// <inheritdoc />
 	public async ValueTask<long?> GetTokenAsync(string resourceId, CancellationToken cancellationToken)

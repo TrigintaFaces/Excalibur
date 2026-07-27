@@ -22,6 +22,12 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 	private readonly Counter<long> _tagRegistrationCounter;
 	private readonly Counter<long> _tagLookupCounter;
 	private readonly Counter<long> _tagUnregistrationCounter;
+	/// <summary>
+	/// Default upper bound on tracked keys, applied by the constructors that do not receive
+	/// <see cref="CacheOptions.TagTrackerCapacity"/>. Prevents unbounded growth on direct instantiation.
+	/// </summary>
+	private const int DefaultCapacity = 10_000;
+
 	private readonly int _capacity;
 	private readonly ILogger<InMemoryCacheTagTracker>? _logger;
 	private int _capacityWarningEmitted;
@@ -37,7 +43,7 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
 		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
 		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
-		_capacity = int.MaxValue;
+		_capacity = DefaultCapacity;
 	}
 
 	/// <summary>
@@ -53,7 +59,7 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
 		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
 		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
-		_capacity = int.MaxValue;
+		_capacity = DefaultCapacity;
 	}
 
 	/// <summary>
@@ -75,7 +81,7 @@ public sealed class InMemoryCacheTagTracker : ICacheTagTracker
 		_tagRegistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.registrations", "registrations", "Number of cache key-tag registrations");
 		_tagLookupCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.lookups", "lookups", "Number of cache tag lookup operations");
 		_tagUnregistrationCounter = meter.CreateCounter<long>("dispatch.cache.tag_tracker.unregistrations", "unregistrations", "Number of cache key-tag unregistrations");
-		_capacity = options.Value.TagTrackerCapacity > 0 ? options.Value.TagTrackerCapacity : 10_000;
+		_capacity = options.Value.TagTrackerCapacity > 0 ? options.Value.TagTrackerCapacity : DefaultCapacity;
 		_logger = logger;
 	}
 

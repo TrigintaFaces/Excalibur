@@ -61,6 +61,11 @@ internal sealed class ConfluentJsonDeserializer : IConfluentFormatDeserializer
 	{
 		_typeResolver = typeResolver ?? throw new ArgumentNullException(nameof(typeResolver));
 		_subjectNameStrategy = subjectNameStrategy ?? throw new ArgumentNullException(nameof(subjectNameStrategy));
+
+		// Intentional bespoke-interop deviation (NOT the event canonical STJ contract): the Confluent
+		// JSON-Schema wire payload originates outside the framework's canonical serializer, so this
+		// receive-path fallback stays case-insensitive to accept camelCase/PascalCase producer output.
+		// Forcing the canonical STJ contract here would break Confluent-ecosystem interop.
 		_jsonOptions = jsonOptions ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}

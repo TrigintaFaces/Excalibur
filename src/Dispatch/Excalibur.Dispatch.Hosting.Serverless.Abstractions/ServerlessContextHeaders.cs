@@ -52,7 +52,7 @@ internal static class ServerlessContextHeaders
 		var tenantId = headerLookup(WellKnownHeaderNames.TenantId);
 		if (!string.IsNullOrWhiteSpace(tenantId))
 		{
-			context.Properties[WellKnownHeaderNames.TenantId] = new TenantId(tenantId);
+			context.Properties[WellKnownHeaderNames.TenantId] = tenantId;
 		}
 	}
 }

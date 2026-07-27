@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Middleware.Logging;
 
@@ -41,6 +42,8 @@ public static class LoggingPipelineExtensions
 		builder.Services.TryAddSingleton<LoggingMiddleware>();
 		_ = builder.Services.AddOptions<LoggingMiddlewareOptions>()
 			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LoggingMiddlewareOptions>>(new LoggingMiddlewareOptionsValidator()));
 
 		return builder.UseMiddleware<LoggingMiddleware>();
 	}
@@ -75,6 +78,8 @@ public static class LoggingPipelineExtensions
 		_ = builder.Services.AddOptions<LoggingMiddlewareOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LoggingMiddlewareOptions>>(new LoggingMiddlewareOptionsValidator()));
 
 		return builder.UseMiddleware<LoggingMiddleware>();
 	}

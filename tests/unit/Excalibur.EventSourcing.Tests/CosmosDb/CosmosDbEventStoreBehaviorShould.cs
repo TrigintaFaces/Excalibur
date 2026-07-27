@@ -94,7 +94,7 @@ public sealed class CosmosDbEventStoreBehaviorShould : UnitTestBase
 		result.Success.ShouldBeTrue();
 		result.IsConcurrencyConflict.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(11);
-		result.FirstEventPosition.ShouldBe(0);
+		result.FirstEventPosition.ShouldBeNull();
 	}
 
 	[Fact]

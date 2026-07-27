@@ -93,7 +93,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 	{
 		// Arrange — call private static MapToReceivedMessage via reflection
 		var mapMethod = typeof(GrpcTransportReceiver)
-			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Static);
+			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Instance);
 		mapMethod.ShouldNotBeNull();
 
 		var grpcMsg = new GrpcReceivedMessage
@@ -111,7 +111,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 		};
 
 		// Act
-		var result = (TransportReceivedMessage)mapMethod.Invoke(null, [grpcMsg])!;
+		var result = (TransportReceivedMessage)mapMethod.Invoke(NewReceiver(), [grpcMsg])!;
 
 		// Assert
 		result.Id.ShouldBe("recv-123");
@@ -131,7 +131,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		var mapMethod = typeof(GrpcTransportReceiver)
-			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Static);
+			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Instance);
 		mapMethod.ShouldNotBeNull();
 
 		var grpcMsg = new GrpcReceivedMessage
@@ -143,7 +143,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 		var before = DateTimeOffset.UtcNow;
 
 		// Act
-		var result = (TransportReceivedMessage)mapMethod.Invoke(null, [grpcMsg])!;
+		var result = (TransportReceivedMessage)mapMethod.Invoke(NewReceiver(), [grpcMsg])!;
 
 		// Assert — EnqueuedAt should be approximately now
 		result.EnqueuedAt.ShouldBeGreaterThanOrEqualTo(before);
@@ -156,7 +156,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		var mapMethod = typeof(GrpcTransportReceiver)
-			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Static);
+			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Instance);
 		mapMethod.ShouldNotBeNull();
 
 		var grpcMsg = new GrpcReceivedMessage
@@ -168,7 +168,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 		};
 
 		// Act
-		var result = (TransportReceivedMessage)mapMethod.Invoke(null, [grpcMsg])!;
+		var result = (TransportReceivedMessage)mapMethod.Invoke(NewReceiver(), [grpcMsg])!;
 
 		// Assert
 		result.Properties.ShouldNotBeNull();
@@ -182,7 +182,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		var mapMethod = typeof(GrpcTransportReceiver)
-			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Static);
+			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Instance);
 		mapMethod.ShouldNotBeNull();
 
 		var originalBody = System.Text.Encoding.UTF8.GetBytes("Hello, gRPC!");
@@ -193,7 +193,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 		};
 
 		// Act
-		var result = (TransportReceivedMessage)mapMethod.Invoke(null, [grpcMsg])!;
+		var result = (TransportReceivedMessage)mapMethod.Invoke(NewReceiver(), [grpcMsg])!;
 
 		// Assert
 		result.Body.ToArray().ShouldBe(originalBody);
@@ -204,7 +204,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		var mapMethod = typeof(GrpcTransportReceiver)
-			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Static);
+			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Instance);
 		mapMethod.ShouldNotBeNull();
 
 		var grpcMsg = new GrpcReceivedMessage
@@ -225,7 +225,7 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 		};
 
 		// Act
-		var result = (TransportReceivedMessage)mapMethod.Invoke(null, [grpcMsg])!;
+		var result = (TransportReceivedMessage)mapMethod.Invoke(NewReceiver(), [grpcMsg])!;
 
 		// Assert
 		result.Properties.Count.ShouldBe(3);
@@ -233,6 +233,35 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 		result.ProviderData.Count.ShouldBe(2);
 		((string)result.ProviderData["pkey1"]).ShouldBe("pval1");
 	}
+
+	[Fact]
+	public void MapToReceivedMessage_ThrowsPayloadTooLarge_WhenBodyExceedsConfiguredLimit()
+	{
+		// Strengthen (ydvyi7): the instance convert enforces the ingress guard — an over-limit body is
+		// rejected with PayloadTooLargeException before it is materialized. Non-vacuous on the wired guard.
+		var options = Microsoft.Extensions.Options.Options.Create(new GrpcTransportOptions
+		{
+			ServerAddress = "https://localhost:5001",
+			Destination = "test-destination",
+			MaxPayloadBytes = 8,
+		});
+		var receiver = new GrpcTransportReceiver(_channel, options, NullLogger<GrpcTransportReceiver>.Instance);
+		var mapMethod = typeof(GrpcTransportReceiver)
+			.GetMethod("MapToReceivedMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+		mapMethod.ShouldNotBeNull();
+
+		var grpcMsg = new GrpcReceivedMessage { Id = "too-big", Body = Convert.ToBase64String(new byte[64]) };
+
+		var ex = Should.Throw<TargetInvocationException>(() => mapMethod.Invoke(receiver, [grpcMsg]));
+		ex.InnerException.ShouldNotBeNull();
+		ex.InnerException.GetType().Name.ShouldBe("PayloadTooLargeException");
+	}
+
+	// MapToReceivedMessage went static→instance when the ingress payload guard was wired
+	// (ctor-injected int? maxPayloadBytes); the mapping assertions are unchanged — a default-limit
+	// instance maps in-limit bodies identically.
+	private GrpcTransportReceiver NewReceiver() =>
+		new(_channel, _options, NullLogger<GrpcTransportReceiver>.Instance);
 
 	public async ValueTask DisposeAsync()
 	{

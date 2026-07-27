@@ -13,8 +13,6 @@
 		<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
 		<!-- Force single-threaded builds in VS -->
 		<MaxCpuCount>1</MaxCpuCount>
-		<!-- Ensure restore runs before build -->
-		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 		<!-- Disable VS Aspire schema generation that causes file lock conflicts -->
 		<GenerateAspireMetadata>false</GenerateAspireMetadata>
 		<JsonSchemaGeneratorDisabled>true</JsonSchemaGeneratorDisabled>
@@ -25,6 +23,14 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
+		<!-- Restore writes packages.lock.json, recording the resolved TRANSITIVE closure.
+		     Central Package Management pins DIRECT versions; only a lock file records what
+		     the transitive graph resolved to, which is what makes a published package
+		     reproducible. This MUST stay unconditional: it previously sat in the
+		     BuildingInsideVisualStudio group above, so lock files were generated only when
+		     someone happened to build in the IDE — 4 of 404 projects had one, and none of
+		     the shipping projects did. -->
+		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>

@@ -79,10 +79,10 @@ public sealed class AggregateRootExtendedCoverageShould
     {
         // Arrange
         var aggregate = new TestAggregate();
-        var events = new IDomainEvent[]
+        var events = new HistoricEvent[]
         {
-            new TestEvent { AggregateId = "agg-1", Value = "h1" },
-            new TestEvent { AggregateId = "agg-1", Value = "h2" },
+            new(new TestEvent { Value = "h1" }, 0),
+            new(new TestEvent { Value = "h2" }, 1),
         };
 
         // Act
@@ -281,10 +281,15 @@ public sealed class AggregateRootExtendedCoverageShould
         public void DoSomething(string value) =>
             RaiseEvent(new TestEvent { Value = value });
 
-        protected override void ApplyEventInternal(IDomainEvent @event)
+        protected override bool ApplyEventInternal(IDomainEvent @event)
         {
             if (@event is TestEvent te)
+            {
                 LastValue = te.Value;
+                return true;
+            }
+
+            return false;
         }
 
         // e6y51s: the base ApplySnapshot now throws NotSupportedException unless overridden (fail-closed

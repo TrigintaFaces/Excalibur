@@ -246,12 +246,12 @@ When validation fails, the middleware should prevent the handler from running:
 ```csharp
 public class ValidationMiddlewareShould
 {
-    private readonly IValidationService _validationService;
+    private readonly IMessageValidationService _validationService;
     private bool _handlerCalled;
 
     public ValidationMiddlewareShould()
     {
-        _validationService = A.Fake<IValidationService>();
+        _validationService = A.Fake<IMessageValidationService>();
         _handlerCalled = false;
     }
 

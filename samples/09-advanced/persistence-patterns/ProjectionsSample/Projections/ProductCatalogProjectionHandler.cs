@@ -55,7 +55,7 @@ public sealed class ProductCreatedHandler
 		projection.IsActive = true;
 		projection.CreatedAt = @event.OccurredAt;
 		projection.LastModified = context.Timestamp;
-		projection.Version = @event.Version;
+		projection.Version = context.CommittedVersion;
 
 		_logger.LogDebug(
 			"Created product catalog projection for {ProductId} ({Name})",
@@ -88,7 +88,7 @@ public sealed class ProductDiscontinuedHandler
 	{
 		projection.IsActive = false;
 		projection.LastModified = context.Timestamp;
-		projection.Version = @event.Version;
+		projection.Version = context.CommittedVersion;
 
 		_logger.LogInformation(
 			"Product {ProductId} discontinued: {Reason}",

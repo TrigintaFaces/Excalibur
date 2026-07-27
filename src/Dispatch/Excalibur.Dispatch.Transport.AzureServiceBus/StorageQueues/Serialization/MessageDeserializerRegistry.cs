@@ -5,6 +5,8 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.Dispatch.Transport.Azure;
 
 /// <summary>

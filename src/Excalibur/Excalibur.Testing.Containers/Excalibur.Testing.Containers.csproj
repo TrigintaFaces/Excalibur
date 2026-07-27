@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>Opt-in TestContainers fixtures for testing Excalibur infrastructure implementations against real backends (SQL Server, PostgreSQL, Redis, RabbitMQ, Cosmos DB emulator) via Docker. Kept as a separate package so the core conformance toolkit (Excalibur.Testing.Conformance) never forces a Docker/TestContainers dependency.</Description>
+    <PackageTags>testing;conformance;testcontainers;docker;integration;sqlserver;postgres;redis;rabbitmq;cosmosdb;fixtures</PackageTags>
+    <!-- Fixtures run under a test host, not a trimmed consumer app; reflection in Testcontainers is acceptable here. -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- xUnit v3 IAsyncLifetime is the fixture lifecycle contract consumers derive against. -->
+    <PackageReference Include="xunit.v3.extensibility.core" />
+    <!-- TestContainers dependency is CONFINED to this opt-in package (package-split, no #if feature-gating). -->
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- Non-ADO.NET backends (KV store / message broker / Cosmos emulator) — fixtures expose a raw
+         connection string; consumers construct their own client. -->
+    <PackageReference Include="Testcontainers.Redis" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+    <PackageReference Include="Testcontainers.CosmosDb" />
+    <!-- ADO.NET clients for the fixtures' CreateDbConnection(). -->
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+</Project>

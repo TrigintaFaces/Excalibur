@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 namespace Excalibur.Outbox;
@@ -29,43 +29,6 @@ public sealed class OutboxRetryOptions
 	{
 		MaxRetryCount = maxRetryCount;
 		RetryDelay = retryDelay;
-	}
-}
-
-/// <summary>
-/// Cleanup-related configuration for outbox message lifecycle management.
-/// </summary>
-public sealed class OutboxCleanupOptions
-{
-	/// <summary>
-	/// Gets the retention period for successfully sent messages before cleanup.
-	/// </summary>
-	/// <value>The message retention period.</value>
-	public TimeSpan MessageRetentionPeriod { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether automatic cleanup of old messages is enabled.
-	/// </summary>
-	/// <value><see langword="true"/> if automatic cleanup is enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnableAutomaticCleanup { get; }
-
-	/// <summary>
-	/// Gets the interval between cleanup cycles.
-	/// </summary>
-	/// <value>The cleanup interval.</value>
-	public TimeSpan CleanupInterval { get; }
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="OutboxCleanupOptions"/> class.
-	/// </summary>
-	/// <param name="messageRetentionPeriod">The retention period for sent messages.</param>
-	/// <param name="enableAutomaticCleanup">Whether automatic cleanup is enabled.</param>
-	/// <param name="cleanupInterval">The interval between cleanup cycles.</param>
-	internal OutboxCleanupOptions(TimeSpan messageRetentionPeriod, bool enableAutomaticCleanup, TimeSpan cleanupInterval)
-	{
-		MessageRetentionPeriod = messageRetentionPeriod;
-		EnableAutomaticCleanup = enableAutomaticCleanup;
-		CleanupInterval = cleanupInterval;
 	}
 }
 
@@ -117,7 +80,6 @@ public sealed class OutboxCleanupOptions
 ///     .WithPollingInterval(TimeSpan.FromMilliseconds(500))
 ///     .WithParallelism(4)
 ///     .WithMaxRetries(7)
-///     .WithRetentionPeriod(TimeSpan.FromDays(14))
 ///     .Build();
 /// </code>
 /// </example>
@@ -132,9 +94,6 @@ public sealed class OutboxOptions
 		TimeSpan pollingInterval,
 		int maxRetryCount,
 		TimeSpan retryDelay,
-		TimeSpan messageRetentionPeriod,
-		bool enableAutomaticCleanup,
-		TimeSpan cleanupInterval,
 		bool enableBackgroundProcessing,
 		string? processorId,
 		bool enableParallelProcessing,
@@ -144,7 +103,6 @@ public sealed class OutboxOptions
 		BatchSize = batchSize;
 		PollingInterval = pollingInterval;
 		Retry = new OutboxRetryOptions(maxRetryCount, retryDelay);
-		Cleanup = new OutboxCleanupOptions(messageRetentionPeriod, enableAutomaticCleanup, cleanupInterval);
 		EnableBackgroundProcessing = enableBackgroundProcessing;
 		ProcessorId = processorId;
 		EnableParallelProcessing = enableParallelProcessing;
@@ -167,8 +125,6 @@ public sealed class OutboxOptions
 	///   <item>MaxRetryCount: 3</item>
 	///   <item>RetryDelay: 1 minute</item>
 	///   <item>ParallelProcessing: 8 threads</item>
-	///   <item>RetentionPeriod: 1 day</item>
-	///   <item>CleanupInterval: 15 minutes</item>
 	/// </list>
 	/// </remarks>
 	/// <example>
@@ -193,8 +149,6 @@ public sealed class OutboxOptions
 	///   <item>MaxRetryCount: 5</item>
 	///   <item>RetryDelay: 5 minutes</item>
 	///   <item>ParallelProcessing: 4 threads</item>
-	///   <item>RetentionPeriod: 7 days</item>
-	///   <item>CleanupInterval: 1 hour</item>
 	/// </list>
 	/// </remarks>
 	/// <example>
@@ -219,8 +173,6 @@ public sealed class OutboxOptions
 	///   <item>MaxRetryCount: 10</item>
 	///   <item>RetryDelay: 15 minutes</item>
 	///   <item>ParallelProcessing: Disabled (sequential)</item>
-	///   <item>RetentionPeriod: 30 days</item>
-	///   <item>CleanupInterval: 6 hours</item>
 	/// </list>
 	/// </remarks>
 	/// <example>
@@ -250,7 +202,6 @@ public sealed class OutboxOptions
 	///     .WithPollingInterval(TimeSpan.FromMilliseconds(500))
 	///     .WithParallelism(4)
 	///     .WithMaxRetries(7)
-	///     .WithRetentionPeriod(TimeSpan.FromDays(14))
 	///     .Build();
 	/// </code>
 	/// </example>
@@ -286,12 +237,6 @@ public sealed class OutboxOptions
 	public OutboxRetryOptions Retry { get; }
 
 	/// <summary>
-	/// Gets the cleanup options for message lifecycle management.
-	/// </summary>
-	/// <value>The cleanup options.</value>
-	public OutboxCleanupOptions Cleanup { get; }
-
-	/// <summary>
 	/// Gets a value indicating whether background processing is enabled.
 	/// </summary>
 	/// <value><see langword="true"/> if background processing is enabled; otherwise, <see langword="false"/>.</value>
@@ -303,7 +248,7 @@ public sealed class OutboxOptions
 	/// <remarks>
 	/// When set (e.g. via <c>WithProcessorId</c>), this becomes the SQL Server outbox lease owner
 	/// (<c>SqlServerOutboxOptions.ProcessorId</c> → the persisted <c>LeasedBy</c>), replacing the
-	/// auto-unique <c>{MachineName}:{ProcessId}</c> default (vdcxk4). Concurrency safety does not depend on
+	/// auto-unique <c>{MachineName}:{ProcessId}</c> default. Concurrency safety does not depend on
 	/// it — <c>SKIP LOCKED</c> row-claiming prevents double-claims and stale-lease reclamation is age-based —
 	/// so a shared value is row-safe; if you set an explicit id, ensuring it is unique per host (where you
 	/// want distinct lease ownership) is your responsibility, exactly as it was for the default you replaced.

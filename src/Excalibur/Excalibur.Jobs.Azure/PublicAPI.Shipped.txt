@@ -2,7 +2,7 @@
 Excalibur.Jobs.Azure.AzureLogicAppsJobProvider
 Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.AzureLogicAppsJobProvider(Azure.ResourceManager.ArmClient! armClient, Excalibur.Jobs.Azure.AzureLogicAppsOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Azure.AzureLogicAppsJobProvider!>! logger) -> void
 Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.DeleteJobAsync(string! jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpressionUnused, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Azure.AzureLogicAppsJobProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Jobs.Azure.AzureLogicAppsOptions
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.AzureLogicAppsOptions() -> void
 Excalibur.Jobs.Azure.AzureLogicAppsOptions.JobExecutionEndpoint.get -> string!

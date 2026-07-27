@@ -159,18 +159,18 @@ public sealed class InMemoryCursorMapStoreShould
 	[Fact]
 	public async Task ThrowOnNullOrEmptyArguments()
 	{
-		Should.Throw<ArgumentException>(() =>
-			_store.GetCursorMapAsync(null!, CancellationToken.None).GetAwaiter().GetResult());
-		Should.Throw<ArgumentException>(() =>
-			_store.GetCursorMapAsync("", CancellationToken.None).GetAwaiter().GetResult());
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.GetCursorMapAsync(null!, CancellationToken.None));
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.GetCursorMapAsync("", CancellationToken.None));
 
-		Should.Throw<ArgumentException>(() =>
-			_store.SaveCursorMapAsync(null!, new Dictionary<string, long>(), CancellationToken.None).GetAwaiter().GetResult());
-		Should.Throw<ArgumentNullException>(() =>
-			_store.SaveCursorMapAsync("proj", null!, CancellationToken.None).GetAwaiter().GetResult());
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.SaveCursorMapAsync(null!, new Dictionary<string, long>(), CancellationToken.None));
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await _store.SaveCursorMapAsync("proj", null!, CancellationToken.None));
 
-		Should.Throw<ArgumentException>(() =>
-			_store.ResetCursorMapAsync(null!, CancellationToken.None).GetAwaiter().GetResult());
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.ResetCursorMapAsync(null!, CancellationToken.None));
 	}
 
 	/// <summary>

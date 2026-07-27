@@ -160,7 +160,7 @@ public sealed class IOutboxStoreBatchDefaultImplShould : UnitTestBase
 		public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
 		public ValueTask<IEnumerable<OutboundMessage>> GetFailedMessagesAsync(int maxRetries, DateTimeOffset? olderThan, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
 		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(Enumerable.Empty<OutboundMessage>());
-		public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(0);
+		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken) => ValueTask.FromResult(0);
 		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken) => ValueTask.FromResult(new OutboxStatistics());
 	}
 }

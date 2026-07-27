@@ -73,7 +73,9 @@ public sealed class PostgresLeaderElectionReentrancyIntegrationShould : Integrat
 				_ = sut.CurrentLeaderId; // getter takes the internal lock
 				probed.Set();
 			});
+			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			lockHeldDuringHandler = !probed.Wait(TimeSpan.FromSeconds(2));
+			#pragma warning restore RS0030
 		};
 
 		// Act

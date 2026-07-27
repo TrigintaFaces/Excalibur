@@ -30,7 +30,7 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         ref: ${{ inputs.checkout-ref }}
         fetch-depth: ${{ inputs.fetch-depth }}
@@ -51,7 +51,7 @@ runs:
         docker system prune -af || true
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: |
           8.0.x
@@ -59,7 +59,7 @@ runs:
           10.0.x
 
     - name: Cache NuGet packages
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: .nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -74,4 +74,19 @@ runs:
     - name: Build
       if: inputs.solution-filter != '' && inputs.restore-only != 'true'
       shell: bash
-      run: dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet
+      # The file logger is what makes the next step possible. A project can be skipped -- its source
+      # removed -- and still exit 0 printing "0 Error(s)", so the ONLY thing distinguishing a skipped
+      # project from a compiled one is a High-importance log line that `--verbosity quiet` discards.
+      # Console stays quiet; the file log is written at normal verbosity so the assertion below has
+      # something to read.
+      run: |
+        dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet \
+          -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log
+
+    - name: Assert the build compiled what it claims
+      if: inputs.solution-filter != '' && inputs.restore-only != 'true'
+      shell: bash
+      # Three states, and REFUSE is not a pass: 0 everything compiled, 1 a project was silently
+      # skipped, 2 the log could not be graded. Without this, "the solution builds clean" is a claim
+      # whose evidence looks identical whether it held or not.
+      run: bash eng/ci/assert-compiled-not-skipped.sh build-verbosity-normal.log

@@ -32,6 +32,7 @@
         "Excalibur.Dispatch.Transport.AzureServiceBus",
         "Excalibur.Dispatch.Transport.GooglePubSub",
         "Excalibur.Dispatch.Transport.Kafka",
+        "Excalibur.Dispatch.Transport.Pulsar",
         "Excalibur.Dispatch.Transport.RabbitMQ"
       ],
       "excaliburPackages": [],
@@ -167,6 +168,18 @@
       }
     },
     {
+      "package": "Excalibur.Dispatch.Transport.Pulsar",
+      "project": "src/Dispatch/Excalibur.Dispatch.Transport.Pulsar/Excalibur.Dispatch.Transport.Pulsar.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
       "package": "Excalibur.Dispatch.Transport.RabbitMQ",
       "project": "src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Excalibur.Dispatch.Transport.RabbitMQ.csproj",
       "suites": {
@@ -235,6 +248,15 @@
         ],
         "functional": [
           "tests/functional/Excalibur.Dispatch.Tests.Functional/Excalibur.Dispatch.Tests.Functional.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Workflows.Abstractions",
+      "project": "src/Excalibur/Excalibur.Workflows.Abstractions/Excalibur.Workflows.Abstractions.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Workflows.Abstractions.Tests/Excalibur.Workflows.Abstractions.Tests.csproj"
         ]
       }
     }
@@ -318,10 +340,12 @@
       "samples/06-security/SeparationOfDuties/SeparationOfDuties.csproj",
       "samples/06-security/StandaloneA3/StandaloneA3.csproj",
       "samples/07-observability/HealthChecks/HealthChecks.csproj",
+      "samples/07-observability/OperationalDashboard/OperationalDashboard.csproj",
       "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
       "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
       "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
       "samples/08-serialization/Protobuf/Protobuf.csproj",
+      "samples/09-advanced/ConsumerConformanceExample/ConsumerConformanceExample.csproj",
       "samples/09-advanced/advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
       "samples/09-advanced/advanced/Versioning.Examples/EventUpcasting/EventUpcasting.csproj",
       "samples/09-advanced/advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
@@ -332,7 +356,6 @@
       "samples/09-advanced/deployment/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj",
       "samples/09-advanced/deployment/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj",
       "samples/09-advanced/deployment/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj",
-      "samples/09-advanced/deployment/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj",
       "samples/09-advanced/deployment/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj",
       "samples/09-advanced/deployment/JobWorkerSample/JobWorkerSample.csproj",
       "samples/09-advanced/deployment/LeaderElection/LeaderElection.csproj",
@@ -346,7 +369,6 @@
       "samples/09-advanced/persistence-patterns/OutOfBandProjections/OutOfBandProjections.csproj",
       "samples/09-advanced/persistence-patterns/ProjectionRebuildJob/ProjectionRebuildJob.csproj",
       "samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj",
-      "samples/09-advanced/persistence-patterns/SessionManagement/SessionManagementExample.csproj",
       "samples/09-advanced/persistence-patterns/SnapshotStrategies/SnapshotStrategies.csproj",
       "samples/09-advanced/persistence-patterns/SqlServerEventStore/SqlServerEventStore.csproj",
       "samples/09-advanced/persistence-patterns/TransactionalHandlers/TransactionalHandlers.csproj",
@@ -560,6 +582,11 @@
         "timeoutSeconds": null
       },
       {
+        "project": "samples/07-observability/OperationalDashboard/OperationalDashboard.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
         "project": "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
         "mode": "build",
         "timeoutSeconds": null
@@ -571,6 +598,11 @@
       },
       {
         "project": "samples/08-serialization/Protobuf/Protobuf.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/ConsumerConformanceExample/ConsumerConformanceExample.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -625,11 +657,6 @@
         "timeoutSeconds": null
       },
       {
-        "project": "samples/09-advanced/deployment/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
-      },
-      {
         "project": "samples/09-advanced/deployment/DataProcessingBackgroundService/DataProcessingBackgroundService.csproj",
         "mode": "build",
         "timeoutSeconds": 30
@@ -665,17 +692,17 @@
         "timeoutSeconds": null
       },
       {
+        "project": "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
         "project": "samples/09-advanced/persistence-patterns/InboxIdempotency/InboxIdempotency.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
       {
         "project": "samples/09-advanced/persistence-patterns/MultiDatabase/MultiDatabase.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
-      },
-      {
-        "project": "samples/09-advanced/persistence-patterns/GlobalStreamProjectionHost/GlobalStreamProjectionHost.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -691,11 +718,6 @@
       },
       {
         "project": "samples/09-advanced/persistence-patterns/ProjectionsSample/ProjectionsSample.csproj",
-        "mode": "build",
-        "timeoutSeconds": null
-      },
-      {
-        "project": "samples/09-advanced/persistence-patterns/SessionManagement/SessionManagementExample.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -956,6 +978,28 @@
       }
     },
     {
+      "name": "Excalibur workflows family",
+      "packagePattern": "^Excalibur\\.Workflows($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Workflows.Abstractions.Tests/Excalibur.Workflows.Abstractions.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur multi-tenancy family",
+      "packagePattern": "^Excalibur\\.MultiTenancy($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj",
+          "tests/unit/Excalibur.MultiTenancy.Tests/Excalibur.MultiTenancy.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
       "name": "Excalibur outbox family",
       "packagePattern": "^Excalibur\\.Outbox($|\\.)",
       "suites": {
@@ -1068,6 +1112,40 @@
         ],
         "smoke": [
           "tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Operations Dashboard family",
+      "packagePattern": "^Excalibur\\.Operations\\.Dashboard($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Operations.Dashboard.Tests/Excalibur.Operations.Dashboard.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "EventSourcing Handlers",
+      "packagePattern": "^Excalibur\\.EventSourcing\\.Handlers$",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.EventSourcing.Handlers.Tests/Excalibur.EventSourcing.Handlers.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Oracle provider family",
+      "packagePattern": "^Excalibur\\.(EventSourcing|Inbox|Outbox|Saga)\\.Oracle$",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Inbox.Oracle.Tests/Excalibur.Inbox.Oracle.Tests.csproj",
+          "tests/unit/Excalibur.Outbox.Oracle.Tests/Excalibur.Outbox.Oracle.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
         ]
       }
     }

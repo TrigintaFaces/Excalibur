@@ -263,17 +263,32 @@ var entries = await dlq.GetEntriesAsync(
 // Replay a single entry after fixing the issue
 await dlq.ReplayAsync(entryId, cancellationToken);
 
-// Batch replay and purge require IDeadLetterQueueAdmin
+// Batch replay and purge require IDeadLetterQueueAdmin -- an estate-wide operator surface
 var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
 
-// Batch replay all validation failures after updating validation logic
-var replayedCount = await dlqAdmin.ReplayBatchAsync(
+// Batch replay all validation failures after updating validation logic.
+// Estate-wide: the filter is not narrowed by the ambient tenant.
+var replayResult = await dlqAdmin.ReplayBatchAsync(
     DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed),
+    limit: 500,
     cancellationToken);
+// replayResult.Truncated is true when more entries still match -- loop until it is false.
 
-// Purge old entries
+// Purge old entries. Estate-wide and irreversible: deletes in EVERY tenant on age alone.
 await dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(30), cancellationToken);
 ```
+
+:::danger `IDeadLetterQueueAdmin` crosses tenant boundaries
+
+**`IDeadLetterQueueAdmin` addresses entries in every tenant**, and `PurgeOlderThanAsync` selects on an age predicate with no tenant term at all, deleting matching entries estate-wide and irreversibly.
+
+**`IDeadLetterQueue` resolves its tenant-facing operations within the ambient tenant.** The shipped SQL Server implementation carries the ambient tenant scope into `GetEntriesAsync`, `GetEntryAsync` and `ReplayAsync`, so an entry stored under another tenant is not listed, not fetched, and not replayable from a caller's own context; replay continues to re-enter the tenant the entry was *stored* under. **`IDeadLetterQueueAdmin` is different** — its purge operations resolve across every tenant deliberately, because an operator must be able to address any tenant's entry. Keep the admin interface out of tenant-reachable code paths, and treat a custom `IDeadLetterQueue` implementation as scoped only insofar as you scope it. See [Dead Letter Handling](./dead-letter.md) for the full contract.
+
+Resolve it only in operator tooling authorized across the estate. A multi-tenant host that reaches it from a tenant-facing request path lets one tenant purge another's failed messages. See [Dead Letter Queue](./dead-letter.md) for the full contract.
+
+**`ReplayBatchAsync` reports its own incompleteness.** The result carries `Enumerated`, `Replayed`, and `Truncated`; `Truncated` is `true` when the caller's limit was reached and further entries may still match. Loop while `Truncated` is `true` rather than inferring completion from a count — a batch returning exactly the limit is indistinguishable by count alone from one that drained the queue.
+
+:::
 
 Providers for persistent storage:
 
@@ -400,11 +415,14 @@ These usually resolve on their own. Wait for the underlying issue to clear, then
 ```csharp
 // After the database/service recovers, replay all transient failures (admin operation)
 var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
-var count = await dlqAdmin.ReplayBatchAsync(
+var result = await dlqAdmin.ReplayBatchAsync(
     DeadLetterQueryFilter.ByReason(DeadLetterReason.MaxRetriesExceeded),
+    limit: 500,
     cancellationToken);
 
-logger.LogInformation("Replayed {Count} messages after service recovery", count);
+logger.LogInformation(
+    "Replayed {Replayed} of {Enumerated} messages after service recovery (more pending: {Truncated})",
+    result.Replayed, result.Enumerated, result.Truncated);
 ```
 
 ### Validation Failures
@@ -429,7 +447,7 @@ foreach (var entry in failures)
 // After updating validation rules, replay the batch (admin operation)
 var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
 await dlqAdmin.ReplayBatchAsync(
-    DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed), ct);
+    DeadLetterQueryFilter.ByReason(DeadLetterReason.ValidationFailed), limit: 500, ct);
 ```
 
 ### Deserialization Failures
@@ -441,7 +459,10 @@ var deserializationFailures = await dlq.GetEntriesAsync(
     ct,
     DeadLetterQueryFilter.ByReason(DeadLetterReason.DeserializationFailed));
 
-// These rarely succeed on replay -- purge after investigation (admin operation)
+// These rarely succeed on replay -- purge after investigation (admin operation).
+// Estate-wide and irreversible: this deletes every tenant's entries older than 7 days,
+// not only the deserialization failures you just reviewed. Scope the investigation
+// narrowly, but expect the purge to be broad.
 var dlqAdmin = serviceProvider.GetRequiredService<IDeadLetterQueueAdmin>();
 await dlqAdmin.PurgeOlderThanAsync(TimeSpan.FromDays(7), ct);
 ```

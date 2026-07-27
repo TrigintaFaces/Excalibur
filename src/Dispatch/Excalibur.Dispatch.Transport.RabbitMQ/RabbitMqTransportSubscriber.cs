@@ -41,6 +41,7 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 	private readonly string _queueName;
 	private readonly ushort _prefetchCount;
 	private readonly bool _prefetchGlobal;
+	private readonly int? _maxPayloadBytes;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -69,13 +70,18 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="prefetchCount">Optional QoS prefetch count applied before subscription.</param>
 	/// <param name="prefetchGlobal">Whether QoS is applied globally to the channel.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound payload length, in bytes, enforced before the body is materialized;
+	/// <see langword="null"/> opts out of the size limit.
+	/// </param>
 	public RabbitMqTransportSubscriber(
 		IChannel channel,
 		string source,
 		string queueName,
 		ILogger<RabbitMqTransportSubscriber> logger,
 		ushort prefetchCount,
-		bool prefetchGlobal)
+		bool prefetchGlobal,
+		int? maxPayloadBytes = PayloadSizeGuard.DefaultMaxPayloadBytes)
 	{
 		_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
@@ -83,6 +89,7 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_prefetchCount = prefetchCount;
 		_prefetchGlobal = prefetchGlobal;
+		_maxPayloadBytes = maxPayloadBytes;
 	}
 
 	/// <inheritdoc />
@@ -112,7 +119,20 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 
 		consumer.ReceivedAsync += async (_, args) =>
 		{
-			var received = ConvertToReceivedMessage(args);
+			TransportReceivedMessage received;
+			try
+			{
+				received = ConvertToReceivedMessage(args);
+			}
+			catch (PayloadTooLargeException ex)
+			{
+				// Oversized poison message: reject to the DLX (no requeue) before it can loop.
+				LogPayloadTooLargeRejected(Source, args.Body.Length, ex);
+				await _channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: false, CancellationToken.None)
+					.ConfigureAwait(false);
+				return;
+			}
+
 			LogMessageReceived(received.Id, Source);
 
 			try
@@ -219,8 +239,59 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 		return ValueTask.CompletedTask;
 	}
 
+	/// <summary>
+	/// Computes the true delivery attempt count. Quorum queues publish the count of prior (failed)
+	/// deliveries in the <c>x-delivery-count</c> header (0 on the first delivery), so the attempt count is
+	/// that value + 1 — this lets poison-detection thresholds (e.g. attempts &gt;= 5) actually fire. When the
+	/// header is absent (classic queues), fall back to the coarse <see cref="BasicDeliverEventArgs.Redelivered"/>
+	/// flag, which only distinguishes a first delivery (1) from any redelivery (2) and therefore saturates.
+	/// </summary>
+	private static int ComputeDeliveryCount(BasicDeliverEventArgs args)
+	{
+		if (args.BasicProperties.Headers is not null
+			&& args.BasicProperties.Headers.TryGetValue("x-delivery-count", out var raw)
+			&& TryGetInt64(raw, out var priorDeliveries)
+			&& priorDeliveries >= 0)
+		{
+			// priorDeliveries is a long from the broker; clamp into int for the (attempts + 1) count.
+			var attempts = priorDeliveries + 1;
+			return attempts > int.MaxValue ? int.MaxValue : (int)attempts;
+		}
+
+		return args.Redelivered ? 2 : 1;
+	}
+
+	/// <summary>
+	/// Reads a RabbitMQ header numeric value (delivered as a boxed integral type, or a UTF-8 byte string)
+	/// into an <see cref="long"/>.
+	/// </summary>
+	private static bool TryGetInt64(object? raw, out long value)
+	{
+		switch (raw)
+		{
+			case long l: value = l; return true;
+			case int i: value = i; return true;
+			case short s: value = s; return true;
+			case byte b: value = b; return true;
+			case sbyte sb: value = sb; return true;
+			case uint ui: value = ui; return true;
+			case ushort us: value = us; return true;
+			case byte[] bytes when long.TryParse(Encoding.UTF8.GetString(bytes), out var parsed):
+				value = parsed; return true;
+			case string str when long.TryParse(str, out var parsed):
+				value = parsed; return true;
+			default:
+				value = 0; return false;
+		}
+	}
+
 	private TransportReceivedMessage ConvertToReceivedMessage(BasicDeliverEventArgs args)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (args.Body.ToArray() below). Fail-closed — throws PayloadTooLargeException, which the
+		// subscription loop catches to nack the poison message (no requeue); never truncated/dropped.
+		PayloadSizeGuard.EnsureWithinLimit(args.Body.Length, _maxPayloadBytes);
+
 		var receiptHandle = $"rabbitmq:{args.DeliveryTag}";
 
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -244,7 +315,7 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 			MessageType = args.BasicProperties.Type,
 			CorrelationId = args.BasicProperties.CorrelationId,
 			Subject = properties.TryGetValue("subject", out var subj) ? subj as string : null,
-			DeliveryCount = args.Redelivered ? 2 : 1,
+			DeliveryCount = ComputeDeliveryCount(args),
 			EnqueuedAt = args.BasicProperties.Timestamp.UnixTime > 0
 				? DateTimeOffset.FromUnixTimeSeconds(args.BasicProperties.Timestamp.UnixTime)
 				: DateTimeOffset.UtcNow,
@@ -287,6 +358,10 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 	[LoggerMessage(RabbitMqEventId.TransportSubscriberStopped, LogLevel.Information,
 		"RabbitMQ transport subscriber: subscription stopped for {Source}")]
 	private partial void LogSubscriptionStopped(string source);
+
+	[LoggerMessage(RabbitMqEventId.TransportSubscriberPayloadTooLarge, LogLevel.Warning,
+		"RabbitMQ transport subscriber: rejected an oversized inbound payload ({PayloadBytes} bytes) from {Source} before materialization")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 
 	[LoggerMessage(RabbitMqEventId.TransportSubscriberDisposed, LogLevel.Debug,
 		"RabbitMQ transport subscriber disposed for {Source}")]

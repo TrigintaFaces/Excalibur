@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -67,5 +68,64 @@ public sealed class ContextEnrichingExporterShould
 
 		// Assert
 		result.ShouldBe(ExportResult.Success);
+	}
+
+	// --- Fail-open guard around a throwing enricher (6ducnt) ---
+
+	[Fact]
+	public void ExportSucceedsWhenEnricherThrows()
+	{
+		// SAFETY: a consumer-supplied enricher that throws must never break the trace export.
+		// Arrange
+		var enricher = A.Fake<IContextTraceEnricher>();
+		A.CallTo(() => enricher.EnrichActivity(A<Activity>._, A<IMessageContext>._))
+			.Throws(new InvalidOperationException("enricher boom"));
+
+		var accessor = A.Fake<IMessageContextAccessor>();
+		A.CallTo(() => accessor.MessageContext).Returns(A.Fake<IMessageContext>());
+
+		var services = new ServiceCollection();
+		services.AddSingleton(enricher);
+		services.AddSingleton(accessor);
+		var serviceProvider = services.BuildServiceProvider();
+		using var exporter = new ContextEnrichingExporter(serviceProvider);
+
+		using var activity = new Activity("test").Start();
+		var batch = new Batch<Activity>(new[] { activity }, 1);
+
+		// Act — must not throw; export continues unaffected (fail-open).
+		var result = exporter.Export(batch);
+
+		// Assert
+		result.ShouldBe(ExportResult.Success);
+	}
+
+	[Fact]
+	public void ExportEnrichesActivityWhenEnricherSucceeds()
+	{
+		// LIVENESS: the guard must not silently swallow all enrichment — a working
+		// enricher is still invoked for the activity. (Guards against an inert fail-open.)
+		// Arrange
+		var enricher = A.Fake<IContextTraceEnricher>();
+		var context = A.Fake<IMessageContext>();
+
+		var accessor = A.Fake<IMessageContextAccessor>();
+		A.CallTo(() => accessor.MessageContext).Returns(context);
+
+		var services = new ServiceCollection();
+		services.AddSingleton(enricher);
+		services.AddSingleton(accessor);
+		var serviceProvider = services.BuildServiceProvider();
+		using var exporter = new ContextEnrichingExporter(serviceProvider);
+
+		using var activity = new Activity("test").Start();
+		var batch = new Batch<Activity>(new[] { activity }, 1);
+
+		// Act
+		var result = exporter.Export(batch);
+
+		// Assert — enrichment actually happened.
+		result.ShouldBe(ExportResult.Success);
+		A.CallTo(() => enricher.EnrichActivity(activity, context)).MustHaveHappenedOnceExactly();
 	}
 }

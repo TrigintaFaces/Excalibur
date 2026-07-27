@@ -156,8 +156,10 @@ public sealed class InMemoryKeyManagementProviderShould : IDisposable
 		// Act
 		var deleted = await _sut.DeleteKeyAsync("test-key", 30, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		deleted.ShouldBeTrue();
+		// Assert — retentionDays:30 schedules deletion (recoverable until the window elapses),
+		// so the tri-state outcome is ScheduledIrreversible, matching the PendingDestruction status.
+		deleted.State.ShouldBe(KeyDestructionState.ScheduledIrreversible);
+		deleted.IsIrreversibleNow.ShouldBeFalse();
 		var key = await _sut.GetKeyAsync("test-key", CancellationToken.None).ConfigureAwait(false);
 		key.ShouldNotBeNull();
 		key.Status.ShouldBe(KeyStatus.PendingDestruction);
@@ -169,8 +171,8 @@ public sealed class InMemoryKeyManagementProviderShould : IDisposable
 		// Act
 		var deleted = await _sut.DeleteKeyAsync("nonexistent", 30, CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		deleted.ShouldBeFalse();
+		// Assert — a key that does not exist reports NotFound (nothing was destroyed or scheduled).
+		deleted.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	[Fact]

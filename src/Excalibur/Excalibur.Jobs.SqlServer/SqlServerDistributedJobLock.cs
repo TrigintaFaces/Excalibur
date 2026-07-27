@@ -17,6 +17,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _schemaName;
+	private readonly TimeProvider _timeProvider;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -29,6 +30,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 	/// <param name="instanceId">The instance that holds this lock.</param>
 	/// <param name="acquiredAt">When the lock was acquired.</param>
 	/// <param name="expiresAt">When the lock expires.</param>
+	/// <param name="timeProvider">The time provider used for lock-validity decisions.</param>
 	/// <param name="logger">The logger instance.</param>
 	internal SqlServerDistributedJobLock(
 		Func<SqlConnection> connectionFactory,
@@ -37,6 +39,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 		string instanceId,
 		DateTimeOffset acquiredAt,
 		DateTimeOffset expiresAt,
+		TimeProvider timeProvider,
 		ILogger logger)
 	{
 		_connectionFactory = connectionFactory;
@@ -45,6 +48,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 		InstanceId = instanceId;
 		AcquiredAt = acquiredAt;
 		ExpiresAt = expiresAt;
+		_timeProvider = timeProvider;
 		_logger = logger;
 	}
 
@@ -61,7 +65,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 	public DateTimeOffset ExpiresAt { get; private set; }
 
 	/// <inheritdoc />
-	public bool IsValid => !_disposed && DateTimeOffset.UtcNow < ExpiresAt;
+	public bool IsValid => !_disposed && _timeProvider.GetUtcNow() < ExpiresAt;
 
 	/// <inheritdoc />
 	public async Task<bool> ExtendAsync(TimeSpan additionalDuration, CancellationToken cancellationToken)
@@ -71,7 +75,7 @@ internal sealed partial class SqlServerDistributedJobLock : IDistributedJobLock
 			return false;
 		}
 
-		var newExpiresAt = DateTimeOffset.UtcNow.Add(additionalDuration);
+		var newExpiresAt = _timeProvider.GetUtcNow().Add(additionalDuration);
 		var sql = $"""
 			UPDATE [{_schemaName}].[Locks]
 			SET [ExpiresAt] = @NewExpiresAt

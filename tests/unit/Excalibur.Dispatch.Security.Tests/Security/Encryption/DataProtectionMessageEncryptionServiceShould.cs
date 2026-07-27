@@ -60,6 +60,7 @@ public sealed class DataProtectionMessageEncryptionServiceShould : IDisposable
 
         _sut = new DataProtectionMessageEncryptionService(
             _dataProtectionProvider,
+            A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(),
             Microsoft.Extensions.Options.Options.Create(new EncryptionOptions { IncludeMetadataHeader = false }),
             _logger);
     }
@@ -89,21 +90,21 @@ public sealed class DataProtectionMessageEncryptionServiceShould : IDisposable
     public void ThrowWhenProviderIsNull()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new DataProtectionMessageEncryptionService(null!, Microsoft.Extensions.Options.Options.Create(new EncryptionOptions()), _logger));
+            new DataProtectionMessageEncryptionService(null!, A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(), Microsoft.Extensions.Options.Options.Create(new EncryptionOptions()), _logger));
     }
 
     [Fact]
     public void ThrowWhenOptionsIsNull()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new DataProtectionMessageEncryptionService(_dataProtectionProvider, null!, _logger));
+            new DataProtectionMessageEncryptionService(_dataProtectionProvider, A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(), null!, _logger));
     }
 
     [Fact]
     public void ThrowWhenLoggerIsNull()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new DataProtectionMessageEncryptionService(_dataProtectionProvider, Microsoft.Extensions.Options.Options.Create(new EncryptionOptions()), null!));
+            new DataProtectionMessageEncryptionService(_dataProtectionProvider, A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(), Microsoft.Extensions.Options.Options.Create(new EncryptionOptions()), null!));
     }
 
     [Fact]
@@ -218,6 +219,7 @@ public sealed class DataProtectionMessageEncryptionServiceShould : IDisposable
     {
         using var sut = new DataProtectionMessageEncryptionService(
             _dataProtectionProvider,
+            A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(),
             Microsoft.Extensions.Options.Options.Create(new EncryptionOptions()),
             _logger);
 
@@ -229,6 +231,7 @@ public sealed class DataProtectionMessageEncryptionServiceShould : IDisposable
     {
         var sut = new DataProtectionMessageEncryptionService(
             _dataProtectionProvider,
+            A.Fake<Microsoft.AspNetCore.DataProtection.KeyManagement.IKeyManager>(),
             Microsoft.Extensions.Options.Options.Create(new EncryptionOptions()),
             _logger);
 

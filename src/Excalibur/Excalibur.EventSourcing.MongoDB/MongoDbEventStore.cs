@@ -98,7 +98,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
 		_ownsClient = true;
@@ -127,7 +127,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 		_internalSerializer = internalSerializer;
 		_payloadSerializer = payloadSerializer;
 		_database = client.GetDatabase(_options.DatabaseName);
@@ -141,6 +141,8 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		return await LoadAsync(aggregateId, aggregateType, -1, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -151,6 +153,8 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var stopwatch = ValueStopwatch.StartNew();
@@ -211,6 +215,9 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		long expectedVersion,
 		CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+		ArgumentNullException.ThrowIfNull(events);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var stopwatch = ValueStopwatch.StartNew();
@@ -226,7 +233,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				"append",
 				result,
 				stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, 0);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -279,11 +286,38 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				globalSequence++;
 			}
 
-			// Use ordered insert - stops at first failure
-			await _eventsCollection!.InsertManyAsync(
-				documents,
-				new InsertManyOptions { IsOrdered = true },
-				cancellationToken).ConfigureAwait(false);
+			// A multi-event append must be atomic: an ordered InsertMany that fails mid-batch on a
+			// non-concurrency error (oversized document, transient network fault after document k)
+			// would otherwise leave a torn prefix of committed events. Wrap the batch in a client
+			// session + transaction so it commits all-or-nothing. A single-event append is atomic on
+			// its own (single-document write), so it uses a plain insert and does not require a
+			// transaction-capable (replica-set) deployment.
+			if (documents.Count == 1)
+			{
+				await _eventsCollection!.InsertOneAsync(
+					documents[0],
+					options: null,
+					cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				using var session = await _client!.StartSessionAsync(cancellationToken: cancellationToken)
+					.ConfigureAwait(false);
+
+				_ = await session.WithTransactionAsync(
+					async (s, ct) =>
+					{
+						// Ordered insert - stops at first failure; the transaction rolls back any
+						// prior inserts in the batch so no partial prefix survives.
+						await _eventsCollection!.InsertManyAsync(
+							s,
+							documents,
+							new InsertManyOptions { IsOrdered = true },
+							ct).ConfigureAwait(false);
+						return true;
+					},
+					cancellationToken: cancellationToken).ConfigureAwait(false);
+			}
 
 			LogEventsAppended(eventList.Count, aggregateType, aggregateId, version);
 

@@ -76,22 +76,22 @@ GitHub Pages automatically provisions and renews SSL certificates via Let's Encr
 
 ### Publishing NuGet Packages
 
-1. Create and push tag: `git tag v1.0.0 && git push origin v1.0.0`
+1. Create and push tag: `git tag v10.0.0 && git push origin v10.0.0`
 2. Workflow builds, tests, packs, and publishes
 
 ### Creating Version Snapshots
 
-At release time:
+At release time (docs versions are snapshotted per .NET-major release line, matching the package
+version scheme — first stable release is `10.x`):
 
 ```bash
 cd docs-site
-npm run docusaurus docs:version 1.0.0
+npm run docusaurus docs:version 10.0.0
 git add versioned_docs versioned_sidebars versions.json
-git commit -m "docs: version 1.0.0"
+git commit -m "docs: version 10.0.0"
 git push
 ```
 
 ---
 
 *Last Updated: 2026-01-02*
-*Sprint 275 - Public Launch Preparation*

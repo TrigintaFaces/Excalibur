@@ -3,6 +3,7 @@
 
 using Excalibur.Compliance.SqlServer.Erasure;
 using Excalibur.Compliance;
+using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,11 +23,14 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 		AutoCreateSchema = false // prevent real DB calls
 	};
 
+	private static readonly IDataSubjectHasher Hasher = A.Fake<IDataSubjectHasher>();
+
 	private SqlServerErasureStore CreateStore(SqlServerErasureStoreOptions? options = null)
 	{
 		var opts = options ?? ValidOptions;
 		return new SqlServerErasureStore(
 			Microsoft.Extensions.Options.Options.Create(opts),
+			Hasher,
 			NullLogger<SqlServerErasureStore>.Instance);
 	}
 
@@ -34,7 +38,17 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 	public void Constructor_ThrowsArgumentNullException_WhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerErasureStore(null!, NullLogger<SqlServerErasureStore>.Instance));
+			new SqlServerErasureStore(null!, Hasher, NullLogger<SqlServerErasureStore>.Instance));
+	}
+
+	[Fact]
+	public void Constructor_ThrowsArgumentNullException_WhenDataSubjectHasherIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() =>
+			new SqlServerErasureStore(
+				Microsoft.Extensions.Options.Options.Create(ValidOptions),
+				null!,
+				NullLogger<SqlServerErasureStore>.Instance));
 	}
 
 	[Fact]
@@ -43,6 +57,7 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() =>
 			new SqlServerErasureStore(
 				Microsoft.Extensions.Options.Options.Create(ValidOptions),
+				Hasher,
 				null!));
 	}
 
@@ -57,6 +72,7 @@ public sealed class SqlServerErasureStoreShould : UnitTestBase
 		Should.Throw<InvalidOperationException>(() =>
 			new SqlServerErasureStore(
 				Microsoft.Extensions.Options.Options.Create(invalidOptions),
+				Hasher,
 				NullLogger<SqlServerErasureStore>.Instance));
 	}
 

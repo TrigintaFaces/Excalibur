@@ -1,4 +1,4 @@
-using Excalibur.Outbox;
+﻿using Excalibur.Outbox;
 
 namespace Excalibur.Outbox.Tests.Configuration;
 
@@ -20,9 +20,6 @@ public sealed class OutboxOptionsBuilderShould
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(8);
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(1));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(15));
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 
@@ -40,8 +37,6 @@ public sealed class OutboxOptionsBuilderShould
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(4);
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
 	}
 
 	[Fact]
@@ -58,8 +53,6 @@ public sealed class OutboxOptionsBuilderShould
 		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(15));
 		options.EnableParallelProcessing.ShouldBeFalse();
 		options.MaxDegreeOfParallelism.ShouldBe(1);
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
 	}
 
 	[Fact]
@@ -171,56 +164,6 @@ public sealed class OutboxOptionsBuilderShould
 	}
 
 	[Fact]
-	public void OverrideRetentionPeriod()
-	{
-		// Act
-		var options = OutboxOptions.Custom()
-			.WithRetentionPeriod(TimeSpan.FromDays(14))
-			.Build();
-
-		// Assert
-		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-	}
-
-	[Fact]
-	public void ThrowWhenRetentionPeriodIsNotPositive()
-	{
-		Should.Throw<ArgumentOutOfRangeException>(() =>
-			OutboxOptions.Custom().WithRetentionPeriod(TimeSpan.Zero));
-	}
-
-	[Fact]
-	public void OverrideCleanupInterval()
-	{
-		// Act
-		var options = OutboxOptions.Custom()
-			.WithCleanupInterval(TimeSpan.FromMinutes(30))
-			.Build();
-
-		// Assert
-		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(30));
-	}
-
-	[Fact]
-	public void ThrowWhenCleanupIntervalIsNotPositive()
-	{
-		Should.Throw<ArgumentOutOfRangeException>(() =>
-			OutboxOptions.Custom().WithCleanupInterval(TimeSpan.Zero));
-	}
-
-	[Fact]
-	public void DisableAutomaticCleanup()
-	{
-		// Act
-		var options = OutboxOptions.Custom()
-			.DisableAutomaticCleanup()
-			.Build();
-
-		// Assert
-		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
-	}
-
-	[Fact]
 	public void OverrideParallelism()
 	{
 		// Act
@@ -298,17 +241,6 @@ public sealed class OutboxOptionsBuilderShould
 
 		// Assert
 		options.EnableBackgroundProcessing.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void ThrowWhenRetentionPeriodLessThanCleanupInterval()
-	{
-		// Arrange - retention of 10 minutes but cleanup every 1 hour
-		Should.Throw<InvalidOperationException>(() =>
-			OutboxOptions.Custom()
-				.WithRetentionPeriod(TimeSpan.FromMinutes(10))
-				.WithCleanupInterval(TimeSpan.FromHours(1))
-				.Build());
 	}
 
 	[Fact]

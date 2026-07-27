@@ -215,6 +215,9 @@ public static class DataDynamoDbEventId
 	/// <summary>Saga saved.</summary>
 	public const int SagaSaved = 103472;
 
+	/// <summary>Completed sagas purged by retention age.</summary>
+	public const int SagasPurged = 103473;
+
 	// ========================================
 	// 103480-103489: Grant Service
 	// ========================================

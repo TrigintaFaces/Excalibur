@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Migration.Analyzers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implements FR-13 / AC-16 of EPIC w2zq7d. The compat handler contract is
+/// The compat handler contract is
 /// <c>Task&lt;TResponse&gt; Handle(TRequest request, CancellationToken cancellationToken)</c>. A handler
 /// implementing a compat handler interface but declaring <c>HandleAsync</c> has a deterministic rename
 /// fix; the diagnostic message names the expected method so non-fixable deltas surface the manual step
@@ -55,7 +55,9 @@ public sealed class HandlerSignatureAnalyzer : DiagnosticAnalyzer
 		context.RegisterSyntaxNodeAction(
 			AnalyzeTypeDeclaration,
 			SyntaxKind.ClassDeclaration,
-			SyntaxKind.RecordDeclaration);
+			SyntaxKind.StructDeclaration,
+			SyntaxKind.RecordDeclaration,
+			SyntaxKind.RecordStructDeclaration);
 	}
 
 	private static void AnalyzeTypeDeclaration(SyntaxNodeAnalysisContext context)

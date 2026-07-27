@@ -17,12 +17,12 @@ namespace Excalibur.Tests.A3.Authorization;
 [Trait("Feature", "Authorization")]
 public sealed class AuthorizationPolicyShould
 {
-	private readonly ITenantId _tenantId;
+	private readonly ITenantContext _tenantId;
 
 	public AuthorizationPolicyShould()
 	{
-		_tenantId = A.Fake<ITenantId>();
-		A.CallTo(() => _tenantId.Value).Returns("tenant-1");
+		_tenantId = A.Fake<ITenantContext>();
+		A.CallTo(() => _tenantId.TenantId).Returns("tenant-1");
 	}
 
 	[Fact]

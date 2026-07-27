@@ -20,8 +20,8 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// <c>[dbo].[inbox_messages]</c> table whose columns mirror exactly what the store's Dapper
 /// requests reference (MessageId, HandlerType, MessageType, Payload, Metadata, ReceivedAt,
 /// ProcessedAt, Status, LastError, RetryCount, LastAttemptAt, NextAttemptAt, CorrelationId,
-/// TenantId, Source). The composite primary key (MessageId, HandlerType) backs the
-/// "first writer wins" MERGE; NextAttemptAt backs the backoff-schedulable re-admission claim.
+/// TenantId, Source). The composite primary key (MessageId, HandlerType, TenantId) — TenantId NOT NULL —
+/// backs the tenant-isolated "first writer wins" MERGE; NextAttemptAt backs the backoff-schedulable re-admission claim.
 /// </remarks>
 public sealed class SqlServerInboxStoreContainerFixture : ContainerFixtureBase
 {
@@ -93,9 +93,9 @@ public sealed class SqlServerInboxStoreContainerFixture : ContainerFixtureBase
 					[LastAttemptAt] DATETIMEOFFSET NULL,
 					[NextAttemptAt] DATETIMEOFFSET NULL,
 					[CorrelationId] NVARCHAR(255)  NULL,
-					[TenantId]      NVARCHAR(255)  NULL,
+					[TenantId]      NVARCHAR(255)  NOT NULL,
 					[Source]        NVARCHAR(255)  NULL,
-					CONSTRAINT [PK_{TableName}] PRIMARY KEY CLUSTERED ([MessageId], [HandlerType])
+					CONSTRAINT [PK_{TableName}] PRIMARY KEY CLUSTERED ([MessageId], [HandlerType], [TenantId])
 				);
 			END
 			""";

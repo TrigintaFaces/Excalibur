@@ -9,7 +9,7 @@ using Dapper;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 
-using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
+using OutboxMessage = Excalibur.Outbox.OutboxMessage;
 
 namespace Excalibur.Outbox.Postgres;
 
@@ -47,20 +47,31 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                   FROM {outboxTableName}
 		                   WHERE (dispatcher_id IS NULL OR NOW() > dispatcher_timeout)
 		                     AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
-		                   ORDER BY occurred_on
+		                     AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+		                   ORDER BY partition_key, sequence_number, occurred_on
 		                   LIMIT {batchSize}
 		                   FOR UPDATE SKIP LOCKED
 		                   )
 		                   UPDATE {outboxTableName}
 		                   SET dispatcher_id = @DispatcherId,
-		                   dispatcher_timeout = NOW() + (@ReservationTimeout || ' milliseconds')::interval
+		                   dispatcher_timeout = NOW() + (@ReservationTimeout || ' seconds')::interval
 		                   WHERE message_id IN (SELECT message_id FROM cte_outbox)
 		                   RETURNING message_id AS MessageId,
 		                   message_type AS MessageType,
 		                   message_metadata AS MessageMetadata,
 		                   message_body AS MessageBody,
 		                   tenant_id AS TenantId,
-		                   occurred_on AS OccurredOn,
+		                   destination AS Destination,
+		                   correlation_id AS CorrelationId,
+		                   causation_id AS CausationId,
+		                   priority AS Priority,
+		                   scheduled_at AS ScheduledAt,
+		                   partition_key AS PartitionKey,
+		                   group_key AS GroupKey,
+		                   sequence_number AS SequenceNumber,
+		                   target_transports AS TargetTransports,
+		                   is_multi_transport AS IsMultiTransport,
+		                   occurred_on AS CreatedAt,
 		                   attempts AS Attempts,
 		                   dispatcher_id AS DispatcherId,
 		                   dispatcher_timeout AS DispatcherTimeout;

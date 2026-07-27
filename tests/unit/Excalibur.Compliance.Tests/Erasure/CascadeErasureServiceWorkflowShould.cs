@@ -49,7 +49,7 @@ public sealed class CascadeErasureServiceWorkflowShould
 
 		// Assert - should erase both but not loop infinitely
 		result.Success.ShouldBeTrue();
-		result.SubjectsErased.ShouldBe(2);
+		result.SubjectsScheduled.ShouldBe(2);
 		result.RelatedSubjectsErased.ShouldContain("user-B");
 	}
 
@@ -76,7 +76,7 @@ public sealed class CascadeErasureServiceWorkflowShould
 
 		// Assert - should erase A and B only (depth 1 from A)
 		result.Success.ShouldBeTrue();
-		result.SubjectsErased.ShouldBe(2);
+		result.SubjectsScheduled.ShouldBe(2);
 		result.RelatedSubjectsErased.ShouldHaveSingleItem();
 		result.RelatedSubjectsErased.ShouldContain("user-B");
 	}
@@ -108,7 +108,7 @@ public sealed class CascadeErasureServiceWorkflowShould
 
 		// Assert - all 5 subjects erased
 		result.Success.ShouldBeTrue();
-		result.SubjectsErased.ShouldBe(5);
+		result.SubjectsScheduled.ShouldBe(5);
 		result.RelatedSubjectsErased.Count.ShouldBe(4);
 	}
 
@@ -137,7 +137,7 @@ public sealed class CascadeErasureServiceWorkflowShould
 		// Assert
 		result.Success.ShouldBeTrue();
 		result.IsDryRun.ShouldBeTrue();
-		result.SubjectsErased.ShouldBe(3);
+		result.SubjectsScheduled.ShouldBe(3);
 		result.PrimarySubjectId.ShouldBe("user-A");
 
 		// No actual erasure should have been requested
@@ -171,7 +171,7 @@ public sealed class CascadeErasureServiceWorkflowShould
 
 		// Assert - D should only appear once despite being reachable from B and C
 		result.Success.ShouldBeTrue();
-		result.SubjectsErased.ShouldBe(4);
+		result.SubjectsScheduled.ShouldBe(4);
 	}
 
 	[Fact]

@@ -41,7 +41,7 @@ internal sealed class OutboxDeadLetterCapabilityValidator : IValidateOptions<Out
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		if (_outboxStore is IDeadLetterableOutboxStore)
+		if (_outboxStore.GetService(typeof(IDeadLetterableOutboxStore)) is IDeadLetterableOutboxStore)
 		{
 			return ValidateOptionsResult.Success;
 		}

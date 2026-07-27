@@ -82,7 +82,8 @@ public sealed class SqlServerSnapshotStoreContainerFixture : ContainerFixtureBas
 					Data VARBINARY(MAX) NOT NULL,
 					CreatedAt DATETIME2 NOT NULL,
 					Metadata VARBINARY(MAX) NULL,
-					CONSTRAINT PK_{TableName} PRIMARY KEY (AggregateId)
+					TenantId NVARCHAR(256) NOT NULL DEFAULT (''),
+					CONSTRAINT PK_{TableName} PRIMARY KEY (AggregateId, TenantId)
 				);
 			END
 			""";

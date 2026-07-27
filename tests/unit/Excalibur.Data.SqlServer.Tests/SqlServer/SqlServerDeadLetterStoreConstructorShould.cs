@@ -15,6 +15,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentNullException>(() =>
             new SqlServerDeadLetterStore(
                 null!,
+                tenantContext: null,
                 NullLogger<SqlServerDeadLetterStore>.Instance));
     }
 
@@ -25,6 +26,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentNullException>(() =>
             new SqlServerDeadLetterStore(
                 Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "Server=x" }),
+                tenantContext: null,
                 null!));
     }
 
@@ -35,6 +37,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentException>(() =>
             new SqlServerDeadLetterStore(
                 Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "" }),
+                tenantContext: null,
                 NullLogger<SqlServerDeadLetterStore>.Instance));
     }
 
@@ -45,6 +48,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         Should.Throw<ArgumentException>(() =>
             new SqlServerDeadLetterStore(
                 Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "   " }),
+                tenantContext: null,
                 NullLogger<SqlServerDeadLetterStore>.Instance));
     }
 
@@ -54,6 +58,7 @@ public sealed class SqlServerDeadLetterStoreConstructorShould
         // Arrange & Act
         var store = new SqlServerDeadLetterStore(
             Options.Create(new SqlServerDeadLetterOptions { ConnectionString = "Server=localhost;Database=Test" }),
+            tenantContext: null,
             NullLogger<SqlServerDeadLetterStore>.Instance);
 
         // Assert

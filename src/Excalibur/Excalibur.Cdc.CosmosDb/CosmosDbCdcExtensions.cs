@@ -171,6 +171,8 @@ public static class CosmosDbCdcServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbAllVersionsChangeFeedOptions>, CosmosDbAllVersionsChangeFeedOptionsValidator>());
+
 		services.TryAddSingleton<CosmosDbAllVersionsChangeFeedProcessor>();
 
 		return services;

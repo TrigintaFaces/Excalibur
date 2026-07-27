@@ -64,14 +64,14 @@ Configure core transport settings with `GooglePubSubOptions`:
 ```csharp
 services.Configure<GooglePubSubOptions>(options =>
 {
-    options.ProjectId = "my-gcp-project";
-    options.TopicId = "dispatch-events";
-    options.SubscriptionId = "dispatch-events-sub";
+    options.Connection.ProjectId = "my-gcp-project";
+    options.Connection.TopicId = "dispatch-events";
+    options.Connection.SubscriptionId = "dispatch-events-sub";
 
-    options.MaxPullMessages = 100;
-    options.AckDeadlineSeconds = 60;
-    options.EnableAutoAckExtension = true;
-    options.MaxConcurrentAcks = 10;
+    options.Subscriber.MaxPullMessages = 100;
+    options.Subscriber.AckDeadlineSeconds = 60;
+    options.Subscriber.EnableAutoAckExtension = true;
+    options.Subscriber.MaxConcurrentAcks = 10;
     options.MaxConcurrentMessages = 0; // Uses Environment.ProcessorCount * 2
 });
 ```
@@ -99,10 +99,10 @@ services.AddGooglePubSubTransport("events", pubsub =>
 ```
 
 #### Standalone CloudEvents Registration
-Use `UseCloudEventsForPubSub` for standalone CloudEvents configuration:
+Use `AddCloudEventsForPubSub` for standalone CloudEvents configuration:
 
 ```csharp
-services.UseCloudEventsForPubSub(options =>
+services.AddCloudEventsForPubSub(options =>
 {
     options.UseOrderingKeys = true;
     options.UseExactlyOnceDelivery = true;
@@ -232,10 +232,10 @@ Configure telemetry options via `GooglePubSubOptions`:
 ```csharp
 services.Configure<GooglePubSubOptions>(options =>
 {
-    options.EnableOpenTelemetry = true;
-    options.ExportToCloudMonitoring = true;
-    options.TracingSamplingRatio = 0.1; // 10% sampling
-    options.EnableTracePropagation = true;
+    options.Telemetry.EnableOpenTelemetry = true;
+    options.Telemetry.ExportToCloudMonitoring = true;
+    options.Telemetry.TracingSamplingRatio = 0.1; // 10% sampling
+    options.Telemetry.EnableTracePropagation = true;
 });
 ```
 

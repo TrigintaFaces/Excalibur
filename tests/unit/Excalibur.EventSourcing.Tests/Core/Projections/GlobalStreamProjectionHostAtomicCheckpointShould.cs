@@ -11,6 +11,7 @@ using Excalibur.EventSourcing.Projections;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.EventSourcing.Tests.Core.Projections;
@@ -35,6 +36,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
 	private readonly ICursorMapStore _cursorMapStore = A.Fake<ICursorMapStore>();
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
+	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
 
 	// --- AC-P3.2 / FR-P3.2 / EC-P3.1 (headline): SaveCursorMapAsync throwing AFTER the checkpoint
 	// would be stored MUST NOT leave the checkpoint advanced ahead of the cursor map. The post-fix
@@ -257,19 +259,33 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 
 	private GlobalStreamProjectionHost<GlobalStreamTestState> CreateHost(int checkpointInterval, bool withCursorMap)
 	{
+		// The host resolves the (scoped) query/projection/checkpoint/cursor-map stores from a scope per cycle
+		// (l55sbl). Back the scope with a REAL provider registering the fakes; the cursor map is registered
+		// only when this test enables it (else GetService(ICursorMapStore) returns null — the pre-l55sbl null arg).
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(_globalStreamQuery);
+		_ = services.AddSingleton(_projection);
+		_ = services.AddSingleton(_checkpointStore);
+		if (withCursorMap)
+		{
+			_ = services.AddSingleton(_cursorMapStore);
+		}
+
+		var scopedProvider = services.BuildServiceProvider();
+		var scope = A.Fake<IServiceScope>();
+		A.CallTo(() => scope.ServiceProvider).Returns(scopedProvider);
+		A.CallTo(() => _scopeFactory.CreateScope()).Returns(scope);
+
 		return new GlobalStreamProjectionHost<GlobalStreamTestState>(
-			_globalStreamQuery,
-			_projection,
+			_scopeFactory,
 			_eventSerializer,
-			_checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
 			{
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 				CheckpointInterval = checkpointInterval,
 			}),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
-			_serviceProvider,
-			withCursorMap ? _cursorMapStore : null);
+			_serviceProvider);
 	}
 
 	// Reflection over the private _pendingCursorUpdates map (same-assembly access via reflection is

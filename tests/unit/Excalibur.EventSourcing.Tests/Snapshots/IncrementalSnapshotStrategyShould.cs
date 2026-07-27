@@ -230,22 +230,22 @@ public sealed class InMemoryIncrementalSnapshotStoreShould
 	/// Validates null/empty argument guards.
 	/// </summary>
 	[Fact]
-	public void ThrowOnNullOrEmptyArguments()
+	public async Task ThrowOnNullOrEmptyArguments()
 	{
-		Should.Throw<ArgumentException>(() =>
-			_store.LoadAsync(null!, "Order", CancellationToken.None).GetAwaiter().GetResult());
-		Should.Throw<ArgumentException>(() =>
-			_store.LoadAsync("id", "", CancellationToken.None).GetAwaiter().GetResult());
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.LoadAsync(null!, "Order", CancellationToken.None));
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.LoadAsync("id", "", CancellationToken.None));
 
-		Should.Throw<ArgumentException>(() =>
-			_store.SaveDeltaAsync(null!, "Order", new SnapshotTestState(), 1, CancellationToken.None).GetAwaiter().GetResult());
-		Should.Throw<ArgumentNullException>(() =>
-			_store.SaveDeltaAsync("id", "Order", null!, 1, CancellationToken.None).GetAwaiter().GetResult());
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.SaveDeltaAsync(null!, "Order", new SnapshotTestState(), 1, CancellationToken.None));
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await _store.SaveDeltaAsync("id", "Order", null!, 1, CancellationToken.None));
 
-		Should.Throw<ArgumentException>(() =>
-			_store.SaveFullAsync(null!, "Order", new SnapshotTestState(), 1, CancellationToken.None).GetAwaiter().GetResult());
-		Should.Throw<ArgumentNullException>(() =>
-			_store.SaveFullAsync("id", "Order", null!, 1, CancellationToken.None).GetAwaiter().GetResult());
+		_ = await Should.ThrowAsync<ArgumentException>(
+			async () => await _store.SaveFullAsync(null!, "Order", new SnapshotTestState(), 1, CancellationToken.None));
+		_ = await Should.ThrowAsync<ArgumentNullException>(
+			async () => await _store.SaveFullAsync("id", "Order", null!, 1, CancellationToken.None));
 	}
 
 	/// <summary>

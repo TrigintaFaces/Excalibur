@@ -5,14 +5,10 @@ Excalibur.Dispatch.Caching.CacheBehaviorOptions.CacheTimeout.get -> System.TimeS
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.CacheTimeout.set -> void
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.DefaultExpiration.get -> System.TimeSpan
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.DefaultExpiration.set -> void
-Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableCompression.get -> bool
-Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableCompression.set -> void
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableStatistics.get -> bool
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableStatistics.set -> void
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.JitterRatio.get -> double
 Excalibur.Dispatch.Caching.CacheBehaviorOptions.JitterRatio.set -> void
-Excalibur.Dispatch.Caching.CacheBehaviorOptions.UseSlidingExpiration.get -> bool
-Excalibur.Dispatch.Caching.CacheBehaviorOptions.UseSlidingExpiration.set -> void
 Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions
 Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.CacheCircuitBreakerOptions() -> void
 Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.Enabled.get -> bool
@@ -199,14 +195,6 @@ Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheTagsToInvalidate() -> Syste
 Excalibur.Dispatch.Caching.ICacheKeyBuilder
 Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(Excalibur.Dispatch.IDispatchAction! action, Excalibur.Dispatch.IMessageContext! context) -> string?
 Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(string! logicalKey, string? tenantId, string? userId) -> string!
-Excalibur.Dispatch.Caching.ICacheProvider
-Excalibur.Dispatch.Caching.ICacheProvider.ExistsAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Dispatch.Caching.ICacheProvider.GetAsync<T>(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
-Excalibur.Dispatch.Caching.ICacheProvider.RemoveAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Caching.ICacheProvider.RemoveByTagAsync(string! tag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Caching.ICacheProvider.SetAsync<T>(string! key, T value, System.Threading.CancellationToken cancellationToken, System.TimeSpan? expiration = null, string![]? tags = null) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.Caching.ICacheProviderManagement
-Excalibur.Dispatch.Caching.ICacheProviderManagement.ClearAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Dispatch.Caching.ICacheTagTracker
 Excalibur.Dispatch.Caching.ICacheTagTracker.GetKeysByTagsAsync(string![]! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.HashSet<string!>!>!
 Excalibur.Dispatch.Caching.ICacheTagTracker.RegisterKeyAsync(string! key, string![]! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

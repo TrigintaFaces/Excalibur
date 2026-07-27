@@ -43,12 +43,6 @@ public abstract class CommandBase(Guid correlationId, string? tenantId = null) :
 	public string MessageType => GetType().FullName ?? GetType().Name;
 
 	/// <summary>
-	/// Gets the kind of message this command represents.
-	/// </summary>
-	/// <value> Always returns <see cref="MessageKinds.Action" /> for commands. </value>
-	public MessageKinds Kind { get; protected init; } = MessageKinds.Action;
-
-	/// <summary>
 	/// Gets the message headers.
 	/// </summary>
 	/// <value> A read-only dictionary containing the command's metadata headers. </value>

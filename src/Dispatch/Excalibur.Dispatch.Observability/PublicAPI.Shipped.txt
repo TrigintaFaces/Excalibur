@@ -316,26 +316,6 @@ Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.Timestamp.set
 Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.TraceParent.get -> string?
 Excalibur.Dispatch.Observability.Context.ServiceBoundaryTransition.TraceParent.set -> void
 Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.CircuitBreakerMetrics() -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.CircuitBreakerMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory) -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.Dispose() -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.RecordFailure(string! circuitName, string! exceptionType) -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.RecordRejection(string! circuitName) -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.RecordStateChange(string! circuitName, string! previousState, string! newState) -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.RecordSuccess(string! circuitName) -> void
-Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.UpdateState(string! circuitName, int state) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.DeadLetterQueueMetrics() -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.DeadLetterQueueMetrics(System.Diagnostics.Metrics.IMeterFactory! meterFactory) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.Dispose() -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordEnqueued(string! messageType, string! reason, string? sourceQueue) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordPurged(long count, string! reason) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.RecordReplayed(string! messageType, bool success) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.UpdateDepth(long depth, string? queueName) -> void
-Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetricsExtensions
 Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource
 Excalibur.Dispatch.Observability.Metrics.DispatchBaggageExtensions
 Excalibur.Dispatch.Observability.Metrics.DispatchMetrics
@@ -350,20 +330,6 @@ Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.RecordMessagePublished(
 Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.RecordProcessingDuration(double duration, string! messageType, bool success) -> void
 Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.UpdateActiveSessions(int delta) -> void
 Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordFailure(string! circuitName, string! exceptionType) -> void
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordRejection(string! circuitName) -> void
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordStateChange(string! circuitName, string! previousState, string! newState) -> void
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetrics.RecordSuccess(string! circuitName) -> void
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetricsAdmin
-Excalibur.Dispatch.Observability.Metrics.ICircuitBreakerMetricsAdmin.UpdateState(string! circuitName, int state) -> void
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.Meter.get -> System.Diagnostics.Metrics.Meter!
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordEnqueued(string! messageType, string! reason, string? sourceQueue) -> void
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordPurged(long count, string! reason) -> void
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.RecordReplayed(string! messageType, bool success) -> void
-Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics.UpdateDepth(long depth, string? queueName) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessageFailed(string! messageType, string! errorType, int retryAttempt) -> void
 Excalibur.Dispatch.Observability.Metrics.IDispatchMetrics.RecordMessageProcessed(string! messageType, string! handlerType, params (string! Key, object? Value)[]! tags) -> void
@@ -437,6 +403,8 @@ Excalibur.Dispatch.Observability.Sanitization.HashingTelemetrySanitizer.Sanitize
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.IncludeRawPii.get -> bool
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.IncludeRawPii.set -> void
+Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.Pepper.get -> byte[]?
+Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.Pepper.set -> void
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.SensitiveTagNames.get -> System.Collections.Generic.IList<string!>!
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.SensitiveTagNames.set -> void
 Excalibur.Dispatch.Observability.Sanitization.TelemetrySanitizerOptions.SuppressedTagNames.get -> System.Collections.Generic.IList<string!>!
@@ -446,6 +414,7 @@ Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.ObservabilityServiceCollectionExtensions
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.ActivityEnriched = 80204 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.B3TraceContextInjectionFailed = 80221 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.BaggagePropagated = 80206 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CausationIdExtracted = 80208 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.CleanupArgumentError = 80016 -> int
@@ -521,6 +490,7 @@ const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.SpanStar
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TenantIdExtracted = 80209 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceCompleted = 80401 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceDropped = 80406 -> int
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceEnrichmentFailed = 80408 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceExported = 80404 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceLinkCreated = 80205 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceParentParseArgumentError = 80213 -> int
@@ -529,8 +499,7 @@ const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceSam
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceSamplingInstrumentationFailed = 80407 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TraceStarted = 80400 -> int
 const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.TrackedFieldModified = 80110 -> int
-const Excalibur.Dispatch.Observability.Metrics.CircuitBreakerMetrics.MeterName = "Excalibur.Dispatch.CircuitBreaker" -> string!
-const Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetrics.MeterName = "Excalibur.Dispatch.DeadLetterQueue" -> string!
+const Excalibur.Dispatch.Observability.Diagnostics.ObservabilityEventId.W3CTraceContextInjectionFailed = 80220 -> int
 const Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Name = "Excalibur.Dispatch" -> string!
 const Excalibur.Dispatch.Observability.Metrics.DispatchMetrics.MeterName = "Excalibur.Dispatch.Core" -> string!
 const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.SpanIdTag = "span_id" -> string!
@@ -538,8 +507,6 @@ const Excalibur.Dispatch.Observability.Metrics.ExemplarHistogramExtensions.Trace
 static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.ExportDiagnosticData(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, string? messageId = null) -> string!
 static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.GenerateCorrelationReport(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, string! correlationId) -> string!
 static Excalibur.Dispatch.Observability.Context.ContextFlowDiagnosticsExtensions.GetRecentAnomalies(this Excalibur.Dispatch.Observability.Context.IContextFlowDiagnostics! diagnostics, int limit = 100) -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Observability.Context.ContextAnomaly!>!
-static Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetricsExtensions.RecordEnqueued(this Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics! metrics, string! messageType, string! reason) -> void
-static Excalibur.Dispatch.Observability.Metrics.DeadLetterQueueMetricsExtensions.UpdateDepth(this Excalibur.Dispatch.Observability.Metrics.IDeadLetterQueueMetrics! metrics, long depth) -> void
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartActivity(Excalibur.Dispatch.IDispatchMessage! message, string! activityName) -> System.Diagnostics.Activity?
 static Excalibur.Dispatch.Observability.Metrics.DispatchActivitySource.StartHandleActivity(Excalibur.Dispatch.IDispatchMessage! message, System.Type! handlerType) -> System.Diagnostics.Activity?
@@ -568,6 +535,7 @@ static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispa
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddDispatchMetrics(this OpenTelemetry.Metrics.MeterProviderBuilder! builder) -> OpenTelemetry.Metrics.MeterProviderBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddTransportMetrics(this OpenTelemetry.IOpenTelemetryBuilder! builder) -> OpenTelemetry.IOpenTelemetryBuilder!
 static Excalibur.Dispatch.Observability.Metrics.OpenTelemetryExtensions.AddTransportMetrics(this OpenTelemetry.Metrics.MeterProviderBuilder! builder) -> OpenTelemetry.Metrics.MeterProviderBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseB3TraceContextInjection(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseMetrics(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseObservability(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseObservability(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Observability.Context.ContextObservabilityOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
@@ -575,9 +543,8 @@ static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExte
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseTraceSampling(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Observability.Sampling.TraceSamplerOptions!>? configure = null) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseTracing(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseW3CTraceContext(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderObservabilityExtensions.UseW3CTraceContextInjection(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddAllDispatchMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddCircuitBreakerMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddDeadLetterQueueMetrics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddDispatchMetricsInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddDispatchMetricsInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ObservabilityMetricsServiceCollectionExtensions.AddDispatchMetricsInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Observability.Metrics.ObservabilityOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

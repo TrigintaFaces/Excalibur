@@ -206,7 +206,7 @@ public sealed class StubAggregate(Guid id) : IAggregateRoot<Guid>, IAggregateSna
 	public object? GetService(Type serviceType) => null;
 	public string AggregateType => "StubAggregate";
 	public string? ETag { get; set; }
-	public void LoadFromHistory(IEnumerable<IDomainEvent> history) { }
+	public void LoadFromHistory(IEnumerable<HistoricEvent> history) { }
 	public void LoadFromSnapshot(ISnapshot snapshot) { }
 
 	[RequiresUnreferencedCode("Test")]

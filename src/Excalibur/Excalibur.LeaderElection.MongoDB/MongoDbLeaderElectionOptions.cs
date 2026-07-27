@@ -49,6 +49,21 @@ public sealed class MongoDbLeaderElectionOptions
 	public int TimeoutInSeconds { get; set; } = 10;
 
 	/// <summary>
+	/// Gets or sets the additional grace window, in seconds, that must elapse after a lease's
+	/// recorded expiry before another candidate may take over the lock.
+	/// </summary>
+	/// <value>Defaults to 3 seconds.</value>
+	/// <remarks>
+	/// The takeover decision is evaluated on the MongoDB server's clock, never the candidate's
+	/// local clock, so this window protects against the incumbent's own lease-renewal jitter and
+	/// network delay rather than inter-node clock skew. A wider window makes takeover slower but
+	/// more conservative; a narrower window makes takeover faster but more prone to contested
+	/// handoffs while the incumbent's own renewal is merely delayed rather than truly lost.
+	/// </remarks>
+	[Range(0, int.MaxValue)]
+	public int TakeoverGraceSeconds { get; set; } = 3;
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

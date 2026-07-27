@@ -1,6 +1,7 @@
 using Company.DispatchMinimalApi.Actions;
 using Company.DispatchMinimalApi.Infrastructure;
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Hosting.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,12 +53,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("/api/orders", async (CreateOrderAction action, IDispatcher dispatcher, CancellationToken cancellationToken) =>
-{
-    var result = await dispatcher.DispatchAsync<CreateOrderAction, Guid>(action, cancellationToken).ConfigureAwait(false);
-    return Results.Created($"/api/orders/{result.ReturnValue}", result.ReturnValue);
-});
+// The action is bound from the request body, dispatched, and its result is turned into the
+// correct HTTP response automatically — no controller, no manual result-unwrapping:
+//   validation failure -> 400 ProblemDetails, authorization failure -> 403, success -> 200.
+// (Pass a responseHandler argument if you want 201 Created or a custom mapping.)
+app.DispatchPostAction<CreateOrderAction, CreateOrderResult>("/api/orders");
 
+// A route-bound query reads naturally as a plain MapGet (404-on-not-found is a query concern the
+// generic result bridge does not model); the command path above shows the DispatchPostAction bridge.
 app.MapGet("/api/orders/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken cancellationToken) =>
 {
     var result = await dispatcher.DispatchAsync<GetOrderAction, OrderResult?>(new GetOrderAction(id), cancellationToken).ConfigureAwait(false);

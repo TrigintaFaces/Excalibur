@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 
 using Excalibur.Data.InMemory.Diagnostics;
 using Excalibur.Data.Observability;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
@@ -35,6 +36,7 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 	private readonly ConcurrentDictionary<string, ISnapshot> _snapshots = new(StringComparer.Ordinal);
 	private readonly InMemorySnapshotOptions _options;
 	private readonly ILogger<InMemorySnapshotStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -42,15 +44,22 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When supplied, the
+	/// tenant becomes part of every snapshot key, so two tenants holding the same aggregate identifier
+	/// occupy separate entries instead of overwriting one another.
+	/// </param>
 	public InMemorySnapshotStore(
 		IOptions<InMemorySnapshotOptions> options,
-		ILogger<InMemorySnapshotStore> logger)
+		ILogger<InMemorySnapshotStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
 		_logger = logger;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -217,20 +226,55 @@ public sealed partial class InMemorySnapshotStore : ISnapshotStore, IAsyncDispos
 		return ValueTask.CompletedTask;
 	}
 
-	private static string GetKey(string aggregateId, string aggregateType)
-		=> $"{aggregateType}:{aggregateId}";
+	/// <summary>
+	/// Builds the key identifying a single aggregate's snapshot, including the tenant when the host is
+	/// multi-tenant. Every read, save, and delete path routes through this one method, so the tenant
+	/// cannot be applied to some operations and forgotten on others.
+	/// </summary>
+	/// <remarks>
+	/// The tenant segment is added only when tenancy is active, so a single-tenant host's keys keep their
+	/// existing shape. This mirrors the Redis store, and the tenant-first ordering matches the convention
+	/// the grant stores already use across the document providers.
+	/// </remarks>
+	private string GetKey(string aggregateId, string aggregateType)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		return scope.IsScoped
+			? $"t:{scope.TenantId}:{aggregateType}:{aggregateId}"
+			: $"{aggregateType}:{aggregateId}";
+	}
 
+	/// <summary>
+	/// Evicts the oldest snapshot when the configured cap is reached.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Removes by the entry's OWN key rather than rebuilding one from the aggregate. <see cref="GetKey"/>
+	/// resolves the AMBIENT tenant — the tenant performing the save — while the eviction victim may belong
+	/// to a different tenant entirely. Reconstructing the key would therefore compute the saver's key for
+	/// the victim's aggregate, and in one shared dictionary that either removes the WRONG tenant's snapshot
+	/// or removes nothing at all and lets the cap grow unbounded. The entry already carries its key; use it.
+	/// </para>
+	/// <para>
+	/// The victim is selected across ALL tenants, and that is deliberate. The cap bounds one shared
+	/// dictionary, so a per-tenant scan would let a single tenant fill the store and starve the others
+	/// while the global cap silently stopped being enforced. Cross-tenant eviction is safe here because a
+	/// snapshot is a CACHE, not a record: the repository loads from version 0 when none exists and the
+	/// snapshot manager is optional, so evicting another tenant's entry costs that tenant a replay and
+	/// never their data. Do not "fix" this into a per-tenant scan — it would trade a latency cost for a
+	/// memory-bound failure.
+	/// </para>
+	/// </remarks>
 	private void EvictOldestSnapshot()
 	{
-		var oldestSnapshot = _snapshots.Values
-			.OrderBy(s => s.CreatedAt)
+		var oldest = _snapshots
+			.OrderBy(entry => entry.Value.CreatedAt)
 			.FirstOrDefault();
 
-		if (oldestSnapshot != null)
+		if (oldest.Key is not null)
 		{
-			var oldKey = GetKey(oldestSnapshot.AggregateId, oldestSnapshot.AggregateType);
-			_ = _snapshots.TryRemove(oldKey, out _);
-			LogSnapshotEvicted(oldestSnapshot.AggregateId, oldestSnapshot.AggregateType);
+			_ = _snapshots.TryRemove(oldest.Key, out _);
+			LogSnapshotEvicted(oldest.Value.AggregateId, oldest.Value.AggregateType);
 		}
 	}
 

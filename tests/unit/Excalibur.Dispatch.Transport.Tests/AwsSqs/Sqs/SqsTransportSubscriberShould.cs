@@ -293,6 +293,124 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			new SqsTransportSubscriber(_fakeSqs, "source", "queueUrl", new AwsSqsVisibilityHeartbeatOptions(), null!));
 	}
 
+	// --- Heartbeat cross-property invariant enforcement at the ctor (7b0kkp) ---
+	// ConfigureVisibilityHeartbeat only runs Validate() when the consumer goes through the builder;
+	// an enabled heartbeat configured via any other path (IOptions/appsettings/direct) would otherwise
+	// reach the run loop unchecked. The ctor calls _heartbeat.Validate(), so an invalid enabled config
+	// must be rejected at construction. RED if the ctor's Validate() call is removed.
+
+	private SqsTransportSubscriber Construct(AwsSqsVisibilityHeartbeatOptions heartbeat) =>
+		new(
+			_fakeSqs,
+			"test-source",
+			"https://sqs.us-east-1.amazonaws.com/123456789/test-queue",
+			heartbeat,
+			NullLogger<SqsTransportSubscriber>.Instance);
+
+	[Fact]
+	public void ThrowAtCtorWhenHeartbeatIntervalNotShorterThanVisibilityTimeout()
+	{
+		// Arrange — enabled, Interval == VisibilityTimeout (window can lapse before the next extension).
+		var heartbeat = new AwsSqsVisibilityHeartbeatOptions
+		{
+			Enabled = true,
+			Interval = TimeSpan.FromSeconds(60),
+			VisibilityTimeout = TimeSpan.FromSeconds(60),
+		};
+
+		// Act & Assert
+		Should.Throw<InvalidOperationException>(() => Construct(heartbeat))
+			.Message.ShouldContain("shorter than VisibilityTimeout");
+	}
+
+	[Fact]
+	public void ThrowAtCtorWhenVisibilityTimeoutExceedsSqsMaximum()
+	{
+		// Arrange — enabled, VisibilityTimeout > 12h (AWS SQS ceiling).
+		var heartbeat = new AwsSqsVisibilityHeartbeatOptions
+		{
+			Enabled = true,
+			Interval = TimeSpan.FromSeconds(30),
+			VisibilityTimeout = TimeSpan.FromHours(13),
+		};
+
+		// Act & Assert
+		Should.Throw<InvalidOperationException>(() => Construct(heartbeat))
+			.Message.ShouldContain("AWS SQS maximum");
+	}
+
+	[Fact]
+	public void ThrowAtCtorWhenMaxExtensionIsShorterThanInterval()
+	{
+		// Arrange — enabled, valid Interval < VisibilityTimeout, but MaxExtension < Interval
+		// so not even a single extension fits.
+		var heartbeat = new AwsSqsVisibilityHeartbeatOptions
+		{
+			Enabled = true,
+			Interval = TimeSpan.FromSeconds(30),
+			VisibilityTimeout = TimeSpan.FromSeconds(60),
+			MaxExtension = TimeSpan.FromSeconds(10),
+		};
+
+		// Act & Assert
+		Should.Throw<InvalidOperationException>(() => Construct(heartbeat))
+			.Message.ShouldContain("MaxExtension");
+	}
+
+	[Fact]
+	public void ThrowAtCtorWhenHeartbeatIntervalIsNotPositive()
+	{
+		// Arrange — enabled with a non-positive interval.
+		var heartbeat = new AwsSqsVisibilityHeartbeatOptions
+		{
+			Enabled = true,
+			Interval = TimeSpan.Zero,
+		};
+
+		// Act & Assert
+		Should.Throw<InvalidOperationException>(() => Construct(heartbeat))
+			.Message.ShouldContain("Interval must be greater than zero");
+	}
+
+	[Fact]
+	public async Task NotThrowAtCtorWhenHeartbeatEnabledWithValidConfig()
+	{
+		// Arrange — enabled, all invariants satisfied: the reject tests above are not vacuous.
+		var heartbeat = new AwsSqsVisibilityHeartbeatOptions
+		{
+			Enabled = true,
+			Interval = TimeSpan.FromSeconds(30),
+			VisibilityTimeout = TimeSpan.FromSeconds(90),
+			MaxExtension = TimeSpan.FromMinutes(10),
+		};
+
+		// Act
+		var subscriber = Construct(heartbeat);
+
+		// Assert
+		subscriber.Source.ShouldBe("test-source");
+		await subscriber.DisposeAsync();
+	}
+
+	[Fact]
+	public async Task NotThrowAtCtorWhenHeartbeatDisabledEvenWithOtherwiseInvalidValues()
+	{
+		// Arrange — disabled heartbeat never runs, so its cross-property values are not enforced.
+		var heartbeat = new AwsSqsVisibilityHeartbeatOptions
+		{
+			Enabled = false,
+			Interval = TimeSpan.FromSeconds(120),
+			VisibilityTimeout = TimeSpan.FromSeconds(60), // Interval >= VisibilityTimeout, but disabled
+		};
+
+		// Act
+		var subscriber = Construct(heartbeat);
+
+		// Assert
+		subscriber.Source.ShouldBe("test-source");
+		await subscriber.DisposeAsync();
+	}
+
 	[Fact]
 	public async Task SkipEmptyPollsAndContinue()
 	{

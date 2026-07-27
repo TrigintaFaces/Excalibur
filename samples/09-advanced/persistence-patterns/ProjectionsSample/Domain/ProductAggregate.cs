@@ -125,15 +125,17 @@ public class ProductAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case ProductCreated e: Apply(e); break;
-			case ProductPriceChanged e: Apply(e); break;
-			case ProductStockAdded e: Apply(e); break;
-			case ProductStockRemoved e: Apply(e); break;
-			case ProductDiscontinued e: Apply(e); break;
+			case ProductCreated e: Apply(e); return true;
+			case ProductPriceChanged e: Apply(e); return true;
+			case ProductStockAdded e: Apply(e); return true;
+			case ProductStockRemoved e: Apply(e); return true;
+			case ProductDiscontinued e: Apply(e); return true;
+			default:
+				return false;
 		}
 	}
 

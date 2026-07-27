@@ -8,6 +8,7 @@ using System.Net;
 
 using Excalibur.Data;
 using Excalibur.Data.CosmosDb.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -40,6 +41,8 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	private readonly CosmosDbSagaOptions _options;
 	private readonly ILogger<CosmosDbSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
+
+	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
@@ -56,10 +59,15 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	/// <remarks>
 	/// This is the primary constructor for dependency injection scenarios.
 	/// </remarks>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. It is accepted so the
+	/// store can DETECT a tenant scope it cannot honour and refuse it, rather than silently ignoring one.
+	/// </param>
 	public CosmosDbSagaStore(
 		IOptions<CosmosDbSagaOptions> options,
 		ILogger<CosmosDbSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -69,6 +77,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		_options.Validate();
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 	}
 
 	/// <summary>
@@ -88,11 +97,16 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	/// <item><description>Integration with existing Cosmos DB infrastructure</description></item>
 	/// </list>
 	/// </remarks>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. It is accepted so the
+	/// store can DETECT a tenant scope it cannot honour and refuse it, rather than silently ignoring one.
+	/// </param>
 	public CosmosDbSagaStore(
 		CosmosClient client,
 		IOptions<CosmosDbSagaOptions> options,
 		ILogger<CosmosDbSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -104,6 +118,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		_options.Validate();
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc/>
@@ -125,6 +140,14 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 				cancellationToken: cancellationToken).ConfigureAwait(false);
 
 			var document = response.Resource;
+
+			// A saga belonging to another tenant is "not found" from this scope's perspective — the same
+			// answer a tenant-filtered query would have given, reached one step later.
+			if (!OwnedByCurrentScope(document))
+			{
+				return null;
+			}
+
 			if (string.IsNullOrEmpty(document.StateJson))
 			{
 				return null;
@@ -180,6 +203,20 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 			var existing = readResponse.Resource;
 
+			// Ownership BEFORE version. Without this check a save under tenant A that carries tenant B's
+			// SagaId reads B's document and, if the versions happen to agree, upserts A's state over it —
+			// a cross-tenant OVERWRITE, not merely a disclosure. When they disagree it instead throws a
+			// ConcurrencyException carrying B's version number, which discloses a row this caller is not
+			// entitled to know exists. Treating it as absent gives the same answer a tenant-filtered query
+			// would: this scope has no saga at that id, so the insert path below decides what happens next.
+			if (!OwnedByCurrentScope(existing))
+			{
+				// NOT a ConcurrencyException. A conflict is transient and a correct caller reloads and retries;
+				// this is permanent, so that caller would retry a cross-tenant write forever. The distinct type
+				// also carries no version, which keeps the other tenant's state out of the error entirely.
+				throw new TenantIsolationViolationException(nameof(SagaState), sagaState.SagaId.ToString());
+			}
+
 			if (existing.Version != expectedVersion)
 			{
 				throw new ConcurrencyException(
@@ -190,13 +227,20 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			}
 
 			// Update document preserving createdUtc, advancing the version.
+			//
+			// TenantId is carried over from the EXISTING document, never recomputed from the ambient scope:
+			// ownership is fixed when the saga is created. Recomputing it here would let a save under a
+			// different scope re-home an existing saga instead of being refused — the overwrite leak. The
+			// ownership check above has already established that this scope may touch this document at all.
 			var document = new CosmosDbSagaDocument
 			{
 				Id = documentId,
+				TenantId = existing.TenantId,
 				SagaId = sagaState.SagaId,
 				SagaType = sagaType,
 				StateJson = stateJson,
 				IsCompleted = sagaState.Completed,
+				CompletedAt = sagaState.CompletedAt?.UtcDateTime,
 				Version = expectedVersion + 1,
 				CreatedUtc = existing.CreatedUtc, // Preserve original
 				UpdatedUtc = now
@@ -217,11 +261,14 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			catch (CosmosException upsertEx) when (upsertEx.StatusCode == HttpStatusCode.PreconditionFailed)
 			{
 				// A concurrent writer modified the document between our read and our write (etag mismatch).
+				// Re-read the current version so the exception carries the real actual version (diagnostic
+				// parity with the other saga stores) rather than a -1 "unknown" sentinel (e25wz5).
+				var current = await LoadAsync<TSagaState>(sagaState.SagaId, cancellationToken).ConfigureAwait(false);
 				throw new ConcurrencyException(
 					nameof(SagaState),
 					sagaState.SagaId.ToString(),
 					expectedVersion,
-					actualVersion: -1L);
+					current?.Version ?? -1L);
 			}
 
 			LogSagaSaved(sagaType, sagaState.SagaId, sagaState.Completed);
@@ -241,14 +288,18 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 					actualVersion: -1L);
 			}
 
-			// No existing saga, create new with current timestamp as createdUtc.
+			// No existing saga, create new with current timestamp as createdUtc. This is the ONE place a
+			// tenant is assigned: at creation, from the ambient scope, or the saga's own tenant when unscoped.
+			var scope = TenantScope.FromContext(_tenantContext);
 			var document = new CosmosDbSagaDocument
 			{
 				Id = documentId,
+				TenantId = scope.IsScoped ? scope.TenantId : sagaState.TenantId,
 				SagaId = sagaState.SagaId,
 				SagaType = sagaType,
 				StateJson = stateJson,
 				IsCompleted = sagaState.Completed,
+				CompletedAt = sagaState.CompletedAt?.UtcDateTime,
 				Version = expectedVersion + 1,
 				CreatedUtc = now,
 				UpdatedUtc = now
@@ -268,6 +319,8 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			{
 				// Race: another process created the document between our NotFound read and our create. That
 				// is a concurrency conflict — surface it instead of clobbering the other writer's state.
+				// The conflicting document may belong to another tenant; the ownership check below keeps its
+				// version out of the exception for the same reason as the save-path read above.
 				var conflictReadResponse = await _container!.ReadItemAsync<CosmosDbSagaDocument>(
 					documentId,
 					partitionKey,
@@ -277,13 +330,94 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 					nameof(SagaState),
 					sagaState.SagaId.ToString(),
 					expectedVersion,
-					conflictReadResponse.Resource.Version);
+					OwnedByCurrentScope(conflictReadResponse.Resource)
+						? conflictReadResponse.Resource.Version
+						: -1L);
 			}
 		}
 
 		// Store-owns-increment write-back (mirrors SqlServerSagaStore): advance the in-memory token so a
 		// subsequent save on the same object uses the new persisted version instead of re-conflicting.
 		sagaState.Version = expectedVersion + 1;
+	}
+
+	/// <inheritdoc/>
+	public Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		// This store has no tenant discriminator: it persists the saga state as a serialized blob, so the
+		// tenant travels INSIDE the document rather than as a queryable field. It cannot build a server-side
+		// tenant predicate, which makes it an untenanted-only store -- a coherent, supported shape under the
+		// settled semantics, where every row it owns lives in the untenanted partition.
+		//
+		// So an unscoped purge is correct and proceeds. A SCOPED purge is refused rather than serviced,
+		// because the only thing this store could do with a tenant is ignore it -- and ignoring it here means
+		// deleting every OTHER tenant's completed sagas while reporting success. This is a range delete with
+		// no reachability gate: unlike a point load, the caller needs nothing but a timestamp to destroy
+		// another tenant's data. Failing loud is the one honest answer available to it.
+		var scope = TenantScope.FromContext(_tenantContext);
+		if (scope.IsScoped)
+		{
+			throw new TenantScopeNotSupportedException(
+				$"This saga store cannot purge within a tenant scope. Store type: '{GetType().FullName}'. " +
+				"It persists saga state as a serialized document, so the tenant is not a queryable field and " +
+				"no tenant predicate can be applied. Servicing the call would delete every tenant's completed " +
+				"sagas. Use a store that discriminates by tenant (SQL Server, Postgres, Oracle), or call " +
+				"PurgeAllTenantsCompletedBeforeAsync if an estate-wide sweep is what you intended.");
+		}
+
+		return PurgeAllTenantsCompletedBeforeAsync(threshold, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// The estate-wide sweep, and the only purge this store can perform. It is identical to the unscoped
+	/// path above because a store with no tenant discriminator cannot distinguish the two — which is exactly
+	/// why the scoped call refuses instead of silently landing here.
+	/// </remarks>
+	public async Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Query the dedicated completedAt field directly (not out of StateJson) so a running saga
+		// (completedAt == null) is never purged. IS_DEFINED guards documents written before this field
+		// existed; the cutoff is compared as UTC so it lines up with the stored UTC value.
+		var cutoff = threshold.UtcDateTime;
+		var query = new QueryDefinition(
+				"SELECT c.id, c.sagaType FROM c WHERE IS_DEFINED(c.completedAt) AND c.completedAt != null AND c.completedAt < @cutoff")
+			.WithParameter("@cutoff", cutoff);
+
+		var purged = 0;
+
+		// Cosmos has no bulk "delete where"; page the matches and delete each by (id, partition key).
+		using var iterator = _container!.GetItemQueryIterator<CosmosDbSagaDocument>(query);
+		while (iterator.HasMoreResults)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			var page = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			foreach (var document in page)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				try
+				{
+					_ = await _container!.DeleteItemAsync<CosmosDbSagaDocument>(
+						document.Id,
+						new PartitionKey(document.SagaType),
+						cancellationToken: cancellationToken).ConfigureAwait(false);
+					purged++;
+				}
+				catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+				{
+					// Already removed by a concurrent sweep/completion — not an error for a retention purge.
+				}
+			}
+		}
+
+		LogSagasPurged(purged, threshold);
+		return purged;
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -412,6 +546,25 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Returns whether a document belongs to the store's current scope.
+	/// </summary>
+	/// <remarks>
+	/// Cosmos point reads (<c>ReadItemAsync</c>) address a document by id and partition key; there is no
+	/// server-side predicate to attach, so ownership has to be checked after the read rather than expressed in
+	/// the query. That is weaker than filtering — the document crosses the wire before it is rejected — but it
+	/// is the strongest control available without folding the tenant into the partition key, which Cosmos does
+	/// not allow to change without recreating the container. The caller never receives another tenant's saga.
+	/// </remarks>
+	private bool OwnedByCurrentScope(CosmosDbSagaDocument document)
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		return string.Equals(
+			document.TenantId,
+			scope.IsScoped ? scope.TenantId : null,
+			StringComparison.Ordinal);
+	}
+
 	[LoggerMessage(DataCosmosDbEventId.SagaStoreInitialized, LogLevel.Information,
 		"Initialized Cosmos DB saga store with container '{ContainerName}'")]
 	private partial void LogInitialized(string containerName);
@@ -421,4 +574,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 	[LoggerMessage(DataCosmosDbEventId.SagaStateSaved, LogLevel.Debug, "Saved saga {SagaType}/{SagaId}, Completed={IsCompleted}")]
 	private partial void LogSagaSaved(string sagaType, Guid sagaId, bool isCompleted);
+
+	[LoggerMessage(DataCosmosDbEventId.SagaStatePurged, LogLevel.Information, "Purged {Count} completed sagas older than {Threshold}")]
+	private partial void LogSagasPurged(int count, DateTimeOffset threshold);
 }

@@ -12,7 +12,7 @@ namespace Excalibur.Data.IdentityMap.SqlServer.Builders;
 /// <para>
 /// Provides the canonical 4 connection overloads plus subsystem-specific configuration
 /// for identity map table name, schema, command timeout, and batch size. Follows the
-/// builder pattern established by <see cref="Excalibur.Cdc.SqlServer.ISqlServerCdcConnectionBuilder"/>.
+/// builder pattern established by <c>ISqlServerCdcConnectionBuilder</c>.
 /// </para>
 /// <para>
 /// <b>Connection overloads are mutually exclusive (last-wins):</b> If multiple connection

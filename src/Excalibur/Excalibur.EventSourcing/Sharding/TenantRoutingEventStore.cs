@@ -8,7 +8,7 @@ namespace Excalibur.EventSourcing.Sharding;
 
 /// <summary>
 /// Decorator that routes <see cref="IEventStore"/> operations to the correct
-/// tenant's shard based on the current <see cref="ITenantId"/>.
+/// tenant's shard based on the current <see cref="ITenantContext"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,17 +23,17 @@ namespace Excalibur.EventSourcing.Sharding;
 internal sealed class TenantRoutingEventStore : IEventStore
 {
 	private readonly ITenantStoreResolver<IEventStore> _resolver;
-	private readonly ITenantId _tenantId;
+	private readonly ITenantContext _tenantContext;
 
 	internal TenantRoutingEventStore(
 		ITenantStoreResolver<IEventStore> resolver,
-		ITenantId tenantId)
+		ITenantContext tenantContext)
 	{
 		ArgumentNullException.ThrowIfNull(resolver);
-		ArgumentNullException.ThrowIfNull(tenantId);
+		ArgumentNullException.ThrowIfNull(tenantContext);
 
 		_resolver = resolver;
-		_tenantId = tenantId;
+		_tenantContext = tenantContext;
 	}
 
 	/// <inheritdoc />
@@ -71,11 +71,11 @@ internal sealed class TenantRoutingEventStore : IEventStore
 
 	private IEventStore ResolveStore()
 	{
-		var tenantId = _tenantId.Value;
+		var tenantId = _tenantContext.TenantId;
 		if (string.IsNullOrEmpty(tenantId))
 		{
 			throw new InvalidOperationException(
-				"Tenant ID is not set. Ensure ITenantId is populated before accessing the event store.");
+				"No ambient tenant is resolved. Ensure the tenant is established (TenantContextHolder.BeginScope) before accessing the event store.");
 		}
 
 		return _resolver.Resolve(tenantId);

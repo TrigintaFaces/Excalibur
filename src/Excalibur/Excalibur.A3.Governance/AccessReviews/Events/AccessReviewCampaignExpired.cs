@@ -15,8 +15,6 @@ internal sealed class AccessReviewCampaignExpired : IDomainEvent
 	public required AccessReviewExpiryPolicy AppliedPolicy { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => CampaignId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(AccessReviewCampaignExpired);
 	public IDictionary<string, object>? Metadata { get; init; }

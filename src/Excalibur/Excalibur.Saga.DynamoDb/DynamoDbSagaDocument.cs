@@ -30,7 +30,14 @@ internal static class DynamoDbSagaDocument
 	public const string SagaId = "sagaId";
 	public const string SagaType = "sagaType";
 	public const string StateJson = "stateJson";
+
+	/// <summary>
+	/// Attribute holding the owning tenant. Absent on items in the untenanted partition, which is why the
+	/// unscoped write condition tests <c>attribute_not_exists</c> rather than comparing to a value.
+	/// </summary>
+	public const string TenantId = "tenantId";
 	public const string IsCompleted = "isCompleted";
+	public const string CompletedAt = "completedAt";
 	public const string Version = "version";
 	public const string CreatedUtc = "createdUtc";
 	public const string UpdatedUtc = "updatedUtc";
@@ -88,6 +95,14 @@ internal static class DynamoDbSagaDocument
 			[CreatedUtc] = new() { S = createdUtc.ToString("O", CultureInfo.InvariantCulture) },
 			[UpdatedUtc] = new() { S = updatedUtc.ToString("O", CultureInfo.InvariantCulture) }
 		};
+
+		// Persist the completion timestamp only for a completed saga (round-trip UTC "O" format — fixed-width
+		// and lexicographically ordered, so a string range comparison is a valid chronological range). A running
+		// saga has no completedAt attribute, so retention purge (attribute_exists guard) never removes it.
+		if (sagaState.CompletedAt is { } completedAt)
+		{
+			item[CompletedAt] = new() { S = completedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture) };
+		}
 
 		if (ttlSeconds > 0)
 		{

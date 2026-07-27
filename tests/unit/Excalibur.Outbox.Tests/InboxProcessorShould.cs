@@ -772,6 +772,90 @@ public sealed class InboxProcessorShould : UnitTestBase
 		});
 	}
 
+	// ── hlt4g4: a drained/re-admitted failed entry must be reprocessed under ITS OWN tenant scope, not
+	//    tenant-blind. Author≠implementer RED-first lock for the (b-public) drain fix: InboxProcessor now
+	//    populates IInboxMessage.TenantId from the entry and wraps the per-entry dispatch+mark unit in
+	//    TenantContextHolder.BeginScope(message.TenantId) (mirrors OutboxProcessor). Observable: a capturing
+	//    IDispatcher reads the ambient ITenantContext during DispatchAsync — the scope BeginScope establishes.
+	//    RED against committed HEAD (no BeginScope in the drain → ambient tenant is null/tenant-blind);
+	//    GREEN on the fix. Both arms per testing-patterns §3: SAFETY (tenant-B not reprocessed tenant-blind)
+	//    + LIVENESS (reprocessing still happens, and under the entry's OWN tenant — not a hardcoded value).
+
+	[Fact]
+	public async Task ReprocessADrainedEntryUnderItsOwnTenantScope_NotTenantBlind()
+	{
+		// SAFETY. A tenant-B failed entry, when drained, must be processed under tenant B's ambient scope.
+		var (capturedTenant, observedUnderScope) = await DrainCapturingTenantAsync("tenant-B").ConfigureAwait(false);
+
+		observedUnderScope.ShouldBe(
+			1, "the drained entry must actually reach the per-entry process unit — else the scope assertion is vacuous");
+		capturedTenant.ShouldBe(
+			"tenant-B",
+			"EXPECTED RED until the drain wraps reprocessing in BeginScope(entry.TenantId) (tracked: hlt4g4). A "
+			+ "tenant-B failed entry must be processed (dedup-checked, dispatched, marked) under tenant B's ambient "
+			+ "scope, not tenant-blind (null) — a tenant-blind re-admission acts in the wrong (or no) tenant's context");
+	}
+
+	[Fact]
+	public async Task StillReprocessAnEntryUnderTheEntrysOwnTenant_IntraTenantDrainWorks()
+	{
+		// LIVENESS. Reprocessing still happens, and the scope is the entry's OWN tenant (tenant-A here), not a
+		// hardcoded value — so the fix cannot pass the safety arm by always scoping to one tenant.
+		var (capturedTenant, observedUnderScope) = await DrainCapturingTenantAsync("tenant-A").ConfigureAwait(false);
+
+		observedUnderScope.ShouldBe(1, "tenant A's own failed entry is still drained and reaches the process unit");
+		capturedTenant.ShouldBe(
+			"tenant-A",
+			"tenant A's entry is processed under tenant A — the ambient scope is the entry's own tenant, "
+			+ "not a hardcoded value");
+	}
+
+	// Drains a single failed entry stamped with <paramref name="entryTenantId"/> through the real
+	// InboxProcessor, capturing the ambient ITenantContext observed inside DispatchAsync. Returns the
+	// captured tenant and the number of dispatches (reprocessing occurrences).
+	private static async Task<(string? CapturedTenant, int ObservedUnderScope)> DrainCapturingTenantAsync(string? entryTenantId)
+	{
+		MessageTypeRegistry.RegisterType<TestInboxDispatchMessage>();
+		var entry = CreateInboxEntryWithSerializedPayload("inbox-tenant", new TestInboxDispatchMessage("inbox-tenant"));
+		entry.TenantId = entryTenantId;
+		var inboxStore = CreateInboxStore(entry);
+
+		var services = new ServiceCollection();
+		_ = services.AddTenantContext();
+		_ = services.AddScoped(_ => A.Fake<IDispatcher>());
+		var serviceProvider = services.BuildServiceProvider();
+		await using var providerLifetime = serviceProvider.ConfigureAwait(false);
+
+		// AsyncLocal-backed: reads the ambient tenant that BeginScope establishes in the drain's process unit.
+		var tenantContext = serviceProvider.GetRequiredService<ITenantContext>();
+		var captured = new List<string?>();
+
+		// The deduplication check (IsDuplicateAsync → ContainsAsync) runs INSIDE the per-entry
+		// BeginScope(message.TenantId) at the very start of the process-and-mark unit — before dispatch — so
+		// it observes the tenant scope the fix establishes, independently of whether the later dispatch
+		// succeeds (the test harness's base64 payload path fails deserialization, so dispatch never runs).
+		var dedupStore = A.Fake<IDeduplicationStore>();
+		_ = A.CallTo(() => dedupStore.ContainsAsync(A<string>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				captured.Add(tenantContext.TenantId);
+				return Task.FromResult(false); // not a duplicate → the entry is processed under this scope
+			});
+
+		await using var processor = CreateProcessor(
+			options: CreateSingleMessageOptions(maxAttempts: 3),
+			inboxStore: inboxStore,
+			serializer: new DispatchJsonSerializer(),
+			serviceProvider: serviceProvider,
+			deadLetterQueue: CreateDeadLetterQueue(),
+			deduplicationStore: dedupStore);
+		processor.Init("dispatcher-hlt4g4");
+
+		_ = await processor.DispatchPendingMessagesAsync(CancellationToken.None).ConfigureAwait(false);
+
+		return (captured.Count > 0 ? captured[^1] : null, captured.Count);
+	}
+
 	private static InboxProcessor CreateProcessor(
 		IOptions<DeliveryInboxOptions>? options = null,
 		IInboxStore? inboxStore = null,

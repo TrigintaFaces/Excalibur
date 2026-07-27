@@ -11,7 +11,6 @@ using FakeItEasy;
 
 using Microsoft.AspNetCore.Authorization;
 
-using A3AuthorizationMiddleware = Excalibur.A3.Authorization.AuthorizationMiddleware;
 using A3AttributeAuthorizationCache = Excalibur.A3.Authorization.AttributeAuthorizationCache;
 
 namespace Excalibur.Tests.A3.Authorization;

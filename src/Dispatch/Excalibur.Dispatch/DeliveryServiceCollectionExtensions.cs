@@ -204,6 +204,9 @@ public static class DeliveryServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		// No durability attestation is emitted here, deliberately: this store forgets pending schedules on
+		// restart. Nothing refuses this default at startup, so a host that needs schedules to survive a
+		// restart must register a durable store itself.
 		services.TryAddSingleton<IScheduleStore, InMemoryScheduleStore>();
 		services.TryAddSingleton<ICronScheduler, CronScheduler>();
 		services.TryAddSingleton<IDispatchScheduler, RecurringDispatchScheduler>();

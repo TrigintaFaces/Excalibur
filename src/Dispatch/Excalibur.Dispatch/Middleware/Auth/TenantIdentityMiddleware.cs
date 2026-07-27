@@ -365,7 +365,10 @@ public sealed partial class TenantIdentityMiddleware : IDispatchMiddleware
 		}
 
 		var lazy = new Lazy<Regex>(
-			() => new Regex(pattern, RegexOptions.Compiled),
+			// No RegexOptions.Compiled: under Native AOT it emits no runtime IL (falls back to the
+			// interpreter — zero benefit) while adding JIT cost on other runtimes for a cached regex.
+			// A 1s matchTimeout bounds a pathological (ReDoS) consumer-supplied pattern.
+			() => new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)),
 			LazyThreadSafetyMode.ExecutionAndPublication);
 
 		// Bounded cache: skip caching when full to prevent unbounded memory growth

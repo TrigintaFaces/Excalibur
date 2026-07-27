@@ -8,6 +8,7 @@ using Excalibur.Data.Persistence;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -44,6 +45,8 @@ public static class OpenSearchPersistenceServiceCollectionExtensions
 		_ = services.AddOptions<OpenSearchPersistenceOptions>()
 			.Configure(configure)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OpenSearchPersistenceOptions>, OpenSearchPersistenceOptionsValidator>());
 
 		services.TryAddSingleton<OpenSearchPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("opensearch",
@@ -80,6 +83,8 @@ public static class OpenSearchPersistenceServiceCollectionExtensions
 		_ = services.AddOptions<OpenSearchPersistenceOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OpenSearchPersistenceOptions>, OpenSearchPersistenceOptionsValidator>());
 
 		services.TryAddSingleton<OpenSearchPersistenceProvider>();
 		services.AddKeyedSingleton<IPersistenceProvider>("opensearch",

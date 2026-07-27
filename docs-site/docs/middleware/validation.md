@@ -300,7 +300,7 @@ services.Configure<Excalibur.Dispatch.Options.Middleware.ValidationOptions>(opti
 {
     options.Enabled = true;               // Enable/disable (default: true)
     options.UseDataAnnotations = true;    // Use DataAnnotations (default: true)
-    options.UseCustomValidation = true;   // Use IValidationService (default: true)
+    options.UseCustomValidation = true;   // Use IMessageValidationService (default: true)
     options.StopOnFirstError = false;     // Fail-fast mode (default: false)
     options.BypassValidationForTypes = new[] { "HealthCheckAction" }; // Skip types
 });

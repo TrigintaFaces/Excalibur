@@ -11,14 +11,16 @@ namespace Excalibur.Dispatch.Compat.MassTransit;
 /// </summary>
 /// <typeparam name="TMessage">The consumed message type.</typeparam>
 /// <remarks>
+/// <para>
 /// Only the deterministically-portable members are shimmed (<see cref="Message"/>,
 /// <see cref="CancellationToken"/>). MassTransit-specific capabilities such as <c>Respond</c>,
 /// <c>Publish</c>, <c>Send</c>, and <c>Redeliver</c> are <b>not</b> provided — consumer code using them
 /// will not compile after the swap, surfacing the required manual migration step (no silent gap).
-/// </remarks>
-/// <remarks>
+/// </para>
+/// <para>
 /// CA1715 (interface 'I' prefix) is intentionally suppressed: the type name must match MassTransit's
 /// published <c>ConsumeContext&lt;T&gt;</c> verbatim for the source-compatible namespace swap to compile.
+/// </para>
 /// </remarks>
 #pragma warning disable CA1715 // Identifiers should have correct prefix — intentional source-compat name.
 public interface ConsumeContext<out TMessage>

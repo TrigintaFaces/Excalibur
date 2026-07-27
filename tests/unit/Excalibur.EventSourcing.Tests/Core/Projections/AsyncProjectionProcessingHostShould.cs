@@ -541,6 +541,80 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	}
 
 	[Fact]
+	public async Task NotAdvanceCheckpointPastAFailedApply_ReprocessingTheSameBatch()
+	{
+		// Arrange — h9nlsf (Dijkstra D6), the SAFETY arm paired with the liveness arm
+		// (ContinuePolling_AfterProjectionApplyError above): on a projection APPLY fault the host must
+		// HALT-at-failure — it must NOT advance the checkpoint past the failed batch, so the SAME batch is
+		// reprocessed (at-least-once; applies are idempotent) rather than silently skipped. The read model
+		// can therefore never drift from the event log. The prior test only proves the host keeps polling;
+		// this one proves it does not advance past the fault.
+		var fakeQuery = A.Fake<IGlobalStreamQuery>();
+		var readCount = 0;
+
+		// Position-aware: return the SAME single event at global position 1 while the host's position has
+		// NOT advanced past it. If the host ever (incorrectly) advanced past position 1, it would ask from a
+		// higher position and get an empty batch — so a continuously re-served e1 is direct evidence the
+		// checkpoint was never advanced past the failed apply.
+		A.CallTo(() => fakeQuery.ReadAllAsync(
+				A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily((GlobalStreamPosition pos, int batchSize, CancellationToken ct) =>
+			{
+				Interlocked.Increment(ref readCount);
+				return new ValueTask<IReadOnlyList<StoredEvent>>(
+					pos.Position <= 1
+						? new List<StoredEvent>
+						{
+							new("e1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow),
+						}
+						: (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>());
+			});
+
+		var fakeSerializer = A.Fake<IEventSerializer>();
+		A.CallTo(() => fakeSerializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
+		A.CallTo(() => fakeSerializer.DeserializeEvent(A<byte[]>._, A<Type>._))
+			.Returns(new TestOrderPlaced());
+
+		// Permanent apply fault — every apply throws, so the batch can never succeed and must be reprocessed.
+		var applyCount = 0;
+		_registry.Register(new ProjectionRegistration(
+			typeof(OrderSummary),
+			ProjectionMode.Async,
+			new MultiStreamProjection<OrderSummary>(),
+			inlineApply: (events, ctx, sp, ct) =>
+			{
+				Interlocked.Increment(ref applyCount);
+				throw new InvalidOperationException("Permanent projection failure");
+			}));
+
+		_services.AddSingleton(fakeQuery);
+		var sp = _services.BuildServiceProvider();
+
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
+		{
+			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
+			CheckpointInterval = 1, // would persist a checkpoint after a SINGLE event IF the host advanced past it
+		});
+
+		// Act — run until the same failing event has been reprocessed at least twice, then stop.
+		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
+		await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref applyCount) >= 2,
+			TimeSpan.FromSeconds(4),
+			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+		// Assert (SAFETY) — the checkpoint was NEVER advanced past the failed batch:
+		//   (1) the SAME event was re-read and re-applied (reprocess, not skip), and
+		//   (2) no checkpoint position was ever persisted (CheckpointInterval=1 would have persisted one
+		//       immediately had the host advanced past the fault).
+		applyCount.ShouldBeGreaterThanOrEqualTo(2);
+		var persisted = await _checkpointStore.EnumerateCheckpointsAsync(CancellationToken.None).ConfigureAwait(false);
+		persisted.ShouldBeEmpty();
+	}
+
+	[Fact]
 	public void ImplementIHostedService()
 	{
 		var host = CreateHost();
@@ -578,6 +652,13 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		{
 			_checkpoints[subscriptionName] = position;
 			return Task.CompletedTask;
+		}
+
+		public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken)
+		{
+			IReadOnlyList<SubscriptionCheckpoint> checkpoints =
+				[.. _checkpoints.Select(kvp => new SubscriptionCheckpoint(kvp.Key, kvp.Value))];
+			return Task.FromResult(checkpoints);
 		}
 	}
 }

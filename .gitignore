@@ -36,7 +36,10 @@ PublicApiBaselineReport/
 ReleaseRehearsalReport/
 TransitiveBloatReport/
 UnitShardReport/
-management/reports/
+# management/reports/ holds tracked human/agent-authored .md reports (retros, verify, traceability, theses).
+# Only tool-generated report DIRECTORIES under it are transient — ignore just the directories,
+# so authored top-level .md reports track by default (a new report is never silently swallowed).
+management/reports/*/
 BannedApisReport/
 
 # CI-generated notices diff artifact (never commit — regenerated each CI run)
@@ -490,7 +493,6 @@ docs/diagrams/*.mmd
 .serena
 .specify
 .codex/
-.claude/
 
 # Load test reports (generated during Phase 4)
 load-tests/reports/*
@@ -524,3 +526,10 @@ StrykerOutput/
 .tmp_*.cs
 tmp_ci_run/
 .tmp_ci_run/
+certified-samples.slnf
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

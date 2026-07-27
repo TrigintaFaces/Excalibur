@@ -44,12 +44,17 @@ public interface IAggregateSnapshotSupport
 	/// <summary>
 	/// Loads the aggregate state from a history of events.
 	/// </summary>
-	/// <param name="history">The sequence of historical events to replay.</param>
+	/// <param name="history">
+	/// The sequence of historical events to replay, each paired with the authoritative stream version the
+	/// event store assigned to it.
+	/// </param>
 	/// <remarks>
 	/// This method replays events to rebuild aggregate state without adding them
 	/// to the uncommitted events collection. Use this for event sourcing replay.
+	/// The version is read from the envelope rather than the event payload, so an event that does not
+	/// carry its own position replays correctly.
 	/// </remarks>
-	void LoadFromHistory(IEnumerable<IDomainEvent> history);
+	void LoadFromHistory(IEnumerable<HistoricEvent> history);
 
 	/// <summary>
 	/// Loads the aggregate state from a snapshot.

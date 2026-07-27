@@ -24,15 +24,6 @@ namespace Excalibur.Dispatch.Hosting.Serverless.Tests;
 [Trait("Component", "Platform")]
 public sealed class ServerlessCleanupReserveParityShould : UnitTestBase
 {
-	/// <summary>
-	/// The three first-party serverless provider options types.
-	/// </summary>
-	public static readonly Type[] ProviderOptionTypes =
-	[
-		typeof(AwsLambdaOptions),
-		typeof(AzureFunctionsOptions),
-		typeof(GoogleCloudFunctionsOptions),
-	];
 
 	private static void RegisterProvider(string provider, IServiceCollection services)
 	{
@@ -80,45 +71,5 @@ public sealed class ServerlessCleanupReserveParityShould : UnitTestBase
 		field.ShouldNotBeNull("ServerlessHostOptions must expose the shared DefaultCleanupReserve constant");
 		field!.FieldType.ShouldBe(typeof(TimeSpan));
 		((TimeSpan)field.GetValue(null)!).ShouldBe(TimeSpan.FromMilliseconds(500));
-	}
-
-	[Fact]
-	public void Not_let_any_provider_declare_a_divergent_cleanup_reserve()
-	{
-		// Parity guard: no provider options type may introduce its own cleanup-reserve member —
-		// they must all defer to the shared ServerlessHostOptions.DefaultCleanupReserve.
-		foreach (var optionsType in ProviderOptionTypes)
-		{
-			var divergent = optionsType
-				.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-				.Where(m => m.Name.Contains("CleanupReserve", StringComparison.Ordinal))
-				.Select(m => m.Name)
-				.ToList();
-
-			divergent.ShouldBeEmpty(
-				$"{optionsType.Name} must not declare its own cleanup-reserve member; "
-				+ "the shared ServerlessHostOptions.DefaultCleanupReserve is the single source of truth");
-		}
-	}
-
-	[Theory]
-	[InlineData("AddAwsLambdaHosting", typeof(AwsLambdaOptions))]
-	[InlineData("AddAzureFunctionsHosting", typeof(AzureFunctionsOptions))]
-	[InlineData("AddGoogleCloudFunctionsHosting", typeof(GoogleCloudFunctionsOptions))]
-	public void Expose_a_configure_action_overload_per_provider(string methodName, Type optionsType)
-	{
-		// Parity of the configuration surface: every provider Add* method offers the same
-		// Action<TOptions> configure overload.
-		var method = typeof(ServerlessServiceCollectionExtensions)
-			.GetMethods(BindingFlags.Public | BindingFlags.Static)
-			.Where(m => m.Name == methodName)
-			.ToList();
-
-		method.ShouldNotBeEmpty($"{methodName} must exist on ServerlessServiceCollectionExtensions");
-
-		var configureActionType = typeof(Action<>).MakeGenericType(optionsType);
-		method.ShouldContain(
-			m => m.GetParameters().Any(p => p.ParameterType == configureActionType),
-			$"{methodName} must accept an Action<{optionsType.Name}> configure overload (cross-provider parity)");
 	}
 }

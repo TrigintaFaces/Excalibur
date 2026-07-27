@@ -12,7 +12,7 @@ Provides **opt-in** high-performance binary serialization for:
 
 ## Key Features
 
-- **Opt-In**: JSON (System.Text.Json) is the default serializer (ADR-295). Install this package and register explicitly when you need maximum .NET performance.
+- **Opt-In**: JSON (System.Text.Json) is the default serializer. Install this package and register explicitly when you need maximum .NET performance.
 - **Serializer ID 1**: Magic byte `0x01` in persisted payloads
 - **Zero-Allocation**: ReadOnlySpan-based deserialization
 - **AOT-Compatible**: Full NativeAOT and trimming support via source generation

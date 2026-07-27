@@ -237,8 +237,7 @@ public static class KafkaTransportServiceCollectionExtensions
 			var cloudEventOptions = sp.GetService<IOptions<KafkaCloudEventOptions>>()?.Value;
 			var config = KafkaProducerConfigBuilder.Build(
 				kafkaOptions,
-				cloudEventOptions,
-				messageBusOptions: null);
+				cloudEventOptions);
 
 			return new ProducerBuilder<string, byte[]>(config).Build();
 		});
@@ -372,6 +371,7 @@ public static class KafkaTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			KafkaTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<KafkaTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
@@ -404,11 +404,14 @@ public static class KafkaTransportServiceCollectionExtensions
 			return new KafkaTransportSender(producer, name, logger);
 		});
 
+		var decodeConfluentFraming = transportOptions.UseSchemaRegistryEnabled && transportOptions.SchemaRegistry is not null;
+
 		services.TryAddKeyedSingleton<ITransportReceiver>(name, (sp, _) =>
 		{
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportReceiver>>();
-			return new KafkaTransportReceiver(consumer, source, logger);
+			var maxPayloadBytes = sp.GetRequiredService<IOptions<KafkaOptions>>().Value.Consumer.MaxPayloadBytes;
+			return new KafkaTransportReceiver(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming);
 		});
 	}
 
@@ -422,12 +425,15 @@ public static class KafkaTransportServiceCollectionExtensions
 		string name,
 		KafkaTransportOptions transportOptions)
 	{
+		var decodeConfluentFraming = transportOptions.UseSchemaRegistryEnabled && transportOptions.SchemaRegistry is not null;
+
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var consumer = sp.GetRequiredService<IConsumer<string, byte[]>>();
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportSubscriber>>();
 			var source = transportOptions.ConsumerOptions?.GroupId ?? name;
-			var nativeSubscriber = new KafkaTransportSubscriber(consumer, source, logger);
+			var maxPayloadBytes = sp.GetRequiredService<IOptions<KafkaOptions>>().Value.Consumer.MaxPayloadBytes;
+			var nativeSubscriber = new KafkaTransportSubscriber(consumer, source, logger, maxPayloadBytes, decodeConfluentFraming);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));

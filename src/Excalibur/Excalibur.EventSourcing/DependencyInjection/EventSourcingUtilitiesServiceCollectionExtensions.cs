@@ -4,8 +4,14 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Compliance;
+using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.CryptoShredding;
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Encryption.Decorators;
 using Excalibur.EventSourcing.Bulk;
 using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Observability;
@@ -17,6 +23,7 @@ using Excalibur.EventSourcing.Snapshots.Versioning;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -61,6 +68,129 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Decorates the registered <see cref="IEventStore"/> with per-subject field-level encryption so that a data
+	/// subject's <c>[PersonalData]</c> event fields are encrypted at rest under the subject's own key, and destroying
+	/// that key (GDPR right to erasure) renders only that subject's personal fields unrecoverable across all events.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// Mirrors <see cref="AddSnapshotEncryption"/>: the decorator wraps the existing <see cref="IEventStore"/>
+	/// registration and sits immediately above the store (encryption is the innermost decorator, so bytes reach the
+	/// store already encrypted). Requires <see cref="SubjectFieldCryptor"/>, an <see cref="IEventSerializer"/>, an
+	/// <see cref="IEncryptionProviderRegistry"/>, and <see cref="EncryptionOptions"/> to be registered.
+	/// <para>
+	/// Deliberately <see langword="internal"/>: the only correct call order registers the per-subject cryptor
+	/// first, so the supported public entry point is <see cref="AddEventSourcingCryptoShredding"/>, which wires the
+	/// cryptor and this decorator atomically. Exposing this standalone would let a consumer construct a container
+	/// that boots with plaintext PII (cryptor registered after the store) or throws on first append (decorator
+	/// registered without a cryptor) — foot-guns removed by keeping the seam off the public surface.
+	/// </para>
+	/// </remarks>
+	internal static IServiceCollection AddEventStoreEncryption(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Decorate FIRST, then record the marker — and only if the decoration actually happened. Registering
+		// the marker unconditionally would make it attest that this method was CALLED rather than that the
+		// event store is ENCRYPTED: when no IEventStore is registered yet, decoration is skipped and the
+		// marker would still claim at-rest encryption, so the startup guard would pass over plaintext PII.
+		// No proxy may stand in for the property it represents.
+		var decorated = DecorateEventStore(services, static (inner, sp) =>
+			new EncryptingEventStoreDecorator(
+				inner,
+				sp.GetRequiredService<IEncryptionProviderRegistry>(),
+				sp.GetRequiredService<SubjectFieldCryptor>(),
+				sp.GetRequiredService<IEventSerializer>(),
+				sp.GetRequiredService<IOptions<EncryptionOptions>>()));
+
+		// Composition time cannot decide this. A consumer may legitimately enable encryption before selecting
+		// a store provider, so "nothing was decorated yet" is not an error here — it only means the marker
+		// must not be registered, because no event store is encrypted. Whether that state is a fault is a
+		// question about the finished container, and only a startup validator can ask it.
+		if (decorated)
+		{
+			services.TryAddSingleton<EventStoreEncryptionMarker>();
+		}
+
+		return services;
+	}
+
+	/// <summary>
+	/// Enables GDPR crypto-shredding across the durable message-bearing stores: registers the per-subject
+	/// crypto-shred services and wires at-rest per-subject field encryption for the event store, the inbox, and
+	/// the outbox, so a data subject's <c>[PersonalData]</c> fields are encrypted at rest under the subject's key
+	/// — making the "destroy the key = erase the subject across all stored copies" guarantee real rather than
+	/// inert.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Call this AFTER the base store registrations and BEFORE any tenant-scoping decoration, so encryption lands
+	/// as the innermost decorator (bytes reach each store encrypted; tenant context resolves outside it). Each
+	/// encrypting decorator sits immediately above its store; an outer tenant-scoping decorator, if present,
+	/// wraps it.
+	/// </para>
+	/// <para>
+	/// This covers the event store, inbox, and outbox automatically. Projection stores are registered per
+	/// projection type, so they cannot be auto-covered: encrypt each projection explicitly with
+	/// <c>AddProjectionEncryption&lt;TProjection&gt;()</c> per registered projection type that carries personal
+	/// data.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddEventSourcingCryptoShredding(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Register the per-subject crypto-shred services (SubjectFieldCryptor, IFieldEncryptor, key manager);
+		// idempotent/override-safe via the Compliance registration's TryAdd semantics.
+		_ = services.AddCryptoShredding();
+
+		// Wire the encrypting decorators so the crypto-shred capability is LIVE at rest across every durable
+		// message-bearing store, never configured-but-inert. Inbox/outbox encryption lives in the Compliance
+		// package (existing dependency direction); projections stay explicit (open-generic per type).
+		_ = services.AddEventStoreEncryption();
+		_ = services.AddInboxEncryption();
+		_ = services.AddOutboxEncryption();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Decorates the registered <see cref="IProjectionStore{TProjection}"/> for the given projection type with
+	/// per-subject field-level encryption so a data subject's <c>[PersonalData]</c> projection fields are
+	/// encrypted at rest under the subject's own key, and destroying that key renders only that subject's
+	/// personal fields unrecoverable.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type whose store is decorated.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// Requires an <see cref="IEncryptionProviderRegistry"/> and <see cref="EncryptionOptions"/> to be registered.
+	/// Projection stores are registered per projection type, so encryption is opt-in per type and cannot be
+	/// auto-wired by <see cref="AddEventSourcingCryptoShredding"/> (which covers the event store, inbox, and
+	/// outbox): call this once for each registered projection type that carries personal data. The decorator
+	/// wraps the existing registration at its own lifetime and sits immediately above the store (encryption is
+	/// innermost, so bytes reach the store already encrypted; a tenant-scoping decorator, if present, wraps it).
+	/// </remarks>
+	public static IServiceCollection AddProjectionEncryption<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
+		this IServiceCollection services)
+		where TProjection : class
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		DecorateProjectionStore<TProjection>(services, static (inner, sp) =>
+			new EncryptingProjectionStoreDecorator<TProjection>(
+				inner,
+				sp.GetRequiredService<IEncryptionProviderRegistry>(),
+				sp.GetRequiredService<IOptions<EncryptionOptions>>()));
+
+		return services;
+	}
+
+	/// <summary>
 	/// Decorates the registered <see cref="ISnapshotStore"/> with compression support.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -81,6 +211,8 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 
 		_ = services.AddOptions<SnapshotCompressionOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SnapshotCompressionOptions>>(new Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptionsValidator()));
 
 		DecorateSnapshotStore(services, static (inner, sp) =>
 			new CompressingSnapshotStore(
@@ -128,6 +260,8 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 		_ = services.AddOptions<SnapshotCompressionOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SnapshotCompressionOptions>>(new Excalibur.EventSourcing.Snapshots.Compression.SnapshotCompressionOptionsValidator()));
 
 		DecorateSnapshotStore(services, static (inner, sp) =>
 			new CompressingSnapshotStore(
@@ -221,7 +355,11 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Decorates the registered ISnapshotStore with a factory-based wrapper.
+	/// Decorates the registered <see cref="ISnapshotStore"/> with a factory-based wrapper, preserving the
+	/// descriptor's service key (if keyed) and lifetime. A keyed registration is re-registered keyed so a
+	/// consumer resolving the keyed store observes the decorated instance; re-registering non-keyed would
+	/// leave the keyed resolution pointing at the undecorated store, silently bypassing a decorator that
+	/// carries a correctness guarantee (e.g. field-level encryption / crypto-shred).
 	/// </summary>
 	private static void DecorateSnapshotStore(
 		IServiceCollection services,
@@ -235,39 +373,116 @@ public static class EventSourcingUtilitiesServiceCollectionExtensions
 
 		_ = services.Remove(descriptor);
 
-		services.Add(new ServiceDescriptor(
-			typeof(ISnapshotStore),
-			sp =>
-			{
-				var inner = ResolveOriginal<ISnapshotStore>(descriptor, sp);
-				return decoratorFactory(inner, sp);
-			},
-			descriptor.Lifetime));
+		services.Add(descriptor.IsKeyedService
+			? ServiceDescriptor.DescribeKeyed(
+				typeof(ISnapshotStore),
+				descriptor.ServiceKey,
+				(sp, _) => decoratorFactory(ResolveOriginal<ISnapshotStore>(descriptor, sp), sp),
+				descriptor.Lifetime)
+			: ServiceDescriptor.Describe(
+				typeof(ISnapshotStore),
+				sp => decoratorFactory(ResolveOriginal<ISnapshotStore>(descriptor, sp), sp),
+				descriptor.Lifetime));
 	}
 
 	/// <summary>
-	/// Decorates the registered IEventStore with a factory-based wrapper.
+	/// Decorates the registered <see cref="IEventStore"/> with a factory-based wrapper, preserving the
+	/// descriptor's service key (if keyed) and lifetime. A keyed registration is re-registered keyed so a
+	/// consumer resolving the keyed store observes the decorated instance; re-registering non-keyed would
+	/// leave the keyed resolution pointing at the undecorated store, silently bypassing a decorator that
+	/// carries a correctness guarantee (e.g. field-level encryption / crypto-shred).
 	/// </summary>
-	private static void DecorateEventStore(
+	/// <returns>
+	/// <see langword="true"/> if an <see cref="IEventStore"/> was registered and has been decorated;
+	/// <see langword="false"/> if there was nothing to decorate. Callers whose decorator carries a
+	/// correctness guarantee must not treat <see langword="false"/> as success.
+	/// </returns>
+	private static bool DecorateEventStore(
 		IServiceCollection services,
 		Func<IEventStore, IServiceProvider, IEventStore> decoratorFactory)
 	{
 		var descriptor = services.LastOrDefault(sd => sd.ServiceType == typeof(IEventStore));
 		if (descriptor is null)
 		{
-			return; // No event store registered yet; skip decoration
+			return false; // No event store registered yet; nothing was decorated.
 		}
 
 		_ = services.Remove(descriptor);
 
-		services.Add(new ServiceDescriptor(
-			typeof(IEventStore),
-			sp =>
-			{
-				var inner = ResolveOriginal<IEventStore>(descriptor, sp);
-				return decoratorFactory(inner, sp);
-			},
-			descriptor.Lifetime));
+		services.Add(descriptor.IsKeyedService
+			? ServiceDescriptor.DescribeKeyed(
+				typeof(IEventStore),
+				descriptor.ServiceKey,
+				(sp, _) => decoratorFactory(ResolveOriginal<IEventStore>(descriptor, sp), sp),
+				descriptor.Lifetime)
+			: ServiceDescriptor.Describe(
+				typeof(IEventStore),
+				sp => decoratorFactory(ResolveOriginal<IEventStore>(descriptor, sp), sp),
+				descriptor.Lifetime));
+
+		return true;
+	}
+
+	/// <summary>
+	/// Decorates the registered <see cref="IProjectionStore{TProjection}"/> for one projection type, preserving
+	/// the descriptor's service key (if keyed) and lifetime. The undecorated factory is captured from the
+	/// original descriptor so the decorator's inner reference never re-enters the decorated registration.
+	/// </summary>
+	private static void DecorateProjectionStore<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
+		IServiceCollection services,
+		Func<IProjectionStore<TProjection>, IServiceProvider, IProjectionStore<TProjection>> decoratorFactory)
+		where TProjection : class
+	{
+		var descriptor = services.LastOrDefault(sd => sd.ServiceType == typeof(IProjectionStore<TProjection>));
+		if (descriptor is null)
+		{
+			return; // No projection store registered for this type; nothing to encrypt.
+		}
+
+		_ = services.Remove(descriptor);
+
+		var originalFactory = BuildProjectionOriginalFactory<TProjection>(descriptor);
+
+		services.Add(descriptor.IsKeyedService
+			? ServiceDescriptor.DescribeKeyed(
+				typeof(IProjectionStore<TProjection>),
+				descriptor.ServiceKey,
+				(sp, _) => decoratorFactory(originalFactory(sp), sp),
+				descriptor.Lifetime)
+			: ServiceDescriptor.Describe(
+				typeof(IProjectionStore<TProjection>),
+				sp => decoratorFactory(originalFactory(sp), sp),
+				descriptor.Lifetime));
+	}
+
+	/// <summary>
+	/// Produces a factory for the undecorated projection store from whichever registration form the descriptor
+	/// uses, read through the keyed-safe accessors (raw reads throw on keyed descriptors on .NET 8+).
+	/// </summary>
+	private static Func<IServiceProvider, IProjectionStore<TProjection>> BuildProjectionOriginalFactory<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>(
+		ServiceDescriptor descriptor)
+		where TProjection : class
+	{
+		if (descriptor.GetImplementationInstance() is IProjectionStore<TProjection> instance)
+		{
+			return _ => instance;
+		}
+
+		if (descriptor.GetImplementationFactory() is { } factory)
+		{
+			return sp => (IProjectionStore<TProjection>)factory(sp);
+		}
+
+		var implementationType = descriptor.GetImplementationType();
+		if (implementationType is not null)
+		{
+			return sp => (IProjectionStore<TProjection>)ActivatorUtilities.CreateInstance(sp, implementationType);
+		}
+
+		throw new InvalidOperationException(
+			$"Cannot resolve original IProjectionStore<{typeof(TProjection).Name}> from service descriptor.");
 	}
 
 	/// <summary>

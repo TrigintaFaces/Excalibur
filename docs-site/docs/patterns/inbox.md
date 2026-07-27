@@ -145,37 +145,74 @@ services.AddInMemoryInboxStore();
 
 ### SQL Server
 
-The store does **not** auto-create the table — create it before starting the application. The default table is `[dbo].[inbox_messages]`; override the schema/table via `SchemaName` / `TableName`. Entries are keyed by the composite `(MessageId, HandlerType)`, so the same message can be tracked independently per handler.
+The store does **not** auto-create the table — create it before starting the application. The default table is `[dbo].[inbox_messages]`; override the schema/table via `SchemaName` / `TableName`.
+
+The physical schema is **column-agnostic by deployment mode**:
+
+- **Single-tenant (the default)** — the dedup/claim key is the pair `(MessageId, HandlerType)` and there is **no `TenantId` column**. A single-tenant consumer pays nothing for a tenant discriminator it never uses; isolation is trivial because there are no other tenants' rows to collide with. Use the schema shown below.
+- **Multi-tenant** — when you register multi-tenancy (`AddMultiTenancy()`), the key becomes the triple `(MessageId, HandlerType, TenantId)` with `TenantId` **`NOT NULL`**, so two tenants sharing a `(MessageId, HandlerType)` can never dedup against each other. Use the multi-tenant variant shown below the note.
+
+The store **verifies the physical key against the registered mode at startup and fails fast on a mismatch** — a multi-tenant store can never silently run against the single-tenant (column-absent) schema, and vice versa.
 
 ```sql
+-- SINGLE-TENANT (the default). Use this UNLESS you register multi-tenancy.
 CREATE TABLE [dbo].[inbox_messages] (
-    [MessageId]     NVARCHAR(255)  NOT NULL,
-    [HandlerType]   NVARCHAR(500)  NOT NULL,
-    [MessageType]   NVARCHAR(500)  NOT NULL,
-    [Payload]       VARBINARY(MAX) NOT NULL,
-    [Metadata]      NVARCHAR(MAX)  NULL,            -- JSON
-    [ReceivedAt]    DATETIMEOFFSET NOT NULL,
-    [ProcessedAt]   DATETIMEOFFSET NULL,
-    [Status]        INT            NOT NULL DEFAULT 0,
-    [LastError]     NVARCHAR(MAX)  NULL,
-    [RetryCount]    INT            NOT NULL DEFAULT 0,
-    [LastAttemptAt] DATETIMEOFFSET NULL,
-    [NextAttemptAt] DATETIMEOFFSET NULL,            -- retry backoff: failed entry not re-admitted until this time
-    [CorrelationId] NVARCHAR(255)  NULL,
-    [TenantId]      NVARCHAR(255)  NULL,
-    [Source]        NVARCHAR(255)  NULL,
+    [MessageId]         NVARCHAR(255)  NOT NULL,
+    [HandlerType]       NVARCHAR(500)  NOT NULL,
+    [MessageType]       NVARCHAR(500)  NOT NULL,
+    [Payload]           VARBINARY(MAX) NOT NULL,
+    [Metadata]          NVARCHAR(MAX)  NULL,            -- JSON
+    [ReceivedAt]        DATETIMEOFFSET NOT NULL,
+    [ProcessedAt]       DATETIMEOFFSET NULL,
+    [Status]            INT            NOT NULL DEFAULT 0,
+    [RetryCount]        INT            NOT NULL DEFAULT 0,
+    [LastError]         NVARCHAR(MAX)  NULL,
+    [LastAttemptAt]     DATETIMEOFFSET NULL,
+    [NextAttemptAt]     DATETIMEOFFSET NULL,            -- retry backoff: failed entry not re-admitted until this time
+    [LeaseExpiresAtUtc] DATETIMEOFFSET NULL,            -- REQUIRED: backs the atomic lease-based claim (claim-before-execute)
+    [CorrelationId]     NVARCHAR(255)  NULL,
+    [Source]            NVARCHAR(255)  NULL,
 
-    CONSTRAINT [PK_inbox_messages] PRIMARY KEY CLUSTERED ([MessageId], [HandlerType])
+    -- Single-tenant: the dedup/claim key is the pair. No TenantId column.
+    CONSTRAINT [PK_inbox_messages] PRIMARY KEY ([MessageId], [HandlerType])
 );
 
--- Backs the failed-entry re-admission claim (status + retry-visibility window).
-CREATE INDEX [IX_inbox_messages_Retry]
-ON [dbo].[inbox_messages] ([Status], [RetryCount], [NextAttemptAt], [LastAttemptAt]);
-
--- Backs the cleanup of processed entries (DELETE WHERE Status = Processed AND ProcessedAt < cutoff).
-CREATE INDEX [IX_inbox_messages_Cleanup]
-ON [dbo].[inbox_messages] ([Status], [ProcessedAt]);
+-- Backs the failed-entry re-admission claim and the received-order scan.
+CREATE INDEX [IX_inbox_messages_Status_ReceivedAt]
+ON [dbo].[inbox_messages] ([Status], [ReceivedAt]);
 ```
+
+:::info Multi-tenant variant
+Register multi-tenancy with `AddMultiTenancy()` and provision the table with the **multi-tenant** key instead — add a `TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL` column and make it part of the primary key:
+
+```sql
+-- MULTI-TENANT. Use this ONLY when multi-tenancy is registered.
+CREATE TABLE [dbo].[inbox_messages] (
+    [MessageId]         NVARCHAR(255)  NOT NULL,
+    [HandlerType]       NVARCHAR(500)  NOT NULL,
+    -- ... same columns as above ...
+    [TenantId]          NVARCHAR(255) COLLATE Latin1_General_BIN2  NOT NULL,
+
+    -- Multi-tenant: tenant is part of identity. The dedup/claim key is the triple.
+    CONSTRAINT [PK_inbox_messages] PRIMARY KEY ([MessageId], [HandlerType], [TenantId])
+);
+```
+
+A genuinely untenanted system row (or a row anchored during a single-tenant→multi-tenant migration) binds the reserved sentinel `'__untenanted__'`. The framework rejects that exact identifier as a tenant id, so the sentinel can never collide with a tenant literal.
+
+To grow an existing single-tenant table into the multi-tenant key, run the shipped expand-contract migration (`002_MigrateToMultiTenant.sql`) during a maintenance window with the store stopped: it adds `TenantId NOT NULL DEFAULT '__untenanted__'` (anchoring existing rows to the sentinel) and rebuilds the primary key as `(MessageId, HandlerType, TenantId)`. After it completes, register multi-tenancy and restart — the startup handshake then confirms the triple key.
+:::
+
+:::warning `LeaseExpiresAtUtc` is required
+The SQL Server inbox store claims each message with an **atomic lease** before the handler runs. The `LeaseExpiresAtUtc` column backs that claim — without it, every dispatch fails with `Invalid column name 'LeaseExpiresAtUtc'`. If you provisioned the table with an earlier schema, add the column:
+
+```sql
+ALTER TABLE [dbo].[inbox_messages]
+ADD [LeaseExpiresAtUtc] DATETIMEOFFSET NULL;
+```
+
+The PostgreSQL store uses the equivalent `lease_expires_at timestamptz null` column.
+:::
 
 ## Retry Backoff Schedule
 
@@ -303,7 +340,7 @@ services.AddInboxHostedService();
 
 ## Per-Handler Deduplication
 
-The inbox store tracks messages by a composite key of `(MessageId, HandlerType)`, allowing multiple handlers to process the same message independently:
+The inbox store tracks messages by a composite key of `(MessageId, HandlerType)` (extended to `(MessageId, HandlerType, TenantId)` in a multi-tenant deployment), allowing multiple handlers to process the same message independently:
 
 ```csharp
 // Both handlers can process the same event - tracked separately
@@ -339,6 +376,110 @@ public class SqlServerInboxStore : IInboxStore
 ```
 
 For multi-instance deployments, the atomic deduplication check prevents race conditions without requiring explicit distributed locks.
+
+## Provider-Native Transactional Inbox (SQL Server, PostgreSQL, MongoDB & Cosmos DB)
+
+The default inbox guarantee is **exactly-once for concurrent redelivery, at-least-once across a process crash** — because the claim and the "mark processed" are two steps, not one transaction, a crash between the handler and the mark leaves the message to be reclaimed and re-run (so your handler must be idempotent).
+
+SQL Server, PostgreSQL, MongoDB, and Azure Cosmos DB can do better. Their **provider-native transactional inbox** runs the duplicate check, your handler, and the processed-mark inside a **single native transaction** that commits or rolls back atomically. Your handler's own writes — enlisted on the same transaction — commit together with the mark, or not at all. This closes the crash window: there is no state where the handler's effect is durable but the mark is missing.
+
+The guarantee holds on the success path. If the handler throws, the whole native transaction rolls back — nothing is marked processed, and the message is redelivered for retry.
+
+### Enablement differs by provider
+
+The middleware always probes the store's `SupportsTransactional` capability and uses the transactional path when it is available, falling back transparently to the at-least-once idempotent claim protocol otherwise — never a false atomic advertisement. How a store *reports* that capability differs:
+
+- **SQL Server and PostgreSQL — always on.** The relational stores run the handler inside a local `IDbTransaction` and report `SupportsTransactional = true` unconditionally. No option to set: registering `AddSqlServerInboxStore(...)` / the Postgres inbox store is all that's required.
+- **MongoDB and Cosmos DB — opt-in.** These report the capability only once you configure the native transaction primitive (a replica-set session / a shared logical partition), because without it the primitive isn't available.
+
+```csharp
+// SQL Server / PostgreSQL — nothing to configure; the transactional path is
+// active as soon as the relational inbox store is registered.
+
+// MongoDB — requires a replica set (transactions are a replica-set feature)
+services.Configure<MongoDbInboxOptions>(options =>
+{
+    options.EnableTransactions = true;
+});
+
+// Azure Cosmos DB — the processed-mark and the handler's batch must share one
+// logical partition, so set the shared partition-key value to opt in.
+services.Configure<CosmosDbInboxOptions>(options =>
+{
+    options.SharedPartitionKey = "inbox";
+});
+```
+
+No handler code change is required for the exactly-once mark itself — the middleware selects the transactional path automatically for any store that reports the capability.
+
+### Enlisting handler writes in the same transaction
+
+For your handler's own writes to commit atomically with the processed-mark, enlist them on the native transaction handed to the middleware. Read the scope from the current message context — inject `IMessageContextAccessor` (the context flows on an `AsyncLocal`, so it is available inside your handler) — and cast it to the provider-native handle:
+
+```csharp
+public class OrderCreatedHandler(IMessageContextAccessor contextAccessor, IMongoCollection<Order> orders)
+    : IEventHandler<OrderCreatedEvent>
+{
+    public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
+    {
+        // Non-null only on the transactional path; null under the at-least-once claim path.
+        var scope = contextAccessor.MessageContext?.GetInboxTransactionScope();
+        var order = new Order(@event.OrderId, @event.CustomerId);
+
+        if (scope is not null)
+        {
+            // MongoDB: obtain the native session and pass it to your driver calls.
+            var session = scope.AsMongoSession();
+            await orders.InsertOneAsync(session, order, cancellationToken: ct);
+            // This write commits atomically with the inbox processed-mark.
+        }
+        else
+        {
+            // Fallback: no scoped transaction — use your own connection/session.
+            // Writes are NOT atomic with the mark, so this path must be idempotent.
+            await orders.InsertOneAsync(order, cancellationToken: ct);
+        }
+    }
+}
+```
+
+On Cosmos DB, obtain the batch instead with `scope.AsCosmosBatch()` and add your operations to the returned `TransactionalBatch`. Writes made outside the scope are not enlisted and are therefore not atomic with the mark.
+
+On **SQL Server and PostgreSQL**, obtain the active `IDbTransaction` with `scope.AsSqlTransaction()` and enlist your own commands (Dapper, ADO.NET) on it — they commit atomically with the processed-mark:
+
+```csharp
+public class OrderCreatedHandler(IMessageContextAccessor contextAccessor)
+    : IEventHandler<OrderCreatedEvent>
+{
+    public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
+    {
+        var scope = contextAccessor.MessageContext?.GetInboxTransactionScope();
+
+        if (scope is not null)
+        {
+            // Relational: enlist your write on the same local transaction.
+            var tx = scope.AsSqlTransaction();
+            await tx.Connection!.ExecuteAsync(
+                "INSERT INTO orders (id, customer_id) VALUES (@Id, @CustomerId)",
+                new { Id = @event.OrderId, CustomerId = @event.CustomerId },
+                transaction: tx);
+            // Commits atomically with the inbox processed-mark.
+        }
+        else
+        {
+            // Fallback: no scoped transaction — use your own connection.
+            // Writes are NOT atomic with the mark, so this path must be idempotent.
+        }
+    }
+}
+```
+
+`AsSqlTransaction()` fails loudly with `InvalidOperationException` if called on a non-relational scope (for example a MongoDB or Cosmos DB scope), surfacing a provider mismatch immediately rather than returning null.
+
+:::warning Provider requirements
+- **MongoDB** — `EnableTransactions` requires a **replica set**. Even with the flag set, starting a transaction against a standalone server fails loudly at runtime.
+- **Cosmos DB** — a `TransactionalBatch` is single-partition, so the processed-mark and the handler's writes must share one logical partition. Set `SharedPartitionKey`; without it the store reports `SupportsTransactional = false` and falls back to the claim protocol.
+:::
 
 ## Health Checks
 

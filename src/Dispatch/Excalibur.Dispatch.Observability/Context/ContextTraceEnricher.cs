@@ -538,7 +538,7 @@ public sealed partial class ContextTraceEnricher(
 	{
 		if (context.GetTenantId() == null && !string.IsNullOrWhiteSpace(value))
 		{
-			// Would need a factory method to create ITenantId from string
+			// Would need a factory method to project the extracted tenant onto the message context
 			LogTenantIdExtracted(value);
 		}
 	}

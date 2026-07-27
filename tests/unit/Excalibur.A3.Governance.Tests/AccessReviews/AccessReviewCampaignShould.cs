@@ -5,6 +5,8 @@ using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.AccessReviews;
 using Excalibur.A3.Governance.Events;
 
+using Excalibur.Domain.Model;
+
 namespace Excalibur.A3.Governance.Tests.AccessReviews;
 
 /// <summary>
@@ -491,7 +493,20 @@ public sealed class AccessReviewCampaignShould : UnitTestBase
 			outcome: AccessReviewOutcome.Revoked));
 		original.Complete();
 
-		var events = original.GetUncommittedEvents().ToList();
+		// Created, Started, two DecisionMade, Completed: five events, appended by the store at stream
+		// positions 0 through 4. The count is pinned so an added event fails here rather than being
+		// silently renumbered.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(5);
+
+		var events = new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+			new(uncommitted[3], 3),
+			new(uncommitted[4], 4),
+		};
 
 		// Act
 		var rebuilt = AccessReviewCampaign.FromEvents("campaign-1", events);
@@ -517,7 +532,16 @@ public sealed class AccessReviewCampaignShould : UnitTestBase
 		original.Start();
 		original.Expire();
 
-		var rebuilt = AccessReviewCampaign.FromEvents("campaign-1", original.GetUncommittedEvents());
+		// Created, Started, Expired: three events at stream positions 0 through 2.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(3);
+
+		var rebuilt = AccessReviewCampaign.FromEvents("campaign-1", new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+		});
 		rebuilt.State.ShouldBe(AccessReviewState.Expired);
 		rebuilt.ExpiryPolicy.ShouldBe(AccessReviewExpiryPolicy.DoNothing);
 	}
@@ -538,7 +562,16 @@ public sealed class AccessReviewCampaignShould : UnitTestBase
 	{
 		var original = CreateCampaign();
 		original.Start();
-		var events = original.GetUncommittedEvents().ToList();
+
+		// Created, Started: two events at stream positions 0 and 1.
+		var uncommitted = original.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(2);
+
+		var events = new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+		};
 
 		var rebuilt = AccessReviewCampaign.FromEvents("campaign-1", events);
 		rebuilt.GetUncommittedEvents().ShouldBeEmpty();

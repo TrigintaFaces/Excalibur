@@ -29,7 +29,7 @@ public static class TenantShardingServiceCollectionExtensions
 	/// <para>
 	/// When enabled, <see cref="IEventStore"/> and <see cref="IProjectionStore{TProjection}"/>
 	/// are re-registered as Scoped services that route to the correct shard based on
-	/// the current tenant (via <see cref="Excalibur.Dispatch.ITenantId"/>).
+	/// the current tenant (via <see cref="Excalibur.Dispatch.ITenantContext"/>).
 	/// </para>
 	/// <para>
 	/// Consumers must also register an <see cref="ITenantShardMap"/> implementation
@@ -75,7 +75,7 @@ public static class TenantShardingServiceCollectionExtensions
 		// Idempotent: if EnableTenantSharding is invoked more than once, the second
 		// call is a no-op rather than double-registering TenantRoutingEventStore.
 		// [S792 bd-a38h4t]
-		RegisterTenantRoutingEventStore(builder.Services);
+		RegisterTenantRoutingStores(builder.Services);
 
 		return builder;
 	}
@@ -132,7 +132,7 @@ public static class TenantShardingServiceCollectionExtensions
 		// Idempotent: if EnableTenantSharding is invoked more than once, the second
 		// call is a no-op rather than double-registering TenantRoutingEventStore.
 		// [S792 bd-a38h4t]
-		RegisterTenantRoutingEventStore(builder.Services);
+		RegisterTenantRoutingStores(builder.Services);
 
 		return builder;
 	}
@@ -141,10 +141,17 @@ public static class TenantShardingServiceCollectionExtensions
 	/// Registers <see cref="TenantRoutingEventStore"/> as the
 	/// <see cref="IEventStore"/> implementation, removing any prior registration
 	/// (including a previous <see cref="TenantRoutingEventStore"/> — which makes
-	/// repeated <c>EnableTenantSharding</c> calls a no-op rather than a
-	/// double-registration).
+	/// repeated calls a no-op rather than a double-registration).
 	/// </summary>
-	private static void RegisterTenantRoutingEventStore(IServiceCollection services)
+	/// <remarks>
+	/// The single tenant-routing wiring point, shared by <see cref="EnableTenantSharding(IEventSourcingBuilder, Action{ShardMapOptions})"/>
+	/// (the event-sourcing builder seam) and <c>AddMultiTenancy</c> with the sharding strategy (the
+	/// <see cref="IServiceCollection"/> composition seam), so the two do not fork the routing registration.
+	/// Callers are responsible for the shard-map options, <c>ITenantShardMap</c>, and
+	/// provider-specific <c>ITenantStoreResolver{TStore}</c> registrations this decorator resolves at runtime.
+	/// </remarks>
+	/// <param name="services">The service collection to register tenant routing into.</param>
+	internal static void RegisterTenantRoutingStores(IServiceCollection services)
 	{
 		// Idempotence guard — if TenantRoutingEventStore is already the registered
 		// IEventStore, do nothing. This prevents duplicate enumerable resolutions
@@ -172,5 +179,11 @@ public static class TenantShardingServiceCollectionExtensions
 		}
 
 		services.Add(ServiceDescriptor.Scoped<IEventStore, TenantRoutingEventStore>());
+
+		// Mark tenant-sharding as active so the event-store erasure startup gate can fail closed on the
+		// (currently unsupported) sharding + erasure composition. Both sharding entry points route through
+		// this method (EnableTenantSharding and AddMultiTenancy's sharding strategy), so the marker covers
+		// every way sharding is enabled; a non-sharding host never registers it and is unaffected.
+		services.TryAddSingleton<Excalibur.EventSourcing.Sharding.TenantShardingActiveMarker>();
 	}
 }

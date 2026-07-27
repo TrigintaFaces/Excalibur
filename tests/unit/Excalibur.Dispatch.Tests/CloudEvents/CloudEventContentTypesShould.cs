@@ -12,19 +12,19 @@ public sealed class CloudEventContentTypesShould
 	[Fact]
 	public void DefineCloudEventsJsonConstant()
 	{
-		CloudEventContentTypes.CloudEventsJson.ShouldBe("APPLICATION/CLOUDEVENTS+JSON");
+		CloudEventContentTypes.CloudEventsJson.ShouldBe("application/cloudevents+json");
 	}
 
 	[Fact]
 	public void DefineCloudEventsBatchJsonConstant()
 	{
-		CloudEventContentTypes.CloudEventsBatchJson.ShouldBe("APPLICATION/CLOUDEVENTS-BATCH+JSON");
+		CloudEventContentTypes.CloudEventsBatchJson.ShouldBe("application/cloudevents-batch+json");
 	}
 
 	[Fact]
 	public void DefineApplicationJsonConstant()
 	{
-		CloudEventContentTypes.ApplicationJson.ShouldBe("APPLICATION/JSON");
+		CloudEventContentTypes.ApplicationJson.ShouldBe("application/json");
 	}
 
 	[Fact]

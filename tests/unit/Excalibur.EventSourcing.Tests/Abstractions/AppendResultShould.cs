@@ -45,7 +45,7 @@ public sealed class AppendResultShould
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(actualVersion);
-		result.FirstEventPosition.ShouldBe(-1);
+		result.FirstEventPosition.ShouldBeNull();
 		_ = result.ErrorMessage!.ShouldNotBeNull();
 		result.ErrorMessage!.ShouldContain("version");
 		result.IsConcurrencyConflict.ShouldBeTrue();
@@ -63,7 +63,7 @@ public sealed class AppendResultShould
 		// Assert
 		result.Success.ShouldBeFalse();
 		result.NextExpectedVersion.ShouldBe(-1);
-		result.FirstEventPosition.ShouldBe(-1);
+		result.FirstEventPosition.ShouldBeNull();
 		result.ErrorMessage!.ShouldBe(errorMessage);
 		result.IsConcurrencyConflict.ShouldBeFalse();
 	}

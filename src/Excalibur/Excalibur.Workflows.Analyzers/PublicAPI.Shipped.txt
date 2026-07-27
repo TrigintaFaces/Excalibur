@@ -1,0 +1,8 @@
+#nullable enable
+Excalibur.Workflows.Analyzers.NonDeterministicApiInWorkflowAnalyzer
+Excalibur.Workflows.Analyzers.NonDeterministicApiInWorkflowAnalyzer.NonDeterministicApiInWorkflowAnalyzer() -> void
+Excalibur.Workflows.Analyzers.WorkflowDiagnosticIds
+const Excalibur.Workflows.Analyzers.WorkflowDiagnosticIds.NonDeterministicApiInWorkflow = "EXWF001" -> string!
+const Excalibur.Workflows.Analyzers.WorkflowDiagnosticIds.ReplacementPropertyKey = "Replacement" -> string!
+override Excalibur.Workflows.Analyzers.NonDeterministicApiInWorkflowAnalyzer.Initialize(Microsoft.CodeAnalysis.Diagnostics.AnalysisContext! context) -> void
+override Excalibur.Workflows.Analyzers.NonDeterministicApiInWorkflowAnalyzer.SupportedDiagnostics.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.DiagnosticDescriptor!>

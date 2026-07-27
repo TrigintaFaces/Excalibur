@@ -5,6 +5,8 @@ using Excalibur.A3.Governance;
 using Excalibur.A3.Governance.AccessReviews;
 using Excalibur.A3.Governance.Stores.InMemory;
 
+using Excalibur.Domain.Model;
+
 namespace Excalibur.A3.Governance.Tests.AccessReviews;
 
 /// <summary>
@@ -251,7 +253,16 @@ public sealed class AccessReviewExpiryServiceShould : UnitTestBase
 		stored.DecidedItems.ShouldBe(1);
 
 		// Event replay should produce same state
-		var rebuilt = AccessReviewCampaign.FromEvents("rt-1", campaign.GetUncommittedEvents());
+		// Created, Started, DecisionMade: three events at stream positions 0 through 2.
+		var uncommitted = campaign.GetUncommittedEvents();
+		uncommitted.Count.ShouldBe(3);
+
+		var rebuilt = AccessReviewCampaign.FromEvents("rt-1", new HistoricEvent[]
+		{
+			new(uncommitted[0], 0),
+			new(uncommitted[1], 1),
+			new(uncommitted[2], 2),
+		});
 		var rebuiltSummary = rebuilt.ToSummary();
 		rebuiltSummary.State.ShouldBe(stored.State);
 		rebuiltSummary.TotalItems.ShouldBe(stored.TotalItems);

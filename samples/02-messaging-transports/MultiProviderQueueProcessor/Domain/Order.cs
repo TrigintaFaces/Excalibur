@@ -123,7 +123,7 @@ public sealed class Order : AggregateRoot
 	}
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
@@ -132,7 +132,11 @@ public sealed class Order : AggregateRoot
 			case OrderSubmittedEvent: ApplySubmitted(); break;
 			case OrderShippedEvent e: Apply(e); break;
 			case OrderCancelledEvent e: Apply(e); break;
+			default:
+				return false;
 		}
+
+		return true;
 	}
 
 	private void Apply(OrderCreatedEvent e)

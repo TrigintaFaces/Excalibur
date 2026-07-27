@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 public sealed class ValidationMiddlewareShould
 {
 	private readonly ILogger<ValidationMiddleware> _logger;
-	private readonly IValidationService _validationService;
+	private readonly IMessageValidationService _validationService;
 	private readonly IMessageContext _context;
 	private readonly IDictionary<string, object> _contextItems;
 	private readonly DispatchRequestDelegate _successDelegate;
@@ -38,7 +38,7 @@ public sealed class ValidationMiddlewareShould
 	public ValidationMiddlewareShould()
 	{
 		_logger = A.Fake<ILogger<ValidationMiddleware>>();
-		_validationService = A.Fake<IValidationService>();
+		_validationService = A.Fake<IMessageValidationService>();
 		_context = A.Fake<IMessageContext>();
 
 		_ = A.CallTo(() => _context.MessageId).Returns("test-message-id");
@@ -99,14 +99,14 @@ public sealed class ValidationMiddlewareShould
 	}
 
 	[Fact]
-	public void HaveActionApplicableMessageKinds()
+	public void ApplyToActionsAndEvents()
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions());
 		var middleware = new ValidationMiddleware(options, _validationService, _logger);
 
 		// Assert
-		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
 	}
 
 	#endregion

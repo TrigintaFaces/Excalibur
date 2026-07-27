@@ -178,6 +178,43 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 
 	#endregion AppendAsync - New Stream Tests
 
+	#region AppendAsync - AggregateId Validation Tests
+
+	/// <summary>
+	/// SAFETY: a null, empty, or whitespace aggregate id is a caller error every store MUST reject rather
+	/// than persist under an unaddressable stream key (a stream that can never be loaded back). Each provider
+	/// guards the argument with <c>ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId)</c>; this shared fact
+	/// is the regression lock that was missing — the cloud providers (Cosmos/Dynamo/Firestore) had the guard
+	/// but no conformance coverage binding it, so a dropped guard would ship silently.
+	/// </summary>
+	/// <remarks>
+	/// The LIVENESS counterpart — a valid aggregate id IS accepted — is already asserted by
+	/// <see cref="AppendAsync_NewStream_Succeeds"/> and its siblings, so a store that rejected everything would
+	/// fail those. Together they pin the real invariant: reject the unaddressable key, accept the addressable
+	/// one. <see cref="ArgumentNullException"/> (thrown for <see langword="null"/>) derives from
+	/// <see cref="ArgumentException"/>, so a single assertion covers all three inputs.
+	/// </remarks>
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("   ")]
+	public async Task AppendAsync_NullOrWhitespaceAggregateId_Throws(string? invalidAggregateId)
+	{
+		// Arrange: a well-formed event whose only defect is the unaddressable aggregate id under test.
+		var events = new[] { CreateTestEvent(Guid.NewGuid().ToString()) };
+
+		// Act + Assert
+		_ = await Should.ThrowAsync<ArgumentException>(async () =>
+			await Store.AppendAsync(
+				invalidAggregateId!,
+				TestAggregateType,
+				events,
+				expectedVersion: -1,
+				CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+	}
+
+	#endregion AppendAsync - AggregateId Validation Tests
+
 	#region AppendAsync - Existing Stream Tests
 
 	[Fact]
@@ -256,6 +293,33 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 		// Assert
 		result.Success.ShouldBeFalse("Append to non-existent stream with wrong version should fail");
 		result.IsConcurrencyConflict.ShouldBeTrue("Should indicate concurrency conflict");
+	}
+
+	[Fact]
+	public async Task AppendAsync_ExistingStream_WithVersionBeyondTail_Fails()
+	{
+		// Arrange - seed a 3-event stream so the current tail version is 2 (0-indexed).
+		var aggregateId = Guid.NewGuid().ToString();
+		_ = await Store.AppendAsync(
+			aggregateId,
+			TestAggregateType,
+			CreateTestEvents(aggregateId, 3),
+			expectedVersion: -1,
+			CancellationToken.None).ConfigureAwait(false);
+
+		// Act - append with an expectedVersion BEYOND the tail (2). Version contiguity: the store must
+		// re-check the current version and reject, not silently write a non-contiguous version (a hole in
+		// the stream). A collision-only guard (id-uniqueness / attribute_not_exists) would let this succeed.
+		var result = await Store.AppendAsync(
+			aggregateId,
+			TestAggregateType,
+			CreateTestEvents(aggregateId, 1),
+			expectedVersion: 5, // Beyond the tail (2) - would create a gap
+			CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		result.Success.ShouldBeFalse("Append with expectedVersion beyond the stream tail should fail");
+		result.IsConcurrencyConflict.ShouldBeTrue("Should indicate concurrency conflict (non-contiguous version rejected)");
 	}
 
 	#endregion AppendAsync - Existing Stream Tests
@@ -511,7 +575,22 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
 		// Assert - All should succeed
-		results.All(r => r.Success).ShouldBeTrue("All concurrent appends to different aggregates should succeed");
+		//
+		// The store reports a refusal by RETURNING AppendResult.CreateFailure(reason) rather than throwing, so
+		// asserting the boolean alone discards the reason the store went to the trouble of capturing and the
+		// failure reads only "should be true but was false". Every failing result is surfaced here instead:
+		// appends to DISTINCT aggregates must not contend, so the reason is the whole finding.
+		var failures = results.Where(r => !r.Success).ToList();
+
+		failures.ShouldBeEmpty(
+			$"all {concurrentAttempts} concurrent appends to DIFFERENT aggregates must succeed -- distinct "
+			+ "aggregates share no stream, so nothing here should contend. "
+			+ $"{failures.Count} failed: "
+			+ string.Join(
+				" | ",
+				failures.Select(f => f.IsConcurrencyConflict
+					? $"CONFLICT: {f.ErrorMessage}"
+					: f.ErrorMessage ?? "(no message)")));
 	}
 
 	#endregion Concurrency Tests

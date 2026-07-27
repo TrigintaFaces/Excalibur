@@ -36,7 +36,7 @@ public sealed class OutboxBulkCleanupAdapterShould
 		// Arrange — two batches of 10 + final batch of 5
 		var callCount = 0;
 #pragma warning disable CA2012 // Use ValueTasks correctly — FakeItEasy pattern
-		A.CallTo(() => _admin.CleanupSentMessagesAsync(A<DateTimeOffset>._, A<int>._, CancellationToken.None))
+		A.CallTo(() => _admin.CleanupAllTenantsSentMessagesAsync(A<DateTimeOffset>._, A<int>._, CancellationToken.None))
 			.ReturnsLazily(() =>
 			{
 				callCount++;
@@ -47,7 +47,7 @@ public sealed class OutboxBulkCleanupAdapterShould
 		var olderThan = DateTimeOffset.UtcNow.AddDays(-1);
 
 		// Act
-		var total = await sut.BulkCleanupSentMessagesAsync(olderThan, 10, CancellationToken.None);
+		var total = await sut.BulkCleanupAllTenantsSentMessagesAsync(olderThan, 10, CancellationToken.None);
 
 		// Assert
 		total.ShouldBe(15);
@@ -58,13 +58,13 @@ public sealed class OutboxBulkCleanupAdapterShould
 	{
 		// Arrange
 #pragma warning disable CA2012
-		A.CallTo(() => _admin.CleanupSentMessagesAsync(A<DateTimeOffset>._, A<int>._, CancellationToken.None))
+		A.CallTo(() => _admin.CleanupAllTenantsSentMessagesAsync(A<DateTimeOffset>._, A<int>._, CancellationToken.None))
 			.Returns(new ValueTask<int>(0));
 #pragma warning restore CA2012
 		var sut = new OutboxBulkCleanupAdapter(_admin, _logger);
 
 		// Act
-		var total = await sut.BulkCleanupSentMessagesAsync(DateTimeOffset.UtcNow, 100, CancellationToken.None);
+		var total = await sut.BulkCleanupAllTenantsSentMessagesAsync(DateTimeOffset.UtcNow, 100, CancellationToken.None);
 
 		// Assert
 		total.ShouldBe(0);
@@ -78,35 +78,7 @@ public sealed class OutboxBulkCleanupAdapterShould
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
-			await sut.BulkCleanupSentMessagesAsync(DateTimeOffset.UtcNow, 0, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task BulkCleanupFailedMessagesThrowsOnZeroBatchSize()
-	{
-		// Arrange
-		var sut = new OutboxBulkCleanupAdapter(_admin, _logger);
-
-		// Act & Assert
-		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
-			await sut.BulkCleanupFailedMessagesAsync(3, DateTimeOffset.UtcNow, 0, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task BulkCleanupFailedMessagesReturnsZeroWhenNoFailed()
-	{
-		// Arrange
-#pragma warning disable CA2012
-		A.CallTo(() => _admin.GetFailedMessagesAsync(A<int>._, A<DateTimeOffset?>._, A<int>._, CancellationToken.None))
-			.Returns(new ValueTask<IEnumerable<OutboundMessage>>(Enumerable.Empty<OutboundMessage>()));
-#pragma warning restore CA2012
-		var sut = new OutboxBulkCleanupAdapter(_admin, _logger);
-
-		// Act
-		var total = await sut.BulkCleanupFailedMessagesAsync(3, DateTimeOffset.UtcNow, 10, CancellationToken.None);
-
-		// Assert
-		total.ShouldBe(0);
+			await sut.BulkCleanupAllTenantsSentMessagesAsync(DateTimeOffset.UtcNow, 0, CancellationToken.None));
 	}
 
 	[Fact]
@@ -117,5 +89,24 @@ public sealed class OutboxBulkCleanupAdapterShould
 
 		// Assert
 		sut.ShouldBeAssignableTo<IOutboxBulkCleanup>();
+	}
+
+	// Regression lock (safety arm): the failed-message bulk-cleanup member deleted SENT
+	// (not failed) rows, fabricated its return count, and could fail to terminate — a
+	// silent data-loss operation. It was removed from the contract; this test goes RED if
+	// any member named "BulkCleanupFailedMessagesAsync" is ever re-added to the interface.
+	// The sibling assertion is a positive control proving the reflection lookup is live.
+	[Fact]
+	public void NotExposeFailedMessageBulkCleanupOnTheContract()
+	{
+		// Arrange
+		var contract = typeof(IOutboxBulkCleanup);
+
+		// Act & Assert — safety: the data-loss member is gone from the contract.
+		contract.GetMethod("BulkCleanupFailedMessagesAsync").ShouldBeNull();
+
+		// Positive control — the reflection lookup finds a real member, so the null above
+		// reflects genuine absence, not a mistyped/never-present name.
+		contract.GetMethod(nameof(IOutboxBulkCleanup.BulkCleanupAllTenantsSentMessagesAsync)).ShouldNotBeNull();
 	}
 }

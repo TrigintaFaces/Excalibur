@@ -75,13 +75,23 @@ public static class ThreadingDispatchBuilderExtensions
 	/// The configure delegate is executed during service registration, enabling access to dependency injection services for complex
 	/// configuration logic.
 	/// </para>
+	/// <para>
+	/// Configuring threading options also registers the threading DI services (the keyed-lock singleton, the
+	/// options validator, and <c>BackgroundExecutionMiddleware</c> as a resolvable service) as part of this
+	/// call - a separate <see cref="UseThreading"/> call is not required for the options/keyed-lock services.
+	/// Registration is idempotent and safe to combine with <see cref="UseThreading"/>. This does <strong>not</strong>
+	/// add background execution to the message pipeline: that middleware only runs handlers in the background
+	/// once <see cref="BackgroundExecutionPipelineExtensions.UseBackgroundExecution"/> is called to insert it.
+	/// </para>
 	/// </remarks>
 	public static IDispatchBuilder WithThreadingOptions(this IDispatchBuilder builder, Action<ThreadingOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = builder.Services.Configure(configure);
+		// Configuring the feature also ENABLES it: register the threading services so the configured options
+		// are actually honored rather than binding an options instance that nothing consumes (pit-of-success).
+		_ = builder.Services.AddDispatchThreading(configure);
 
 		return builder;
 	}
@@ -106,6 +116,14 @@ public static class ThreadingDispatchBuilderExtensions
 	/// Configuration binding follows standard .NET conventions for property mapping and type conversion. See ThreadingOptions documentation
 	/// for available settings.
 	/// </para>
+	/// <para>
+	/// Binding threading options also registers the threading DI services (the keyed-lock singleton, the
+	/// options validator, and <c>BackgroundExecutionMiddleware</c> as a resolvable service) as part of this
+	/// call - a separate <see cref="UseThreading"/> call is not required for the options/keyed-lock services.
+	/// This does <strong>not</strong> add background execution to the message pipeline: that middleware only
+	/// runs handlers in the background once <see cref="BackgroundExecutionPipelineExtensions.UseBackgroundExecution"/>
+	/// is called to insert it.
+	/// </para>
 	/// </remarks>
 	[UnconditionalSuppressMessage(
 		"AOT",
@@ -118,7 +136,9 @@ public static class ThreadingDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = builder.Services.Configure<ThreadingOptions>(configuration);
+		// Configuring the feature also ENABLES it: register the threading services bound to configuration so the
+		// bound options are actually honored rather than binding an options instance that nothing consumes.
+		_ = builder.Services.AddDispatchThreading(configuration);
 
 		return builder;
 	}

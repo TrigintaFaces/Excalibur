@@ -38,9 +38,4 @@ public enum SigningAlgorithm
 	/// ECDSA with SHA-256.
 	/// </summary>
 	ECDSASHA256 = 5,
-
-	/// <summary>
-	/// Ed25519 signature algorithm.
-	/// </summary>
-	Ed25519 = 6,
 }

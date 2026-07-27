@@ -44,7 +44,7 @@ public sealed class TenantIdentityOptions
 	/// <summary>
 	/// Gets or sets the default tenant ID to use when none is specified.
 	/// </summary>
-	/// <value> Default is <see cref="TenantDefaults.DefaultTenantId"/> ("Default").
+	/// <value> Default is <see cref="TenantDefaults.DefaultTenantId"/>.
 	/// Single-tenant applications use this value automatically without any tenant configuration. </value>
 	public string? DefaultTenantId { get; set; } = TenantDefaults.DefaultTenantId;
 

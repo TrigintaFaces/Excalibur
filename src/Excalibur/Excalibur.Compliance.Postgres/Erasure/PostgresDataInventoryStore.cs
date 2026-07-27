@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Dapper;
 
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -29,6 +30,8 @@ namespace Excalibur.Compliance.Postgres.Erasure;
 public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, IDataInventoryQueryStore
 {
 	private readonly PostgresDataInventoryStoreOptions _options;
+	private readonly IDataSubjectHasher _dataSubjectHasher;
+	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<PostgresDataInventoryStore> _logger;
 	private volatile bool _initialized;
 
@@ -37,13 +40,28 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 	/// </summary>
 	public PostgresDataInventoryStore(
 		IOptions<PostgresDataInventoryStoreOptions> options,
-		ILogger<PostgresDataInventoryStore> logger)
+		IDataSubjectHasher dataSubjectHasher,
+		ILogger<PostgresDataInventoryStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
+		_tenantContext = tenantContext;
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_options.Validate();
 	}
+
+	/// <summary>
+	/// Resolves the tenant term every read and write of this store is confined to.
+	/// </summary>
+	/// <remarks>
+	/// Identical semantics to the SQL Server store, deliberately: a consumer who swaps providers must get
+	/// the same isolation guarantee, and a tenant term that differed between them would be a guarantee that
+	/// depends on which database you happen to run.
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
 
 	/// <inheritdoc />
 	public async Task SaveRegistrationAsync(
@@ -55,12 +73,12 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 
 		var sql = $@"
 			INSERT INTO {_options.FullRegistrationsTableName}
-				(table_name, field_name, data_category, data_subject_id_column, id_type,
+				(table_name, field_name, tenant_id, data_category, data_subject_id_column, id_type,
 				 key_id_column, tenant_id_column, description, created_at, updated_at)
 			VALUES
-				(@TableName, @FieldName, @DataCategory, @DataSubjectIdColumn, @IdType,
+				(@TableName, @FieldName, @ScopedTenantId, @DataCategory, @DataSubjectIdColumn, @IdType,
 				 @KeyIdColumn, @TenantIdColumn, @Description, @Now, @Now)
-			ON CONFLICT (table_name, field_name) DO UPDATE SET
+			ON CONFLICT (table_name, field_name, tenant_id) DO UPDATE SET
 				data_category = EXCLUDED.data_category,
 				data_subject_id_column = EXCLUDED.data_subject_id_column,
 				id_type = EXCLUDED.id_type,
@@ -81,6 +99,9 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			IdType = (int)registration.IdType,
 			registration.KeyIdColumn,
 			registration.TenantIdColumn,
+			// The tenant this registration BELONGS to; part of the ON CONFLICT key above so two tenants
+			// registering the same table and field are two rows, not one overwriting the other.
+			ScopedTenantId = CurrentTenantTerm,
 			registration.Description,
 			Now = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
@@ -100,13 +121,14 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 
 		var sql = $@"
 			DELETE FROM {_options.FullRegistrationsTableName}
-			WHERE table_name = @TableName AND field_name = @FieldName";
+			WHERE table_name = @TableName AND field_name = @FieldName
+			  AND tenant_id = @ScopedTenantId";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var affected = await connection.ExecuteAsync(new CommandDefinition(sql,
-			new { TableName = tableName, FieldName = fieldName },
+			new { TableName = tableName, FieldName = fieldName, ScopedTenantId = CurrentTenantTerm },
 			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return affected > 0;
@@ -122,13 +144,15 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			SELECT table_name, field_name, data_category, data_subject_id_column, id_type,
 				   key_id_column, tenant_id_column, description
 			FROM {_options.FullRegistrationsTableName}
+			WHERE tenant_id = @ScopedTenantId
 			ORDER BY table_name, field_name";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<RegistrationRow>(
-			new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+			new CommandDefinition(sql, new { ScopedTenantId = CurrentTenantTerm },
+				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToRegistration()).ToList();
 	}
@@ -147,12 +171,12 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 
 		var sql = $@"
 			INSERT INTO {_options.FullDiscoveredLocationsTableName}
-				(data_subject_id_hash, table_name, field_name, record_id, data_category,
+				(data_subject_id_hash, table_name, field_name, record_id, tenant_id, data_category,
 				 key_id, is_auto_discovered, created_at, updated_at)
 			VALUES
-				(@DataSubjectIdHash, @TableName, @FieldName, @RecordId, @DataCategory,
+				(@DataSubjectIdHash, @TableName, @FieldName, @RecordId, @ScopedTenantId, @DataCategory,
 				 @KeyId, @IsAutoDiscovered, @Now, @Now)
-			ON CONFLICT (data_subject_id_hash, table_name, field_name, record_id) DO UPDATE SET
+			ON CONFLICT (data_subject_id_hash, table_name, field_name, record_id, tenant_id) DO UPDATE SET
 				data_category = EXCLUDED.data_category,
 				key_id = EXCLUDED.key_id,
 				is_auto_discovered = EXCLUDED.is_auto_discovered,
@@ -170,6 +194,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			location.DataCategory,
 			location.KeyId,
 			location.IsAutoDiscovered,
+			ScopedTenantId = CurrentTenantTerm,
 			Now = DateTimeOffset.UtcNow
 		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
@@ -203,10 +228,12 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		var parameters = new DynamicParameters();
 		parameters.Add("IdType", (int)idType);
 
-		if (!string.IsNullOrEmpty(tenantId))
-		{
-			whereClauses.Add("tenant_id_column IS NOT NULL");
-		}
+		// Scope, not a filter: added unconditionally from ambient context. The caller's tenantId argument
+		// is deliberately not consulted - it previously produced tenant_id_column IS NOT NULL, a null-check
+		// on a COLUMN NAME, so supplying a tenant and omitting one both returned every tenant's rows.
+		whereClauses.Add("tenant_id = @ScopedTenantId");
+		parameters.Add("ScopedTenantId", CurrentTenantTerm);
+		_ = tenantId;
 
 		var whereClause = string.Join(" AND ", whereClauses);
 
@@ -237,7 +264,7 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		var sql = $@"
 			SELECT table_name, field_name, data_category, record_id, key_id, is_auto_discovered
 			FROM {_options.FullDiscoveredLocationsTableName}
-			WHERE data_subject_id_hash = @DataSubjectIdHash
+			WHERE data_subject_id_hash = @DataSubjectIdHash AND tenant_id = @ScopedTenantId
 			ORDER BY table_name, field_name";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
@@ -261,9 +288,10 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			SELECT r.table_name, r.field_name, r.data_category, r.description,
 				   FALSE AS is_auto_discovered,
 				   (SELECT COUNT(*) FROM {_options.FullDiscoveredLocationsTableName} d
-				    WHERE d.table_name = r.table_name AND d.field_name = r.field_name) AS record_count
+				    WHERE d.table_name = r.table_name AND d.field_name = r.field_name
+				      AND d.tenant_id = r.tenant_id) AS record_count
 			FROM {_options.FullRegistrationsTableName} r
-			{(tenantId is not null ? "WHERE r.tenant_id_column IS NOT NULL" : string.Empty)}
+			WHERE r.tenant_id = @ScopedTenantId
 			ORDER BY r.table_name, r.field_name";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
@@ -275,8 +303,8 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		return rows.Select(r => r.ToDataMapEntry()).ToList();
 	}
 
-	private static string HashDataSubjectId(string dataSubjectId) =>
-		DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+	private string HashDataSubjectId(string dataSubjectId) =>
+		_dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 
 	[LoggerMessage(LogLevel.Debug, "Saved data inventory registration for {TableName}.{FieldName}")]
 	private partial void LogSavedRegistration(string tableName, string fieldName);
@@ -298,8 +326,47 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
+		else
+		{
+			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
+		}
 
 		_initialized = true;
+	}
+
+	/// <summary>
+	/// Confirms the required tables exist when automatic provisioning is disabled.
+	/// </summary>
+	/// <remarks>
+	/// Initialization must never complete without either creating the schema or verifying it. Marking the store
+	/// initialized after doing neither would defer the failure to the first query, where it surfaces as a raw
+	/// provider error far from its cause. This method is the verification half of that guarantee.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">A required table is absent.</exception>
+	private async Task VerifySchemaExistsAsync(CancellationToken cancellationToken)
+	{
+		const string ExistsSql = "SELECT to_regclass(@TableName) IS NOT NULL";
+
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		foreach (var tableName in new[] { _options.FullRegistrationsTableName, _options.FullDiscoveredLocationsTableName })
+		{
+			var exists = await connection.ExecuteScalarAsync<bool>(
+				new CommandDefinition(
+					ExistsSql,
+					new { TableName = tableName },
+					cancellationToken: cancellationToken,
+					commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+
+			if (!exists)
+			{
+				throw new InvalidOperationException(
+					$"Required table '{tableName}' does not exist and automatic schema creation is disabled. " +
+					$"Either create the schema out of band, or set {nameof(PostgresDataInventoryStoreOptions)}."
+					+ $"{nameof(PostgresDataInventoryStoreOptions.AutoCreateSchema)} to true to provision it on startup.");
+			}
+		}
 	}
 
 	private async Task CreateSchemaIfNotExistsAsync(CancellationToken cancellationToken)
@@ -318,7 +385,8 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				description VARCHAR(1000) NULL,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
-				PRIMARY KEY (table_name, field_name)
+				tenant_id VARCHAR(255) NOT NULL DEFAULT '__untenanted__',
+				PRIMARY KEY (table_name, field_name, tenant_id)
 			)";
 
 		var createRegistrationsIndexSql = $@"
@@ -336,7 +404,8 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				is_auto_discovered BOOLEAN NOT NULL DEFAULT TRUE,
 				created_at TIMESTAMPTZ NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL,
-				PRIMARY KEY (data_subject_id_hash, table_name, field_name, record_id)
+				tenant_id VARCHAR(255) NOT NULL DEFAULT '__untenanted__',
+				PRIMARY KEY (data_subject_id_hash, table_name, field_name, record_id, tenant_id)
 			)";
 
 		var createDiscoveredLocationsIndexesSql = $@"

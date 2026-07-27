@@ -178,7 +178,7 @@ public sealed class DefaultIndexMappingConventionShould
 		var options = new ElasticSearchProjectionStoreOptions();
 
 		// Assert — null means use DefaultIndexMappingConvention
-		options.IndexMappingConvention.ShouldBeNull();
+		options.Index.IndexMappingConvention.ShouldBeNull();
 	}
 
 	[Fact]
@@ -189,10 +189,10 @@ public sealed class DefaultIndexMappingConventionShould
 		var custom = new AddTimestampConvention();
 
 		// Act
-		options.IndexMappingConvention = custom;
+		options.Index.IndexMappingConvention = custom;
 
 		// Assert
-		options.IndexMappingConvention.ShouldBeSameAs(custom);
+		options.Index.IndexMappingConvention.ShouldBeSameAs(custom);
 	}
 
 	// ═══════════════════════════════════════════════════

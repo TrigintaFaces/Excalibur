@@ -174,6 +174,9 @@ public static class WriteStoreTelemetry
 		/// <summary>Postgres provider.</summary>
 		public const string Postgres = "postgres";
 
+		/// <summary>Oracle Database provider.</summary>
+		public const string Oracle = "oracle";
+
 		/// <summary>MongoDB provider.</summary>
 		public const string MongoDb = "mongodb";
 

@@ -55,7 +55,6 @@ public static class ControllerBaseExtensions
 		TMessage message,
 		CancellationToken cancellationToken, Action<MessageContext>? customizeContext = null)
 		where TMessage : class, IDispatchAction<TResponse>
-		where TResponse : class
 	{
 		ArgumentNullException.ThrowIfNull(controller);
 		ArgumentNullException.ThrowIfNull(message);
@@ -120,7 +119,6 @@ public static class ControllerBaseExtensions
 		Action<MessageContext>? customizeContext = null,
 		Func<ControllerBase, IMessageResult<TResponse>, IActionResult>? resultFactory = null)
 		where TMessage : class, IDispatchAction<TResponse>
-		where TResponse : class
 	{
 		ArgumentNullException.ThrowIfNull(controller);
 		ArgumentNullException.ThrowIfNull(messageFactory);

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Tests.Validation;
 /// <summary>
 /// Author≠impl engage-test for S859 ADR-336 · <c>bd-jv02p5</c> — the canonical
 /// <see cref="ValidationDispatchBuilderExtensions.UseValidation(IDispatchBuilder)"/> must wire the
-/// <b>validator path</b> (register <see cref="IValidationService"/> via <c>AddDispatchValidation()</c>),
+/// <b>validator path</b> (register <see cref="IMessageValidationService"/> via <c>AddDispatchValidation()</c>),
 /// NOT merely the middleware. The middleware-only
 /// <see cref="ValidationPipelineExtensions.UseValidationMiddleware(IDispatchBuilder)"/> registers the
 /// middleware ALONE — the "silent-pass" variant that validates nothing.
@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Tests.Validation;
 /// the one bound by <c>WithDefaults()</c> was the silent-pass middleware-only variant — so "validation"
 /// was advertised-but-dead. <b>RED on a regression</b> where canonical <c>UseValidation</c> degrades to
 /// middleware-only (drops <c>AddDispatchValidation()</c>): the first fact would fail because
-/// <see cref="IValidationService"/> would no longer be registered. The contrast fact pins the distinction
+/// <see cref="IMessageValidationService"/> would no longer be registered. The contrast fact pins the distinction
 /// so the two methods cannot silently re-converge.
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -42,8 +42,8 @@ public sealed class UseValidationWiresValidatorsShould
 		_ = builder.UseValidation();
 
 		services.ShouldContain(
-			d => d.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IValidationService),
-			"canonical UseValidation must wire the validator path (AddDispatchValidation registers IValidationService), not just the middleware");
+			d => d.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IMessageValidationService),
+			"canonical UseValidation must wire the validator path (AddDispatchValidation registers IMessageValidationService), not just the middleware");
 	}
 
 	[Fact]
@@ -55,7 +55,7 @@ public sealed class UseValidationWiresValidatorsShould
 		_ = builder.UseValidationMiddleware();
 
 		services.ShouldNotContain(
-			d => d.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IValidationService),
+			d => d.ServiceType == typeof(Excalibur.Dispatch.Middleware.Validation.IMessageValidationService),
 			"the middleware-only UseValidationMiddleware must NOT register the validator path — it is the explicit middleware-only (silent-pass) variant, distinct from canonical UseValidation");
 	}
 }

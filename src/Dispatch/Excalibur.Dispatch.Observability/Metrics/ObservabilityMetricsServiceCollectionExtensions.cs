@@ -40,50 +40,21 @@ public static class ObservabilityMetricsServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds Circuit Breaker metrics instrumentation to the service collection.
+	/// Adds all Dispatch observability metrics to the service collection.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown when services is null. </exception>
-	public static IServiceCollection AddCircuitBreakerMetrics(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		services.TryAddSingleton<CircuitBreakerMetrics>();
-		services.TryAddSingleton<ICircuitBreakerMetrics>(static provider => provider.GetRequiredService<CircuitBreakerMetrics>());
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds Dead Letter Queue metrics instrumentation to the service collection.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services is null. </exception>
-	public static IServiceCollection AddDeadLetterQueueMetrics(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		services.TryAddSingleton<DeadLetterQueueMetrics>();
-		services.TryAddSingleton<IDeadLetterQueueMetrics>(static provider => provider.GetRequiredService<DeadLetterQueueMetrics>());
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds all Dispatch observability metrics (core, circuit breaker, and DLQ) to the service collection.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <returns> The service collection for method chaining. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown when services is null. </exception>
+	/// <remarks>
+	/// Circuit-breaker and dead-letter metrics are emitted directly by the core middleware meters
+	/// (<c>Excalibur.Dispatch.CircuitBreakerMiddleware</c> / <c>Excalibur.Dispatch.PoisonMessage</c>) and
+	/// need no separate registration; subscribe to them via <c>AddDispatchInstrumentation()</c>.
+	/// </remarks>
 	public static IServiceCollection AddAllDispatchMetrics(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		_ = services.AddDispatchMetricsInstrumentation();
-		_ = services.AddCircuitBreakerMetrics();
-		_ = services.AddDeadLetterQueueMetrics();
 
 		return services;
 	}

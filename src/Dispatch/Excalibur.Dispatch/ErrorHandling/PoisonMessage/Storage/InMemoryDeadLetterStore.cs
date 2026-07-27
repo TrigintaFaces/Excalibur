@@ -15,25 +15,46 @@ namespace Excalibur.Dispatch.ErrorHandling;
 /// </summary>
 public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLetterStoreAdmin
 {
-	private readonly ConcurrentDictionary<string, DeadLetterMessage> _messages = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, StoredEntry> _messages = new(StringComparer.Ordinal);
 	private readonly ILogger<InMemoryDeadLetterStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryDeadLetterStore" /> class.
 	/// </summary>
+	/// <param name="tenantContext"> The ambient tenant, or <see langword="null" /> in a single-tenant host. </param>
 	/// <param name="logger"> The logger for diagnostic output. </param>
-	public InMemoryDeadLetterStore(ILogger<InMemoryDeadLetterStore> logger)
+	public InMemoryDeadLetterStore(ITenantContext? tenantContext, ILogger<InMemoryDeadLetterStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(logger);
+
+		// Optional by construction: a single-tenant host registers no ITenantContext, which resolves to the
+		// untenanted partition — a concrete term, so entries are never stored or read unscoped.
+		_tenantContext = tenantContext;
 		_logger = logger;
 	}
+
+	/// <summary>
+	/// Gets the tenant term this store reads and writes under: the ambient tenant, or the reserved
+	/// untenanted sentinel when no tenant is resolved.
+	/// </summary>
+	/// <remarks>
+	/// This is the default <see cref="IDeadLetterStore" /> — the one a consumer gets without choosing a
+	/// provider — so an unscoped implementation here is the most likely to be running in practice. A
+	/// dead-letter entry holds the failed message body, so cross-tenant reads disclose message content.
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
 
 	/// <inheritdoc />
 	public Task StoreAsync(DeadLetterMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		_messages[message.Id] = message;
+		// The owning tenant is captured from AMBIENT CONTEXT at write time and held beside the message
+		// rather than on it: DeadLetterMessage is caller-supplied, so a tenant carried on the DTO could
+		// name someone else's.
+		_messages[message.Id] = new StoredEntry(CurrentTenantTerm, message);
 
 		LogStoredDeadLetterMessage(message.MessageId, message.MessageType, message.Reason);
 
@@ -83,8 +104,17 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 		var newestCount = 0;
 		var oldestIndex = 0;
 		var oldestTicks = long.MaxValue;
-		foreach (var message in _messages.Values)
+		var tenantId = CurrentTenantTerm;
+		foreach (var entry in _messages.Values)
 		{
+			// Tenant first: a filter that specifies nothing must still return only the caller's own
+			// entries, never the whole estate.
+			if (!string.Equals(entry.TenantId, tenantId, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			var message = entry.Message;
 			if (!MatchesFilter(message, filter))
 			{
 				continue;
@@ -170,18 +200,37 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 	}
 
 	/// <inheritdoc />
-	public Task<long> GetCountAsync(CancellationToken cancellationToken) => Task.FromResult((long)_messages.Count);
+	public Task<long> GetCountAsync(CancellationToken cancellationToken)
+	{
+		// Scoped like every other read: an estate-wide total tells one tenant how many failures every
+		// other tenant has, which is an inference channel even though no message body is returned.
+		var tenantId = CurrentTenantTerm;
+		var count = 0L;
+		foreach (var entry in _messages.Values)
+		{
+			if (string.Equals(entry.TenantId, tenantId, StringComparison.Ordinal))
+			{
+				count++;
+			}
+		}
+
+		return Task.FromResult(count);
+	}
 
 	/// <inheritdoc />
 	public Task<int> CleanupOldMessagesAsync(int retentionDays, CancellationToken cancellationToken)
 	{
 		var cutoffDate = DateTimeOffset.UtcNow.AddDays(-retentionDays);
+		var tenantId = CurrentTenantTerm;
 		var messageIdsToRemove = new List<string>();
-		foreach (var message in _messages.Values)
+		foreach (var entry in _messages.Values)
 		{
-			if (message.MovedToDeadLetterAt < cutoffDate)
+			// A destructive operation is scoped hardest: without the tenant term one tenant's cleanup would
+			// delete another tenant's un-replayed entries, which is silent data loss rather than disclosure.
+			if (string.Equals(entry.TenantId, tenantId, StringComparison.Ordinal)
+				&& entry.Message.MovedToDeadLetterAt < cutoffDate)
 			{
-				messageIdsToRemove.Add(message.Id);
+				messageIdsToRemove.Add(entry.Message.Id);
 			}
 		}
 
@@ -202,13 +251,24 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 		return Task.FromResult(removedCount);
 	}
 
+	/// <summary>
+	/// Resolves a message by its identifier <em>within the caller's tenant</em>.
+	/// </summary>
+	/// <remarks>
+	/// This is the single lookup chokepoint for reading, replaying and deleting, so scoping it here scopes
+	/// all three: an identifier belonging to another tenant is indistinguishable from one that does not
+	/// exist, which is the behaviour that keeps the caller from learning anything about another tenant's
+	/// entries by probing.
+	/// </remarks>
 	private bool TryGetByMessageId(string messageId, out DeadLetterMessage message)
 	{
+		var tenantId = CurrentTenantTerm;
 		foreach (var candidate in _messages.Values)
 		{
-			if (string.Equals(candidate.MessageId, messageId, StringComparison.Ordinal))
+			if (string.Equals(candidate.TenantId, tenantId, StringComparison.Ordinal)
+				&& string.Equals(candidate.Message.MessageId, messageId, StringComparison.Ordinal))
 			{
-				message = candidate;
+				message = candidate.Message;
 				return true;
 			}
 		}
@@ -216,6 +276,13 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore, IDeadLet
 		message = null!;
 		return false;
 	}
+
+	/// <summary>
+	/// A stored entry: the message together with the tenant that owned the write.
+	/// </summary>
+	/// <param name="TenantId"> The tenant term captured when the entry was stored. </param>
+	/// <param name="Message"> The dead-lettered message. </param>
+	private sealed record StoredEntry(string TenantId, DeadLetterMessage Message);
 
 	private static bool MatchesFilter(DeadLetterMessage message, DeadLetterFilter filter)
 	{

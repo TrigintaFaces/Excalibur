@@ -12,49 +12,43 @@ public static class ComplianceMetricsExtensions
 	public static void UpdateKeysNearingExpiration(this IComplianceMetrics metrics, int count, string provider)
 	{
 		ArgumentNullException.ThrowIfNull(metrics);
-		if (metrics is IComplianceMetricsAdmin admin)
-		{
-			admin.UpdateKeysNearingExpiration(count, provider);
-		}
+		Admin(metrics).UpdateKeysNearingExpiration(count, provider);
 	}
 
 	/// <summary>Records an audit event being logged.</summary>
 	public static void RecordAuditEventLogged(this IComplianceMetrics metrics, string eventType, string outcome, string? tenantId = null)
 	{
 		ArgumentNullException.ThrowIfNull(metrics);
-		if (metrics is IComplianceMetricsAdmin admin)
-		{
-			admin.RecordAuditEventLogged(eventType, outcome, tenantId);
-		}
+		Admin(metrics).RecordAuditEventLogged(eventType, outcome, tenantId);
 	}
 
 	/// <summary>Updates the current audit backlog size.</summary>
 	public static void UpdateAuditBacklogSize(this IComplianceMetrics metrics, int count)
 	{
 		ArgumentNullException.ThrowIfNull(metrics);
-		if (metrics is IComplianceMetricsAdmin admin)
-		{
-			admin.UpdateAuditBacklogSize(count);
-		}
+		Admin(metrics).UpdateAuditBacklogSize(count);
 	}
 
 	/// <summary>Records audit chain integrity verification result.</summary>
 	public static void RecordAuditIntegrityCheck(this IComplianceMetrics metrics, long eventsVerified, int violationsFound, double durationMs)
 	{
 		ArgumentNullException.ThrowIfNull(metrics);
-		if (metrics is IComplianceMetricsAdmin admin)
-		{
-			admin.RecordAuditIntegrityCheck(eventsVerified, violationsFound, durationMs);
-		}
+		Admin(metrics).RecordAuditIntegrityCheck(eventsVerified, violationsFound, durationMs);
 	}
 
 	/// <summary>Records an encryption key usage.</summary>
 	public static void RecordKeyUsage(this IComplianceMetrics metrics, string keyId, string provider, string operation)
 	{
 		ArgumentNullException.ThrowIfNull(metrics);
-		if (metrics is IComplianceMetricsAdmin admin)
-		{
-			admin.RecordKeyUsage(keyId, provider, operation);
-		}
+		Admin(metrics).RecordKeyUsage(keyId, provider, operation);
 	}
+
+	/// <summary>
+	/// Resolves the admin recording surface of a metrics instance, falling back to an explicit no-op
+	/// (<see cref="NullComplianceMetricsAdmin"/>) when the instance does not implement it — so callers
+	/// record unconditionally instead of repeating an <c>is IComplianceMetricsAdmin</c> guard, and the
+	/// "not an admin recorder" case is a named behaviour rather than a silently skipped branch.
+	/// </summary>
+	private static IComplianceMetricsAdmin Admin(IComplianceMetrics metrics)
+		=> metrics as IComplianceMetricsAdmin ?? NullComplianceMetricsAdmin.Instance;
 }

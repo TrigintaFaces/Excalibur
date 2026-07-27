@@ -22,6 +22,53 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 
 	public ValueTask DisposeAsync() => _store.DisposeAsync();
 
+	// Liskov L3 durability/fault-model postcondition (testing-patterns §3 safety∧liveness):
+	//   LIVENESS -- a mark that CAN be recorded completes AND is durably observable (GetEntryAsync reads Processed).
+	//   SAFETY   -- a mark that CANNOT be recorded (no such entry) THROWS; it never returns successfully as a silent
+	//               no-op. A silent no-op would let a redelivery re-process, defeating the inbox's whole purpose.
+	// RED if MarkProcessedAsync were changed to swallow the missing-entry case and return without throwing.
+	[Fact]
+	public async Task MarkProcessed_durably_records_when_recordable_and_throws_when_not()
+	{
+		const string messageId = "msg-durability";
+		const string handlerType = "TestHandler";
+
+		// LIVENESS: an existing entry is durably marked Processed and the transition is observable.
+		_ = await _store.CreateEntryAsync(
+			messageId, handlerType, "TestMessageType", [1, 2, 3],
+			new Dictionary<string, object>(StringComparer.Ordinal), CancellationToken.None);
+
+		await _store.MarkProcessedAsync(messageId, handlerType, CancellationToken.None);
+
+		var persisted = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
+		persisted.ShouldNotBeNull();
+		persisted!.Status.ShouldBe(
+			InboxStatus.Processed,
+			"a completed MarkProcessedAsync guarantees the dedup marker is durably recorded and observable");
+
+		// SAFETY: marking a message with no inbox entry cannot be recorded, so it MUST throw -- not silently succeed.
+		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _store.MarkProcessedAsync("no-such-message", handlerType, CancellationToken.None));
+	}
+
+	// L3 for the atomic first-writer path: the bool decision is only returned once durably persisted -- true means
+	// the caller is the recorded first writer, and a subsequent call sees that durable record and returns false.
+	[Fact]
+	public async Task TryMarkAsProcessed_returns_a_durably_backed_first_writer_decision()
+	{
+		const string messageId = "msg-atomic-durability";
+		const string handlerType = "TestHandler";
+
+		(await _store.TryMarkAsProcessedAsync(messageId, handlerType, CancellationToken.None))
+			.ShouldBeTrue("the first writer wins and the claim is durably recorded");
+
+		(await _store.IsProcessedAsync(messageId, handlerType, CancellationToken.None))
+			.ShouldBeTrue("the true result must be backed by a persisted dedup record, observable immediately");
+
+		(await _store.TryMarkAsProcessedAsync(messageId, handlerType, CancellationToken.None))
+			.ShouldBeFalse("a second writer observes the durable record and is denied -- no double processing");
+	}
+
 	[Fact]
 	public void ThrowWhenOptionsIsNull()
 	{
@@ -35,6 +82,46 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions());
 		Should.Throw<ArgumentNullException>(
 			() => new InMemoryInboxStore(options, null!));
+	}
+
+	// d2afxn: a Failed entry is RE-ADMITTABLE on redelivery (retry) — mirrors the lease-store CAS predicate.
+	// RED on the pre-fix InMemory predicate (absent | Received | expired-Processing) which denies Failed.
+	[Fact]
+	public async Task Readmit_and_retry_a_failed_entry_on_redelivery()
+	{
+		var lease = TimeSpan.FromSeconds(30);
+		const string messageId = "msg-lease-failed-readmit";
+		const string handlerType = "TestHandler";
+
+		(await _store.TryClaimAsync(messageId, handlerType, lease, CancellationToken.None))
+			.ShouldBeTrue("the initial claim acquires the lease");
+		await _store.MarkFailedAsync(messageId, handlerType, "handler boom", CancellationToken.None);
+
+		var afterFail = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
+		afterFail.ShouldNotBeNull();
+		afterFail!.Status.ShouldBe(InboxStatus.Failed);
+
+		(await _store.TryClaimAsync(messageId, handlerType, lease, CancellationToken.None))
+			.ShouldBeTrue("a Failed entry MUST be re-admittable on redelivery (at-least-once + idempotent-handler contract)");
+
+		var afterReclaim = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
+		afterReclaim.ShouldNotBeNull();
+		afterReclaim!.Status.ShouldBe(InboxStatus.Processing);
+
+		// d2afxn monotonic-RetryCount guarantee: re-admit PRESERVES retry history (never resets to 0), and
+		// RetryCount increments exactly once per failed attempt at the shared finalize (MarkFailed). After the
+		// FIRST fail RetryCount is 1; the re-admit above carried it forward (still 1); a SECOND failed attempt
+		// must therefore land at 2 — not reset to 1. RED if the re-admit resets RetryCount to 0.
+		afterReclaim.RetryCount.ShouldBe(1, "the re-admit must preserve the retry count from the first failed attempt, never reset it");
+
+		await _store.MarkFailedAsync(messageId, handlerType, "handler boom again", CancellationToken.None);
+
+		var afterSecondFail = await _store.GetEntryAsync(messageId, handlerType, CancellationToken.None);
+		afterSecondFail.ShouldNotBeNull();
+		afterSecondFail!.Status.ShouldBe(InboxStatus.Failed);
+		afterSecondFail.RetryCount.ShouldBe(
+			2,
+			"RetryCount MUST be monotonic across re-admits (2 failed attempts => 2), not reset to 0/1 on re-admittance");
 	}
 
 	[Fact]

@@ -170,11 +170,11 @@ public sealed class AggregateRootShould
 	{
 		// Arrange
 		var aggregate = new TestStringAggregate();
-		var history = new List<IDomainEvent>
+		var history = new List<HistoricEvent>
 		{
-			new TestEvent("id-1", "First"),
-			new TestEvent("id-1", "Second"),
-			new TestEvent("id-1", "Third"),
+			new(new TestEvent("id-1", "First"), 0),
+			new(new TestEvent("id-1", "Second"), 1),
+			new(new TestEvent("id-1", "Third"), 2),
 		};
 
 		// Act
@@ -195,6 +195,22 @@ public sealed class AggregateRootShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() => aggregate.LoadFromHistory(null!));
+	}
+
+	[Fact]
+	public void LoadFromHistory_TakesOnlyTheHistoricEventEnvelope()
+	{
+		// K3 (fvq5qf) structural guard. The authoritative stream version enters replay ONLY via the
+		// persistence envelope (HistoricEvent.Version) — never off the event payload. Guard the seam:
+		// LoadFromHistory has exactly one overload whose element type is HistoricEvent. RED if a
+		// payload-version overload (e.g. IEnumerable<IDomainEvent>) is reintroduced to the replay path.
+		var overloads = typeof(AggregateRoot<string>).GetMethods()
+			.Where(m => m.Name == "LoadFromHistory")
+			.ToArray();
+		overloads.Length.ShouldBe(1, "LoadFromHistory must have exactly one overload — the HistoricEvent envelope");
+		var parameter = overloads[0].GetParameters().ShouldHaveSingleItem();
+		parameter.ParameterType.ShouldBe(typeof(IEnumerable<HistoricEvent>),
+			"replay input must be IEnumerable<HistoricEvent>; the version lives on the envelope, not the payload");
 	}
 
 	[Fact]
@@ -324,7 +340,7 @@ public sealed class AggregateRootShould
 			RaiseEvent(new TestEvent(id, value));
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+		protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 		{
 			TestEvent e => Apply(e),
 			_ => throw new InvalidOperationException($"Unknown event: {@event.GetType().Name}"),
@@ -347,9 +363,10 @@ public sealed class AggregateRootShould
 		{
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No-op for test
+					return true;
 		}
 	}
 
@@ -362,9 +379,10 @@ public sealed class AggregateRootShould
 		{
 		}
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No-op for test
+					return true;
 		}
 	}
 
@@ -375,9 +393,10 @@ public sealed class AggregateRootShould
 	{
 		public string? SnapshotData { get; private set; }
 
-		protected override void ApplyEventInternal(IDomainEvent @event)
+		protected override bool ApplyEventInternal(IDomainEvent @event)
 		{
 			// No-op for test
+					return true;
 		}
 
 		protected override void ApplySnapshot(ISnapshot snapshot)
@@ -393,7 +412,6 @@ public sealed class AggregateRootShould
 	private sealed record TestEvent(string AggregateId, string Value) : IDomainEvent
 	{
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
-		string IDomainEvent.AggregateId => AggregateId;
 		public long Version { get; init; } = 1;
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 		public string EventType => nameof(TestEvent);
@@ -407,6 +425,10 @@ public sealed class AggregateRootShould
 	private sealed class TestSnapshot : ISnapshot
 	{
 		public string SnapshotId { get; init; } = Guid.NewGuid().ToString();
+
+		// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+		// that this double is unscoped instead of assuming it.
+		public string? TenantId { get; init; }
 		public string AggregateId { get; init; } = string.Empty;
 		public string AggregateType { get; init; } = string.Empty;
 		public long Version { get; init; }

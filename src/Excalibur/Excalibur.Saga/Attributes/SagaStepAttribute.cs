@@ -15,7 +15,7 @@ namespace Excalibur.Saga.Attributes;
 /// <para>
 /// Steps are executed in ascending <see cref="Order"/> sequence.
 /// Each step should have a corresponding compensation method marked
-/// with <see cref="SagaCompensationAttribute"/>.
+/// with <c>SagaCompensationAttribute</c>.
 /// </para>
 /// </remarks>
 /// <example>

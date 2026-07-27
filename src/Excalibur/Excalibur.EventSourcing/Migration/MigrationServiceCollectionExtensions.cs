@@ -7,6 +7,7 @@ using Excalibur.EventSourcing.Migration;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -64,6 +65,11 @@ public static class MigrationServiceCollectionExtensions
 		_ = services.AddOptions<MigrationOptions>()
 			.ValidateOnStart();
 
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MigrationRunnerOptions>, MigrationRunnerOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MigrationOptions>, MigrationOptionsValidator>());
+
 		// Register services
 		services.TryAddSingleton<IEventBatchMigrator, EventBatchMigrator>();
 		services.TryAddSingleton<IMigrationRunner, MigrationRunner>();
@@ -95,6 +101,11 @@ public static class MigrationServiceCollectionExtensions
 
 		_ = services.AddOptions<MigrationOptions>()
 			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MigrationRunnerOptions>, MigrationRunnerOptionsValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MigrationOptions>, MigrationOptionsValidator>());
 
 		// Register services
 		services.TryAddSingleton<IEventBatchMigrator, EventBatchMigrator>();

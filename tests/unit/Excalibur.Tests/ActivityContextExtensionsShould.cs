@@ -453,10 +453,8 @@ public sealed class ActivityContextExtensionsShould
 	{
 		// Arrange
 		const string expectedTenantId = "tenant123";
-		var tenantId = A.Fake<ITenantId>();
-		_ = A.CallTo(() => tenantId.Value).Returns(expectedTenantId);
-		_ = A.CallTo(() => _activityContext.GetValue(nameof(ActivityContextExtensions.TenantId), default(ITenantId)))
-			.Returns(tenantId);
+		_ = A.CallTo(() => _activityContext.GetValue(nameof(ActivityContextExtensions.TenantId), default(string)))
+			.Returns(expectedTenantId);
 
 		// Act
 		var result = _activityContext.TenantId();

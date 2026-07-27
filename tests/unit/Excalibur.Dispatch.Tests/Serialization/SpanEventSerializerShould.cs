@@ -189,86 +189,6 @@ public sealed class SpanEventSerializerShould
 
 	#endregion
 
-	#region SerializeEvent Span Tests
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenSerializeEventCalledWithNullEvent()
-	{
-		// Arrange
-		var serializer = new SpanEventSerializer(_serializer);
-
-		// Act & Assert
-		var ex = Should.Throw<ArgumentNullException>(() =>
-		{
-			var buffer = new byte[256];
-			_ = serializer.SerializeEvent(null!, buffer.AsSpan());
-		});
-		_ = ex.ParamName.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void SerializeEvent_WithSpan_ReturnsWrittenByteCount()
-	{
-		// Arrange
-		var testEvent = new TestDomainEvent("agg-123", 1);
-		var expectedBytes = Encoding.UTF8.GetBytes("serialized-event-data");
-
-		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
-			.Returns(expectedBytes);
-
-		var serializer = new SpanEventSerializer(_serializer);
-		var buffer = new byte[256];
-
-		// Act
-		var bytesWritten = serializer.SerializeEvent(testEvent, buffer.AsSpan());
-
-		// Assert
-		bytesWritten.ShouldBe(expectedBytes.Length);
-	}
-
-	[Fact]
-	public void SerializeEvent_CopiesDataToBuffer()
-	{
-		// Arrange
-		var testEvent = new TestDomainEvent("agg-123", 1);
-		var expectedBytes = new byte[] { 1, 2, 3, 4, 5 };
-
-		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
-			.Returns(expectedBytes);
-
-		var serializer = new SpanEventSerializer(_serializer);
-		var buffer = new byte[256];
-
-		// Act
-		var bytesWritten = serializer.SerializeEvent(testEvent, buffer.AsSpan());
-
-		// Assert
-		buffer[0..bytesWritten].ShouldBe(expectedBytes);
-	}
-
-	[Fact]
-	public void ThrowArgumentException_WhenBufferTooSmall()
-	{
-		// Arrange
-		var testEvent = new TestDomainEvent("agg-123", 1);
-		var largeData = new byte[100];
-
-		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
-			.Returns(largeData);
-
-		var serializer = new SpanEventSerializer(_serializer);
-
-		// Act & Assert
-		var ex = Should.Throw<ArgumentException>(() =>
-		{
-			var smallBuffer = new byte[10]; // Too small
-			_ = serializer.SerializeEvent(testEvent, smallBuffer.AsSpan());
-		});
-		ex.Message.ShouldContain("Buffer too small");
-		ex.Message.ShouldContain("GetEventSize()");
-	}
-
-	#endregion
 
 	#region DeserializeEvent Span Tests
 
@@ -328,58 +248,6 @@ public sealed class SpanEventSerializerShould
 
 	#endregion
 
-	#region GetEventSize Tests
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenGetEventSizeCalledWithNullEvent()
-	{
-		// Arrange
-		var serializer = new SpanEventSerializer(_serializer);
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			serializer.GetEventSize(null!));
-	}
-
-	[Fact]
-	public void GetEventSize_ReturnsSerializedSizePlusMargin()
-	{
-		// Arrange
-		var testEvent = new TestDomainEvent("agg-123", 1);
-		var serializedBytes = new byte[100];
-
-		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
-			.Returns(serializedBytes);
-
-		var serializer = new SpanEventSerializer(_serializer);
-
-		// Act
-		var size = serializer.GetEventSize(testEvent);
-
-		// Assert - Should be serialized size (100) + SizeMargin (64)
-		size.ShouldBe(164);
-	}
-
-	[Fact]
-	public void GetEventSize_IsLargerThanActualSerializedBytes()
-	{
-		// Arrange
-		var testEvent = new TestDomainEvent("agg-123", 1);
-		var serializedBytes = new byte[50];
-
-		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
-			.Returns(serializedBytes);
-
-		var serializer = new SpanEventSerializer(_serializer);
-
-		// Act
-		var estimatedSize = serializer.GetEventSize(testEvent);
-
-		// Assert - Estimated size should always be larger than actual
-		estimatedSize.ShouldBeGreaterThan(serializedBytes.Length);
-	}
-
-	#endregion
 
 	#region SerializeSnapshot Span Tests
 
@@ -684,29 +552,6 @@ public sealed class SpanEventSerializerShould
 	#region Round-Trip Tests with Real Serializer
 
 	[Fact]
-	public void RoundTrip_Event_WithSystemTextJson()
-	{
-		// Arrange
-		var realSerializer = new SystemTextJsonSerializer();
-		var serializer = new SpanEventSerializer(realSerializer);
-
-		var originalEvent = new TestDomainEvent("agg-roundtrip", 42);
-
-		// Act - Serialize
-		var size = serializer.GetEventSize(originalEvent);
-		var buffer = new byte[size];
-		var bytesWritten = serializer.SerializeEvent(originalEvent, buffer.AsSpan());
-
-		// Act - Deserialize
-		var result = serializer.DeserializeEvent(buffer.AsSpan(0, bytesWritten), typeof(TestDomainEvent));
-
-		// Assert
-		var roundTripped = result.ShouldBeOfType<TestDomainEvent>();
-		roundTripped.AggregateId.ShouldBe(originalEvent.AggregateId);
-		roundTripped.Version.ShouldBe(originalEvent.Version);
-	}
-
-	[Fact]
 	public void RoundTrip_Snapshot_WithSystemTextJson()
 	{
 		// Arrange
@@ -755,31 +600,6 @@ public sealed class SpanEventSerializerShould
 	#region ArrayPool Integration Tests
 
 	[Fact]
-	public void GetEventSize_AllowsArrayPoolUsage()
-	{
-		// Arrange
-		var realSerializer = new SystemTextJsonSerializer();
-		var serializer = new SpanEventSerializer(realSerializer);
-		var testEvent = new TestDomainEvent("agg-pool", 100);
-
-		// Act - Use ArrayPool pattern
-		var size = serializer.GetEventSize(testEvent);
-		var buffer = ArrayPool<byte>.Shared.Rent(size);
-		try
-		{
-			var written = serializer.SerializeEvent(testEvent, buffer.AsSpan());
-
-			// Assert
-			written.ShouldBeGreaterThan(0);
-			written.ShouldBeLessThanOrEqualTo(size);
-		}
-		finally
-		{
-			ArrayPool<byte>.Shared.Return(buffer);
-		}
-	}
-
-	[Fact]
 	public void GetSnapshotSize_AllowsArrayPoolUsage()
 	{
 		// Arrange
@@ -822,9 +642,7 @@ public sealed class SpanEventSerializerShould
 		var tasks = events.Select(async evt =>
 		{
 			await Task.Yield(); // Force async execution
-			var size = serializer.GetEventSize(evt);
-			var buffer = new byte[size];
-			return serializer.SerializeEvent(evt, buffer.AsSpan());
+			return serializer.SerializeEvent(evt).Length;
 		});
 
 		var results = await Task.WhenAll(tasks);

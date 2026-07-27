@@ -111,9 +111,17 @@ internal sealed partial class CacheInvalidationMiddleware(
 		{
 			result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			// Caller-requested cancellation is cooperative control-flow, not a failure: do NOT invalidate.
+			// InvalidateOnFailure means "on failure", not "on non-success" — a cancelled handler has no
+			// partial write to compensate for at the cache layer (that is a persistence-atomicity concern).
+			throw;
+		}
 		catch
 		{
-			// Handler threw: run best-effort invalidation, then re-throw the ORIGINAL handler exception (AC-w5-3).
+			// Real failure (including an internal-timeout OperationCanceledException NOT tied to the caller's
+			// token): run best-effort invalidation, then re-throw the ORIGINAL handler exception (AC-w5-3).
 			await InvalidateForMessageAsync(message, context, attr, cancellationToken).ConfigureAwait(false);
 			throw;
 		}
@@ -139,17 +147,22 @@ internal sealed partial class CacheInvalidationMiddleware(
 		try
 		{
 			var hasKeys = false;
-			IEnumerable<string>? invalidatorTags = null;
-			IEnumerable<string>? invalidatorKeys = null;
+			IReadOnlyCollection<string>? invalidatorTags = null;
+			IReadOnlyCollection<string>? invalidatorKeys = null;
 
 			if (message is ICacheInvalidator invalidator)
 			{
-				invalidatorTags = invalidator.GetCacheTagsToInvalidate();
-				invalidatorKeys = invalidator.GetCacheKeysToInvalidate();
-				hasKeys = invalidatorKeys?.Any() == true;
+				// Materialize each sequence once: GetCacheTags/KeysToInvalidate may return a deferred
+				// (yield/LINQ) enumerable that is enumerated again below (BuildTagList / BuildStorageKeys).
+				// Re-enumerating a deferred sequence risks duplicated work and repeated side effects.
+				var tagsSource = invalidator.GetCacheTagsToInvalidate();
+				var keysSource = invalidator.GetCacheKeysToInvalidate();
+				invalidatorTags = tagsSource as IReadOnlyCollection<string> ?? tagsSource?.ToArray();
+				invalidatorKeys = keysSource as IReadOnlyCollection<string> ?? keysSource?.ToArray();
+				hasKeys = invalidatorKeys?.Count > 0;
 			}
 
-			var hasTags = invalidatorTags?.Any() == true || attr?.Tags?.Length > 0 || _defaultTags.Length > 0;
+			var hasTags = invalidatorTags is { Count: > 0 } || attr?.Tags?.Length > 0 || _defaultTags.Length > 0;
 
 			if (!hasTags && !hasKeys)
 			{

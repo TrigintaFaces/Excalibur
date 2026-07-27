@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 
+using Excalibur.Compliance;
+
 namespace Excalibur.AuditLogging.Elasticsearch;
 
 /// <summary>
@@ -84,7 +86,7 @@ public sealed class ElasticsearchExporterOptions
 	/// Gets or sets the application name to include in exported audit events.
 	/// </summary>
 	/// <remarks>
-	/// Used as a fallback when <see cref="Compliance.AuditEvent.ApplicationName"/> is not set
+	/// Used as a fallback when <see cref="AuditEvent.ApplicationName"/> is not set
 	/// on individual events. The event-level value takes precedence over this option.
 	/// </remarks>
 	public string? ApplicationName { get; set; }

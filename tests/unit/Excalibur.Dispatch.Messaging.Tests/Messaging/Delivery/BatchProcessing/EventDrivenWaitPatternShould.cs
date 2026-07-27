@@ -69,7 +69,9 @@ public sealed class EventDrivenWaitPatternShould
 
 		// Consume all signals
 		var consumed = 0;
+		#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 		while (semaphore.Wait(0))
+		#pragma warning restore RS0030
 		{
 			consumed++;
 		}

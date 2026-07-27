@@ -20,8 +20,9 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 	/// <param name="messageId"> The unique identifier of the message. </param>
 	/// <param name="messageType"> The type of the message. </param>
 	/// <param name="messageMetadata"> The metadata associated with the message. </param>
-	/// <param name="messageBody"> The body content of the message. </param>
+	/// <param name="messageBody"> The serialized body content of the message as raw bytes (persisted to a <c>bytea</c> column). </param>
 	/// <param name="tenantId"> The tenant identifier the message was produced under, or <see langword="null"/> when no tenant scope applies. </param>
+	/// <param name="destination"> The delivery destination the message is routed to, or <see langword="null"/> when none was carried. </param>
 	/// <param name="scheduledAt"> The scheduled delivery time. </param>
 	/// <param name="outboxTableName"> The name of the outbox table. </param>
 	/// <param name="sqlTimeOutSeconds"> The SQL command timeout in seconds. </param>
@@ -30,8 +31,9 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		string messageId,
 		string messageType,
 		string messageMetadata,
-		string messageBody,
+		byte[] messageBody,
 		string? tenantId,
+		string? destination,
 		DateTimeOffset scheduledAt,
 		string outboxTableName,
 		int sqlTimeOutSeconds,
@@ -39,9 +41,9 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 	{
 		var sql = $"""
 			INSERT INTO {outboxTableName}
-				(message_id, message_type, message_metadata, message_body, tenant_id, occurred_on, attempts, dispatcher_id, dispatcher_timeout, scheduled_at)
+				(message_id, message_type, message_metadata, message_body, tenant_id, destination, occurred_on, attempts, dispatcher_id, dispatcher_timeout, scheduled_at)
 			VALUES
-				(@MessageId, @MessageType, @MessageMetadata, @MessageBody, @TenantId, NOW(), 0, NULL, NULL, @ScheduledAt);
+				(@MessageId, @MessageType, @MessageMetadata, @MessageBody, @TenantId, @Destination, NOW(), 0, NULL, NULL, @ScheduledAt);
 			""";
 
 		var parameters = new DynamicParameters();
@@ -50,7 +52,11 @@ internal sealed class ScheduleOutboxMessage : DataRequest<int>
 		parameters.Add("MessageMetadata", messageMetadata, direction: ParameterDirection.Input);
 		parameters.Add("MessageBody", messageBody, direction: ParameterDirection.Input);
 		parameters.Add("TenantId", tenantId, direction: ParameterDirection.Input);
-		parameters.Add("ScheduledAt", scheduledAt, direction: ParameterDirection.Input);
+		parameters.Add("Destination", destination, direction: ParameterDirection.Input);
+		// Bind scheduled_at with an EXPLICIT timestamptz type. A CLR DateTime (even Kind=Utc) makes Dapper infer
+		// DbType.DateTime → Npgsql timestamp WITHOUT time zone → a session-timezone shift by the host's local UTC
+		// offset on reload. TimestampTzParameter binds the DateTimeOffset as a true timestamptz, preserving the instant.
+		parameters.Add("ScheduledAt", new TimestampTzParameter(scheduledAt));
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
 		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);

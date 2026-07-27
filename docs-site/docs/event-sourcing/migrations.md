@@ -1,12 +1,25 @@
 ---
 sidebar_position: 8
 title: Migrations
-description: Schema migrations for event stores using the Excalibur Migration CLI
+description: Provision and verify database schemas for any Excalibur subsystem - event store, audit, compliance, outbox, inbox - with the Excalibur Migration CLI
 ---
 
 # Migrations
 
-Excalibur provides a CLI tool (`excalibur-migrate`) for managing database schema migrations for event stores, snapshot stores, and related infrastructure.
+Excalibur provides a CLI tool (`excalibur-migrate`) for managing database schema migrations.
+
+:::tip This tool is not limited to event sourcing — it is filed here, but it is a generic runner
+
+**If you arrived looking for how to provision or verify an audit, compliance, outbox or inbox schema, you are
+in the right place.** The tool takes a provider, a connection string, and the **assembly and namespace** that
+hold the migration scripts — so it applies whichever package's scripts you point it at, not just the event
+store's. The audit-logging and compliance SQL Server packages embed their scripts as resources for exactly
+this purpose.
+
+This page lives under *Event sourcing* because that is where the tool's code lives, which is a poor guide to
+what it can do. See [How do I…?](../how-do-i.md) for the task-oriented index.
+
+:::
 
 ## Before You Start
 
@@ -203,22 +216,25 @@ The embedded resource names will be `{AssemblyName}.Migrations.20260101_001_Crea
 ```sql
 -- 20260101_001_CreateEventStore.sql
 CREATE TABLE [dbo].[Events] (
-    [Id] BIGINT IDENTITY(1,1) NOT NULL,
+    -- Assigned by the database and read back via OUTPUT INSERTED.Position.
+    [Position] BIGINT IDENTITY(1,1) NOT NULL,
+    [EventId] NVARCHAR(256) NOT NULL,
     [AggregateId] NVARCHAR(256) NOT NULL,
     [AggregateType] NVARCHAR(256) NOT NULL,
-    [EventType] NVARCHAR(256) NOT NULL,
-    [EventData] NVARCHAR(MAX) NOT NULL,
-    [Metadata] NVARCHAR(MAX) NULL,
+    [EventType] NVARCHAR(512) NOT NULL,
+    -- Binary, and nullable: erasure sets EventData to NULL to tombstone an event.
+    [EventData] VARBINARY(MAX) NULL,
+    [Metadata] VARBINARY(MAX) NULL,
     [Version] BIGINT NOT NULL,
-    [OccurredAt] DATETIME2 NOT NULL,
-    [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT [PK_Events] PRIMARY KEY CLUSTERED ([Id]),
-    CONSTRAINT [UQ_Events_AggregateVersion] UNIQUE ([AggregateId], [Version])
+    [Timestamp] DATETIMEOFFSET NOT NULL,
+    -- Nullable: the unscoped path emits neither this column nor its parameter.
+    [TenantId] NVARCHAR(256) NULL,
+    CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
+    CONSTRAINT [UQ_Events_AggregateVersion] UNIQUE ([AggregateId], [AggregateType], [Version])
 );
 
-CREATE INDEX [IX_Events_AggregateId] ON [dbo].[Events] ([AggregateId]);
-CREATE INDEX [IX_Events_AggregateType] ON [dbo].[Events] ([AggregateType]);
-CREATE INDEX [IX_Events_OccurredAt] ON [dbo].[Events] ([OccurredAt]);
+CREATE INDEX [IX_Events_Aggregate] ON [dbo].[Events] ([AggregateId], [AggregateType], [Version]);
+CREATE INDEX [IX_Events_Timestamp] ON [dbo].[Events] ([Timestamp]);
 ```
 
 ### PostgreSQL Example
@@ -226,21 +242,24 @@ CREATE INDEX [IX_Events_OccurredAt] ON [dbo].[Events] ([OccurredAt]);
 ```sql
 -- 20260101_001_create_event_store.sql
 CREATE TABLE events (
-    id BIGSERIAL PRIMARY KEY,
+    -- Assigned by the database and read back via RETURNING position.
+    position BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(256) NOT NULL,
     aggregate_id VARCHAR(256) NOT NULL,
     aggregate_type VARCHAR(256) NOT NULL,
-    event_type VARCHAR(256) NOT NULL,
-    event_data JSONB NOT NULL,
-    metadata JSONB NULL,
+    event_type VARCHAR(512) NOT NULL,
+    -- BYTEA, and nullable: erasure sets event_data to NULL to tombstone an event.
+    event_data BYTEA NULL,
+    metadata BYTEA NULL,
     version BIGINT NOT NULL,
-    occurred_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_events_aggregate_version UNIQUE (aggregate_id, version)
+    timestamp TIMESTAMPTZ NOT NULL,
+    -- Nullable: the unscoped path emits neither this column nor its parameter.
+    tenant_id VARCHAR(256) NULL,
+    CONSTRAINT uq_events_aggregate_version UNIQUE (aggregate_id, aggregate_type, version)
 );
 
-CREATE INDEX ix_events_aggregate_id ON events (aggregate_id);
-CREATE INDEX ix_events_aggregate_type ON events (aggregate_type);
-CREATE INDEX ix_events_occurred_at ON events (occurred_at);
+CREATE INDEX ix_events_aggregate ON events (aggregate_id, aggregate_type, version);
+CREATE INDEX ix_events_timestamp ON events (timestamp);
 ```
 
 ## Multi-Database Migrations

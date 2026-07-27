@@ -17,7 +17,6 @@ namespace Excalibur.Dispatch.Pooling;
 /// This pool is optimized for message processing scenarios where buffers of various sizes are frequently allocated and deallocated. It uses
 /// ArrayPool internally with custom sizing logic optimized for typical message sizes.
 /// </remarks>
-/// <remarks> Initializes a new instance of the <see cref="MessageBufferPool" /> class. </remarks>
 /// <param name="maxArrayLength"> Maximum array length that can be rented from the pool. </param>
 /// <param name="maxArraysPerBucket"> Maximum number of arrays per bucket in the pool. </param>
 internal sealed class MessageBufferPool(int maxArrayLength = 1024 * 1024, int maxArraysPerBucket = 50)

@@ -281,21 +281,18 @@ public class PaymentService : IEventHandler<OrderPlaced>
 {
     private readonly IPaymentGateway _gateway;
     private readonly IDispatcher _dispatcher;
-    private readonly IMessageContextAccessor _contextAccessor;
 
     public PaymentService(
         IPaymentGateway gateway,
-        IDispatcher dispatcher,
-        IMessageContextAccessor contextAccessor)
+        IDispatcher dispatcher)
     {
         _gateway = gateway;
         _dispatcher = dispatcher;
-        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(OrderPlaced evt, CancellationToken ct)
     {
-        var context = _contextAccessor.MessageContext!.CreateChildContext();
+        // Called from within a handler, DispatchAsync auto-childs, propagating causation/correlation from the handled event.
         try
         {
             var paymentId = await _gateway.ChargeAsync(
@@ -308,7 +305,7 @@ public class PaymentService : IEventHandler<OrderPlaced>
                 OrderId = evt.OrderId,
                 PaymentId = paymentId,
                 Amount = evt.Amount
-            }, context, ct);
+            }, ct);
         }
         catch (PaymentException ex)
         {
@@ -316,7 +313,7 @@ public class PaymentService : IEventHandler<OrderPlaced>
             {
                 OrderId = evt.OrderId,
                 Reason = ex.Message
-            }, context, ct);
+            }, ct);
         }
     }
 }
@@ -329,21 +326,18 @@ public class InventoryService : IEventHandler<PaymentProcessed>
 {
     private readonly IInventoryRepository _inventory;
     private readonly IDispatcher _dispatcher;
-    private readonly IMessageContextAccessor _contextAccessor;
 
     public InventoryService(
         IInventoryRepository inventory,
-        IDispatcher dispatcher,
-        IMessageContextAccessor contextAccessor)
+        IDispatcher dispatcher)
     {
         _inventory = inventory;
         _dispatcher = dispatcher;
-        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(PaymentProcessed evt, CancellationToken ct)
     {
-        var context = _contextAccessor.MessageContext!.CreateChildContext();
+        // Called from within a handler, DispatchAsync auto-childs, propagating causation/correlation from the handled event.
         try
         {
             var reservation = await _inventory.ReserveAsync(
@@ -354,7 +348,7 @@ public class InventoryService : IEventHandler<PaymentProcessed>
             {
                 OrderId = evt.OrderId,
                 ReservationId = reservation.Id
-            }, context, ct);
+            }, ct);
         }
         catch (InsufficientInventoryException ex)
         {
@@ -364,7 +358,7 @@ public class InventoryService : IEventHandler<PaymentProcessed>
                 OrderId = evt.OrderId,
                 PaymentId = evt.PaymentId,
                 Reason = ex.Message
-            }, context, ct);
+            }, ct);
         }
     }
 }
@@ -377,16 +371,13 @@ public class PaymentCompensationHandler : IEventHandler<InventoryReservationFail
 {
     private readonly IPaymentGateway _gateway;
     private readonly IDispatcher _dispatcher;
-    private readonly IMessageContextAccessor _contextAccessor;
 
     public PaymentCompensationHandler(
         IPaymentGateway gateway,
-        IDispatcher dispatcher,
-        IMessageContextAccessor contextAccessor)
+        IDispatcher dispatcher)
     {
         _gateway = gateway;
         _dispatcher = dispatcher;
-        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(InventoryReservationFailed evt, CancellationToken ct)
@@ -398,7 +389,7 @@ public class PaymentCompensationHandler : IEventHandler<InventoryReservationFail
         {
             OrderId = evt.OrderId,
             PaymentId = evt.PaymentId
-        }, _contextAccessor.MessageContext!.CreateChildContext(), ct);
+        }, ct);
     }
 }
 ```
@@ -410,16 +401,13 @@ public class ShippingService : IEventHandler<InventoryReserved>
 {
     private readonly IShippingProvider _shipping;
     private readonly IDispatcher _dispatcher;
-    private readonly IMessageContextAccessor _contextAccessor;
 
     public ShippingService(
         IShippingProvider shipping,
-        IDispatcher dispatcher,
-        IMessageContextAccessor contextAccessor)
+        IDispatcher dispatcher)
     {
         _shipping = shipping;
         _dispatcher = dispatcher;
-        _contextAccessor = contextAccessor;
     }
 
     public async Task HandleAsync(InventoryReserved evt, CancellationToken ct)
@@ -434,7 +422,7 @@ public class ShippingService : IEventHandler<InventoryReserved>
             OrderId = evt.OrderId,
             ShipmentId = shipment.Id,
             EstimatedDelivery = shipment.EstimatedDelivery
-        }, _contextAccessor.MessageContext!.CreateChildContext(), ct);
+        }, ct);
     }
 }
 ```

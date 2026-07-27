@@ -4,9 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 using Excalibur.Dispatch.Serialization;
 
@@ -62,12 +60,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
 	internal JsonEventSerializer(IEventTypeRegistry? registry, JsonSerializerOptions? options = null, bool allowAssemblyScan = false)
 	{
-		_options = options ?? new JsonSerializerOptions
-		{
-			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-			Converters = { new JsonStringEnumConverter() },
-		};
+		_options = options ?? EventSerializationDefaults.CreateCanonicalOptions();
 		_typeCache = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
 		_allowAssemblyScan = allowAssemblyScan;
 		_registry = registry;

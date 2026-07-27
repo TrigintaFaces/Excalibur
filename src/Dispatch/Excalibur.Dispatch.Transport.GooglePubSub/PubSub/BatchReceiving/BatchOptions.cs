@@ -123,7 +123,6 @@ public sealed class BatchOptions
 			Acknowledgment = new BatchAcknowledgmentOptions
 			{
 				AckDeadlineSeconds = Acknowledgment.AckDeadlineSeconds,
-				AckStrategy = Acknowledgment.AckStrategy,
 			},
 		};
 }
@@ -143,13 +142,4 @@ public sealed class BatchAcknowledgmentOptions
 	/// </value>
 	[Range(10, 600)]
 	public int AckDeadlineSeconds { get; set; } = 600; // 10 minutes
-
-	/// <summary>
-	/// Gets or sets the batch acknowledgment strategy.
-	/// </summary>
-	/// <value>
-	/// The batch acknowledgment strategy.
-	/// Default: <see cref="BatchAckStrategy.OnSuccess"/>.
-	/// </value>
-	public BatchAckStrategy AckStrategy { get; set; } = BatchAckStrategy.OnSuccess;
 }

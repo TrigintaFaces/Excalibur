@@ -197,6 +197,9 @@ public static class JobsEventId
 	/// <summary>Unexpected error in outbox processing job.</summary>
 	public const int OutboxProcessorJobFailed = 147514;
 
+	/// <summary>Skipped the outbox processing cycle because this instance is not the processing leader.</summary>
+	public const int OutboxProcessorSkippedNotLeader = 147515;
+
 	// ========================================
 	// 147520-147529: Outbox Job
 	// ========================================

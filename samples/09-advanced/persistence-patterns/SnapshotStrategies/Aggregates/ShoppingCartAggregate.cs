@@ -103,15 +103,17 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc/>
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case CartCreated: break;
-			case ItemAddedToCart e: Apply(e); break;
-			case ItemRemovedFromCart e: Apply(e); break;
-			case CartItemQuantityUpdated e: Apply(e); break;
-			case CartCheckedOut: ApplyCheckedOut(); break;
+			case CartCreated: return true;
+			case ItemAddedToCart e: Apply(e); return true;
+			case ItemRemovedFromCart e: Apply(e); return true;
+			case CartItemQuantityUpdated e: Apply(e); return true;
+			case CartCheckedOut: ApplyCheckedOut(); return true;
+			default:
+				return false;
 		}
 	}
 

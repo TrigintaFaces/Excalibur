@@ -90,7 +90,6 @@ public sealed class SigningOptionsShould
 	[InlineData(SigningAlgorithm.HMACSHA256)]
 	[InlineData(SigningAlgorithm.HMACSHA512)]
 	[InlineData(SigningAlgorithm.RSASHA256)]
-	[InlineData(SigningAlgorithm.Ed25519)]
 	public void AllowSettingDefaultAlgorithm(SigningAlgorithm algorithm)
 	{
 		// Arrange
@@ -162,7 +161,7 @@ public sealed class SigningOptionsShould
 		var options = new SigningOptions
 		{
 			Enabled = true,
-			DefaultAlgorithm = SigningAlgorithm.Ed25519,
+			DefaultAlgorithm = SigningAlgorithm.RSAPSSSHA256,
 			DefaultKeyId = "master-signing-key",
 			MaxSignatureAgeMinutes = 10,
 			IncludeTimestampByDefault = true,
@@ -171,7 +170,7 @@ public sealed class SigningOptionsShould
 
 		// Assert
 		options.Enabled.ShouldBeTrue();
-		options.DefaultAlgorithm.ShouldBe(SigningAlgorithm.Ed25519);
+		options.DefaultAlgorithm.ShouldBe(SigningAlgorithm.RSAPSSSHA256);
 		options.DefaultKeyId.ShouldBe("master-signing-key");
 		options.MaxSignatureAgeMinutes.ShouldBe(10);
 		options.IncludeTimestampByDefault.ShouldBeTrue();

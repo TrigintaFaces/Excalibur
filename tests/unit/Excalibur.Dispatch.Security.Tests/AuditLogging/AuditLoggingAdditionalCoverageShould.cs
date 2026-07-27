@@ -139,7 +139,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.None));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// Act & Assert - None role should throw UnauthorizedAccessException via EnsureReadAccess
 		await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -158,7 +158,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		// A ConfigurationChange event that SecurityAnalyst cannot access
 		var configEvent = new AuditEvent
@@ -191,7 +191,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var securityEvent = new AuditEvent
 		{
@@ -224,7 +224,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var authEvent = new AuditEvent
 		{
@@ -257,7 +257,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var adminEvent = new AuditEvent
 		{
@@ -289,7 +289,7 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			.Returns(Task.FromResult(AuditLogRole.SecurityAnalyst));
 
 		var logger = new NullLogger<RbacAuditStore>();
-		var sut = new RbacAuditStore(innerStore, roleProvider, logger);
+		var sut = new RbacAuditStore(innerStore, roleProvider, A.Fake<global::Excalibur.Compliance.IAuditLogger>(), logger);
 
 		var integrationEvent = new AuditEvent
 		{
@@ -396,9 +396,18 @@ public sealed class AuditLoggingAdditionalCoverageShould
 	}
 
 	[Fact]
-	public async Task InMemoryAuditStore_CountAsync_NoTenantFilter_CountsAllEvents()
+	/// <summary>
+	/// SAFETY: an unscoped count must NOT count every tenant's events.
+	/// </summary>
+	/// <remarks>
+	/// This arm asserted <c>3L</c> — that omitting the tenant counted all three partitions — and its name
+	/// said so. That was the count-side form of the cross-tenant disclosure the store closed: a count is
+	/// itself information, revealing how much audit activity other tenants carry, and omission made the
+	/// scope opt-in. Inverted rather than deleted, so the hole stays guarded.
+	/// </remarks>
+	public async Task InMemoryAuditStore_CountAsync_DoesNotCountOtherTenantsEvents()
 	{
-		// Arrange
+		// Arrange — no ambient tenant, so this store resolves to the untenanted partition.
 		var store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 
 		_ = await store.StoreAsync(new AuditEvent
@@ -434,11 +443,16 @@ public sealed class AuditLoggingAdditionalCoverageShould
 			// No TenantId = default tenant
 		}, CancellationToken.None).ConfigureAwait(false);
 
-		// Act - no tenant filter, should count all
+		// Act - no tenant named; the scope is ambient, which here is the untenanted partition.
 		var count = await store.CountAsync(new AuditQuery(), CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		count.ShouldBe(3L);
+		// Assert - SAFETY (excludes tenant-a and tenant-b) paired with LIVENESS (still counts its own
+		// untenanted event, so a store that counted nothing for everybody would not pass).
+		count.ShouldBe(
+			1L,
+			"an unscoped count must see the untenanted partition ONLY. 3 would mean omitting the tenant "
+			+ "widens the count across every tenant — a disclosure of other tenants' audit volume; 0 would "
+			+ "mean the count is blind to its own partition.");
 	}
 
 	#endregion

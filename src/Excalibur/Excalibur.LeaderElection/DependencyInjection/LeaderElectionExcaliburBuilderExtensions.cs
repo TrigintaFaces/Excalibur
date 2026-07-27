@@ -42,6 +42,13 @@ public static class LeaderElectionExcaliburBuilderExtensions
 
 		_ = builder.Services.AddExcaliburLeaderElection(configure);
 
+		// Fencing is DEFAULT-ON for a framework-protected outbox: registering a leader election is the
+		// multi-instance signal, so the outbox drain is fenced automatically (a superseded leader cannot claim
+		// or complete messages it no longer owns) rather than requiring an easily-forgotten opt-in. Idempotent
+		// via TryAdd, so an explicit outbox.WithLeaderElection() composes with this. A single-active-writer
+		// deployment opts the outbox out explicitly (and observably) with the outbox builder's AsSingleWriter().
+		OutboxBuilderLeaderElectionExtensions.RegisterOutboxLeaderGate(builder.Services);
+
 		return builder;
 	}
 }

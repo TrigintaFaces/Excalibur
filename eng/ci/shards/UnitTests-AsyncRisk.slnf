@@ -2,27 +2,27 @@
   "solution": {
     "path": "..\\..\\..\\Excalibur.sln",
     "projects": [
-      "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Messaging.Tests\\Excalibur.Dispatch.Messaging.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Observability.Tests\\Excalibur.Dispatch.Observability.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Hosting.Serverless.Tests\\Excalibur.Dispatch.Hosting.Serverless.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Patterns.Tests\\Excalibur.Dispatch.Patterns.Tests.csproj",
-      "tests\\unit\\Excalibur.Compliance.Tests\\Excalibur.Compliance.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Hosting.Tests\\Excalibur.Dispatch.Hosting.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj",
-      "tests\\unit\\Excalibur.AuditLogging.Tests\\Excalibur.AuditLogging.Tests.csproj",
-      "tests\\unit\\Excalibur.AuditLogging.Datadog.Tests\\Excalibur.AuditLogging.Datadog.Tests.csproj",
-      "tests\\unit\\Excalibur.AuditLogging.Sentinel.Tests\\Excalibur.AuditLogging.Sentinel.Tests.csproj",
+      "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Aws.Tests\\Excalibur.AuditLogging.Aws.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Datadog.Tests\\Excalibur.AuditLogging.Datadog.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Elasticsearch.Tests\\Excalibur.AuditLogging.Elasticsearch.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.GoogleCloud.Tests\\Excalibur.AuditLogging.GoogleCloud.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Postgres.Tests\\Excalibur.AuditLogging.Postgres.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Sentinel.Tests\\Excalibur.AuditLogging.Sentinel.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.Splunk.Tests\\Excalibur.AuditLogging.Splunk.Tests.csproj",
       "tests\\unit\\Excalibur.AuditLogging.SqlServer.Tests\\Excalibur.AuditLogging.SqlServer.Tests.csproj",
+      "tests\\unit\\Excalibur.AuditLogging.Tests\\Excalibur.AuditLogging.Tests.csproj",
+      "tests\\unit\\Excalibur.Compliance.Tests\\Excalibur.Compliance.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Hosting.AspNetCore.Tests\\Excalibur.Dispatch.Hosting.AspNetCore.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj"
+      "tests\\unit\\Excalibur.Dispatch.Hosting.Serverless.Tests\\Excalibur.Dispatch.Hosting.Serverless.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Hosting.Tests\\Excalibur.Dispatch.Hosting.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Messaging.Tests\\Excalibur.Dispatch.Messaging.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Observability.Tests\\Excalibur.Dispatch.Observability.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Patterns.Tests\\Excalibur.Dispatch.Patterns.Tests.csproj"
     ]
   }
 }

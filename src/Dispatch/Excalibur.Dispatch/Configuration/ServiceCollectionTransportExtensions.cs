@@ -163,6 +163,35 @@ public static class ServiceCollectionTransportExtensions
 	}
 
 	/// <summary>
+	/// Requires at least one transport to be registered, failing fast at startup otherwise. A discoverable
+	/// fluent shorthand for <c>AddTransportValidation(o =&gt; o.RequireAtLeastOneTransport = true)</c>.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <returns> The service collection for fluent configuration. </returns>
+	/// <remarks>
+	/// Named <c>RequireAtLeastOneTransport</c> (not <c>RequireRemoteTransport</c>) because the guarantee is
+	/// "one or more transports registered" — it does not distinguish local (in-memory) from remote transports.
+	/// Idempotent and order-independent: if transport validation was already added, this sets the flag on the
+	/// existing options; otherwise it registers validation with the flag enabled.
+	/// </remarks>
+	public static IServiceCollection RequireAtLeastOneTransport(this IServiceCollection services)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		var existing = services
+			.FirstOrDefault(static d => d.ServiceType == typeof(TransportValidationOptions))?
+			.GetImplementationInstance() as TransportValidationOptions;
+
+		if (existing is not null)
+		{
+			existing.RequireAtLeastOneTransport = true;
+			return services;
+		}
+
+		return services.AddTransportValidation(static o => o.RequireAtLeastOneTransport = true);
+	}
+
+	/// <summary>
 	/// Adds multi-transport health checks to the service collection.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>

@@ -24,10 +24,15 @@ public interface IPipelineProfile
 	string Description { get; }
 
 	/// <summary>
-	/// Gets the ordered list of middleware types to include in this profile.
+	/// Gets the ordered list of middleware entries that compose this profile, each carrying whether the built pipeline may omit it.
 	/// </summary>
-	/// <value> The middleware types that compose the profile. </value>
-	IReadOnlyList<Type> MiddlewareTypes { get; }
+	/// <value> The middleware entries that compose the profile. </value>
+	/// <remarks>
+	/// This is the profile's only middleware declaration. It deliberately replaces a bare type list rather than supplementing one: two
+	/// collections describing the same middleware can disagree, and a consumer of the weaker one — such as a startup check confirming an
+	/// authorization middleware is present — would then be reading a list the pipeline builder never consulted.
+	/// </remarks>
+	IReadOnlyList<MiddlewareEntry> MiddlewareEntries { get; }
 
 	/// <summary>
 	/// Gets a value indicating whether this profile enforces strict ordering and validation.

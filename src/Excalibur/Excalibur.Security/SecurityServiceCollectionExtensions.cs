@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security;
 using Excalibur.Security.EventStores;
 
@@ -156,6 +157,28 @@ public static class SecurityServiceCollectionExtensions
 	IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
+
+		// Safe-by-default PII sanitizer so the security-audit path masks UserId/SourceIp and redacts
+		// secret-shaped payloads with zero configuration — never logging raw PII (OWASP A02). TryAdd lets
+		// the richer keyed-hash sanitizer (registered by AddObservability) win when present, and lets a
+		// consumer explicitly opt into a different sanitizer by registering one BEFORE this call.
+		//
+		// Opting into RAW (unsanitized) telemetry is an explicit, deliberate choice — never a silent
+		// fallback. A consumer who accepts raw PII in telemetry (e.g. a fully-trusted dev environment)
+		// registers the no-op sanitizer themselves before calling this method, which wins over the
+		// TryAdd masking default:
+		//     services.AddSingleton<ITelemetrySanitizer>(NullTelemetrySanitizer.Instance);
+		//     services.AddSecurityAuditing(configuration);
+		//
+		// Construct from options so a consumer can configure a secret pepper (keyed HMAC-SHA-256
+		// fingerprinting) without changing the zero-config default — an unset pepper yields the safe-by-default
+		// unkeyed SHA-256 fingerprint. AddOptions is idempotent and guarantees IOptions<T> resolves.
+		_ = services.AddOptions<MaskingTelemetrySanitizerOptions>()
+			.ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MaskingTelemetrySanitizerOptions>,
+			MaskingTelemetrySanitizerOptionsValidator>());
+		services.TryAddSingleton<ITelemetrySanitizer>(static sp =>
+			new MaskingTelemetrySanitizer(sp.GetRequiredService<IOptions<MaskingTelemetrySanitizerOptions>>()));
 
 		// Register security event logger using forwarding pattern to avoid hard-cast
 		services.TryAddSingleton<SecurityEventLogger>();

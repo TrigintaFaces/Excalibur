@@ -46,6 +46,8 @@ public static class AwsServiceCollectionExtensions
 
 		_ = optionsBuilder
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsEventBridgeSchedulerOptions>>(new AwsEventBridgeSchedulerOptionsValidator()));
 
 		services.TryAddSingleton<IAmazonScheduler>(sp =>
 		{
@@ -88,6 +90,8 @@ public static class AwsServiceCollectionExtensions
 		_ = services.AddOptions<AwsEventBridgeSchedulerOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsEventBridgeSchedulerOptions>>(new AwsEventBridgeSchedulerOptionsValidator()));
 
 		services.TryAddSingleton<IAmazonScheduler>(sp =>
 		{

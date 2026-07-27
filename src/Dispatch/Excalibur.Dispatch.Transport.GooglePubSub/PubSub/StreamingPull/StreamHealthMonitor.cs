@@ -54,13 +54,13 @@ internal sealed partial class StreamHealthMonitor : IDisposable, IAsyncDisposabl
 		_streamHealth = new ConcurrentDictionary<string, StreamHealthInfo>(StringComparer.Ordinal);
 		_checkSemaphore = new SemaphoreSlim(1, 1);
 
-		if (_options.EnableHealthMonitoring)
+		if (_options.Monitoring.EnableHealthMonitoring)
 		{
 			_healthCheckTimer = new Timer(
 				_ => _ = PerformHealthCheckAsync(),
 				state: null,
-				_options.HealthCheckInterval,
-				_options.HealthCheckInterval);
+				_options.Monitoring.HealthCheckInterval,
+				_options.Monitoring.HealthCheckInterval);
 		}
 	}
 

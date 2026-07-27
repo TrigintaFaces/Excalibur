@@ -228,6 +228,55 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => _sut.ExecuteAsync(() => Task.FromResult(0), null!, CancellationToken.None)).ConfigureAwait(false);
 
+	/// <summary>
+	/// ipecm1(a): <see cref="CircuitBreakerOptions.OperationTimeout"/> must actually cancel a slow
+	/// operation → <see cref="OperationCanceledException"/>, and cancellation is non-tripping. RED on
+	/// the pre-fix inert <c>CancelAfter</c> (the token was never observed via <c>WaitAsync</c>, so the
+	/// slow op ran to completion and returned normally — no throw).
+	/// </summary>
+	[Fact]
+	public async Task ThrowOperationCanceledAndNotTripWhenOperationTimesOut()
+	{
+		var opts = new CircuitBreakerOptions
+		{
+			FailureThreshold = 3,
+			OperationTimeout = TimeSpan.FromMilliseconds(50),
+		};
+		await using var cb = new CircuitBreakerPattern("timeout-breaker", opts);
+
+		_ = await Should.ThrowAsync<OperationCanceledException>(() =>
+			cb.ExecuteAsync<int>(async () => { await Task.Delay(2000).ConfigureAwait(false); return 42; },
+				CancellationToken.None)).ConfigureAwait(false);
+
+		// Cancellation (linked timeout CTS) is not a failure — the circuit must NOT trip.
+		cb.State.ShouldBe(CircuitState.Closed);
+	}
+
+	/// <summary>
+	/// ipecm1(b): <c>AverageResponseTime</c> must be the true arithmetic mean (sum/count) over ALL
+	/// samples, NOT the <c>(old+new)/2</c> EMA blend. With 9 near-zero latencies then one ~300ms spike
+	/// LAST, the arithmetic mean is ~30ms while the blend (heavy last-sample weight) is ~150ms — so a
+	/// &lt;100ms bound is RED on the blend, GREEN on the true mean.
+	/// </summary>
+	[Fact]
+	public async Task ComputeAverageResponseTimeAsTrueArithmeticMeanNotBlend()
+	{
+		await using var cb = new CircuitBreakerPattern("avg-breaker",
+			new CircuitBreakerOptions { OperationTimeout = TimeSpan.FromSeconds(10) });
+
+		for (var i = 0; i < 9; i++)
+		{
+			_ = await cb.ExecuteAsync(() => Task.FromResult(1), CancellationToken.None).ConfigureAwait(false);
+		}
+
+		_ = await cb.ExecuteAsync(async () => { await Task.Delay(300).ConfigureAwait(false); return 1; },
+			CancellationToken.None).ConfigureAwait(false);
+
+		var averageMs = cb.GetCircuitBreakerMetrics().AverageResponseTime.TotalMilliseconds;
+		averageMs.ShouldBeLessThan(100,
+			"AverageResponseTime must be the arithmetic mean (~30ms) over 10 samples, not the (old+new)/2 blend (~150ms)");
+	}
+
 	public async ValueTask DisposeAsync() => await _sut.DisposeAsync().ConfigureAwait(false);
 }
 

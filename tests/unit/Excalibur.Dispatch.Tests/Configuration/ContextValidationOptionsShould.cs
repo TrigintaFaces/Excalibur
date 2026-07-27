@@ -18,15 +18,15 @@ public sealed class ContextValidationOptionsShould
 
 		// Assert
 		options.Mode.ShouldBe(ValidationMode.Lenient);
-		options.ValidateRequiredFields.ShouldBeTrue();
-		options.ValidateMultiTenancy.ShouldBeTrue();
-		options.ValidateAuthentication.ShouldBeTrue();
-		options.ValidateTracing.ShouldBeTrue();
-		options.ValidateVersioning.ShouldBeTrue();
-		options.ValidateCollections.ShouldBeTrue();
+		options.Checks.ValidateRequiredFields.ShouldBeTrue();
+		options.Checks.ValidateMultiTenancy.ShouldBeTrue();
+		options.Checks.ValidateAuthentication.ShouldBeTrue();
+		options.Checks.ValidateTracing.ShouldBeTrue();
+		options.Checks.ValidateVersioning.ShouldBeTrue();
+		options.Checks.ValidateCollections.ShouldBeTrue();
 		options.EnableDetailedDiagnostics.ShouldBeTrue();
 		options.MaxMessageAge.ShouldBe(TimeSpan.FromDays(1));
-		options.ValidateCorrelationChain.ShouldBeTrue();
+		options.Checks.ValidateCorrelationChain.ShouldBeTrue();
 		options.CustomValidatorTypes.ShouldNotBeNull();
 		options.CustomValidatorTypes.ShouldBeEmpty();
 	}
@@ -94,28 +94,31 @@ public sealed class ContextValidationOptionsShould
 		var options = new ContextValidationOptions
 		{
 			Mode = ValidationMode.Strict,
-			ValidateRequiredFields = false,
-			ValidateMultiTenancy = false,
-			ValidateAuthentication = false,
-			ValidateTracing = false,
-			ValidateVersioning = false,
-			ValidateCollections = false,
+			Checks =
+			{
+				ValidateRequiredFields = false,
+				ValidateMultiTenancy = false,
+				ValidateAuthentication = false,
+				ValidateTracing = false,
+				ValidateVersioning = false,
+				ValidateCollections = false,
+				ValidateCorrelationChain = false,
+			},
 			EnableDetailedDiagnostics = false,
 			MaxMessageAge = TimeSpan.FromHours(12),
-			ValidateCorrelationChain = false,
 		};
 
 		// Assert
 		options.Mode.ShouldBe(ValidationMode.Strict);
-		options.ValidateRequiredFields.ShouldBeFalse();
-		options.ValidateMultiTenancy.ShouldBeFalse();
-		options.ValidateAuthentication.ShouldBeFalse();
-		options.ValidateTracing.ShouldBeFalse();
-		options.ValidateVersioning.ShouldBeFalse();
-		options.ValidateCollections.ShouldBeFalse();
+		options.Checks.ValidateRequiredFields.ShouldBeFalse();
+		options.Checks.ValidateMultiTenancy.ShouldBeFalse();
+		options.Checks.ValidateAuthentication.ShouldBeFalse();
+		options.Checks.ValidateTracing.ShouldBeFalse();
+		options.Checks.ValidateVersioning.ShouldBeFalse();
+		options.Checks.ValidateCollections.ShouldBeFalse();
 		options.EnableDetailedDiagnostics.ShouldBeFalse();
 		options.MaxMessageAge.ShouldBe(TimeSpan.FromHours(12));
-		options.ValidateCorrelationChain.ShouldBeFalse();
+		options.Checks.ValidateCorrelationChain.ShouldBeFalse();
 	}
 
 	[Fact]

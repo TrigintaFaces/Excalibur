@@ -59,7 +59,7 @@ internal sealed class DistributedCircuitMetrics
 	/// configured <c>SamplingDuration</c>. Buckets older than the window are evicted on write so the
 	/// failure ratio reflects recent traffic (Polly v8 rolling-window semantics) rather than a
 	/// lifetime-cumulative ratio whose denominator only grows. The counts are persisted with the
-	/// metric so cross-instance aggregation of the distributed breaker actually holds (zxb7fp).
+	/// metric so cross-instance aggregation of the distributed breaker actually holds.
 	/// </remarks>
 	/// <value>The list of active rolling-window buckets.</value>
 	public List<CircuitWindowBucket> Windows { get; set; } = [];
@@ -73,25 +73,25 @@ internal sealed class DistributedCircuitMetrics
 	/// <param name="bucketCount">The number of buckets spanning the sampling window. Must be at least 1.</param>
 	public void RecordWindow(bool failure, long nowTicks, long bucketTicks, int bucketCount)
 	{
-		var epoch = nowTicks / bucketTicks;
-		var minEpoch = epoch - bucketCount + 1;
+ var epoch = nowTicks / bucketTicks;
+ var minEpoch = epoch - bucketCount + 1;
 
-		// Evict buckets that have rolled out of the window so the persisted metric never accumulates
-		// unbounded history (time-decay, not lifetime-cumulative).
-		_ = Windows.RemoveAll(b => b.Epoch < minEpoch);
+ // Evict buckets that have rolled out of the window so the persisted metric never accumulates
+ // unbounded history (time-decay, not lifetime-cumulative).
+ _ = Windows.RemoveAll(b => b.Epoch < minEpoch);
 
-		var bucket = Windows.Find(b => b.Epoch == epoch);
-		if (bucket is null)
-		{
-			bucket = new CircuitWindowBucket { Epoch = epoch };
-			Windows.Add(bucket);
-		}
+ var bucket = Windows.Find(b => b.Epoch == epoch);
+ if (bucket is null)
+ {
+ bucket = new CircuitWindowBucket { Epoch = epoch };
+ Windows.Add(bucket);
+ }
 
-		bucket.Attempts++;
-		if (failure)
-		{
-			bucket.Failures++;
-		}
+ bucket.Attempts++;
+ if (failure)
+ {
+ bucket.Failures++;
+ }
 	}
 
 	/// <summary>
@@ -106,20 +106,20 @@ internal sealed class DistributedCircuitMetrics
 	/// </returns>
 	public (long Attempts, double FailureRatio) GetWindow(long nowTicks, long bucketTicks, int bucketCount)
 	{
-		var minEpoch = (nowTicks / bucketTicks) - bucketCount + 1;
+ var minEpoch = (nowTicks / bucketTicks) - bucketCount + 1;
 
-		long attempts = 0;
-		long failures = 0;
-		foreach (var bucket in Windows)
-		{
-			if (bucket.Epoch >= minEpoch)
-			{
-				attempts += bucket.Attempts;
-				failures += bucket.Failures;
-			}
-		}
+ long attempts = 0;
+ long failures = 0;
+ foreach (var bucket in Windows)
+ {
+ if (bucket.Epoch >= minEpoch)
+ {
+ attempts += bucket.Attempts;
+ failures += bucket.Failures;
+ }
+ }
 
-		return (attempts, attempts > 0 ? (double)failures / attempts : 0.0);
+ return (attempts, attempts > 0 ? (double)failures / attempts: 0.0);
 	}
 }
 

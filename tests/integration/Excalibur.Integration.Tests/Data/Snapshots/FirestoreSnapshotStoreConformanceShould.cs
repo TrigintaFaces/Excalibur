@@ -60,11 +60,21 @@ public sealed class FirestoreSnapshotStoreConformanceShould : SnapshotConformanc
 
 		// Bind the emulator-connected FirestoreDb (default serializer settings) so the round-trip
 		// exercises the wire shape consumers actually get.
+		//
+		// The ambient tenant context is REQUIRED, and omitting it is what broke the isolation arms.
+		//
+		// The base drives ONE store through TenantContextHolder.BeginScope(...) -- production registers
+		// the store as a singleton and resolves the tenant per call, so there is deliberately no
+		// per-tenant factory seam. With no context the store's TenantScope.FromContext(null) is None for
+		// EVERY caller, so CreateDocumentId emits the untenanted "{type}_{id}" form for both tenants:
+		// one document, and tenant B reads what tenant A wrote. The store keys correctly once it can see
+		// the ambient tenant; it was never given one.
 		return Task.FromResult<ISnapshotStore>(
 			new FirestoreSnapshotStore(
 				_fixture.Db,
 				options,
-				NullLogger<FirestoreSnapshotStore>.Instance));
+				NullLogger<FirestoreSnapshotStore>.Instance,
+				CreateAmbientTenantContext()));
 	}
 
 	/// <inheritdoc/>

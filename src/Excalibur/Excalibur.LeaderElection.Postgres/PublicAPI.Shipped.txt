@@ -7,15 +7,17 @@ Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder.DataSource(Npgs
 Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder.DataSourceFactory(System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSourceFactory) -> Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder!
 Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder.LockKey(long lockKey) -> Excalibur.LeaderElection.Postgres.IPostgresLeaderElectionBuilder!
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.CandidateId.get -> string!
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>!
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.IsLeader.get -> bool
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
-Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.PostgresHealthBasedLeaderElection(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions!>! healthOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection!>! logger, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresLeaderElection!>! innerLogger, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.PostgresHealthBasedLeaderElection(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions!>! healthOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection!>! logger, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresLeaderElection!>! innerLogger, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null, System.TimeProvider? timeProvider = null) -> void
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.UpdateHealthAsync(bool isHealthy, System.Collections.Generic.IDictionary<string!, string!>? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -34,14 +36,16 @@ Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.StepD
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.TableName.get -> string!
 Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.TableName.set -> void
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.CandidateId.get -> string!
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.IsLeader.get -> bool
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
-Excalibur.LeaderElection.Postgres.PostgresLeaderElection.PostgresLeaderElection(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresLeaderElection!>! logger, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null) -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.PostgresLeaderElection(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresLeaderElection!>! logger, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider? fencingTokenProvider = null, System.TimeProvider? timeProvider = null) -> void
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Postgres.PostgresLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory

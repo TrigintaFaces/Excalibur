@@ -43,14 +43,6 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	public string SchemaName { get; } = "public";
 
 	/// <summary>
-	/// Static constructor to enable Npgsql legacy timestamp behavior.
-	/// </summary>
-	static PostgresEventStoreTelemetryTestFixture()
-	{
-		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-	}
-
-	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresEventStoreTelemetryTestFixture"/> class.
 	/// </summary>
 	public PostgresEventStoreTelemetryTestFixture()

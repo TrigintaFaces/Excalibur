@@ -16,9 +16,9 @@ public sealed class GooglePubSubOptionsShould
 		var options = new GooglePubSubOptions();
 
 		// Assert
-		options.ProjectId.ShouldBe(string.Empty);
-		options.TopicId.ShouldBe(string.Empty);
-		options.SubscriptionId.ShouldBe(string.Empty);
+		options.Connection.ProjectId.ShouldBe(string.Empty);
+		options.Connection.TopicId.ShouldBe(string.Empty);
+		options.Connection.SubscriptionId.ShouldBe(string.Empty);
 		options.EnableEncryption.ShouldBeFalse();
 		options.MaxConcurrentMessages.ShouldBe(0);
 		options.Subscriber.ShouldNotBeNull();
@@ -32,12 +32,15 @@ public sealed class GooglePubSubOptionsShould
 		// Arrange & Act
 		var options = new GooglePubSubOptions
 		{
-			ProjectId = "my-project",
-			SubscriptionId = "my-subscription",
+			Connection = new()
+			{
+				ProjectId = "my-project",
+				SubscriptionId = "my-subscription",
+			},
 		};
 
 		// Assert
-		options.SubscriptionName.ShouldBe("projects/my-project/subscriptions/my-subscription");
+		options.Connection.SubscriptionName.ShouldBe("projects/my-project/subscriptions/my-subscription");
 	}
 
 	[Fact]
@@ -46,12 +49,15 @@ public sealed class GooglePubSubOptionsShould
 		// Arrange & Act
 		var options = new GooglePubSubOptions
 		{
-			ProjectId = "my-project",
-			TopicId = "my-topic",
+			Connection = new()
+			{
+				ProjectId = "my-project",
+				TopicId = "my-topic",
+			},
 		};
 
 		// Assert
-		options.TopicName.ShouldBe("projects/my-project/topics/my-topic");
+		options.Connection.TopicName.ShouldBe("projects/my-project/topics/my-topic");
 	}
 
 	[Fact]
@@ -66,8 +72,11 @@ public sealed class GooglePubSubOptionsShould
 				AckDeadlineSeconds = 120,
 				EnableAutoAckExtension = false,
 				MaxConcurrentAcks = 50,
-				EnableDeadLetterTopic = true,
-				DeadLetterTopicId = "dlq-topic",
+				DeadLetter =
+				{
+					Enable = true,
+					TopicId = "dlq-topic",
+				},
 			},
 		};
 
@@ -76,8 +85,8 @@ public sealed class GooglePubSubOptionsShould
 		options.Subscriber.AckDeadlineSeconds.ShouldBe(120);
 		options.Subscriber.EnableAutoAckExtension.ShouldBeFalse();
 		options.Subscriber.MaxConcurrentAcks.ShouldBe(50);
-		options.Subscriber.EnableDeadLetterTopic.ShouldBeTrue();
-		options.Subscriber.DeadLetterTopicId.ShouldBe("dlq-topic");
+		options.Subscriber.DeadLetter.Enable.ShouldBeTrue();
+		options.Subscriber.DeadLetter.TopicId.ShouldBe("dlq-topic");
 	}
 
 	[Fact]

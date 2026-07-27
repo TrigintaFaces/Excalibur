@@ -77,8 +77,8 @@ public sealed class InMemoryDataInventoryStoreConformanceTests : DataInventorySt
 		GetAllRegistrationsAsync_ShouldReturnAllRegistrations();
 
 	[Fact]
-	public Task FindRegistrationsForDataSubjectAsync_ShouldFilterByIdTypeAndTenant_Test() =>
-		FindRegistrationsForDataSubjectAsync_ShouldFilterByIdTypeAndTenant();
+	public Task FindRegistrationsForDataSubjectAsync_ShouldFilterByIdType_Test() =>
+		FindRegistrationsForDataSubjectAsync_ShouldFilterByIdType();
 
 	#endregion Registration Query Tests
 

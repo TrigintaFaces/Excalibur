@@ -71,7 +71,7 @@ public interface IFirestoreCdcBuilder
 	/// <remarks>
 	/// <para>
 	/// Firestore uses project IDs instead of connection strings.
-	/// Use <see cref="ICdcStateStoreBuilder.ConnectionString(string)"/> to set the project ID.
+	/// Use <c>ConnectionString</c> to set the project ID.
 	/// When omitted, the source FirestoreDb is used for state persistence.
 	/// </para>
 	/// </remarks>

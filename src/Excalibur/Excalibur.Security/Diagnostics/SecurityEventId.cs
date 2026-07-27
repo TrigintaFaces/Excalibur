@@ -196,18 +196,6 @@ public static class SecurityEventId
 	/// <summary>ECDSA signature verification failed.</summary>
 	public const int EcdsaVerificationFailed = 70233;
 
-	/// <summary>Ed25519 message signed successfully.</summary>
-	public const int Ed25519MessageSigned = 70234;
-
-	/// <summary>Ed25519 signing operation failed.</summary>
-	public const int Ed25519SigningFailed = 70235;
-
-	/// <summary>Ed25519 signature verification successful.</summary>
-	public const int Ed25519VerificationSuccessful = 70236;
-
-	/// <summary>Ed25519 signature verification failed.</summary>
-	public const int Ed25519VerificationFailed = 70237;
-
 	/// <summary>Composite signing service created.</summary>
 	public const int CompositeSigningServiceCreated = 70238;
 
@@ -422,9 +410,6 @@ public static class SecurityEventId
 	// ========================================
 	// 70700-70799: Event Stores
 	// ========================================
-
-	/// <summary>SQL security event store created.</summary>
-	public const int SqlSecurityEventStoreCreated = 70700;
 
 	/// <summary>File security event store created.</summary>
 	public const int FileSecurityEventStoreCreated = 70701;

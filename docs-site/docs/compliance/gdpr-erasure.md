@@ -60,7 +60,9 @@ services.AddErasureScheduler();
 
 :::tip Minimal wiring
 
-`AddGdprErasure(...)` now `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`), so the call above is sufficient for a working minimal wiring in samples, tests, or local development. Calling `AddComplianceEncryption(...)` later wins via first-registrant-TryAdd semantics when a real KMS provider is required. This closes a class of "hidden sibling dependency" defects where consumers were required to register a provider the public entry point never advertised.
+`AddGdprErasure(...)` `TryAdd`-registers a default `IKeyManagementAdmin` (the in-memory `InMemoryKeyManagementProvider`), so the call above is sufficient for a working minimal wiring in samples, tests, or local development. When you need a real KMS provider, call `AddComplianceEncryption(...)` — an explicit registration takes precedence over the `TryAdd` default.
+
+The in-memory provider holds keys in process memory and does not persist them. **It is not suitable for production**, where a restart would lose the keys required to read crypto-shredded data.
 :::
 
 ```csharp
@@ -176,8 +178,55 @@ switch (status?.Status)
     case ErasureRequestStatus.Scheduled:
         _logger.LogInformation("Awaiting grace period for {RequestId}", requestId);
         break;
+    case ErasureRequestStatus.Pending:
+    case ErasureRequestStatus.InProgress:
+        _logger.LogInformation("Erasure in flight for {RequestId}", requestId);
+        break;
 }
 ```
+
+### Status values
+
+`GetStatusAsync` can return any of the following. Handle `Pending` and `InProgress` explicitly if you poll — a request occupies them briefly but genuinely, and a `switch` that omits them falls through silently while work is still in flight.
+
+| value | meaning |
+|---|---|
+| `Pending` | Request received, validation in progress. |
+| `Scheduled` | In grace period, awaiting execution. |
+| `InProgress` | Erasure currently executing. |
+| `Completed` | Erasure completed successfully. |
+| `BlockedByLegalHold` | Blocked by a legal hold (Article 17(3)). |
+| `Cancelled` | Cancelled during the grace period. |
+| `Failed` | Erasure failed and requires investigation. |
+| `PartiallyCompleted` | Some data retained under a documented exception. |
+
+### Statutory deadline
+
+`ErasureStatus.DaysUntilDeadline` reports the days remaining against the one-month response deadline in Article 12(3), measured from `RequestedAt` and floored at zero. Use it to surface requests approaching the limit:
+
+```csharp
+var status = await _erasureQueryStore.GetStatusAsync(requestId, ct);
+
+if (!status.IsExecuted && status.DaysUntilDeadline <= 5)
+{
+    _logger.LogWarning(
+        "Erasure {RequestId} has {Days} days remaining against the statutory deadline",
+        requestId, status.DaysUntilDeadline);
+}
+```
+
+The framework reports the deadline. It does not enforce it — a request blocked by a legal hold, or one whose grace period has not elapsed, will pass the deadline without the framework intervening. Monitoring it is the controller's obligation.
+
+### Certificate retention
+
+Erasure certificates are your evidence that a request was honoured, and **the framework deletes them on a schedule.** Each certificate is stamped with a `RetainUntil` of completion plus `Retention.CertificateRetentionPeriod` — **7 years by default** — and `CleanupExpiredCertificatesAsync` permanently deletes every certificate past that date.
+
+```csharp
+services.Configure<ErasureOptions>(o =>
+    o.Retention.CertificateRetentionPeriod = TimeSpan.FromDays(365 * 10)); // extend to 10 years
+```
+
+If your retention obligation is longer than the configured period, raise it before certificates begin ageing out, or export them to your own archive. Deletion is permanent and is not announced.
 
 :::warning Partial Completion Is Structural, Not Just On Failure
 
@@ -393,8 +442,12 @@ var requests = await _erasureQueryStore.ListRequestsAsync(
     tenantId: "tenant-abc",
     fromDate: DateTimeOffset.UtcNow.AddDays(-30),
     toDate: DateTimeOffset.UtcNow,
+    pageNumber: 1,
+    pageSize: 100,
     ct);
 ```
+
+Results are paged. `pageNumber` is 1-based and `pageSize` accepts 1–1000; both are required, and values outside those ranges are rejected. Page through the result set rather than requesting an unbounded list — an erasure-request table on a busy tenant grows without bound until certificates age out.
 
 ## Background Scheduler
 
@@ -430,33 +483,39 @@ public class ErasureFunction
 
 For serverless deployments, `AddErasureScheduler()` registers the background service that automatically processes requests past their grace period. The execution logic is internal to the framework — consumers only need to submit requests and monitor status.
 
+:::
+
 ## Database Schema
 
-### SQL Server
+**By default the erasure store does not create its tables. You provision them, and the store verifies they exist at startup.**
 
-```sql
-CREATE SCHEMA [compliance];
+Schema handling is controlled by `AutoCreateSchema`, which **defaults to `false`**: on startup the store verifies that the `compliance` schema and both of its tables — the erasure-request table and the erasure-certificate table — are present, and fails fast if they are missing rather than creating them. Set `AutoCreateSchema = true` to have the store create the schema and tables on first use if they do not already exist. Behavior is identical on SQL Server and PostgreSQL.
 
-CREATE TABLE [compliance].[ErasureRequests] (
-    [Id] UNIQUEIDENTIFIER NOT NULL,
-    [DataSubjectId] NVARCHAR(256) NOT NULL,
-    [TenantId] NVARCHAR(100) NOT NULL,
-    [Status] INT NOT NULL,
-    [Scope] INT NOT NULL,
-    [RequestedBy] NVARCHAR(256) NOT NULL,
-    [RequestedAt] DATETIME2 NOT NULL,
-    [ScheduledFor] DATETIME2 NOT NULL,
-    [ExecutedAt] DATETIME2 NULL,
-    [CancelledAt] DATETIME2 NULL,
-    [Reason] NVARCHAR(MAX) NULL,
+```csharp
+// SQL Server — default: you provision the tables, the store verifies them at startup
+services.AddSqlServerErasureStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    // options.AutoCreateSchema = true;       // opt in to have the store create its own tables
+});
 
-    CONSTRAINT [PK_ErasureRequests] PRIMARY KEY ([Id])
-);
-
-CREATE INDEX [IX_ErasureRequests_Status]
-ON [compliance].[ErasureRequests] ([Status], [ScheduledFor])
-WHERE [Status] = 1; -- Scheduled
+// PostgreSQL — default: you provision the tables, the store verifies them at startup
+services.AddPostgresErasureStore(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Compliance");
+    // options.AutoCreateSchema = true;       // opt in to have the store create its own tables
+});
 ```
+
+:::warning Provision the tables from the store's own definition, not a copied schema
+
+The column set — including the pseudonymized subject identifier described under [Data-subject hashing](#data-subject-hashing-idatasubjecthasher) — is an implementation detail that evolves with the framework.
+
+Whether you provision the tables yourself (the default) or opt into `AutoCreateSchema = true`, a table built from a schema that does not match is not corrected: the store finds a table already present and leaves it as is. The mismatch surfaces later, at the moment a data subject exercises a right, rather than at startup. Provision from the store's own definition, not a copy transcribed into documentation.
+
+:::
+
+Because `AutoCreateSchema` defaults to `false`, DBA-managed environments get fail-fast verification without extra configuration: provision the tables to match the store's own definition and the store confirms they exist at startup. The schema and table names are configurable via `SchemaName`, `RequestsTableName`, and `CertificatesTableName`.
 
 ## Testing
 
@@ -558,19 +617,36 @@ if (eventStore is IEventStoreErasure erasure)
 }
 ```
 
-### DataSubjectHasher
+### Data-subject hashing (`IDataSubjectHasher`)
 
-All GDPR components use `DataSubjectHasher` for consistent SHA-256 hashing of data subject identifiers:
+GDPR components pseudonymize data-subject identifiers through the injected
+`IDataSubjectHasher` service, so plain-text IDs are never stored in erasure request
+tables or audit logs. The default implementation (`HmacDataSubjectHasher`) uses a
+**keyed HMAC-SHA-256** with a required secret **pepper** — a keyed one-way hash, not a
+plain SHA-256 digest. The pepper (held apart from the data) defeats offline
+brute-forcing of low-entropy identifiers; because the scheme is one-way and
+deterministic, the same ID always maps to the same token for match-and-erase, but the
+token cannot be reversed to recover the ID.
+
+The pepper is **required** and validated at startup: if it is missing or shorter than
+`DataSubjectHashingOptions.MinimumPepperLength` (32 characters) the host **fails closed**
+with an `OptionsValidationException` rather than pseudonymizing with a weak key. Supply
+it from your secret manager / KMS — never a literal in source:
 
 ```csharp
-using Excalibur.Compliance;
+using Excalibur.Compliance.Erasure;
 
-// Hash a data subject ID for lookup/storage
-var hashedId = DataSubjectHasher.HashDataSubjectId("user-12345");
-// Returns uppercase hex-encoded SHA-256 hash
+// Registered automatically by AddGdprErasure / AddLegalHoldService / AddDataInventoryService.
+// You only need to configure the required pepper:
+builder.Services.Configure<DataSubjectHashingOptions>(o =>
+    o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"]); // high-entropy secret, ≥ 32 chars
+
+// Resolve/inject IDataSubjectHasher where you need a stable pseudonym:
+public sealed class MyService(IDataSubjectHasher hasher)
+{
+    public string Pseudonymize(string dataSubjectId) => hasher.HashDataSubjectId(dataSubjectId);
+}
 ```
-
-This ensures that plain-text data subject IDs are never stored in erasure request tables or audit logs.
 
 ### Implementing Custom Event Store Erasure
 
@@ -614,7 +690,7 @@ Event store erasure uses **tombstoning** (replacing payloads) rather than **dele
 
 | Practice | Recommendation |
 |----------|----------------|
-| Grace period | 72 hours minimum for production |
+| Grace period | Leave `DefaultGracePeriod` at 72 hours for production, and raise `MinimumGracePeriod` above its 1-hour default so no caller can request a shorter window |
 | Legal holds | Always check before execution |
 | Audit logging | Enable for compliance evidence |
 | Key rotation | Use separate keys per data subject |

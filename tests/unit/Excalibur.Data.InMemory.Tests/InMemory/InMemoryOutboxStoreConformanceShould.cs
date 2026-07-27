@@ -42,6 +42,20 @@ public sealed class InMemoryOutboxStoreConformanceShould : OutboxStoreConformanc
 	}
 
 	/// <inheritdoc/>
+	protected override Task<IOutboxStore?> CreateStoreWithReclaimFloorAsync(int floorSeconds)
+	{
+		var options = Options.Create(new InMemoryOutboxOptions
+		{
+			MaxMessages = 10000,
+			DefaultRetentionPeriod = TimeSpan.FromHours(24),
+			FailureBackoffFloorSeconds = floorSeconds,
+		});
+
+		return Task.FromResult<IOutboxStore?>(
+			new InMemoryOutboxStore(options, NullLogger<InMemoryOutboxStore>.Instance));
+	}
+
+	/// <inheritdoc/>
 	protected override Task CleanupAsync()
 	{
 		// InMemoryOutboxStore is disposed in DisposeAsync by base class

@@ -110,7 +110,7 @@ Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.DeleteSnapshotsOlderThan
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.Dispose() -> void
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
-Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.InMemorySnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore!>! logger) -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.InMemorySnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Microsoft.Extensions.DependencyInjection.InMemoryHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.InMemoryServiceCollectionExtensions

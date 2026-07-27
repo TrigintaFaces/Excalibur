@@ -52,7 +52,7 @@ internal static class MigrationDiagnosticDescriptors
 	/// shimmed published contract — e.g. <c>IRequestPreProcessor</c>,
 	/// <c>IRequestPostProcessor</c>, <c>IRequestExceptionHandler</c>, <c>IRequestExceptionAction</c>,
 	/// or <c>IStreamPipelineBehavior</c>. These have no deterministic mechanical rewrite, so the
-	/// diagnostic describes the manual migration step rather than silently skipping it (FR-14 / AC-10).
+	/// diagnostic describes the manual migration step rather than silently skipping it.
 	/// </remarks>
 	public static readonly DiagnosticDescriptor NonDeterministicConstruct = new(
 		id: MigrationDiagnosticIds.NonDeterministicConstruct,
@@ -68,9 +68,9 @@ internal static class MigrationDiagnosticDescriptors
 	/// EXMIG0003: <c>using MediatR;</c> directive is swappable to the compat namespace.
 	/// </summary>
 	/// <remarks>
-	/// Reported on a <c>using MediatR;</c> directive (FR-12 / AC-15). The companion code-fix swaps it to
+	/// Reported on a <c>using MediatR;</c> directive. The companion code-fix swaps it to
 	/// <c>using Excalibur.Dispatch.Compat.MediatR;</c>, idempotently and without producing duplicate or
-	/// orphaned using directives (EC-7 / EC-8).
+	/// orphaned using directives.
 	/// </remarks>
 	public static readonly DiagnosticDescriptor MediatRUsingDirectiveSwappable = new(
 		id: MigrationDiagnosticIds.MediatRUsingDirectiveSwappable,
@@ -89,7 +89,7 @@ internal static class MigrationDiagnosticDescriptors
 	/// Reported on a handler implementing a compat <c>IRequestHandler</c>/<c>INotificationHandler</c>
 	/// whose handler method name differs from the compat shape's <c>Handle</c> (e.g. <c>HandleAsync</c>).
 	/// A deterministic delta (method rename) is offered as a code-fix; a non-deterministic delta surfaces
-	/// the manual change in the message (FR-13 / AC-16, no silent skip).
+	/// the manual change in the message (no silent skip).
 	/// </remarks>
 	public static readonly DiagnosticDescriptor HandlerSignatureDelta = new(
 		id: MigrationDiagnosticIds.HandlerSignatureDelta,

@@ -239,7 +239,6 @@ public sealed record PipelineOrderCreated(
 	Guid CustomerId,
 	string CustomerName) : DomainEvent
 {
-	public override string AggregateId => OrderId.ToString();
 }
 
 public sealed record PipelineOrderLineAdded(
@@ -248,12 +247,10 @@ public sealed record PipelineOrderLineAdded(
 	int Quantity,
 	decimal UnitPrice) : DomainEvent
 {
-	public override string AggregateId => OrderId.ToString();
 }
 
 public sealed record PipelineOrderSubmitted(Guid OrderId) : DomainEvent
 {
-	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
@@ -284,7 +281,7 @@ public sealed class PipelineOrderAggregate : AggregateRoot<Guid>
 		RaiseEvent(new PipelineOrderSubmitted(Id));
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
+	protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch
 	{
 		PipelineOrderCreated e => ApplyCreated(e),
 		PipelineOrderLineAdded e => ApplyLineAdded(e),

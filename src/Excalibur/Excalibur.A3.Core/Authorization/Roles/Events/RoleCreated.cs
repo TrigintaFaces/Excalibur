@@ -20,8 +20,6 @@ internal sealed class RoleCreated : IDomainEvent
 	public required string CreatedBy { get; init; }
 
 	public string EventId { get; init; } = Guid.NewGuid().ToString();
-	public string AggregateId => RoleId;
-	public long Version { get; set; }
 	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 	public string EventType => nameof(RoleCreated);
 	public IDictionary<string, object>? Metadata { get; init; }

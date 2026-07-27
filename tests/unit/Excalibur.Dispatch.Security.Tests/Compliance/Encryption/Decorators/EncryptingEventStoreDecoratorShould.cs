@@ -18,22 +18,35 @@ public sealed class EncryptingEventStoreDecoratorShould
 {
 	private readonly IEventStore _innerStore;
 	private readonly IEncryptionProviderRegistry _registry;
+	private readonly global::Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor _subjectCryptor;
+	private readonly global::Excalibur.Dispatch.IEventSerializer _serializer;
 	private readonly global::Excalibur.Compliance.Configuration.EncryptionOptions _options;
 
 	public EncryptingEventStoreDecoratorShould()
 	{
 		_innerStore = A.Fake<IEventStore>();
 		_registry = A.Fake<IEncryptionProviderRegistry>();
+		_subjectCryptor = new(A.Fake<global::Excalibur.Compliance.IFieldEncryptor>());
+		_serializer = A.Fake<global::Excalibur.Dispatch.IEventSerializer>();
 		_options = new global::Excalibur.Compliance.Configuration.EncryptionOptions
 		{
 			Mode = EncryptionMode.EncryptAndDecrypt,
 			DefaultPurpose = "EventStore",
 			DefaultTenantId = "test-tenant"
 		};
+
+		// These locks cover the LEGACY whole-blob decrypt path; their fixture payloads are raw bytes, not
+		// serialized domain events. A real IEventSerializer throws when asked to deserialize them, which the
+		// decorator catches and returns the event unchanged. An unconfigured fake instead returns a faked Type
+		// and a faked IDomainEvent, so the per-subject field-decrypt step would re-serialize the event and
+		// overwrite EventData with empty bytes. Model the real serializer's contract so the fallback branch,
+		// not a fake artifact, is what these locks exercise.
+		A.CallTo(() => _serializer.DeserializeEvent(A<byte[]>._, A<Type>._))
+			.Throws<InvalidOperationException>();
 	}
 
 	private EncryptingEventStoreDecorator CreateSut() =>
-		new(_innerStore, _registry, Microsoft.Extensions.Options.Options.Create(_options));
+		new(_innerStore, _registry, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options));
 
 	#region Constructor Tests
 
@@ -41,21 +54,21 @@ public sealed class EncryptingEventStoreDecoratorShould
 	public void ThrowArgumentNullException_WhenInnerStoreIsNull()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(null!, _registry, Microsoft.Extensions.Options.Options.Create(_options)));
+			new EncryptingEventStoreDecorator(null!, _registry, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options)));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenRegistryIsNull()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, null!, Microsoft.Extensions.Options.Options.Create(_options)));
+			new EncryptingEventStoreDecorator(_innerStore, null!, _subjectCryptor, _serializer, Microsoft.Extensions.Options.Options.Create(_options)));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenOptionsIsNull()
 	{
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new EncryptingEventStoreDecorator(_innerStore, _registry, null!));
+			new EncryptingEventStoreDecorator(_innerStore, _registry, _subjectCryptor, _serializer, null!));
 	}
 
 	[Fact]

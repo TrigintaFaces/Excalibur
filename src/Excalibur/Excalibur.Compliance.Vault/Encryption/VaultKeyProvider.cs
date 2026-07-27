@@ -36,7 +36,7 @@ namespace Excalibur.Compliance.Vault;
 /// the client.
 /// </para>
 /// </remarks>
-public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManagementAdmin, IDisposable
+public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableKeyProvider, IKeyManagementAdmin, IDisposable
 {
 	private static readonly CompositeFormat KubernetesJwtNotFoundFormat =
 		CompositeFormat.Parse(Resources.VaultKeyProvider_KubernetesJwtNotFound);
@@ -355,7 +355,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	}
 
 	/// <inheritdoc />
-	public async Task<bool> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
+	public async Task<KeyDestructionOutcome> DeleteKeyAsync(string keyId, int retentionDays, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrEmpty(keyId);
@@ -382,12 +382,13 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 
 			LogDeletedKey(keyId);
 
-			return true;
+			// Vault Transit deletes the key material immediately — irrecoverable on return.
+			return KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow);
 		}
 		catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
 		{
 			LogKeyNotFoundForDeletion(keyId);
-			return false;
+			return KeyDestructionOutcome.NotFound;
 		}
 		finally
 		{
@@ -397,6 +398,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 
 	/// <inheritdoc />
 	/// <remarks>
+	/// <para>
 	/// Suspension is enforced at the Excalibur provider boundary, not at the Vault server. A suspended key is
 	/// recorded as a DURABLE KV marker and surfaced as <see cref="KeyStatus.Suspended"/> from this provider's
 	/// retrieval path, so the framework's encryption provider refuses it for both encryption and decryption.
@@ -404,6 +406,15 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	/// no native key-disable primitive — <c>min_encryption_version</c> is capped at the latest version). For
 	/// server-side, any-client enforcement, an operator can additionally apply a Vault ACL policy denying
 	/// <c>transit/encrypt/&lt;key&gt;</c> as defense-in-depth. Suspension survives process restarts.
+	/// </para>
+	/// <para>
+	/// <strong>Availability coupling (fail-closed):</strong> because the marker is persisted in the Vault
+	/// KV&#160;v2 mount named by <c>VaultSuspensionOptions.MountPath</c>, that mount is a HARD PREREQUISITE for
+	/// suspension. If the mount is absent or unreachable, the marker can be neither written nor read back — a
+	/// key could then appear active despite being suspended (a fail-open security hole). To prevent that, the
+	/// mount is validated at host startup and startup fails fast when it is not reachable, rather than letting
+	/// suspension become silently inert at runtime.
+	/// </para>
 	/// </remarks>
 	public async Task<bool> SuspendKeyAsync(string keyId, string reason, CancellationToken cancellationToken)
 	{
@@ -439,10 +450,11 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			// encryption" primitive — min_encryption_version is CAPPED at the latest version, so the previous
 			// "LatestVersion + 1" was rejected by Vault (400) and threw on the happy path (worse than a no-op).
 			// Suspension is enforced at the provider boundary: persist a DURABLE marker in Vault KV (NOT an
-			// in-memory set, which would lift on restart) keyed by keyId. Key-status resolution then surfaces
-			// the key as KeyStatus.Suspended, and AesGcmEncryptionProvider already refuses a Suspended key for
-			// BOTH encrypt and decrypt — so the key is unusable for any cryptographic operation through the
-			// framework. Genuine KV failures propagate (no broad swallow); only key-not-found returns false.
+			// in-memory set, which would lift on restart) keyed by keyId. The enforcement gate is the
+			// GetKey*/key-status resolution path — it reads this marker (via IsKeySuspendedAsync) and surfaces
+			// the key as KeyStatus.Suspended, so every caller that resolves key status before encrypt/decrypt
+			// gets a Suspended key and refuses it. Genuine KV failures propagate (no broad swallow); only
+			// key-not-found returns false.
 			var marker = new Dictionary<string, object>(StringComparer.Ordinal)
 			{
 				["reason"] = reason,
@@ -457,6 +469,56 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			InvalidateCache(keyId);
 
 			LogKeySuspended(keyId, reason);
+
+			return true;
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
+		}
+	}
+
+	/// <inheritdoc />
+	public async Task<bool> ReactivateKeyAsync(string keyId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrEmpty(keyId);
+
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Verify the key exists before reactivating it (the contract returns false for an unknown key).
+			EncryptionKeyInfo? keyData;
+			try
+			{
+				var keyInfo = await _vaultClient.V1.Secrets.Transit.ReadEncryptionKeyAsync(
+					GetKeyName(keyId),
+					_options.Keys.TransitMountPath).ConfigureAwait(false);
+				keyData = keyInfo?.Data;
+			}
+			catch (VaultSharp.Core.VaultApiException ex) when (IsKeyNotFoundException(ex))
+			{
+				LogKeyNotFoundForReactivation(keyId);
+				return false;
+			}
+
+			if (keyData is null)
+			{
+				LogKeyNotFoundForReactivation(keyId);
+				return false;
+			}
+
+			// Inverse of SuspendKeyAsync (bd-vihqw6): suspension persists a DURABLE marker in Vault KV; reactivation
+			// removes it. DeleteMetadataAsync permanently deletes the marker and all its versions so key-status
+			// resolution surfaces the key as Active again. Deleting an absent marker is idempotent (Vault returns
+			// 204), so reactivating a never-suspended existing key is a safe no-op. Genuine KV failures propagate.
+			await _vaultClient.V1.Secrets.KeyValue.V2.DeleteMetadataAsync(
+				GetSuspensionMarkerPath(keyId),
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+			InvalidateCache(keyId);
+
+			LogKeyReactivated(keyId);
 
 			return true;
 		}
@@ -569,6 +631,16 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	[LoggerMessage(LogLevel.Warning, "Suspended Vault Transit key {KeyId}: {Reason}")]
 	private partial void LogKeySuspended(string keyId, string reason);
 
+	[LoggerMessage(LogLevel.Warning, "Key {KeyId} not found for reactivation")]
+	private partial void LogKeyNotFoundForReactivation(string keyId);
+
+	[LoggerMessage(LogLevel.Information, "Reactivated Vault Transit key {KeyId}")]
+	private partial void LogKeyReactivated(string keyId);
+
+	[LoggerMessage(LogLevel.Information,
+		"Vault KV v2 suspension-marker mount {MountPath} is reachable; key suspension is durably enforceable")]
+	private partial void LogSuspensionMountReachable(string mountPath);
+
 	[LoggerMessage(LogLevel.Debug, "VaultKeyProvider disposed")]
 	private partial void LogDisposed();
 
@@ -638,7 +710,13 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 			return cachedSuspended;
 		}
 
+		// VaultSharp KV calls take no CancellationToken; observe it before the read (mirrors the
+		// reachability probe) and honour it via the rate-limit semaphore so this KV read is subject to
+		// the same throttling contract as every other Vault operation on this provider.
+		cancellationToken.ThrowIfCancellationRequested();
+
 		bool suspended;
+		await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
 			var marker = await _vaultClient.V1.Secrets.KeyValue.V2.ReadSecretAsync(
@@ -646,14 +724,71 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
 			suspended = marker?.Data?.Data is not null;
 		}
-		catch (VaultSharp.Core.VaultApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+		catch (VaultSharp.Core.VaultApiException ex)
+			when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound && !IsMountMissing(ex))
 		{
+			// A 404 on a MOUNTED KV v2 engine means the marker is simply absent → not suspended. A
+			// mount-missing 404 (engine unmounted or read ACL lost after startup) is EXCLUDED by the filter
+			// so it propagates — fail-closed, mirroring ValidateSuspensionMountReachableAsync. Never treat an
+			// unreachable suspension mount as "not suspended", which would hand back a suspended key as Active.
 			suspended = false;
+		}
+		finally
+		{
+			_ = _rateLimitSemaphore.Release();
 		}
 
 		_ = _cache.Set(cacheKey, suspended, _options.MetadataCacheDuration);
 		return suspended;
 	}
+
+	/// <summary>
+	/// Verifies, with a read-only probe, that the Vault KV&#160;v2 mount required to persist key-suspension
+	/// markers is reachable, and throws when it is not. This is the fail-closed startup guard for the
+	/// suspension availability coupling: suspension records/reads a durable marker in
+	/// <see cref="VaultSuspensionOptions.MountPath"/>, so an absent or unreachable mount would let a suspended
+	/// key appear active. The probe reads a well-known non-existent path within the mount: a "secret not found"
+	/// response proves the mount is reachable (the healthy case), whereas a missing/unmounted engine, an auth
+	/// or permission failure, or a connectivity failure all propagate — so anything short of a positively
+	/// reachable mount fails closed. It NEVER creates the mount or writes any data.
+	/// </summary>
+	/// <param name="cancellationToken">A token to observe while probing.</param>
+	/// <exception cref="ObjectDisposedException">Thrown when the provider has been disposed.</exception>
+	/// <exception cref="VaultSharp.Core.VaultApiException">
+	/// Propagated when the mount is missing/unmounted or access is denied.
+	/// </exception>
+	internal async Task ValidateSuspensionMountReachableAsync(CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var probePath = $"{_options.Suspension.Path}/__startup-availability-probe__";
+
+		try
+		{
+			// A read of a non-existent secret on a MOUNTED KV v2 engine returns 404 with empty errors; the
+			// filtered catch below treats that as "reachable". A read against a MISSING mount returns 404 whose
+			// body carries "no handler for route ..." — excluded by the filter, so it propagates (fail-closed).
+			_ = await _vaultClient.V1.Secrets.KeyValue.V2.ReadSecretAsync(
+				probePath,
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+		}
+		catch (VaultSharp.Core.VaultApiException ex)
+			when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound && !IsMountMissing(ex))
+		{
+			// Mount reachable, probe secret simply absent — the expected healthy outcome.
+		}
+
+		LogSuspensionMountReachable(_options.Suspension.MountPath);
+	}
+
+	// A missing/unmounted secrets engine surfaces as a 404 whose Vault error body names an unhandled route,
+	// distinct from a 404 for a merely-absent secret on a mounted engine. Match those markers so a missing
+	// mount is never mistaken for a healthy one (fail-closed on ambiguity — anything unrecognized propagates).
+	private static bool IsMountMissing(VaultSharp.Core.VaultApiException ex) =>
+		ex.Message.Contains("no handler for route", StringComparison.OrdinalIgnoreCase) ||
+		ex.Message.Contains("unsupported path", StringComparison.OrdinalIgnoreCase) ||
+		ex.Message.Contains("preflight capability check", StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
 	/// Surfaces a durably-suspended key as <see cref="KeyStatus.Suspended"/> regardless of its
@@ -677,7 +812,7 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManag
 	}
 
 	private static bool IsKeyNotFoundException(VaultSharp.Core.VaultApiException ex) =>
-		ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound ||
+		(ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound && !IsMountMissing(ex)) ||
 		ex.Message.Contains("no existing key named", StringComparison.OrdinalIgnoreCase);
 
 	private KeyMetadata MapToKeyMetadata(string keyId, EncryptionKeyInfo keyInfo, int? overrideVersion = null)

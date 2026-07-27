@@ -32,8 +32,7 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 	private readonly HttpClient _httpClient;
 	private readonly ElasticsearchExporterOptions _options;
 	private readonly ILogger<ElasticsearchAuditExporter> _logger;
-	private readonly Uri[] _bulkApiUris;
-	private int _nextNodeIndex;
+	private readonly Uri _bulkApiUri;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ElasticsearchAuditExporter"/> class.
@@ -54,14 +53,14 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		_options = options.Value;
 		_logger = logger;
 
-		// Prefer NodeUrls for cluster support, fall back to single ElasticsearchUrl
+		// Prefer NodeUrls for cluster support, fall back to single ElasticsearchUrl.
+		// The request is built against the first node as a template; per-attempt node failover
+		// (round-robin across the cluster) is applied by NodeFailoverHandler in the HttpClient pipeline.
 		var nodeUrls = _options.NodeUrls is { Count: > 0 }
 			? _options.NodeUrls
 			: [_options.ElasticsearchUrl];
 
-		_bulkApiUris = nodeUrls
-			.Select(url => new Uri($"{url.TrimEnd('/')}/_bulk?refresh={_options.RefreshPolicy}"))
-			.ToArray();
+		_bulkApiUri = new Uri($"{nodeUrls[0].TrimEnd('/')}/_bulk?refresh={_options.RefreshPolicy}");
 	}
 
 	/// <inheritdoc />
@@ -77,7 +76,7 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		try
 		{
 			var ndjson = BuildBulkPayload([auditEvent]);
-			var response = await SendWithRetryAsync(ndjson, cancellationToken).ConfigureAwait(false);
+			var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -308,7 +307,7 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		CancellationToken cancellationToken)
 	{
 		var ndjson = BuildBulkPayload(events);
-		var response = await SendWithRetryAsync(ndjson, cancellationToken).ConfigureAwait(false);
+		var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -319,55 +318,19 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		return (false, $"HTTP {(int)response.StatusCode}: {errorBody}");
 	}
 
-	private async Task<HttpResponseMessage> SendWithRetryAsync(
+	// Sends the bulk payload once. Transient-fault retry and per-attempt node failover are owned by
+	// the HttpClient pipeline (standard resilience handler + NodeFailoverHandler), configured in DI.
+	private async Task<HttpResponseMessage> SendBulkAsync(
 		string ndjson,
 		CancellationToken cancellationToken)
 	{
-		var attempts = 0;
-		HttpResponseMessage? lastResponse = null;
-
-		while (attempts <= _options.MaxRetryAttempts)
-		{
-			attempts++;
-
-			try
-			{
-				using var request = CreateRequest(ndjson);
-				lastResponse = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
-				if (lastResponse.IsSuccessStatusCode || !IsTransientStatusCode(lastResponse.StatusCode))
-				{
-					return lastResponse;
-				}
-
-				if (attempts <= _options.MaxRetryAttempts)
-				{
-					var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
-					LogAuditExportRetry(
-						attempts,
-						delay.TotalMilliseconds,
-						lastResponse.StatusCode);
-
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			catch (HttpRequestException) when (attempts <= _options.MaxRetryAttempts)
-			{
-				var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		return lastResponse ?? throw new HttpRequestException("Failed after all retry attempts");
+		using var request = CreateRequest(ndjson);
+		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}
 
 	private HttpRequestMessage CreateRequest(string ndjson)
 	{
-		// Round-robin across cluster nodes
-		var index = Interlocked.Increment(ref _nextNodeIndex);
-		var uri = _bulkApiUris[(((index - 1) % _bulkApiUris.Length) + _bulkApiUris.Length) % _bulkApiUris.Length];
-
-		var request = new HttpRequestMessage(HttpMethod.Post, uri)
+		var request = new HttpRequestMessage(HttpMethod.Post, _bulkApiUri)
 		{
 			Content = new StringContent(ndjson, Encoding.UTF8, "application/x-ndjson")
 		};
@@ -412,10 +375,6 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 	[LoggerMessage(ElasticsearchAuditLoggingEventId.HealthCheckFailed, LogLevel.Warning,
 		"Elasticsearch health check failed")]
 	private partial void LogHealthCheckFailed(Exception exception);
-
-	[LoggerMessage(ElasticsearchAuditLoggingEventId.ForwardRetried, LogLevel.Debug,
-		"Retrying Elasticsearch export (attempt {Attempt}) after {Delay}ms due to {StatusCode}")]
-	private partial void LogAuditExportRetry(int attempt, double delay, HttpStatusCode statusCode);
 
 	/// <summary>
 	/// Elasticsearch audit event payload.

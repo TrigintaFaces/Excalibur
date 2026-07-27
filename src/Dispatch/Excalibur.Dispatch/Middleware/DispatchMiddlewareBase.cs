@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+
+using System.Runtime.ExceptionServices;
+
 namespace Excalibur.Dispatch.Middleware;
 
 /// <summary>
@@ -55,6 +58,17 @@ public abstract class DispatchMiddlewareBase : IDispatchMiddleware
 		}
 		catch (Exception ex)
 		{
+			// Cooperative cancellation (qkvslo) and fail-closed denials (e.g. an ordering rejection) are
+			// both INTENTIONAL control flow, not unexpected errors — rethrow them unwrapped (preserving the
+			// original stack trace) so the typed exception reaches the caller intact, bypassing OnErrorAsync
+			// and the diagnostic wrap. Wrapping an OperationCanceledException in InvalidOperationException
+			// would break the cooperative-cancellation contract (callers can no longer catch OCE / observe
+			// TaskCanceledException). Unexpected exceptions keep the middleware-name wrap for diagnosability.
+			if (ex is OperationCanceledException or IFailClosedException)
+			{
+				ExceptionDispatchInfo.Capture(ex).Throw();
+			}
+
 			return await OnErrorAsync(message, context, ex, cancellationToken).ConfigureAwait(false)
 				   ?? throw new InvalidOperationException($"Middleware {GetType().Name} encountered an error", ex);
 		}

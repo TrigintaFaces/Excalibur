@@ -89,7 +89,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 		ArgumentNullException.ThrowIfNull(context);
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
-		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), EventSerializationDefaults.Canonical);
 
 		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
 
@@ -277,7 +277,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
 	{
 		// Bounded cleanup: delete ONLY Sent documents whose sentAt is strictly older than the cutoff,
 		// on the CONFIGURED index. Previously this issued a MatchAll DeleteByQuery against a hardcoded
@@ -396,6 +396,10 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			CorrelationId = message.CorrelationId,
 			CausationId = message.CausationId,
 			TenantId = message.TenantId,
+			PartitionKey = message.PartitionKey,
+			GroupKey = message.GroupKey,
+			TargetTransports = message.TargetTransports,
+			IsMultiTransport = message.IsMultiTransport,
 			LastError = message.LastError,
 			ScheduledAt = message.ScheduledAt,
 			SentAt = message.SentAt,
@@ -419,6 +423,10 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			CorrelationId = doc.CorrelationId,
 			CausationId = doc.CausationId,
 			TenantId = doc.TenantId,
+			PartitionKey = doc.PartitionKey,
+			GroupKey = doc.GroupKey,
+			TargetTransports = doc.TargetTransports,
+			IsMultiTransport = doc.IsMultiTransport,
 			LastError = doc.LastError,
 			ScheduledAt = doc.ScheduledAt,
 			SentAt = doc.SentAt,

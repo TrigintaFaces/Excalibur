@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Compliance;
 using Excalibur.Compliance.Encryption;
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Encryption;
 
@@ -312,8 +313,8 @@ public sealed class InMemoryKeyManagementProviderShould : IDisposable
 		// Act
 		var result = await _sut.DeleteKeyAsync(keyId, retentionDays: 30, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert — tri-state (nu7nrf): a retention window schedules irreversible destruction.
+		result.State.ShouldBe(KeyDestructionState.ScheduledIrreversible);
 
 		var key = await _sut.GetKeyAsync(keyId, CancellationToken.None);
 		_ = key.ShouldNotBeNull();
@@ -326,8 +327,8 @@ public sealed class InMemoryKeyManagementProviderShould : IDisposable
 		// Act
 		var result = await _sut.DeleteKeyAsync("nonexistent", 30, CancellationToken.None);
 
-		// Assert
-		result.ShouldBeFalse();
+		// Assert — tri-state (nu7nrf): an absent key yields NotFound, not a boolean false.
+		result.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	#endregion DeleteKeyAsync Tests

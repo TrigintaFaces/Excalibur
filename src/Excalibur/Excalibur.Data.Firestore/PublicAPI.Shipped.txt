@@ -154,8 +154,8 @@ Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DeleteSnapshotsAsync(s
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.Dispose() -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger) -> void
-Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger) -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions
@@ -231,6 +231,8 @@ const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxCleanedUp =
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxEntryCreated = 106400 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxEntryFailed = 106404 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxEntryProcessed = 106401 -> int
+const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxTryClaimDuplicate = 106407 -> int
+const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxTryClaimSuccess = 106406 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxTryMarkProcessedDuplicate = 106403 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxTryMarkProcessedSuccess = 106402 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ListenerReceivedChanges = 105914 -> int
@@ -255,6 +257,7 @@ const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QuerySnapshotRec
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QuotaExceeded = 105602 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SagaLoaded = 106500 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SagaSaved = 106501 -> int
+const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SagasPurged = 106502 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotDeleted = 106003 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotListenerAdded = 105400 -> int
 const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotListenerRemoved = 105401 -> int

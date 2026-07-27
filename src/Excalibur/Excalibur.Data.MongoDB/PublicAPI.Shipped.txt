@@ -79,6 +79,8 @@ Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.MongoDbMat
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.MongoDbMaterializedViewStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore!>! logger) -> void
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.SaveAsync<TView>(string! viewName, string! viewId, TView! view, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.SavePositionAsync(string! viewName, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.SaveViewAndPositionAsync<TView>(string! viewName, string! viewId, TView! view, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStore.SupportsAtomicWrites.get -> bool
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.ConnectTimeoutSeconds.get -> int
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.ConnectTimeoutSeconds.set -> void
@@ -95,6 +97,8 @@ Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.Ser
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.ServerSelectionTimeoutSeconds.set -> void
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.UseSsl.get -> bool
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.UseSsl.set -> void
+Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.UseTransactions.get -> bool
+Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.UseTransactions.set -> void
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.Validate() -> void
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.ViewsCollectionName.get -> string!
 Excalibur.Data.MongoDB.MaterializedViews.MongoDbMaterializedViewStoreOptions.ViewsCollectionName.set -> void
@@ -201,8 +205,8 @@ Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.DeleteSnapshotsAsync(strin
 Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
-Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.MongoDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore!>! logger) -> void
-Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.MongoDbSnapshotStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore!>! logger) -> void
+Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.MongoDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.MongoDbSnapshotStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
 Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions
 Excalibur.Data.MongoDB.Snapshots.MongoDbSnapshotStoreOptions.CollectionName.get -> string!
@@ -314,6 +318,8 @@ const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.InitializingProvider
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionBecameLeader = 104992 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionDisposeError = 104995 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionError = 104994 -> int
+const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionFencingTokenExhausted = 104997 -> int
+const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionFencingTokenIssued = 104996 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionLostLeadership = 104993 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionStarted = 104990 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.LeaderElectionStopped = 104991 -> int
@@ -333,6 +339,7 @@ const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.ReadPreferenceConfig
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.ResumeTokenStored = 104403 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.SagaStateDeleted = 104861 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.SagaStateLoaded = 104862 -> int
+const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.SagaStatePurged = 104863 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.SagaStateSaved = 104860 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.ServerSelectionCompleted = 104502 -> int
 const Excalibur.Data.MongoDB.Diagnostics.DataMongoDbEventId.SlowOperationDetected = 104500 -> int

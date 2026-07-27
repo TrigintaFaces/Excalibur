@@ -102,6 +102,29 @@ public sealed class GrantsAuthorizationHandlerShould
 		A.CallTo(() => policy.IsAuthorized("TestActivity", "resource-123")).MustHaveHappenedOnceExactly();
 	}
 
+	// nucnze regression lock: a missing principal/tenant makes GetPolicyAsync throw InvalidOperationException
+	// (its documented contract). The handler must DENY CLEANLY (context.Fail() -> 403), NOT let the exception
+	// escape as an unhandled 500. Fail-closed posture is preserved either way; this pins the clean status code.
+	// RED on the pre-fix handler, which awaited GetPolicyAsync() with no catch and rethrew.
+	[Fact]
+	public async Task FailCleanly_WhenPolicyProviderThrowsForMissingPrincipalOrTenant()
+	{
+		// Arrange
+		var requirement = new GrantsAuthorizationRequirement("TestActivity", ["Resource"]);
+		var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "user1")], "test"));
+		var context = new AuthorizationHandlerContext([requirement], user, null);
+
+		A.CallTo(() => _policyProvider.GetPolicyAsync())
+			.Throws(new InvalidOperationException("Tenant ID is required for authorization policy."));
+
+		// Act — must NOT throw out of the handler (a throw here surfaces as HTTP 500).
+		await Should.NotThrowAsync(async () => await _sut.HandleAsync(context));
+
+		// Assert — clean authorization failure (fail-closed 403), not a server fault.
+		context.HasFailed.ShouldBeTrue("a missing principal/tenant must deny cleanly (context.Fail), not throw");
+		context.HasSucceeded.ShouldBeFalse();
+	}
+
 	[Fact]
 	public async Task CallPolicyProviderOnce()
 	{

@@ -68,28 +68,6 @@ public sealed class DynamoDbEventStoreOptions
 	/// Gets or sets throughput configuration for provisioned capacity mode.
 	/// </summary>
 	public DynamoDbThroughputOptions Throughput { get; set; } = new();
-
-	// --- Backward-compatible shims that delegate to sub-options ---
-
-	/// <summary>
-	/// Gets or sets the read capacity units for the events table.
-	/// </summary>
-	/// <value>Defaults to 5 RCU (for provisioned mode).</value>
-	[Range(1, int.MaxValue)]
-	public int ReadCapacityUnits { get => Throughput.ReadCapacityUnits; set => Throughput.ReadCapacityUnits = value; }
-
-	/// <summary>
-	/// Gets or sets the write capacity units for the events table.
-	/// </summary>
-	/// <value>Defaults to 5 WCU (for provisioned mode).</value>
-	[Range(1, int.MaxValue)]
-	public int WriteCapacityUnits { get => Throughput.WriteCapacityUnits; set => Throughput.WriteCapacityUnits = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use on-demand capacity.
-	/// </summary>
-	/// <value>Defaults to <see langword="true"/>.</value>
-	public bool UseOnDemandCapacity { get => Throughput.UseOnDemandCapacity; set => Throughput.UseOnDemandCapacity = value; }
 }
 
 /// <summary>

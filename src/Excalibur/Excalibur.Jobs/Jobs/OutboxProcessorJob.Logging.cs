@@ -23,4 +23,7 @@ internal static partial class OutboxProcessorJobLog
 
 	[LoggerMessage(JobsEventId.OutboxProcessorJobFailed, LogLevel.Error, "Unexpected error in outbox processing job.")]
 	public static partial void JobFailed(ILogger logger, Exception exception);
+
+	[LoggerMessage(JobsEventId.OutboxProcessorSkippedNotLeader, LogLevel.Debug, "Skipped outbox processing cycle -- not the processing leader.")]
+	public static partial void SkippedNotLeader(ILogger logger);
 }

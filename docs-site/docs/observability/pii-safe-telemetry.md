@@ -36,6 +36,26 @@ builder.Services.AddDispatch(dispatch =>
 
 No additional configuration is needed — the default configuration hashes common PII tags and suppresses highly sensitive tags.
 
+### Security Auditing (Safe by Default)
+
+`AddSecurityAuditing()` installs a **masking sanitizer as the default** `ITelemetrySanitizer` (registered
+with `TryAdd`), so a security-audit sink never emits raw PII out of the box — the previous no-op passthrough
+is now **opt-in only**. Tag values are replaced with a stable `sha256:`-prefixed fingerprint and secret-shaped
+free-form payloads are redacted, so the same identifier correlates across events without exposing the raw
+value.
+
+The default fingerprint is a stable pseudonym suitable for correlation. For **cryptographic** protection of
+**low-entropy** identifiers (for example a short user ID or an IP address, where an attacker could brute-force
+the hash domain), register the keyed sanitizer instead:
+
+```csharp
+// Raw passthrough is opt-in only — register it explicitly if you truly need raw values:
+// builder.Services.AddSingleton<ITelemetrySanitizer>(NullTelemetrySanitizer.Instance);
+```
+
+`UseObservability()` still overrides the default via `TryAdd` precedence when you want the
+full `HashingTelemetrySanitizer` classification described above.
+
 ### Custom Tag Classification
 
 Configure which tags are hashed vs suppressed:
@@ -84,6 +104,42 @@ builder.Services.Configure<TelemetrySanitizerOptions>(opt =>
 ```
 
 A startup warning is emitted if `IncludeRawPii` is `true` in non-Development environments.
+
+### Keyed fingerprints (pepper)
+
+By default, sensitive tag values are fingerprinted with an **unkeyed SHA-256** digest. That is a stable
+pseudonym — the same input always yields the same `sha256:` fingerprint, so identifiers correlate across
+events — but for **low-entropy** values (a short numeric user ID, a source IP) an attacker who observes the
+fingerprints can brute-force or use a rainbow table to recover the original value, because the hash domain is
+small and unkeyed.
+
+Supply a secret **pepper** to upgrade fingerprinting to keyed **HMAC-SHA-256**. Without the key, the
+fingerprints cannot be reversed by brute force:
+
+```csharp
+// Observability sanitizer (HashingTelemetrySanitizer)
+builder.Services.Configure<TelemetrySanitizerOptions>(opt =>
+{
+    // High-entropy secret sourced from a secret manager / KMS — never a hard-coded literal.
+    opt.Pepper = pepperBytes;
+});
+```
+
+The security-audit masking sanitizer exposes the same knob:
+
+```csharp
+// Security-audit sanitizer (MaskingTelemetrySanitizer), installed by AddSecurityAuditing()
+builder.Services.Configure<MaskingTelemetrySanitizerOptions>(opt =>
+{
+    opt.Pepper = pepperBytes;
+});
+```
+
+- `Pepper` is `byte[]?`. When `null` (the default), fingerprinting falls back to the unkeyed SHA-256 digest.
+- Source the key from a secret manager / KMS. It is a secret: rotating it changes every fingerprint (breaking
+  cross-time correlation), so treat rotation like a key-management event.
+- Fingerprinting **never throws** on the telemetry/audit path regardless of this setting (fail-open) — a
+  derivation problem degrades to a correlation-only fingerprint, it never breaks the operation being observed.
 
 ### Compliance-Level Sanitization
 
@@ -183,7 +239,8 @@ When `TelemetrySanitizerOptions.IncludeRawPii = true`, all three are set to `tru
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `IncludeRawPii` | `bool` | `false` | Bypass all sanitization (development only) |
-| `SensitiveTagNames` | `IList<string>` | 10 common PII tags | Tags hashed with SHA-256 |
+| `Pepper` | `byte[]?` | `null` | Secret key for keyed HMAC-SHA-256 fingerprints (see [Keyed fingerprints](#keyed-fingerprints-pepper)); `null` falls back to unkeyed SHA-256 |
+| `SensitiveTagNames` | `IList<string>` | 10 common PII tags | Tags hashed before emission |
 | `SuppressedTagNames` | `IList<string>` | `auth.email`, `auth.token` | Tags suppressed entirely |
 
 ## See Also

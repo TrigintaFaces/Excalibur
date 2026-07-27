@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
 
+using Excalibur.Jobs.Core;
 using Excalibur.Jobs.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -80,6 +82,12 @@ public sealed partial class QuartzJobAdapter(
 					string.Format(CultureInfo.InvariantCulture, "Job type '{0}' does not implement required interface.", jobType));
 			}
 
+			// Record a heartbeat on successful completion, keyed by the Quartz job name (== JobOptions.JobName,
+			// the same key JobHealthCheck reads). Without this, every IBackgroundJob routed through this adapter
+			// never reported a heartbeat and its JobHealthCheck stayed Unhealthy forever — only the Quartz-native
+			// jobs (OutboxJob/CdcJob/DataProcessingJob) recorded one directly.
+			scope.ServiceProvider.GetService<JobHeartbeatTracker>()?.RecordHeartbeat(context.JobDetail.Key.Name);
+
 			LogJobCompletedSuccessfully(jobType.Name, context.JobDetail.Key);
 		}
 		catch (Exception ex)
@@ -114,6 +122,12 @@ public sealed partial class QuartzJobAdapter(
 		"Error executing job {JobType} with key {JobKey}")]
 	private partial void LogErrorExecutingJob(string jobType, object jobKey, Exception ex);
 
+	// Caches resolved job types by their JobDataMap type-name string. Resolution walks the whole
+	// AppDomain, so without this every trigger fire re-scanned all loaded assemblies via reflection.
+	// Job types are stable for the process lifetime, so a successful resolution is cached permanently
+	// (which also makes duplicate-type-name resolution deterministic after the first fire).
+	private static readonly ConcurrentDictionary<string, Type> ResolvedTypeCache = new(StringComparer.Ordinal);
+
 	private static Type? ResolveJobType(string typeName)
 	{
 		if (string.IsNullOrWhiteSpace(typeName))
@@ -121,6 +135,22 @@ public sealed partial class QuartzJobAdapter(
 			return null;
 		}
 
+		if (ResolvedTypeCache.TryGetValue(typeName, out var cached))
+		{
+			return cached;
+		}
+
+		var resolved = ResolveJobTypeCore(typeName);
+		if (resolved is not null)
+		{
+			ResolvedTypeCache[typeName] = resolved;
+		}
+
+		return resolved;
+	}
+
+	private static Type? ResolveJobTypeCore(string typeName)
+	{
 		var simpleTypeName = typeName;
 		var assemblyName = string.Empty;
 		var commaIndex = typeName.IndexOf(',', StringComparison.Ordinal);

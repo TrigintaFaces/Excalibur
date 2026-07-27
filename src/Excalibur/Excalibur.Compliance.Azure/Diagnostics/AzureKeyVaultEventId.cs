@@ -45,4 +45,10 @@ public static class AzureKeyVaultEventId
 
 	/// <summary>Azure Key Vault key is using standard tier.</summary>
 	public const int StandardTierWarning = 92622;
+
+	/// <summary>Azure Key Vault key was reactivated.</summary>
+	public const int KeyReactivated = 92623;
+
+	/// <summary>Azure Key Vault key was not found for reactivation.</summary>
+	public const int KeyNotFoundForReactivation = 92624;
 }

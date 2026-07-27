@@ -122,6 +122,7 @@ public static class MessageMetadataExtensions
 			.WithMessageVersion(context.MessageVersion() ?? "1.0")
 			.WithContractVersion(context.ContractVersion() ?? "1.0.0")
 			.WithSource(context.GetSource())
+			.WithDestination(context.GetDestination())
 			.WithPartitionKey(context.PartitionKey())
 			.WithReplyTo(context.ReplyTo())
 			.WithDeliveryCount(context.GetDeliveryCount());

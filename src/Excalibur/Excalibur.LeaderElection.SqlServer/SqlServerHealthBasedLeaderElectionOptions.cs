@@ -11,6 +11,20 @@ namespace Excalibur.LeaderElection.SqlServer;
 public sealed class SqlServerHealthBasedLeaderElectionOptions
 {
 	/// <summary>
+	/// Gets or sets the SQL Server connection string the election uses to acquire and renew the lock.
+	/// </summary>
+	/// <value>The connection string. Required; has no default.</value>
+	[Required]
+	public string ConnectionString { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the lock resource name passed to <c>sp_getapplock</c> to scope the election.
+	/// </summary>
+	/// <value>The lock resource name. Required; has no default.</value>
+	[Required]
+	public string LockResource { get; set; } = string.Empty;
+
+	/// <summary>
 	/// Gets or sets the schema name for the health tracking table.
 	/// </summary>
 	/// <value>Defaults to <c>"dbo"</c>.</value>

@@ -59,7 +59,7 @@ const config: Config = {
   deploymentBranch: 'gh-pages',
   trailingSlash: false,
 
-  // Sprint 461 T5.4: Strict mode for CI environments
+  // Strict mode for CI environments
   // In CI (isStrictMode=true), broken links will fail the build
   // Locally, they will only warn to avoid blocking development
   onBrokenLinks: isStrictMode ? 'throw' : 'warn',
@@ -199,9 +199,9 @@ const config: Config = {
               path: currentDocsPath,
               banner: hasStableDocsRelease ? 'unreleased' : 'none',
             },
-            // Add versions as they are released:
-            // '1.0.0': {
-            //   label: '1.0.0',
+            // Add versions as they are released (version scheme matches the .NET major, e.g. 10.0.0):
+            // '10.0.0': {
+            //   label: '10.0.0',
             //   path: '',  // Default path (no prefix for latest)
             //   banner: 'none',
             // },

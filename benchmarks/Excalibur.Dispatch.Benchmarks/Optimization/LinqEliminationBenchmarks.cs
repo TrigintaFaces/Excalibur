@@ -18,7 +18,6 @@ namespace Excalibur.Dispatch.Benchmarks.Optimization;
 /// </para>
 /// <para>
 /// Optimizations validated:
-/// - FilteredDispatchMiddlewareInvoker: ContainsInterfaceWithName helper
 /// - DefaultMiddlewareApplicabilityStrategy: ImplementsGenericInterface helper
 /// - PipelineProfile: ImplementsGenericActionInterface helper
 /// </para>

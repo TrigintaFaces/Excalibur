@@ -26,6 +26,12 @@ namespace Excalibur.Integration.Tests.TieredStorage;
 [Trait("Component", "EventStore")]
 public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 {
+	// A SCOPED tenant, not Untenanted: the lost-update lock must race two writers inside the SAME
+	// tenant partition, which is where the contract says their events must merge. Untenanted would
+	// exercise the legacy path and leave the tenant-keyed race unproven.
+	private static readonly KeyedTenantPartition Tenant =
+		KeyedTenantPartition.Scoped("cold-store-lost-update-tenant");
+
 	private const string AggregateType = "ColdLostUpdateAggregate";
 
 	private AzuriteContainer? _container;
@@ -108,16 +114,16 @@ public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 		var aggregateId = $"agg-{Guid.NewGuid():N}";
 		var ct = CancellationToken.None;
 
-		await _store!.WriteAsync(aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
+		await _store!.WriteAsync(Tenant, aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
 
 		var subset = new StoredEvent[] { Event(aggregateId, 3), Event(aggregateId, 4) };
 		var superset = new StoredEvent[] { Event(aggregateId, 3), Event(aggregateId, 4), Event(aggregateId, 5), Event(aggregateId, 6) };
 
 		await Task.WhenAll(
-			_store.WriteAsync(aggregateId, subset, ct),
-			_store.WriteAsync(aggregateId, superset, ct)).ConfigureAwait(false);
+			_store.WriteAsync(Tenant, aggregateId, subset, ct),
+			_store.WriteAsync(Tenant, aggregateId, superset, ct)).ConfigureAwait(false);
 
-		var read = await _store.ReadAsync(aggregateId, ct);
+		var read = await _store.ReadAsync(Tenant, aggregateId, ct);
 
 		read.Select(e => e.Version).ShouldBe(
 			Enumerable.Range(0, 7).Select(i => (long)i),

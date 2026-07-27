@@ -85,7 +85,7 @@ public sealed class OutboxBaggageRestoreShould
 		{
 			_ = o.Implements<IMultiTransportOutboxStore>();
 			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
-		});
+		}).WithHonestCapabilities();
 		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
 		var adapter = A.Fake<ITransportAdapter>();
@@ -95,7 +95,7 @@ public sealed class OutboxBaggageRestoreShould
 			.Returns(Task.CompletedTask);
 
 		var transportRegistry = new TransportRegistry();
-		transportRegistry.RegisterTransport("kafka", adapter, "Kafka");
+		transportRegistry.RegisterTransport("kafka", adapter, "Kafka", TransportLocality.Remote);
 
 		var publisher = new MessageBusOutboxPublisher(
 			multiStoreBase, A.Fake<IPayloadSerializer>(), transportRegistry, A.Fake<IServiceProvider>(),

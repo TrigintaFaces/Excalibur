@@ -21,16 +21,19 @@ namespace Excalibur.Jobs.Tests.Core;
 public sealed class JobOptionsHostedWatcherServiceShould : IDisposable
 {
 	private readonly IScheduler _scheduler = A.Fake<IScheduler>();
+	private readonly ISchedulerFactory _schedulerFactory = A.Fake<ISchedulerFactory>();
 	private readonly WatcherTestOptionsMonitor<WatcherTestJobOptions> _monitor;
 	private readonly JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions> _service;
 
 	public JobOptionsHostedWatcherServiceShould()
 	{
+		A.CallTo(() => _schedulerFactory.GetScheduler(A<CancellationToken>._)).Returns(_scheduler);
+
 		var config = new WatcherTestJobOptions { Disabled = false };
 		_monitor = new WatcherTestOptionsMonitor<WatcherTestJobOptions>(config);
 
 		_service = new JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions>(
-			_scheduler,
+			_schedulerFactory,
 			_monitor,
 			NullLogger<JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions>>.Instance);
 	}
@@ -54,7 +57,7 @@ public sealed class JobOptionsHostedWatcherServiceShould : IDisposable
 		var config = new WatcherTestJobOptions { Disabled = true };
 		var monitor = new WatcherTestOptionsMonitor<WatcherTestJobOptions>(config);
 		var service = new JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions>(
-			_scheduler, monitor,
+			_schedulerFactory, monitor,
 			NullLogger<JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions>>.Instance);
 
 		// Act
@@ -71,14 +74,17 @@ public sealed class JobOptionsHostedWatcherServiceShould : IDisposable
 	[Fact]
 	public async Task StartAsync_HandlesNullScheduler()
 	{
-		// Arrange
+		// Arrange — factory resolves a null scheduler; StartAsync must tolerate it (no-op job state).
+		var nullSchedulerFactory = A.Fake<ISchedulerFactory>();
+		A.CallTo(() => nullSchedulerFactory.GetScheduler(A<CancellationToken>._)).Returns(Task.FromResult<IScheduler>(null!));
+
 		var config = new WatcherTestJobOptions();
 		var monitor = new WatcherTestOptionsMonitor<WatcherTestJobOptions>(config);
 		var service = new JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions>(
-			null, monitor,
+			nullSchedulerFactory, monitor,
 			NullLogger<JobOptionsHostedWatcherService<WatcherTestJob, WatcherTestJobOptions>>.Instance);
 
-		// Act — should not throw when scheduler is null
+		// Act — should not throw when the resolved scheduler is null
 		await service.StartAsync(CancellationToken.None);
 
 		service.Dispose();

@@ -85,7 +85,7 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 	private DateTimeOffset _lastCertificateCleanup = DateTimeOffset.MinValue;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="ErasureSchedulerBackgroundService"/> class.
+	/// Initializes a new instance of the <c>ErasureSchedulerBackgroundService</c> class.
 	/// </summary>
 	public ErasureSchedulerBackgroundService(
 		IServiceScopeFactory scopeFactory,

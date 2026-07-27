@@ -702,7 +702,7 @@ public sealed class AzureKeyVaultProviderShould
 			.Throws(new RequestFailedException(404, "missing"));
 
 		var deleted = await sut.DeleteKeyAsync("orders", 30, CancellationToken.None);
-		deleted.ShouldBeFalse();
+		deleted.State.ShouldBe(KeyDestructionState.NotFound);
 	}
 
 	[Fact]
@@ -754,7 +754,10 @@ public sealed class AzureKeyVaultProviderShould
 
 		var deleted = await sut.DeleteKeyAsync("orders", 30, CancellationToken.None);
 
-		deleted.ShouldBeTrue();
+		// Azure Key Vault soft-deletes (recoverable until the purge date), so a successful deletion is
+		// ScheduledIrreversible — NOT irrecoverable-now. This is the exact tri-state distinction nu7nrf adds.
+		deleted.State.ShouldBe(KeyDestructionState.ScheduledIrreversible);
+		deleted.IsIrreversibleNow.ShouldBeFalse();
 		A.CallTo(() => keyClient.StartDeleteKeyAsync("dispatch-orders", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => operation.WaitForCompletionAsync(A<CancellationToken>._))
@@ -823,7 +826,14 @@ public sealed class AzureKeyVaultProviderShould
 		var first = InvokeExtractVersionNumber(props);
 		var second = InvokeExtractVersionNumber(props);
 
+		// In-process determinism: two invocations in THIS process agree. This alone does NOT prove
+		// cross-process stability (a per-process-randomized String.GetHashCode would also be self-consistent
+		// within a single run).
 		first.ShouldBe(second);
+
+		// Cross-process anchor: the pinned FNV-1a value is what actually proves process-stability — a
+		// randomized-per-process hash (or any algorithm drift) would match this exact constant only by
+		// ~1-in-2^31 chance, so a revert to String.GetHashCode fails here.
 		first.ShouldBe(53534);
 	}
 

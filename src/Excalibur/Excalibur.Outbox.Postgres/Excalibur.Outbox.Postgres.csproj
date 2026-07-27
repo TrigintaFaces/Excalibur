@@ -34,6 +34,11 @@
   <!-- Enable testing of internal types -->
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+    <!-- PostgresOutboxStore's constructor is internal (consumers use AddPostgresOutboxStore()); these framework
+         test assemblies construct the store directly for unit + real-infra coverage. -->
+    <InternalsVisibleTo Include="Excalibur.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>

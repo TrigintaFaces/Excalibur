@@ -22,8 +22,15 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </remarks>
 internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 {
+	/// <summary>
+	/// The default maximum inbound-payload length (256 KiB), the Azure Service Bus standard-tier
+	/// message ceiling, applied when a consumer does not configure one.
+	/// </summary>
+	private const int DefaultMaxPayloadBytes = 256 * 1024;
+
 	private readonly IServiceBusReceiverSeam _receiver;
 	private readonly ILogger _logger;
+	private readonly int? _maxPayloadBytes;
 	private const int MaxCacheSize = 10_000;
 	private readonly ConcurrentDictionary<string, ServiceBusReceivedMessage> _messageCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
@@ -35,13 +42,18 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	/// <param name="receiver">The Azure Service Bus receiver.</param>
 	/// <param name="source">The source queue or subscription name.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length in bytes enforced before body materialization, or
+	/// <see langword="null"/> to opt out (unbounded). Defaults to 256 KiB.
+	/// </param>
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
 		Justification = "Adapter is stored in _receiver field and disposed via DisposeAsync.")]
 	public ServiceBusTransportReceiver(
 		ServiceBusReceiver receiver,
 		string source,
-		ILogger<ServiceBusTransportReceiver> logger)
-		: this(CreateAdapter(receiver), source, logger)
+		ILogger<ServiceBusTransportReceiver> logger,
+		int? maxPayloadBytes = DefaultMaxPayloadBytes)
+		: this(CreateAdapter(receiver), source, logger, maxPayloadBytes)
 	{
 	}
 
@@ -53,14 +65,20 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	/// <param name="receiver">The Service Bus receiver adapter.</param>
 	/// <param name="source">The source queue or subscription name.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="maxPayloadBytes">
+	/// The maximum inbound-payload length in bytes enforced before body materialization, or
+	/// <see langword="null"/> to opt out (unbounded). Defaults to 256 KiB.
+	/// </param>
 	internal ServiceBusTransportReceiver(
 		IServiceBusReceiverSeam receiver,
 		string source,
-		ILogger<ServiceBusTransportReceiver> logger)
+		ILogger<ServiceBusTransportReceiver> logger,
+		int? maxPayloadBytes = DefaultMaxPayloadBytes)
 	{
 		_receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = maxPayloadBytes;
 	}
 
 	/// <inheritdoc />
@@ -77,7 +95,28 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 			var result = new List<TransportReceivedMessage>(messages.Count);
 			foreach (var sbMessage in messages)
 			{
-				var received = ConvertToReceivedMessage(sbMessage);
+				TransportReceivedMessage received;
+				try
+				{
+					received = ConvertToReceivedMessage(sbMessage);
+				}
+				catch (PayloadTooLargeException ex)
+				{
+					// Poison-message guard: an oversized payload can never be processed and, left
+					// unsettled, would be redelivered until its max delivery count — a poison loop that
+					// stalls the entity. Dead-letter the single offending message (no requeue) before
+					// deserializing it, then continue the batch rather than aborting on the throw.
+					LogPayloadTooLargeRejected(Source, sbMessage.Body.ToMemory().Length, ex);
+					using var dlqCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+					await _receiver.DeadLetterMessageAsync(
+							sbMessage,
+							deadLetterReason: "PayloadTooLarge",
+							deadLetterErrorDescription: ex.Message,
+							dlqCts.Token)
+						.ConfigureAwait(false);
+					continue;
+				}
+
 				if (_messageCache.Count < MaxCacheSize)
 				{
 					_ = _messageCache.TryAdd(sbMessage.LockToken, sbMessage);
@@ -218,6 +257,11 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 
 	private TransportReceivedMessage ConvertToReceivedMessage(ServiceBusReceivedMessage sbMessage)
 	{
+		// Defense-in-depth DoS guard: reject an oversized payload BEFORE materializing the body
+		// (sbMessage.Body.ToMemory() below). Fail-closed — throws PayloadTooLargeException, which the
+		// receive loop catches to dead-letter the poison message (no requeue); never truncated/dropped.
+		PayloadSizeGuard.EnsureWithinLimit(sbMessage.Body.ToMemory().Length, _maxPayloadBytes);
+
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		foreach (var prop in sbMessage.ApplicationProperties)
 		{
@@ -296,4 +340,8 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 		"Messages received beyond this limit cannot be acknowledged/rejected. " +
 		"This indicates messages are not being settled.")]
 	private partial void LogCacheFull(string source, int maxSize);
+
+	[LoggerMessage(AzureServiceBusEventId.TransportReceiverPayloadTooLarge, LogLevel.Warning,
+		"Service Bus transport receiver: rejected oversized payload ({PayloadBytes} bytes) from {Source}, dead-lettered before materialization.")]
+	private partial void LogPayloadTooLargeRejected(string source, int payloadBytes, Exception exception);
 }

@@ -6,7 +6,9 @@ using Excalibur.A3.Audit.Internal;
 using Excalibur.Application;
 using Excalibur.Dispatch;
 using Excalibur.Domain;
+using Excalibur.Domain.Concurrency;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -20,8 +22,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <see cref="AuditMiddleware"/> builds an <c>ActivityAudit</c> for every
 /// <c>IAmAuditable</c> command that flows through the dispatch pipeline. The
 /// middleware depends on <see cref="IActivityContext"/>, which in turn
-/// requires <see cref="ITenantId"/>, <see cref="ICorrelationId"/>,
-/// <see cref="IETag"/>, and <see cref="IClientAddress"/>. Consumers who opted
+/// requires the ambient <see cref="ITenantContext"/>, <see cref="ICorrelationId"/>,
+/// <c>IETag</c>, and <see cref="IClientAddress"/>. Consumers who opted
 /// in to audit through <c>CommandBase&lt;T&gt; + IAmAuditable</c> previously
 /// had to register every sibling by hand — a classic DX failure (see
 /// <c>management/specs/conformance-minimal-wiring-spec.md</c>,).
@@ -30,8 +32,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <see cref="AddExcaliburAudit"/> bundles the full set. It is idempotent and
 /// every dependency uses <c>TryAdd</c> semantics, so single-tenant hosts work
 /// against an otherwise-empty <see cref="IServiceCollection"/> and
-/// multi-tenant hosts override <see cref="ITenantId"/> with their own
-/// resolver before calling this extension.
+/// multi-tenant hosts establish the ambient tenant per operation
+/// (TenantContextHolder.BeginScope / tenant middleware) read via
+/// <see cref="ITenantContext"/>.
 /// </para>
 /// <para>
 /// The consumer still registers an <see cref="IAuditMessagePublisher"/>
@@ -43,9 +46,9 @@ internal static class AuditServiceCollectionExtensions
 {
 	/// <summary>
 	/// Registers <see cref="AuditMiddleware"/> and every context service it
-	/// needs (<see cref="IActivityContext"/>, <see cref="ITenantId"/>,
-	/// <see cref="ICorrelationId"/>, <see cref="IETag"/>,
-	/// <see cref="IClientAddress"/>) with safe <c>TryAdd</c> defaults.
+	/// needs (<see cref="IActivityContext"/>, <see cref="ICorrelationId"/>,
+	/// <c>IETag</c>, <see cref="IClientAddress"/>) with safe <c>TryAdd</c>
+	/// defaults. The tenant is read from the ambient <see cref="ITenantContext"/>.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for fluent chaining.</returns>
@@ -60,15 +63,22 @@ internal static class AuditServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Context sibling services — TryAdd so multi-tenant hosts can override
-		// the ITenantId resolver to read a header / claim before calling this.
-		_ = services.TryAddTenantId();
+		// Context sibling services. The ambient tenant is established at the boundary
+		// (TenantContextHolder.BeginScope / tenant middleware) and read via ITenantContext;
+		// the default tenant falls out of TenantContextOptions.DefaultTenantId.
 		_ = services.TryAddCorrelationId();
 		_ = services.TryAddETag();
 		_ = services.TryAddClientAddress();
 
-		// ActivityContext aggregates the sibling context services.
-		services.TryAddScoped<IActivityContext, ActivityContext>();
+		// ActivityContext aggregates the sibling context services. The tenant value is
+		// snapshotted from the ambient ITenantContext (falling back to the default tenant).
+		services.TryAddScoped<IActivityContext>(static sp => new ActivityContext(
+			sp.GetService<ITenantContext>()?.TenantId ?? TenantDefaults.DefaultTenantId,
+			sp.GetRequiredService<ICorrelationId>(),
+			sp.GetRequiredService<IETag>(),
+			sp.GetRequiredService<IConfiguration>(),
+			sp.GetRequiredService<IClientAddress>(),
+			sp));
 
 		// Framework-internal IOutboxDispatcher sibling — Shape 1 Bucket-A TryAdd
 		// default so the Audit composition is wireable without an explicit Outbox

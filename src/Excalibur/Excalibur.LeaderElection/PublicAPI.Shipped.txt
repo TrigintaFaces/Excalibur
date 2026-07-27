@@ -17,9 +17,11 @@ Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection (forwarded, contain
 Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection.UpdateHealthAsync(bool isHealthy, System.Collections.Generic.IDictionary<string!, string!>? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.ILeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection.CandidateId.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection.CurrentLeaderId.get -> string? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.ILeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection.IsLeader.get -> bool (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
@@ -29,11 +31,19 @@ Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory (forwarded, contained i
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
-Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName) -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.FencingToken.get -> long? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(string? previousLeaderId, string? newLeaderId, string! resourceName, long? fencingToken = null) -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.NewLeaderId.get -> string? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.PreviousLeaderId.get -> string? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.ResourceName.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.Timestamp.get -> System.DateTimeOffset (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.CandidateId.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Exception.get -> System.Exception? (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.LeaderElectionAcquisitionFailedEventArgs(string! candidateId, string! resourceName, string! reason, System.DateTimeOffset timestamp, System.Exception? exception = null) -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Reason.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.ResourceName.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs.Timestamp.get -> System.DateTimeOffset (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.CandidateId.get -> string! (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.LeaderElectionEventArgs(string! candidateId, string! resourceName) -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
@@ -58,11 +68,14 @@ Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RetryInterval.get -> Sys
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RetryInterval.set -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.get -> bool (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
 Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.set -> void (forwarded, contained in Excalibur.Dispatch.LeaderElection.Abstractions)
+Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions
 Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.AcquisitionFailed -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionAcquisitionFailedEventArgs!>?
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.CandidateId.get -> string!
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.CurrentLeadership.get -> Excalibur.Dispatch.LeaderElection.Leadership?
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.IsLeader.get -> bool
 Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
@@ -105,6 +118,7 @@ Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionExcaliburBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilderExtensions
 Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.OutboxBuilderLeaderElectionExtensions
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAcquiredLeadership = 181014 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAlreadyRunning = 181001 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCannotAcquireWithoutSession = 181013 -> int
@@ -121,6 +135,8 @@ const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToC
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDeserializeHealth = 181007 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDestroySession = 181012 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToUpdateHealth = 181005 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFencingTokenExhausted = 181024 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFencingTokenIssued = 181023 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulReleasedLeadership = 181017 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRenewedSession = 181020 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRetryAttempt = 181000 -> int
@@ -140,6 +156,7 @@ const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAlrea
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAttemptingAcquire = 182013 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesCreatingLease = 182011 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesElectionLoopError = 182012 -> int
+const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesFencingTokenExhausted = 182105 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesGetHealthFailed = 182008 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesHealthAnnotationParseFailed = 182007 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesInitialized = 182001 -> int
@@ -188,6 +205,9 @@ const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLostLe
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerRenewalError = 184006 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStarting = 184000 -> int
 const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStopping = 184001 -> int
+static Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions.CreateTenantScopedElection(this Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory! factory, Excalibur.Dispatch.ITenantContext! tenantContext, string! resourceName, string? candidateId = null) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
+static Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions.CreateTenantScopedHealthBasedElection(this Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory! factory, Excalibur.Dispatch.ITenantContext! tenantContext, string! resourceName, string? candidateId = null) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
+static Excalibur.Dispatch.LeaderElection.TenantLeaderElectionFactoryExtensions.TenantScopedResourceName(this Excalibur.Dispatch.ITenantContext! tenantContext, string! resourceName) -> string!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithFencingTokens(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithHealthChecks(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionBuilderExtensions.WithOptions(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
@@ -196,3 +216,4 @@ static Microsoft.Extensions.DependencyInjection.LeaderElectionHealthChecksBuilde
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Watch.LeaderWatchOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderLeaderElectionExtensions.WithLeaderElection(this Excalibur.Outbox.IOutboxBuilder! builder) -> Excalibur.Outbox.IOutboxBuilder!

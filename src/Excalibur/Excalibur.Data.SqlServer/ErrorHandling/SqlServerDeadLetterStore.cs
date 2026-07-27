@@ -11,6 +11,7 @@ using Dapper;
 
 using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Data.Validation;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.ErrorHandling;
 
 using Microsoft.Data.SqlClient;
@@ -29,14 +30,17 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	private readonly ILogger<SqlServerDeadLetterStore> _logger;
 	private readonly string _schema;
 	private readonly string _tableName;
+	private readonly ITenantContext? _tenantContext;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerDeadLetterStore" /> class.
 	/// </summary>
 	/// <param name="options"> The SQL Server dead letter options. </param>
+	/// <param name="tenantContext"> The ambient tenant, or <see langword="null" /> in a single-tenant host. </param>
 	/// <param name="logger"> The logger for diagnostic output. </param>
 	public SqlServerDeadLetterStore(
 		IOptions<SqlServerDeadLetterOptions> options,
+		ITenantContext? tenantContext,
 		ILogger<SqlServerDeadLetterStore> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
@@ -48,11 +52,28 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 		_connectionString = opts.ConnectionString;
 		_schema = opts.SchemaName;
 		_tableName = opts.TableName;
+
+		// Optional by construction: a single-tenant host registers no ITenantContext, which resolves to the
+		// untenanted partition. That partition still binds a concrete term, so no statement is ever emitted
+		// without a tenant predicate.
+		_tenantContext = tenantContext;
 		_logger = logger;
 
 		SqlIdentifierValidator.ThrowIfInvalid(_schema, nameof(opts.SchemaName));
 		SqlIdentifierValidator.ThrowIfInvalid(_tableName, nameof(opts.TableName));
 	}
+
+	/// <summary>
+	/// Gets the tenant term bound by every statement this store emits: the ambient tenant, or the reserved
+	/// untenanted sentinel when no tenant is resolved.
+	/// </summary>
+	/// <remarks>
+	/// A dead-letter row holds the failed message body, so an unscoped read discloses one tenant's message
+	/// content to another. Routed through <see cref="KeyedTenantPartition" />, which has no empty
+	/// inhabitant, so the term is always concrete and a tenant-blind statement cannot arise by omission.
+	/// </remarks>
+	private string CurrentTenantTerm =>
+		KeyedTenantPartition.FromScope(TenantScope.FromContext(_tenantContext)).TenantId;
 
 	/// <inheritdoc />
 	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
@@ -63,14 +84,17 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
+		// The tenant is stamped from AMBIENT CONTEXT and is deliberately not a property of
+		// DeadLetterMessage: a caller-supplied tenant could name someone else's, so the value that scopes
+		// the row is never under the caller's control.
 		const string sql = """
 		                    INSERT INTO [{0}].[{1}] (
-		                    Id, MessageId, MessageType, MessageBody, MessageMetadata,
+		                    Id, TenantId, MessageId, MessageType, MessageBody, MessageMetadata,
 		                    Reason, ExceptionDetails, ProcessingAttempts, MovedToDeadLetterAt,
 		                    FirstAttemptAt, LastAttemptAt, IsReplayed, ReplayedAt,
 		                    SourceSystem, CorrelationId, Properties
 		                    ) VALUES (
-		                    @Id, @MessageId, @MessageType, @MessageBody, @MessageMetadata,
+		                    @Id, @TenantId, @MessageId, @MessageType, @MessageBody, @MessageMetadata,
 		                    @Reason, @ExceptionDetails, @ProcessingAttempts, @MovedToDeadLetterAt,
 		                    @FirstAttemptAt, @LastAttemptAt, @IsReplayed, @ReplayedAt,
 		                    @SourceSystem, @CorrelationId, @Properties
@@ -82,6 +106,7 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName),
 			new
 			{
+				TenantId = CurrentTenantTerm,
 				message.Id,
 				message.MessageId,
 				message.MessageType,
@@ -114,13 +139,13 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 
 		const string sql = """
 		                    SELECT TOP 1 * FROM [{0}].[{1}]
-		                    WHERE MessageId = @MessageId
+		                    WHERE MessageId = @MessageId AND TenantId = @TenantId
 		""";
 
 		using var connection = CreateConnection();
 		var result = await connection.QueryFirstOrDefaultAsync<DeadLetterMessageDto>(
 			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName),
-			new { MessageId = messageId }).ConfigureAwait(false);
+			new { MessageId = messageId, TenantId = CurrentTenantTerm }).ConfigureAwait(false);
 
 		return result?.ToDeadLetterMessage();
 	}
@@ -132,12 +157,15 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	{
 		ArgumentNullException.ThrowIfNull(filter);
 
+		// The tenant term is seeded as a MANDATORY clause rather than appended per-filter, so a filter that
+		// specifies nothing still returns only the caller's own rows instead of the whole estate.
 		var sql = $"""
 		SELECT * FROM [{_schema}].[{_tableName}]
-		            WHERE 1=1
+		            WHERE TenantId = @TenantId
 		""";
 
 		var parameters = new DynamicParameters();
+		parameters.Add("TenantId", CurrentTenantTerm);
 
 		if (!string.IsNullOrWhiteSpace(filter.MessageType))
 		{
@@ -204,13 +232,14 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 		const string sql = """
 		                    UPDATE [{0}].[{1}]
 		                    SET IsReplayed = 1, ReplayedAt = @ReplayedAt
-		                    WHERE MessageId = @MessageId
+		                    WHERE MessageId = @MessageId AND TenantId = @TenantId
 		""";
 
 		using var connection = CreateConnection();
 		var rowsAffected = await connection.ExecuteAsync(
 			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName),
-			new { MessageId = messageId, ReplayedAt = DateTimeOffset.UtcNow }).ConfigureAwait(false);
+			new { MessageId = messageId, ReplayedAt = DateTimeOffset.UtcNow, TenantId = CurrentTenantTerm })
+			.ConfigureAwait(false);
 
 		if (rowsAffected > 0)
 		{
@@ -225,13 +254,13 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 
 		const string sql = """
 		                    DELETE FROM [{0}].[{1}]
-		                    WHERE MessageId = @MessageId
+		                    WHERE MessageId = @MessageId AND TenantId = @TenantId
 		""";
 
 		using var connection = CreateConnection();
 		var rowsAffected = await connection.ExecuteAsync(
 			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName),
-			new { MessageId = messageId }).ConfigureAwait(false);
+			new { MessageId = messageId, TenantId = CurrentTenantTerm }).ConfigureAwait(false);
 
 		if (rowsAffected > 0)
 		{
@@ -244,11 +273,14 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	/// <inheritdoc />
 	public async Task<long> GetCountAsync(CancellationToken cancellationToken)
 	{
-		const string sql = "SELECT COUNT(*) FROM [{0}].[{1}]";
+		// An admin count is still tenant-scoped: an estate-wide total tells one tenant how many failures
+		// every other tenant has, which is an inference channel even though no message body is returned.
+		const string sql = "SELECT COUNT(*) FROM [{0}].[{1}] WHERE TenantId = @TenantId";
 
 		using var connection = CreateConnection();
 		return await connection.ExecuteScalarAsync<long>(
-			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName)).ConfigureAwait(false);
+			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName),
+			new { TenantId = CurrentTenantTerm }).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -256,13 +288,14 @@ public sealed partial class SqlServerDeadLetterStore : IDeadLetterStore, IDeadLe
 	{
 		const string sql = """
 		                    DELETE FROM [{0}].[{1}]
-		                    WHERE MovedToDeadLetterAt < @CutoffDate
+		                    WHERE MovedToDeadLetterAt < @CutoffDate AND TenantId = @TenantId
 		""";
 
 		using var connection = CreateConnection();
 		var rowsAffected = await connection.ExecuteAsync(
 			string.Format(CultureInfo.InvariantCulture, sql, _schema, _tableName),
-			new { CutoffDate = DateTimeOffset.UtcNow.AddDays(-retentionDays) }).ConfigureAwait(false);
+			new { CutoffDate = DateTimeOffset.UtcNow.AddDays(-retentionDays), TenantId = CurrentTenantTerm })
+			.ConfigureAwait(false);
 
 		if (rowsAffected > 0)
 		{

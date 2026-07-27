@@ -10,17 +10,21 @@ namespace Excalibur.A3.Authorization;
 public enum AuthorizationEffect
 {
 	/// <summary>
-	/// Access is permitted.
-	/// </summary>
-	Permit = 0,
-
-	/// <summary>
 	/// Access is denied.
 	/// </summary>
-	Deny = 1,
+	/// <remarks>
+	/// This is the zero value, so a default-initialized <see cref="AuthorizationEffect" /> fails
+	/// closed (deny) rather than accidentally permitting access.
+	/// </remarks>
+	Deny = 0,
 
 	/// <summary>
-	/// Insufficient information to decide.
+	/// Access is permitted.
+	/// </summary>
+	Permit = 1,
+
+	/// <summary>
+	/// Insufficient information to decide. Callers MUST treat this as a denial (fail closed).
 	/// </summary>
 	Indeterminate = 2,
 }

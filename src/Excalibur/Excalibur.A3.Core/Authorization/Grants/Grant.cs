@@ -194,7 +194,7 @@ public sealed class Grant : AggregateRoot, IAggregateRoot<Grant, string>
 	/// <param name="id">The composite key in format "{UserId}:{Scope}".</param>
 	/// <param name="events">The stream of events to apply.</param>
 	/// <returns>The Grant rebuilt from the events.</returns>
-	public static Grant FromEvents(string id, IEnumerable<IDomainEvent> events)
+	public static Grant FromEvents(string id, IEnumerable<HistoricEvent> events)
 	{
 		var grant = new Grant { Id = id };
 		grant.LoadFromHistory(events);
@@ -238,16 +238,18 @@ public sealed class Grant : AggregateRoot, IAggregateRoot<Grant, string>
 		});
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case IGrantAdded e:
 				Apply(e);
-				break;
+				return true;
 			case IGrantRevoked e:
 				Apply(e);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 

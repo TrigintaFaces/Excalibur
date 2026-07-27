@@ -11,6 +11,7 @@ using Excalibur.Compliance.Encryption;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -48,6 +49,12 @@ public static class EncryptionServiceCollectionExtensions
 
 		// Validate that at least one provider was registered.
 		builder.Validate();
+
+		// Encryption is a durability-requiring composition: keys that vanish on restart make every value
+		// encrypted under them permanently unrecoverable. Install the startup gate so a volatile key
+		// provider FAILS CLOSED unless the host opted in explicitly (UseInMemoryKeyManagement sets
+		// AllowVolatileKeyProvider = true). The gate resolves the provider that actually won registration.
+		services.AddKeyDurabilityGate();
 
 		return services;
 	}
@@ -94,7 +101,10 @@ public static class EncryptionServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		var optionsBuilder = services.AddOptions<HkdfKeyDerivationOptions>();
+		var optionsBuilder = services.AddOptions<HkdfKeyDerivationOptions>()
+			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<HkdfKeyDerivationOptions>, HkdfKeyDerivationOptionsValidator>());
 		if (configure is not null)
 		{
 			_ = optionsBuilder.Configure(configure);
@@ -122,7 +132,9 @@ public static class EncryptionServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<HkdfKeyDerivationOptions>().Bind(configuration);
+		_ = services.AddOptions<HkdfKeyDerivationOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<HkdfKeyDerivationOptions>, HkdfKeyDerivationOptionsValidator>());
 
 		services.TryAddSingleton<HkdfKeyDeriver>();
 

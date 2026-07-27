@@ -195,8 +195,13 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 
 			if (changeEvent is not null)
 			{
-				await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
-				count++;
+				// Apply the table filter symmetrically with ProcessChangesAsync — a change on a
+				// non-matching table must not be handed to the handler here either.
+				if (ShouldProcessTable(changeEvent.FullTableName))
+				{
+					await eventHandler(changeEvent, cancellationToken).ConfigureAwait(false);
+					count++;
+				}
 			}
 
 			// Observed position advances as messages are read; it is NOT durably acknowledged here.
@@ -209,11 +214,16 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 			if (message is CommitMessage commitMessage)
 			{
 				await ConfirmCommitAsync(commitMessage, cancellationToken).ConfigureAwait(false);
-			}
 
-			if (count >= _options.BatchSize)
-			{
-				break;
+				// Enforce the batch-size limit ONLY at a committed transaction boundary. Breaking
+				// mid-transaction (the previous behavior) left the transaction's handled-but-uncommitted
+				// prefix un-confirmed, so it re-delivered on the next call — and if BatchSize is smaller
+				// than the transaction's change count the prefix would re-deliver forever without
+				// progressing. A large transaction is now fully processed then committed before the break.
+				if (count >= _options.BatchSize)
+				{
+					break;
+				}
 			}
 		}
 

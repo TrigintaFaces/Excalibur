@@ -18,6 +18,7 @@ using Excalibur.Compliance.SubjectAccess;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -56,6 +57,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<DataPortabilityOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DataPortabilityOptions>, DataPortabilityOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -85,6 +88,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<DataPortabilityOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<DataPortabilityOptions>, DataPortabilityOptionsValidator>());
 
 		services.TryAddScoped<IDataPortabilityService, DataPortabilityService>();
 		return services;
@@ -104,6 +109,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<SubjectAccessOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SubjectAccessOptions>, SubjectAccessOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -133,6 +140,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<SubjectAccessOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SubjectAccessOptions>, SubjectAccessOptionsValidator>());
 
 		services.TryAddScoped<ISubjectAccessService, SubjectAccessService>();
 		return services;
@@ -156,6 +165,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<AuditLogEncryptionOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditLogEncryptionOptions>, AuditLogEncryptionOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -185,6 +196,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<AuditLogEncryptionOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AuditLogEncryptionOptions>, AuditLogEncryptionOptionsValidator>());
 
 		services.TryAddScoped<IAuditLogEncryptor, AuditLogEncryptionService>();
 		return services;
@@ -208,6 +221,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<KeyEscrowBackupOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KeyEscrowBackupOptions>, KeyEscrowBackupOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -237,6 +252,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<KeyEscrowBackupOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<KeyEscrowBackupOptions>, KeyEscrowBackupOptionsValidator>());
 
 		services.TryAddSingleton<IKeyEscrowService, KeyEscrowBackupService>();
 		return services;
@@ -256,6 +273,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<BreachNotificationOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BreachNotificationOptions>, BreachNotificationOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -285,6 +304,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<BreachNotificationOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<BreachNotificationOptions>, BreachNotificationOptionsValidator>());
 
 		services.TryAddSingleton<IBreachNotificationService, BreachNotificationService>();
 		return services;
@@ -304,6 +325,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<RetentionEnforcementOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RetentionEnforcementOptions>, RetentionEnforcementOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -339,6 +362,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<RetentionEnforcementOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<RetentionEnforcementOptions>, RetentionEnforcementOptionsValidator>());
 
 		services.TryAddScoped<IRetentionEnforcementService, RetentionEnforcementService>();
 		if (!services.Any(sd => sd.ServiceType == typeof(RetentionEnforcementBackgroundService)))
@@ -364,6 +389,8 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<ConsentOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ConsentOptions>, ConsentOptionsValidator>());
 		if (configureOptions is not null)
 		{
 			_ = optionsBuilder.Configure(configureOptions);
@@ -393,6 +420,8 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<ConsentOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ConsentOptions>, ConsentOptionsValidator>());
 
 		services.TryAddSingleton<IConsentService, ConsentService>();
 		return services;
@@ -413,9 +442,26 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<PostgresComplianceOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresComplianceOptions>, PostgresComplianceOptionsValidator>());
 		_ = optionsBuilder.Configure(configureOptions);
 
-		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
+		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves for a
+		// consumer who never opted into multi-tenancy; TryAdd means the multi-tenancy composition's ambient
+		// context wins when it is present.
+		_ = services.AddDefaultTenantContext();
+
+		// Dep-gated registration: the ambient ITenantContext is resolved by the seam (fail-closed) and threaded
+		// into construction, so a compliance store built without it is inexpressible here — and the
+		// ITenantScopingCapability<IComplianceStore> marker is emitted inseparably from that wiring, so an
+		// unwired store cannot carry a truthful-looking capability marker.
+		services.AddTenantScopedStore<IComplianceStore, PostgresComplianceStore>(
+			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<PostgresComplianceStore>(sp, tenantContext));
+
+		// The seam registers the CONCRETE store (so the capability marker is bound to a real instance); the
+		// contract itself is mapped here, forwarding to that same singleton rather than constructing a second,
+		// unwired instance.
+		services.TryAddSingleton<IComplianceStore>(static sp => sp.GetRequiredService<PostgresComplianceStore>());
 		return services;
 	}
 
@@ -439,8 +485,25 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<PostgresComplianceOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<PostgresComplianceOptions>, PostgresComplianceOptionsValidator>());
 
-		services.TryAddSingleton<IComplianceStore, PostgresComplianceStore>();
+		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves for a
+		// consumer who never opted into multi-tenancy; TryAdd means the multi-tenancy composition's ambient
+		// context wins when it is present.
+		_ = services.AddDefaultTenantContext();
+
+		// Dep-gated registration: the ambient ITenantContext is resolved by the seam (fail-closed) and threaded
+		// into construction, so a compliance store built without it is inexpressible here — and the
+		// ITenantScopingCapability<IComplianceStore> marker is emitted inseparably from that wiring, so an
+		// unwired store cannot carry a truthful-looking capability marker.
+		services.AddTenantScopedStore<IComplianceStore, PostgresComplianceStore>(
+			static (sp, tenantContext) => ActivatorUtilities.CreateInstance<PostgresComplianceStore>(sp, tenantContext));
+
+		// The seam registers the CONCRETE store (so the capability marker is bound to a real instance); the
+		// contract itself is mapped here, forwarding to that same singleton rather than constructing a second,
+		// unwired instance.
+		services.TryAddSingleton<IComplianceStore>(static sp => sp.GetRequiredService<PostgresComplianceStore>());
 		return services;
 	}
 
@@ -459,7 +522,14 @@ public static class GdprServiceCollectionExtensions
 
 		var optionsBuilder = services.AddOptions<MongoDbComplianceOptions>()
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbComplianceOptions>, MongoDbComplianceOptionsValidator>());
 		_ = optionsBuilder.Configure(configureOptions);
+
+		// Idempotent single-tenant default: MongoDbComplianceStore takes ITenantContext positionally, so without
+		// this registration the container cannot construct it at all and IComplianceStore throws on resolve.
+		// TryAdd means the multi-tenancy composition's ambient context still wins when it is present.
+		_ = services.AddDefaultTenantContext();
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
 		return services;
@@ -485,6 +555,13 @@ public static class GdprServiceCollectionExtensions
 		_ = services.AddOptions<MongoDbComplianceOptions>()
 			.Bind(configuration)
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MongoDbComplianceOptions>, MongoDbComplianceOptionsValidator>());
+
+		// Idempotent single-tenant default: MongoDbComplianceStore takes ITenantContext positionally, so without
+		// this registration the container cannot construct it at all and IComplianceStore throws on resolve.
+		// TryAdd means the multi-tenancy composition's ambient context still wins when it is present.
+		_ = services.AddDefaultTenantContext();
 
 		services.TryAddSingleton<IComplianceStore, MongoDbComplianceStore>();
 		return services;

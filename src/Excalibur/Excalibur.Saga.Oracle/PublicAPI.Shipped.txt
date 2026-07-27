@@ -1,0 +1,69 @@
+#nullable enable
+Excalibur.Saga.Oracle.DependencyInjection.SagaBuilderOracleExtensions
+Excalibur.Saga.Oracle.IOracleSagaBuilder
+Excalibur.Saga.Oracle.IOracleSagaBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Saga.Oracle.IOracleSagaBuilder!
+Excalibur.Saga.Oracle.IOracleSagaBuilder.ConnectionFactory(System.Func<System.IServiceProvider!, System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>!>! connectionFactory) -> Excalibur.Saga.Oracle.IOracleSagaBuilder!
+Excalibur.Saga.Oracle.IOracleSagaBuilder.ConnectionString(string! connectionString) -> Excalibur.Saga.Oracle.IOracleSagaBuilder!
+Excalibur.Saga.Oracle.IOracleSagaBuilder.ConnectionStringName(string! name) -> Excalibur.Saga.Oracle.IOracleSagaBuilder!
+Excalibur.Saga.Oracle.IOracleSagaBuilder.SchemaName(string! schema) -> Excalibur.Saga.Oracle.IOracleSagaBuilder!
+Excalibur.Saga.Oracle.IOracleSagaBuilder.TableName(string! tableName) -> Excalibur.Saga.Oracle.IOracleSagaBuilder!
+Excalibur.Saga.Oracle.OracleSagaStore
+Excalibur.Saga.Oracle.OracleSagaStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Messaging.SagaStoreStatistics!>
+Excalibur.Saga.Oracle.OracleSagaStore.GetSummaryAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Messaging.SagaInstanceSummary?>
+Excalibur.Saga.Oracle.OracleSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
+Excalibur.Saga.Oracle.OracleSagaStore.OracleSagaStore(System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Saga.Oracle.OracleSagaStore.OracleSagaStore(System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>! connectionFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Oracle.OracleSagaStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Saga.Oracle.OracleSagaStore.OracleSagaStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Saga.Oracle.OracleSagaStore.OracleSagaStore(string! connectionString, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Oracle.OracleSagaStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.ITenantContext? tenantContext = null) -> void
+Excalibur.Saga.Oracle.OracleSagaStore.PurgeAllTenantsCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Oracle.OracleSagaStore.PurgeCompletedBeforeAsync(System.DateTimeOffset threshold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Oracle.OracleSagaStore.QuerySagasAsync(Excalibur.Dispatch.Messaging.SagaQueryFilter! filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Messaging.SagaInstanceSummary!>!>
+Excalibur.Saga.Oracle.OracleSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Oracle.OracleSagaStoreOptions
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.ConnectionString.get -> string?
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.ConnectionString.set -> void
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.OracleSagaStoreOptions() -> void
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.QualifiedTableName.get -> string!
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.SchemaName.get -> string!
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.SchemaName.set -> void
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.TableName.get -> string!
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.TableName.set -> void
+Excalibur.Saga.Oracle.OracleSagaStoreOptions.Validate() -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.CancelAllTimeoutsAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.CancelTimeoutAsync(string! sagaId, string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.ClaimDueTimeoutsAsync(System.DateTimeOffset asOf, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.GetDueTimeoutsAsync(System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.MarkDeliveredAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.OracleSagaTimeoutStore(System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaTimeoutStore!>! logger) -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.OracleSagaTimeoutStore(System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>! connectionFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaTimeoutStore!>! logger) -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.OracleSagaTimeoutStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaTimeoutStore!>! logger) -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.OracleSagaTimeoutStore(string! connectionString, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Oracle.OracleSagaTimeoutStore!>! logger) -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStore.ScheduleTimeoutAsync(Excalibur.Saga.Abstractions.SagaTimeout! timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.ConnectionString.get -> string?
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.ConnectionString.set -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.LeaseTimeoutSeconds.get -> int
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.LeaseTimeoutSeconds.set -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.OracleSagaTimeoutStoreOptions() -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.ProcessorId.get -> string!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.ProcessorId.set -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.QualifiedTableName.get -> string!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.SchemaName.get -> string!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.SchemaName.set -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.TableName.get -> string!
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.TableName.set -> void
+Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions.Validate() -> void
+Excalibur.Saga.Oracle.Requests.LoadSagaRequest<TSagaState>
+Excalibur.Saga.Oracle.Requests.LoadSagaRequest<TSagaState>.LoadSagaRequest(System.Guid sagaId, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, string! qualifiedTableName, Excalibur.Dispatch.TenantScope scope, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Saga.Oracle.Requests.SaveSagaRequest<TSagaState>
+Excalibur.Saga.Oracle.Requests.SaveSagaRequest<TSagaState>.SaveSagaRequest(TSagaState! sagaState, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, string! qualifiedTableName, Excalibur.Dispatch.TenantScope scope, System.Threading.CancellationToken cancellationToken) -> void
+Microsoft.Extensions.DependencyInjection.OracleSagaExtensions
+static Excalibur.Saga.Oracle.DependencyInjection.SagaBuilderOracleExtensions.UseOracle(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Oracle.IOracleSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.AddOracleSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Oracle.OracleSagaStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.AddOracleSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Saga.Oracle.OracleSagaStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.AddOracleSagaStore<TDb>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Oracle.OracleSagaStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.AddOracleSagaTimeoutStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.AddOracleSagaTimeoutStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Func<Oracle.ManagedDataAccess.Client.OracleConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.UseOracleSagaStore(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Saga.Oracle.OracleSagaStoreOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.OracleSagaExtensions.UseOracleSagaTimeoutStore(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Saga.Oracle.OracleSagaTimeoutStoreOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!

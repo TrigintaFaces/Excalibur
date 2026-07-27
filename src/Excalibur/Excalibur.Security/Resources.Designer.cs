@@ -376,50 +376,6 @@ namespace Excalibur.Security {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Failed to query security events.
-        /// </summary>
-        internal static string SqlSecurityEventStore_FailedToQueryEvents {
-            get {
-                return ResourceManager.GetString("SqlSecurityEventStore_FailedToQueryEvents", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Failed to store security events.
-        /// </summary>
-        internal static string SqlSecurityEventStore_FailedToStoreEvents {
-            get {
-                return ResourceManager.GetString("SqlSecurityEventStore_FailedToStoreEvents", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Invalid events detected: {0} out of {1}.
-        /// </summary>
-        internal static string SqlSecurityEventStore_InvalidEventsDetectedFormat {
-            get {
-                return ResourceManager.GetString("SqlSecurityEventStore_InvalidEventsDetectedFormat", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to MaxResults must be greater than zero.
-        /// </summary>
-        internal static string SqlSecurityEventStore_MaxResultsMustBeGreaterThanZero {
-            get {
-                return ResourceManager.GetString("SqlSecurityEventStore_MaxResultsMustBeGreaterThanZero", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to StartTime cannot be greater than EndTime.
-        /// </summary>
-        internal static string SqlSecurityEventStore_StartTimeAfterEndTime {
-            get {
-                return ResourceManager.GetString("SqlSecurityEventStore_StartTimeAfterEndTime", resourceCulture);
-            }
-        }
-        /// <summary>
         ///   Looks up a localized string similar to HashLength must be at least 16 bytes..
         /// </summary>
         internal static string Argon2HashLengthMinimum {

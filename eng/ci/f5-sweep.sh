@@ -2,12 +2,12 @@
 # f5-sweep — F-5 cross-project sibling-sweep mechanical pre-REVIEW gate.
 #
 # Implements the mechanical gate mandated by
-#   .claude/rules/process/f5-cross-project-test-sweep.md  (S854 RETRO rec #1, bd-0i2jsu)
+#   .claude/rules/process/f5-cross-project-test-sweep.md
 #
 # On a type-contract change (a method/property/enum/sentinel/DTO-shape/schema-column
 # change in src/**), tests that assert the OLD contract MUST be swept across the
 # ENTIRE test tree — across ALL tests/** projects + consumer mocks — and triaged
-# BEFORE REVIEW. The recurring footgun (S840->S854, 7+ sprints) is grepping only the
+# BEFORE REVIEW. The recurring footgun (seen across many sprints) is grepping only the
 # obvious sibling test (or only the expected project) and letting the full-CI shard
 # run find the rest, late.
 #
@@ -60,7 +60,7 @@ F5_STOPLIST='^(Task|ValueTask|Async|CancellationToken|String|Boolean|Int32|Int64
 #   1. double-quoted string literals that are SENTINEL-SHAPED — contain '_' / '$' / a
 #      digit, or are SCREAMING_CASE — e.g. "$erased", "ALREADY_EXISTS", "wal_level".
 #      Plain English words ("window", "source") are NOT contract tokens and are dropped
-#      (bd-tak38o precision fix: they matched ~every test → 66k false positives).
+#      (precision fix: they matched ~every test → 66k false positives).
 #   2. declared type names                      (class|interface|enum|record|struct Name)
 #   3. member NAMES in declaration context:
 #        a. a method/property/field name on a line carrying a visibility/modifier
@@ -195,17 +195,19 @@ f5_changed_src_files() {
 }
 
 f5_changed_test_files() {
-    # Test files already touched in this change set — triaged by construction.
+    # Test/benchmark files already touched in this change set — triaged by construction.
+    # yww81x (F-5 clause 5): benchmarks/** are consumers of the same src contract as tests/** — a
+    # benchmark that already flipped to the new contract is triaged too, so include it here.
     local mode="$1" base="$2"
     {
         case "$mode" in
-            committed) git diff "$base...HEAD" --name-only --diff-filter=d -- 'tests/**/*.cs' ;;
-            staged)    git diff --cached        --name-only --diff-filter=d -- 'tests/**/*.cs' ;;
-            working)   git diff                 --name-only --diff-filter=d -- 'tests/**/*.cs' ;;
+            committed) git diff "$base...HEAD" --name-only --diff-filter=d -- 'tests/**/*.cs' 'benchmarks/**/*.cs' ;;
+            staged)    git diff --cached        --name-only --diff-filter=d -- 'tests/**/*.cs' 'benchmarks/**/*.cs' ;;
+            working)   git diff                 --name-only --diff-filter=d -- 'tests/**/*.cs' 'benchmarks/**/*.cs' ;;
             all)
-                git diff "$base...HEAD"  --name-only --diff-filter=d -- 'tests/**/*.cs'
-                git diff --cached        --name-only --diff-filter=d -- 'tests/**/*.cs'
-                git diff                 --name-only --diff-filter=d -- 'tests/**/*.cs'
+                git diff "$base...HEAD"  --name-only --diff-filter=d -- 'tests/**/*.cs' 'benchmarks/**/*.cs'
+                git diff --cached        --name-only --diff-filter=d -- 'tests/**/*.cs' 'benchmarks/**/*.cs'
+                git diff                 --name-only --diff-filter=d -- 'tests/**/*.cs' 'benchmarks/**/*.cs'
                 ;;
         esac
     } 2>/dev/null | sed 's#^\./##' | sort -u
@@ -264,13 +266,16 @@ run_sweep() {
         return 0
     fi
 
-    # Single batched pass: grep ALL tokens across tests/** at once (whole-word,
-    # fixed-strings). The file list comes from `git ls-files` (the git index — no
+    # Single batched pass: grep ALL tokens across tests/** AND benchmarks/** at once (whole-word,
+    # fixed-strings). yww81x (F-5 clause 5): benchmark/load-test projects compile against the same
+    # src/** surface but sit outside tests/** — a benchmark referencing a changed contract token
+    # (e.g. a renamed options property) is a stale sibling that only surfaces as a build break at
+    # the full-CI gate; sweep it here. The file list comes from `git ls-files` (the git index — no
     # filesystem walk over bin/obj/TestResults, tracked .cs only), so this is fast
     # and O(tree) not O(tokens*tree). Output lines: "path:token".
     local raw=""
     if [ -s "$tokens_file" ]; then
-        raw="$(git ls-files -z -- 'tests/*.cs' 'tests/**/*.cs' 2>/dev/null \
+        raw="$(git ls-files -z -- 'tests/*.cs' 'tests/**/*.cs' 'benchmarks/*.cs' 'benchmarks/**/*.cs' 2>/dev/null \
                 | xargs -0 grep -IowHF -f "$tokens_file" 2>/dev/null || true)"
     fi
 
@@ -291,7 +296,7 @@ run_sweep() {
         if [ -n "$pairs" ]; then
             # Per-token hit cap: a token matching more than $cap test files is almost certainly
             # generic (not a real contract token) — SUPPRESS it (one-line note) so a leaked generic
-            # token can't reproduce the bd-tak38o 66k-line blowout, and don't let it gate.
+            # token can't reproduce the 66k-line blowout, and don't let it gate.
             # `pairs` is already grouped by token (sorted upstream). awk emits "actionable<TAB>suppressed".
             local cap="${F5_MAX_HITS_PER_TOKEN:-25}" summary
             summary="$(printf '%s\n' "$pairs" | awk -F'\t' -v cap="$cap" -v rep="$hit_report" '
@@ -314,19 +319,44 @@ run_sweep() {
         fi
     fi
 
+    # Suppression bounds the OUTPUT, never the VERDICT. A suppressed token is an UN-TRIAGED
+    # token: the sweep declined to print its hits, it did not decide they were harmless. The
+    # old code dropped suppressed tokens from `total_hits` and then read `total_hits == 0` as
+    # "clean", so a run in which EVERY token exceeded the cap printed "✅ F-5 clean" and exited
+    # 0. "No un-triaged sibling references remain" was satisfied by a sweep that suppressed all
+    # of them -- the safety half held, the liveness half ("and we actually looked at something")
+    # was never asserted.
+    #
+    # This cannot redden a commit that already has hits: it only changes the total_hits == 0
+    # branch, which previously could not fail at all.
+    if [ "${total_hits:-0}" -eq 0 ] && [ "${suppressed_tokens:-0}" -gt 0 ]; then
+        {
+            printf '❌ F-5 UNKNOWN — every contract token was suppressed; nothing was triaged.\n\n'
+            printf '   %s token(s) exceeded the per-token hit cap (>%s) and were not examined.\n' \
+                "$suppressed_tokens" "$cap"
+            printf '   A suppressed token is UN-TRIAGED, not clean. Refine extraction, raise\n'
+            printf '   F5_MAX_HITS_PER_TOKEN deliberately, or triage the tokens below by hand.\n\n'
+            grep '^TOKEN' "$hit_report" 2>/dev/null | sed 's/^/     /'
+        } >&2
+        rm -f "$changed_list" "$tokens_file" "$hit_report"
+        return 1
+    fi
+
     if [ "${total_hits:-0}" -eq 0 ]; then
         echo "✅ No un-triaged sibling test references to changed contract tokens. F-5 clean."
-        [ "${suppressed_tokens:-0}" -gt 0 ] && \
-            echo "   (${suppressed_tokens} generic token(s) suppressed as >$cap hits — refine extraction if any was a real contract token.)"
         rm -f "$changed_list" "$tokens_file" "$hit_report"
         return 0
     fi
 
     cat "$hit_report"
     echo ""
-    echo "⚠️  ${total_hits} un-triaged sibling hit(s) across tests/**."
-    [ "${suppressed_tokens:-0}" -gt 0 ] && \
-        echo "    (${suppressed_tokens} generic token(s) suppressed as >$cap hits — not counted; refine extraction if any was real.)"
+    echo "⚠️  ${total_hits} un-triaged sibling hit(s) across tests/** + benchmarks/**."
+    if [ "${suppressed_tokens:-0}" -gt 0 ]; then
+        echo "    plus ${suppressed_tokens} generic token(s) suppressed as >$cap hits — UN-TRIAGED, NOT harmless."
+        echo "    The cap abbreviates the LISTING of a token's hits; it does NOT drop the token from the"
+        echo "    VERDICT — a suppressed-only run still reddens (as 'F-5 UNKNOWN' above). Refine extraction"
+        echo "    if any was a real contract token."
+    fi
     echo "    Per .claude/rules/process/f5-cross-project-test-sweep.md: triage EACH before REVIEW —"
     echo "    flip the stale assertion to the new contract (strengthen, never weaken), or document why unaffected."
     rm -f "$changed_list" "$tokens_file" "$hit_report"
@@ -374,7 +404,7 @@ EOF
     if printf '%s\n' "$tokens" | grep -qx 'CancellationToken'; then
         echo "self-test FAIL: stoplist token 'CancellationToken' leaked through" >&2; pass=0
     fi
-    # NON-VACUOUS IN BOTH DIRECTIONS (bd-tak38o): generic tokens MUST be dropped, else the
+    # NON-VACUOUS IN BOTH DIRECTIONS: generic tokens MUST be dropped, else the
     # gate flags ~every test (the 66k-false-positive failure mode).
     if printf '%s\n' "$tokens" | grep -qx 'window'; then
         echo "self-test FAIL: generic string-literal 'window' leaked (not sentinel-shaped)" >&2; pass=0
@@ -461,8 +491,30 @@ EOF
         echo "self-test FAIL: word 'GetAllGrantsAsync' matched substring 'GetAllGrantsAsyncCompat'" >&2; pass=0
     fi
 
+    # --- Fixture 4: benchmark sibling (yww81x / F-5 clause 5) --------------
+    # A benchmark project references a changed contract token — must be swept like a test project
+    # (benchmarks/** compile against src/** and break the full-CI gate otherwise). BenchStale is a
+    # stale sibling (not in changeset); BenchTriaged is already updated (in changeset) and must be
+    # excluded.
+    mkdir -p "$tmp/benchmarks/BenchStale" "$tmp/benchmarks/BenchTriaged"
+    cat > "$tmp/benchmarks/BenchStale/GrantBench.cs" <<'EOF'
+public class GrantBench { void B() { store.GetAllGrantsAsync("u", ct); } }
+EOF
+    cat > "$tmp/benchmarks/BenchTriaged/UpdatedBench.cs" <<'EOF'
+public class UpdatedBench { void B() { store.GetAllGrantsAsync("u", true, ct); } }
+EOF
+    printf '%s\n' "benchmarks/BenchTriaged/UpdatedBench.cs" >> "$changed_list"
+    local benchhits
+    benchhits="$( cd "$tmp" && f5_find_siblings 'GetAllGrantsAsync' "$changed_list" 'benchmarks' )"
+    if ! printf '%s\n' "$benchhits" | grep -q 'benchmarks/BenchStale/GrantBench.cs'; then
+        echo "self-test FAIL: did NOT flag the stale benchmark sibling benchmarks/BenchStale (yww81x F-5 clause 5)" >&2; pass=0
+    fi
+    if printf '%s\n' "$benchhits" | grep -q 'benchmarks/BenchTriaged/'; then
+        echo "self-test FAIL: flagged the already-triaged benchmark sibling benchmarks/BenchTriaged (false positive)" >&2; pass=0
+    fi
+
     if [ "$pass" -eq 1 ]; then
-        echo "✅ f5-sweep self-test PASSED (non-vacuous: flags the stale 2nd-project sibling, ignores triaged/unrelated/substring)."
+        echo "✅ f5-sweep self-test PASSED (non-vacuous: flags stale 2nd-project + benchmark siblings, ignores triaged/unrelated/substring)."
         return 0
     fi
     echo "❌ f5-sweep self-test FAILED." >&2
@@ -480,7 +532,7 @@ usage() {
 main() {
     # Default = committed change vs base (base...HEAD) — NOT the dirty working tree.
     # On a shared multi-worker tree, diffing the working tree pulls every agent's uncommitted
-    # WIP and explodes the token set (bd-tak38o: 66,982 FP). The pre-REVIEW scope is the branch's
+    # WIP and explodes the token set (66,982 FP). The pre-REVIEW scope is the branch's
     # own committed change; use --staged / --working / --all only for local pre-commit checks.
     local mode="committed" base="" report_only="0"
     while [ $# -gt 0 ]; do
@@ -499,7 +551,7 @@ main() {
 
     # Default base = HEAD~1 (sweep the LAST commit's contract change — the per-bead/per-change scope
     # F-5 is meant for). Do NOT default to merge-base origin/main: on a long-lived branch that diffs
-    # the ENTIRE branch (hundreds of commits → thousands of tokens, un-actionable — bd-tak38o). For a
+    # the ENTIRE branch (hundreds of commits → thousands of tokens, un-actionable). For a
     # whole-sprint sweep pass an explicit --base <sprint-base-sha>; for pre-commit use --staged.
     if [ -z "$base" ]; then
         base="$(git rev-parse HEAD~1 2>/dev/null || echo HEAD)"

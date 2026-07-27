@@ -8,6 +8,7 @@ using System.Text.Json;
 
 using Excalibur.Data.Redis.Diagnostics;
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Metadata;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -43,7 +44,7 @@ namespace Excalibur.Outbox.Redis;
 /// <c>LeasedAt</c>/<c>LeasedBy</c> claim.
 /// </para>
 /// </remarks>
-public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IAsyncDisposable
+public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, IAsyncDisposable
 {
 	// Lua script for atomic MarkSent - checks status before updating
 	// Returns plain strings (not {err=...}) to avoid RedisServerException
@@ -53,9 +54,11 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                         local sentIdx = KEYS[3]
 	                                         local scheduledIdx = KEYS[4]
 	                                         local leasedIdx = KEYS[5]
+	                                         local failedIdx = KEYS[6]
 	                                         local messageId = ARGV[1]
 	                                         local sentAt = ARGV[2]
 	                                         local sentStatus = ARGV[3]
+	                                         local ttlSeconds = tonumber(ARGV[4])
 
 	                                         -- Check if message exists
 	                                         local exists = redis.call('EXISTS', key)
@@ -72,10 +75,18 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                         -- Update the message
 	                                         redis.call('HMSET', key, 'Status', sentStatus, 'SentAt', sentAt)
 
-	                                         -- Remove from every claimable/in-flight index (message could be in any)
+	                                         -- Apply the retention TTL in the SAME atomic script as the status
+	                                         -- write, so a crash can never leave a Sent message with no expiry.
+	                                         if ttlSeconds and ttlSeconds > 0 then
+	                                         	redis.call('EXPIRE', key, ttlSeconds)
+	                                         end
+
+	                                         -- Remove from every claimable/in-flight index (message could be in any), including the failed
+	                                         -- index so a reclaimed-then-sent message no longer appears in GetFailedMessages.
 	                                         redis.call('ZREM', stagedIdx, messageId)
 	                                         redis.call('ZREM', scheduledIdx, messageId)
 	                                         redis.call('ZREM', leasedIdx, messageId)
+	                                         redis.call('ZREM', failedIdx, messageId)
 	                                         redis.call('ZADD', sentIdx, sentAt, messageId)
 
 	                                         return 'SUCCESS'
@@ -117,33 +128,107 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                           local stagedIdx = KEYS[2]
 	                                           local failedIdx = KEYS[3]
 	                                           local leasedIdx = KEYS[4]
+	                                           local scheduledIdx = KEYS[5]
 	                                           local messageId = ARGV[1]
 	                                           local errorMessage = ARGV[2]
 	                                           local retryCount = ARGV[3]
 	                                           local lastAttemptAt = ARGV[4]
 	                                           local failedStatus = ARGV[5]
+	                                           local leasedBy = ARGV[6]
+	                                           local nextAttemptAt = ARGV[7]
 
-	                                           -- Check if message exists
 	                                           local exists = redis.call('EXISTS', key)
 	                                           if exists == 0 then
 	                                           	return {ok = 'NOT_FOUND'}
 	                                           end
 
-	                                           -- Update the message
+	                                           -- R2 dispatcher-ownership guard IN the atomic write: only the current lease owner (or an
+	                                           -- already-released row) may mark-fail, so a stale processor cannot overwrite a peer's re-claim.
+	                                           local currentLease = redis.call('HGET', key, 'LeasedBy')
+	                                           if currentLease and currentLease ~= false and currentLease ~= '' and currentLease ~= leasedBy then
+	                                           	return {ok = 'NOT_OWNER'}
+	                                           end
+
+	                                           -- R3 monotonic: never lower RetryCount (a stale late writer must not weaken the DLQ ceiling).
+	                                           local newRetry = tonumber(retryCount)
+	                                           local currentRetry = tonumber(redis.call('HGET', key, 'RetryCount')) or 0
+	                                           if currentRetry > newRetry then newRetry = currentRetry end
+
 	                                           redis.call('HMSET', key,
 	                                           	'Status', failedStatus,
 	                                           	'LastError', errorMessage,
-	                                           	'RetryCount', retryCount,
-	                                           	'LastAttemptAt', lastAttemptAt)
+	                                           	'RetryCount', newRetry,
+	                                           	'LastAttemptAt', lastAttemptAt,
+	                                           	'NextAttemptAt', nextAttemptAt)
 
-	                                           -- Move from staged/leased (in-flight) to the failed index
+	                                           -- Free the lease (single-write parity with SqlServer/Mongo) + drop the in-flight index entries.
+	                                           redis.call('HDEL', key, 'LeasedAt', 'LeasedBy')
 	                                           redis.call('ZREM', stagedIdx, messageId)
 	                                           redis.call('ZREM', leasedIdx, messageId)
-	                                           local score = tonumber(retryCount) * 1000000000000 + tonumber(lastAttemptAt)
+
+	                                           -- R1 floor: re-queue into scheduledIdx scored by NextAttemptAt (now+F) so MoveScheduledToStaged
+	                                           -- re-surfaces it only after the floor (at-least-once; no zero-backoff hot-loop).
+	                                           redis.call('ZADD', scheduledIdx, tonumber(nextAttemptAt), messageId)
+
+	                                           -- Keep it in the failed index for GetFailedMessages reporting (retry-count-ordered).
+	                                           local score = newRetry * 1000000000000 + tonumber(lastAttemptAt)
 	                                           redis.call('ZADD', failedIdx, score, messageId)
 
 	                                           return {ok = 'SUCCESS'}
 	                                           """;
+
+	// Lua script for atomic MarkFailedWithBackoff (mnq685) - records the failure but re-queues the message
+	// into the SCHEDULED index scored by nextAttemptAt, which is Redis's native "do not surface before this
+	// time" gate (MoveScheduledToStaged only promotes scheduled ids whose score <= now). So the computed
+	// exponential backoff genuinely throttles re-delivery rather than the coarse lease cadence. The message
+	// stays re-claimable (Staged) but invisible to the claim until nextAttemptAt elapses.
+	// KEYS: [messageKey, stagedIdx, scheduledIdx, leasedIdx]; ARGV: [messageId, error, retryCount,
+	// lastAttemptAt, nextAttemptAtMs, stagedStatus, leasedBy]. Carries the R2 ownership guard + R3 monotonic
+	// RetryCount (wseau9), same as the plain MarkFailed path.
+	private const string MarkFailedWithBackoffLuaScript = """
+	                                                       local key = KEYS[1]
+	                                                       local stagedIdx = KEYS[2]
+	                                                       local scheduledIdx = KEYS[3]
+	                                                       local leasedIdx = KEYS[4]
+	                                                       local messageId = ARGV[1]
+	                                                       local errorMessage = ARGV[2]
+	                                                       local retryCount = ARGV[3]
+	                                                       local lastAttemptAt = ARGV[4]
+	                                                       local nextAttemptAt = ARGV[5]
+	                                                       local stagedStatus = ARGV[6]
+	                                                       local leasedBy = ARGV[7]
+
+	                                                       local exists = redis.call('EXISTS', key)
+	                                                       if exists == 0 then
+	                                                       	return {ok = 'NOT_FOUND'}
+	                                                       end
+
+	                                                       -- R2 ownership guard IN the atomic write (parity with MarkFailed).
+	                                                       local currentLease = redis.call('HGET', key, 'LeasedBy')
+	                                                       if currentLease and currentLease ~= false and currentLease ~= '' and currentLease ~= leasedBy then
+	                                                       	return {ok = 'NOT_OWNER'}
+	                                                       end
+
+	                                                       -- R3 monotonic RetryCount.
+	                                                       local newRetry = tonumber(retryCount)
+	                                                       local currentRetry = tonumber(redis.call('HGET', key, 'RetryCount')) or 0
+	                                                       if currentRetry > newRetry then newRetry = currentRetry end
+
+	                                                       redis.call('HMSET', key,
+	                                                       	'Status', stagedStatus,
+	                                                       	'LastError', errorMessage,
+	                                                       	'RetryCount', newRetry,
+	                                                       	'LastAttemptAt', lastAttemptAt,
+	                                                       	'NextAttemptAt', nextAttemptAt)
+
+	                                                       -- Free the lease + re-queue into the scheduled index gated by nextAttemptAt (stays re-claimable, Staged).
+	                                                       redis.call('HDEL', key, 'LeasedAt', 'LeasedBy')
+	                                                       redis.call('ZREM', stagedIdx, messageId)
+	                                                       redis.call('ZREM', leasedIdx, messageId)
+	                                                       redis.call('ZADD', scheduledIdx, tonumber(nextAttemptAt), messageId)
+
+	                                                       return {ok = 'SUCCESS'}
+	                                                       """;
 
 	// Lua script for atomic StageMessage (bd-5jo6tm) - dedup-claim + full-hash write + index add
 	// in a SINGLE indivisible step. Redis executes the whole script atomically, so a crash can
@@ -232,7 +317,9 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 	private readonly RedisOutboxOptions _options;
 	private readonly ILogger<RedisOutboxStore> _logger;
+	private readonly TimeProvider _timeProvider;
 	private ConnectionMultiplexer? _connection;
+	private bool _ownsConnection;
 	private IDatabase? _database;
 	private string? _resolvedProcessorId;
 	private volatile bool _disposed;
@@ -242,9 +329,11 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	/// </summary>
 	/// <param name="options">The Redis outbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">The time provider used for backoff/claim-gate decisions. Defaults to <see cref="TimeProvider.System"/>.</param>
 	public RedisOutboxStore(
 		IOptions<RedisOutboxOptions> options,
-		ILogger<RedisOutboxStore> logger)
+		ILogger<RedisOutboxStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -252,6 +341,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <summary>
@@ -260,10 +350,12 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	/// <param name="connection">An existing Redis connection multiplexer.</param>
 	/// <param name="options">The Redis outbox options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="timeProvider">The time provider used for backoff/claim-gate decisions. Defaults to <see cref="TimeProvider.System"/>.</param>
 	public RedisOutboxStore(
 		ConnectionMultiplexer connection,
 		IOptions<RedisOutboxOptions> options,
-		ILogger<RedisOutboxStore> logger)
+		ILogger<RedisOutboxStore> logger,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 		ArgumentNullException.ThrowIfNull(options);
@@ -273,6 +365,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_database = connection.GetDatabase(_options.DatabaseId);
 	}
 
@@ -354,9 +447,13 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var messageType = message.GetType().FullName ?? message.GetType().Name;
-		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+		var payload = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType(), EventSerializationDefaults.Canonical);
 
-		var outbound = OutboundMessage.FromContext(messageType, payload, messageType, context);
+		// xnyhjd: honor a consumer-set routing destination (TransactionalOutboxWriter.SetDestination →
+		// context) rather than persisting the message type name as the destination — parity with the
+		// SQL/Postgres outbox stores. Falls back to the type name when no destination was set.
+		var destination = context.ExtractMetadata().GetDestination() ?? message.GetType().Name;
+		var outbound = OutboundMessage.FromContext(messageType, payload, destination, context);
 
 		await StageMessageAsync(outbound, cancellationToken).ConfigureAwait(false);
 
@@ -371,7 +468,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
-		var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+		var now = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
 
 		// First, move any scheduled messages that are now due to the staged index
 		await MoveScheduledToStagedAsync(now).ConfigureAwait(false);
@@ -392,19 +489,46 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		}
 
 		var claimedIds = (RedisValue[])claimResult!;
-		var messages = new List<OutboundMessage>(claimedIds.Length);
-		foreach (var id in claimedIds)
+		return await GetMessagesByIdsAsync(claimedIds, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Batch-loads the message hashes for a set of ids in a single pipelined round-trip. The per-id
+	/// <c>HASHGETALL</c> commands are issued concurrently so StackExchange.Redis multiplexes them onto
+	/// the connection (IBatch semantics) instead of paying one network RTT per id.
+	/// </summary>
+	private async Task<List<OutboundMessage>> GetMessagesByIdsAsync(
+		IReadOnlyList<RedisValue> ids,
+		CancellationToken cancellationToken)
+	{
+		if (ids.Count == 0)
+		{
+			return [];
+		}
+
+		var tasks = new Task<HashEntry[]>[ids.Count];
+		for (var i = 0; i < ids.Count; i++)
+		{
+			tasks[i] = _database!.HashGetAllAsync(GetMessageKey(ids[i]!));
+		}
+
+		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+		var messages = new List<OutboundMessage>(ids.Count);
+		for (var i = 0; i < results.Length; i++)
 		{
 			if (cancellationToken.IsCancellationRequested)
 			{
 				break;
 			}
 
-			var message = await GetMessageByIdAsync(id!).ConfigureAwait(false);
-			if (message != null)
+			var entries = results[i];
+			if (entries.Length == 0)
 			{
-				messages.Add(message);
+				continue;
 			}
+
+			messages.Add(DeserializeFromHashEntries(ids[i]!, entries));
 		}
 
 		return messages;
@@ -419,13 +543,14 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
 		var key = GetMessageKey(messageId);
-		var sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+		var sentAt = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString();
 
 		// Use Lua script for atomic check-and-update
 		var result = await _database!.ScriptEvaluateAsync(
 			MarkSentLuaScript,
-			[key, GetStagedIndexKey(), GetSentIndexKey(), GetScheduledIndexKey(), GetLeasedIndexKey()],
-			[messageId, sentAt, ((int)OutboxStatus.Sent).ToString()]).ConfigureAwait(false);
+			[key, GetStagedIndexKey(), GetSentIndexKey(), GetScheduledIndexKey(), GetLeasedIndexKey(), GetFailedIndexKey()],
+			[messageId, sentAt, ((int)OutboxStatus.Sent).ToString(),
+				_options.SentMessageTtlSeconds.ToString(CultureInfo.InvariantCulture)]).ConfigureAwait(false);
 
 		var resultStr = result.ToString();
 		if (resultStr == "NOT_FOUND")
@@ -446,12 +571,8 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 					messageId));
 		}
 
-		// Set TTL if configured
-		if (_options.SentMessageTtlSeconds > 0)
-		{
-			_ = await _database!.KeyExpireAsync(key, TimeSpan.FromSeconds(_options.SentMessageTtlSeconds)).ConfigureAwait(false);
-		}
-
+		// Retention TTL is applied atomically inside MarkSentLuaScript (above) — no separate
+		// KeyExpire call, so a crash can never leave a Sent message as an immortal key.
 		LogMessageSent(messageId);
 	}
 
@@ -465,21 +586,54 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
 		var key = GetMessageKey(messageId);
+		var lastAttemptAt = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString();
+		var nextAttemptAtMs = _timeProvider.GetUtcNow().AddSeconds(_options.FailureBackoffFloorSeconds)
+			.ToUnixTimeMilliseconds().ToString();
 
-		// Check if exists first - silent return per conformance tests
+		// One atomic Lua write (SA #1/#2): R2 dispatcher-ownership guard IN the script, R1 floor (re-queue to
+		// the scheduled index at now+F so MoveScheduledToStaged re-surfaces it only after the floor — at-least-once,
+		// no hot-loop), R3 monotonic RetryCount, free-lease. A missing key is a silent NOT_FOUND no-op inside the
+		// script — no separate exists round-trip (no read→check→write TOCTOU).
+		_ = await _database!.ScriptEvaluateAsync(
+			MarkFailedLuaScript,
+			[key, GetStagedIndexKey(), GetFailedIndexKey(), GetLeasedIndexKey(), GetScheduledIndexKey()],
+			[messageId, errorMessage, retryCount.ToString(), lastAttemptAt, ((int)OutboxStatus.Failed).ToString(),
+				GetProcessorId(), nextAttemptAtMs]).ConfigureAwait(false);
+
+		LogMessageFailed(messageId, errorMessage, retryCount);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask MarkFailedWithBackoffAsync(
+		string messageId,
+		string errorMessage,
+		int retryCount,
+		DateTimeOffset nextAttemptAt,
+		CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+		ArgumentNullException.ThrowIfNull(errorMessage);
+		ArgumentOutOfRangeException.ThrowIfNegative(retryCount);
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureConnectedAsync().ConfigureAwait(false);
+
+		var key = GetMessageKey(messageId);
+
+		// Silent return if the message no longer exists (conformance parity with MarkFailedAsync).
 		var exists = await _database!.KeyExistsAsync(key).ConfigureAwait(false);
 		if (!exists)
 		{
 			return;
 		}
 
-		var lastAttemptAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+		var lastAttemptAt = _timeProvider.GetUtcNow().ToUnixTimeMilliseconds().ToString();
+		var nextAttemptAtMs = nextAttemptAt.ToUnixTimeMilliseconds().ToString();
 
-		// Use Lua script for atomic update
 		_ = await _database!.ScriptEvaluateAsync(
-			MarkFailedLuaScript,
-			[key, GetStagedIndexKey(), GetFailedIndexKey(), GetLeasedIndexKey()],
-			[messageId, errorMessage, retryCount.ToString(), lastAttemptAt, ((int)OutboxStatus.Failed).ToString()]).ConfigureAwait(false);
+			MarkFailedWithBackoffLuaScript,
+			[key, GetStagedIndexKey(), GetScheduledIndexKey(), GetLeasedIndexKey()],
+			[messageId, errorMessage, retryCount.ToString(), lastAttemptAt, nextAttemptAtMs, ((int)OutboxStatus.Staged).ToString(), GetProcessorId()]).ConfigureAwait(false);
 
 		LogMessageFailed(messageId, errorMessage, retryCount);
 	}
@@ -600,7 +754,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
+	public async ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -644,7 +798,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
-		var now = DateTimeOffset.UtcNow;
+		var now = _timeProvider.GetUtcNow();
 
 		var stagedCount = (int)await _database!.SortedSetLengthAsync(GetStagedIndexKey()).ConfigureAwait(false);
 		var sentCount = (int)await _database!.SortedSetLengthAsync(GetSentIndexKey()).ConfigureAwait(false);
@@ -702,7 +856,9 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		_disposed = true;
 
-		if (_connection != null)
+		// Only tear down a multiplexer this store created. A caller-supplied multiplexer is shared and
+		// owned by the caller — disposing it here would break other consumers of the same connection.
+		if (_ownsConnection && _connection != null)
 		{
 			await _connection.CloseAsync().ConfigureAwait(false);
 			_connection.Dispose();
@@ -745,6 +901,26 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			entries.Add(new HashEntry("TenantId", message.TenantId));
 		}
 
+		// Consumer-supplied routing fields — persisted so they round-trip on reload (a dropped routing field
+		// is silent consumer-data loss).
+		if (!string.IsNullOrEmpty(message.PartitionKey))
+		{
+			entries.Add(new HashEntry("PartitionKey", message.PartitionKey));
+		}
+
+		if (!string.IsNullOrEmpty(message.GroupKey))
+		{
+			entries.Add(new HashEntry("GroupKey", message.GroupKey));
+		}
+
+		if (!string.IsNullOrEmpty(message.TargetTransports))
+		{
+			entries.Add(new HashEntry("TargetTransports", message.TargetTransports));
+		}
+
+		// Value type — always persist (0/1) so IsMultiTransport round-trips exactly, including false.
+		entries.Add(new HashEntry("IsMultiTransport", message.IsMultiTransport ? 1 : 0));
+
 		if (!string.IsNullOrEmpty(message.LastError))
 		{
 			entries.Add(new HashEntry("LastError", message.LastError));
@@ -767,7 +943,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		if (message.Headers.Count > 0)
 		{
-			entries.Add(new HashEntry("Headers", JsonSerializer.Serialize(message.Headers)));
+			entries.Add(new HashEntry("Headers", JsonSerializer.Serialize(message.Headers, EventSerializationDefaults.Canonical)));
 		}
 
 		return [.. entries];
@@ -791,7 +967,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		// Restore Headers from the JSON-serialized hash entry written in SerializeToHashEntries
 		// (init-only on OutboundMessage → must be set in the object initializer below).
 		var headers = dict.TryGetValue("Headers", out var headersValue) && !headersValue.IsNullOrEmpty
-			? JsonSerializer.Deserialize<Dictionary<string, object>>((string)headersValue!) ?? new Dictionary<string, object>(StringComparer.Ordinal)
+			? JsonSerializer.Deserialize<Dictionary<string, object>>((string)headersValue!, EventSerializationDefaults.Canonical) ?? new Dictionary<string, object>(StringComparer.Ordinal)
 			: new Dictionary<string, object>(StringComparer.Ordinal);
 
 		var message = new OutboundMessage
@@ -804,6 +980,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 			Status = (OutboxStatus)(int)dict.GetValueOrDefault("Status", 0),
 			Priority = (int)dict.GetValueOrDefault("Priority", 0),
 			RetryCount = (int)dict.GetValueOrDefault("RetryCount", 0),
+			IsMultiTransport = (int)dict.GetValueOrDefault("IsMultiTransport", 0) == 1,
 			Headers = headers,
 		};
 
@@ -820,6 +997,21 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		if (dict.TryGetValue("TenantId", out var tenantId) && !tenantId.IsNullOrEmpty)
 		{
 			message.TenantId = tenantId!;
+		}
+
+		if (dict.TryGetValue("PartitionKey", out var partitionKey) && !partitionKey.IsNullOrEmpty)
+		{
+			message.PartitionKey = partitionKey!;
+		}
+
+		if (dict.TryGetValue("GroupKey", out var groupKey) && !groupKey.IsNullOrEmpty)
+		{
+			message.GroupKey = groupKey!;
+		}
+
+		if (dict.TryGetValue("TargetTransports", out var targetTransports) && !targetTransports.IsNullOrEmpty)
+		{
+			message.TargetTransports = targetTransports!;
 		}
 
 		if (dict.TryGetValue("LastError", out var lastError) && !lastError.IsNullOrEmpty)
@@ -886,6 +1078,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		}
 
 		_connection = await ConnectionMultiplexer.ConnectAsync(configOptions).ConfigureAwait(false);
+		_ownsConnection = true;
 		_database = _connection.GetDatabase(_options.DatabaseId);
 	}
 

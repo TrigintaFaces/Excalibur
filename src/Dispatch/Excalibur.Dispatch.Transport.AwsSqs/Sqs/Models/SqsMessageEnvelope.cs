@@ -276,11 +276,6 @@ public sealed class SqsMessageEnvelope : IDisposable, IAsyncDisposable
 
 		public Guid Id => Guid.Empty;
 
-		/// <summary>
-		/// Empty messages are treated as documents.
-		/// </summary>
-		public MessageKinds Kind => MessageKinds.Document;
-
 		public string MessageId => Guid.Empty.ToString();
 
 		public DateTimeOffset Timestamp => DateTimeOffset.MinValue;

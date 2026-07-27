@@ -42,11 +42,6 @@ services.AddRedisSnapshotStore(options =>
 - Stored as Redis Hash with fields: snapshotId, aggregateId, aggregateType, version, createdAt, data, metadata
 - Only latest snapshot is stored per aggregate
 
-### Undispatched Events
-- Sorted set key: `es:undispatched`
-- Members are event IDs, scored by timestamp
-- Atomically added during event append via Lua script
-
 ## Requirements
 
 - Redis 5.0+ (for Streams support)

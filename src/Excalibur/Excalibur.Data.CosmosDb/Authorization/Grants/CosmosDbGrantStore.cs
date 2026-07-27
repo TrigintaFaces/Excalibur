@@ -24,7 +24,7 @@ namespace Excalibur.Data.CosmosDb.Authorization;
 /// Uses UpsertItemAsync for save operations to handle both insert and update scenarios.
 /// </para>
 /// </remarks>
-public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, IAsyncDisposable, IDisposable
+public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore, IGrantQueryStore, IAsyncDisposable, IDisposable
 {
 	private readonly CosmosDbAuthorizationOptions _options;
 	private readonly ILogger<CosmosDbGrantStore> _logger;
@@ -344,6 +344,11 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IGrantQueryStore, 
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IDurableGrantStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IGrantQueryStore))
 		{

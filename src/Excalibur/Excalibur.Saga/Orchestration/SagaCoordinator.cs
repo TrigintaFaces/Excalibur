@@ -240,7 +240,15 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 
 		if (isStartEvent)
 		{
-			sagaState = new TSagaState { SagaId = Guid.Parse(evt.SagaId) };
+			// A start event for an ALREADY-EXISTING saga is a replayed/duplicate delivery, not a new
+			// instance. Load the existing state first so the persisted idempotent-replay guard
+			// (ProcessedEventIds) and the optimistic-concurrency version token both apply; only create a
+			// fresh state when no saga exists yet. Without this, a replayed start event news up a
+			// version-0 state that then collides on save with the already-persisted saga
+			// (ConcurrencyException: expected version 0, actual version 1).
+			var sagaId = Guid.Parse(evt.SagaId);
+			sagaState = await sagaStore.LoadAsync<TSagaState>(sagaId, cancellationToken).ConfigureAwait(false)
+				?? new TSagaState { SagaId = sagaId };
 		}
 		else
 		{

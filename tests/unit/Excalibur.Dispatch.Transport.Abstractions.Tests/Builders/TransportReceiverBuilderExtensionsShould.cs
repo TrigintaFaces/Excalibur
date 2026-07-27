@@ -49,17 +49,4 @@ public sealed class TransportReceiverBuilderExtensionsShould : IDisposable
 		built.ShouldBeOfType<DeadLetterTransportReceiver>();
 	}
 
-	[Fact]
-	public void UseCloudEvents_AddsCloudEventsDecorator()
-	{
-		var inner = A.Fake<ITransportReceiver>();
-		var mapper = A.Fake<ICloudEventMapper<TransportReceivedMessage>>();
-		var builder = new TransportReceiverBuilder(inner);
-
-		var built = builder
-			.UseCloudEvents(mapper, m => m)
-			.Build();
-
-		built.ShouldBeOfType<CloudEventsTransportReceiver>();
-	}
 }

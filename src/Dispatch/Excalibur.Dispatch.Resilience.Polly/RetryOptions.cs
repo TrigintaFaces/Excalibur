@@ -37,9 +37,29 @@ public sealed class RetryOptions
 	public bool UseJitter { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets predicate to determine if an exception should trigger a retry.
+	/// Gets or sets a predicate that narrows which exceptions are retried.
 	/// </summary>
-	/// <value>The current <see cref="ShouldRetry"/> value.</value>
+	/// <remarks>
+	/// <para>
+	/// When this is <see langword="null"/> — the default — every exception is retried. A nullable predicate
+	/// here means "no additional restriction", not "no retry".
+	/// </para>
+	/// <para>
+	/// The predicate can only ever <em>narrow</em> what is retried. It is combined with the framework's own
+	/// exclusions using AND, so returning <see langword="true"/> for an exception the framework never retries
+	/// has no effect. There is deliberately no way to widen retry coverage back out through this predicate.
+	/// </para>
+	/// <para>
+	/// Exceptions that are never retried regardless of this predicate:
+	/// <see cref="Excalibur.Dispatch.Messaging.TenantIsolationViolationException"/>,
+	/// because a request that escaped its tenant boundary will escape it identically on every attempt, and
+	/// retrying multiplies the exposure instead of recovering from it.
+	/// </para>
+	/// </remarks>
+	/// <value>
+	/// A predicate returning <see langword="true"/> for exceptions that may be retried, or
+	/// <see langword="null"/> to retry every exception the framework does not itself exclude.
+	/// </value>
 	public Func<Exception, bool>? ShouldRetry { get; set; }
 
 	/// <summary>

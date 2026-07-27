@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Telemetry;
 using Excalibur.Security;
 
 namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
@@ -65,34 +66,40 @@ public sealed class SecurityEventLoggerDepthShould
 	[Fact]
 	public void ImplementISecurityEventLogger()
 	{
-		using var sut = new SecurityEventLogger(_logger, CreateSuccessStore());
+		using var sut = new SecurityEventLogger(_logger, CreateSuccessStore(), A.Fake<ITelemetrySanitizer>());
 		sut.ShouldBeAssignableTo<ISecurityEventLogger>();
 	}
 
 	[Fact]
 	public void ImplementIHostedService()
 	{
-		using var sut = new SecurityEventLogger(_logger, CreateSuccessStore());
+		using var sut = new SecurityEventLogger(_logger, CreateSuccessStore(), A.Fake<ITelemetrySanitizer>());
 		sut.ShouldBeAssignableTo<Microsoft.Extensions.Hosting.IHostedService>();
 	}
 
 	[Fact]
 	public void ImplementIDisposable()
 	{
-		using var sut = new SecurityEventLogger(_logger, CreateSuccessStore());
+		using var sut = new SecurityEventLogger(_logger, CreateSuccessStore(), A.Fake<ITelemetrySanitizer>());
 		sut.ShouldBeAssignableTo<IDisposable>();
 	}
 
 	[Fact]
 	public void ThrowWhenLoggerIsNull()
 	{
-		Should.Throw<ArgumentNullException>(() => new SecurityEventLogger(null!, CreateSuccessStore()));
+		Should.Throw<ArgumentNullException>(() => new SecurityEventLogger(null!, CreateSuccessStore(), A.Fake<ITelemetrySanitizer>()));
 	}
 
 	[Fact]
 	public void ThrowWhenEventStoreIsNull()
 	{
-		Should.Throw<ArgumentNullException>(() => new SecurityEventLogger(_logger, null!));
+		Should.Throw<ArgumentNullException>(() => new SecurityEventLogger(_logger, null!, A.Fake<ITelemetrySanitizer>()));
+	}
+
+	[Fact]
+	public void ThrowWhenSanitizerIsNull()
+	{
+		Should.Throw<ArgumentNullException>(() => new SecurityEventLogger(_logger, CreateSuccessStore(), null!));
 	}
 
 	[Fact]
@@ -100,7 +107,7 @@ public sealed class SecurityEventLoggerDepthShould
 	{
 		// Arrange
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		var context = A.Fake<IMessageContext>();
@@ -142,7 +149,7 @@ public sealed class SecurityEventLoggerDepthShould
 	{
 		// Arrange
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		// Act
@@ -168,7 +175,7 @@ public sealed class SecurityEventLoggerDepthShould
 	{
 		// Arrange
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 
 		// Act
 		await sut.StartAsync(CancellationToken.None);
@@ -194,7 +201,7 @@ public sealed class SecurityEventLoggerDepthShould
 	{
 		// Arrange
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		for (var i = 0; i < 5; i++)
@@ -223,7 +230,7 @@ public sealed class SecurityEventLoggerDepthShould
 	{
 		// Arrange
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		var context = A.Fake<IMessageContext>();
@@ -262,7 +269,7 @@ public sealed class SecurityEventLoggerDepthShould
 	[Fact]
 	public void DisposeWithoutStartingShouldNotThrow()
 	{
-		var sut = new SecurityEventLogger(_logger, CreateSuccessStore());
+		var sut = new SecurityEventLogger(_logger, CreateSuccessStore(), A.Fake<ITelemetrySanitizer>());
 		Should.NotThrow(() => sut.Dispose());
 	}
 
@@ -282,7 +289,7 @@ public sealed class SecurityEventLoggerDepthShould
 			})
 			.Throws(new InvalidOperationException("Store failure"));
 
-		using var sut = new SecurityEventLogger(_logger, throwingStore);
+		using var sut = new SecurityEventLogger(_logger, throwingStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		// Act
@@ -309,7 +316,7 @@ public sealed class SecurityEventLoggerDepthShould
 		// Arrange
 		var correlationId = Guid.NewGuid();
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		var context = A.Fake<IMessageContext>();
@@ -340,7 +347,7 @@ public sealed class SecurityEventLoggerDepthShould
 	{
 		// Arrange
 		var (eventStore, capturedEvents, storeCalled) = CreateCapturingStore();
-		using var sut = new SecurityEventLogger(_logger, eventStore);
+		using var sut = new SecurityEventLogger(_logger, eventStore, A.Fake<ITelemetrySanitizer>());
 		await sut.StartAsync(CancellationToken.None);
 
 		var context = A.Fake<IMessageContext>();

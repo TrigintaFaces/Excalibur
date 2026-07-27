@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.EventSourcing.SqlServer.Requests;
 
 namespace Excalibur.EventSourcing.Tests.SqlServer.Requests;
@@ -13,7 +14,7 @@ public sealed class GetCurrentVersionRequestShould
 	public void CreateSuccessfully()
 	{
 		// Act
-		var sut = new GetCurrentVersionRequest("agg-1", "Order", null, CancellationToken.None);
+		var sut = new GetCurrentVersionRequest("agg-1", "Order", null, TenantScope.Scoped("tenant-1"), CancellationToken.None);
 
 		// Assert
 		sut.ShouldNotBeNull();
@@ -28,7 +29,7 @@ public sealed class GetCurrentVersionRequestShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest(aggregateId!, "Order", null, CancellationToken.None));
+			new GetCurrentVersionRequest(aggregateId!, "Order", null, TenantScope.None, CancellationToken.None));
 	}
 
 	[Theory]
@@ -39,14 +40,14 @@ public sealed class GetCurrentVersionRequestShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentException>(() =>
-			new GetCurrentVersionRequest("agg-1", aggregateType!, null, CancellationToken.None));
+			new GetCurrentVersionRequest("agg-1", aggregateType!, null, TenantScope.None, CancellationToken.None));
 	}
 
 	[Fact]
 	public void AcceptNullTransaction()
 	{
 		// Act
-		var sut = new GetCurrentVersionRequest("agg-1", "Order", null, CancellationToken.None);
+		var sut = new GetCurrentVersionRequest("agg-1", "Order", null, TenantScope.Scoped("tenant-1"), CancellationToken.None);
 
 		// Assert
 		sut.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -56,7 +57,7 @@ public sealed class GetCurrentVersionRequestShould
 	public void ExposeResolveAsync()
 	{
 		// Act
-		var sut = new GetCurrentVersionRequest("agg-1", "Order", null, CancellationToken.None);
+		var sut = new GetCurrentVersionRequest("agg-1", "Order", null, TenantScope.Scoped("tenant-1"), CancellationToken.None);
 
 		// Assert
 		sut.ResolveAsync.ShouldNotBeNull();

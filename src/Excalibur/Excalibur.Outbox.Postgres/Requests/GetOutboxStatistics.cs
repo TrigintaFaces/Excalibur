@@ -28,13 +28,14 @@ internal sealed class GetOutboxStatistics : DataRequest<OutboxStatistics>
 	{
 		var sql = $"""
 			SELECT
-				(SELECT COUNT(*) FROM {outboxTableName} WHERE dispatcher_id IS NULL) AS "TotalPending",
-				(SELECT COUNT(*) FROM {outboxTableName} WHERE dispatcher_id IS NOT NULL) AS "TotalReserved",
+				(SELECT COUNT(*) FROM {outboxTableName} WHERE dispatcher_id IS NULL AND error_message IS NULL) AS "TotalPending",
+				(SELECT COUNT(*) FROM {outboxTableName} WHERE dispatcher_id IS NOT NULL AND error_message IS NULL) AS "TotalReserved",
 				(SELECT COUNT(*) FROM {outboxTableName}) AS "TotalMessages",
-				(SELECT COUNT(*) FROM {deadLetterTableName}) AS "TotalFailed",
+				((SELECT COUNT(*) FROM {outboxTableName} WHERE error_message IS NOT NULL)
+				 + (SELECT COUNT(*) FROM {deadLetterTableName})) AS "TotalFailed",
 				(SELECT EXTRACT(EPOCH FROM (NOW() - MIN(occurred_on)))
 				 FROM {outboxTableName}
-				 WHERE dispatcher_id IS NULL) AS "OldestPendingAgeSeconds"
+				 WHERE dispatcher_id IS NULL AND error_message IS NULL) AS "OldestPendingAgeSeconds"
 			""";
 
 		Command = CreateCommand(sql, cancellationToken: cancellationToken, commandTimeout: sqlTimeOutSeconds);

@@ -91,7 +91,10 @@ Reflection-based `JsonSerializer.Serialize(obj)` is not AOT-compatible. Create a
 ```csharp
 using System.Text.Json.Serialization;
 
-[JsonSourceGenerationOptions(WriteIndented = false)]
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    UseStringEnumConverter = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CreateOrderCommand))]
 [JsonSerializable(typeof(GetOrderQuery))]
 [JsonSerializable(typeof(OrderDto))]
@@ -106,6 +109,14 @@ services.AddSingleton(AppJsonSerializerContext.Default.Options);
 ```
 
 The framework's `AotJsonEventSerializer` automatically uses `IEventTypeRegistry` (populated from source-generated `EventStoreTypeMap`) and `JsonSerializerContext` for type-safe serialization.
+
+:::warning `OrderCreatedEvent` crosses the wire — options must match the reflection path
+`OrderCreatedEvent` is an event type, so it round-trips through your event store. The
+`PropertyNamingPolicy`, `UseStringEnumConverter`, and `DefaultIgnoreCondition` settings above must
+match the reflection-based `JsonEventSerializer`'s defaults (camelCase, string enums, omitted
+nulls) or events written via the AOT path will silently mis-read when loaded via the reflection
+path (or vice versa). Nothing validates this for you — copy the options block verbatim.
+:::
 
 ### Event Type Resolution
 

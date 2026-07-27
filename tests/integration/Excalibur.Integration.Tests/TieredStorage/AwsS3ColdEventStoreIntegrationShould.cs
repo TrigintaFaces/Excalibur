@@ -24,6 +24,11 @@ namespace Excalibur.Integration.Tests.TieredStorage;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Disposed in DisposeAsync via IAsyncLifetime")]
 public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 {
+	// A SCOPED tenant, not Untenanted. Untenanted compiles equally well and would leave the
+	// tenant-keyed object path unexercised -- the shape the cold-store contract exists to enforce.
+	private static readonly KeyedTenantPartition Tenant =
+		KeyedTenantPartition.Scoped("cold-store-tenant");
+
 	private const string BucketName = "cold-events-test";
 
 	private LocalStackContainer? _container;
@@ -95,9 +100,9 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 
 		var ct = CreateTestTimeout();
 		var events = CreateEvents("s3-agg-1", 1, 2, 3);
-		await _store!.WriteAsync("s3-agg-1", events, ct);
+		await _store!.WriteAsync(Tenant, "s3-agg-1", events, ct);
 
-		var read = await _store.ReadAsync("s3-agg-1", ct);
+		var read = await _store.ReadAsync(Tenant, "s3-agg-1", ct);
 		read.Count.ShouldBe(3);
 		read[0].Version.ShouldBe(1);
 	}
@@ -108,9 +113,9 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		if (!_available) return;
 
 		var ct = CreateTestTimeout();
-		await _store!.WriteAsync("s3-agg-v", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), ct);
+		await _store!.WriteAsync(Tenant, "s3-agg-v", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), ct);
 
-		var fromV3 = await _store.ReadAsync("s3-agg-v", 3, ct);
+		var fromV3 = await _store.ReadAsync(Tenant, "s3-agg-v", 3, ct);
 		fromV3.Count.ShouldBe(2);
 		fromV3[0].Version.ShouldBe(4);
 	}
@@ -121,10 +126,10 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		if (!_available) return;
 
 		var ct = CreateTestTimeout();
-		await _store!.WriteAsync("s3-agg-m", CreateEvents("s3-agg-m", 1, 2, 3), ct);
-		await _store.WriteAsync("s3-agg-m", CreateEvents("s3-agg-m", 3, 4, 5), ct);
+		await _store!.WriteAsync(Tenant, "s3-agg-m", CreateEvents("s3-agg-m", 1, 2, 3), ct);
+		await _store.WriteAsync(Tenant, "s3-agg-m", CreateEvents("s3-agg-m", 3, 4, 5), ct);
 
-		var all = await _store.ReadAsync("s3-agg-m", ct);
+		var all = await _store.ReadAsync(Tenant, "s3-agg-m", ct);
 		all.Count.ShouldBe(5);
 	}
 
@@ -134,22 +139,22 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		if (!_available) return;
 
 		var ct = CreateTestTimeout();
-		await _store!.WriteAsync("s3-agg-h", CreateEvents("s3-agg-h", 1), ct);
-		(await _store.HasArchivedEventsAsync("s3-agg-h", ct)).ShouldBeTrue();
+		await _store!.WriteAsync(Tenant, "s3-agg-h", CreateEvents("s3-agg-h", 1), ct);
+		(await _store.HasArchivedEventsAsync(Tenant, "s3-agg-h", ct)).ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
 		if (!_available) return;
-		(await _store!.HasArchivedEventsAsync("s3-nonexistent", CreateTestTimeout())).ShouldBeFalse();
+		(await _store!.HasArchivedEventsAsync(Tenant, "s3-nonexistent", CreateTestTimeout())).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
 		if (!_available) return;
-		(await _store!.ReadAsync("s3-no-such", CreateTestTimeout())).Count.ShouldBe(0);
+		(await _store!.ReadAsync(Tenant, "s3-no-such", CreateTestTimeout())).Count.ShouldBe(0);
 	}
 
 	private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions) =>

@@ -117,7 +117,9 @@ public sealed class ProjectionEventLookupAdapterConformanceShould : IDisposable
 			try
 			{
 				_ = _client.Indices.DeleteAsync(name)
+					#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 					.ConfigureAwait(false).GetAwaiter().GetResult();
+					#pragma warning restore RS0030
 			}
 			catch
 			{

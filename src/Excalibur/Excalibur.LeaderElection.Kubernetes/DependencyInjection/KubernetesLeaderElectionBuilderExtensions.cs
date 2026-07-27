@@ -90,17 +90,17 @@ public static class KubernetesLeaderElectionBuilderExtensions
 
 			if (k8sBuilder.LeaseDurationSeconds.HasValue)
 			{
-				opt.LeaseDurationSeconds = k8sBuilder.LeaseDurationSeconds.Value;
+				opt.LeaseDuration = TimeSpan.FromSeconds(k8sBuilder.LeaseDurationSeconds.Value);
 			}
 
 			if (k8sBuilder.RenewDeadlineMilliseconds.HasValue)
 			{
-				opt.RenewIntervalMilliseconds = k8sBuilder.RenewDeadlineMilliseconds.Value;
+				opt.RenewInterval = TimeSpan.FromMilliseconds(k8sBuilder.RenewDeadlineMilliseconds.Value);
 			}
 
 			if (k8sBuilder.RetryPeriodMilliseconds.HasValue)
 			{
-				opt.RetryIntervalMilliseconds = k8sBuilder.RetryPeriodMilliseconds.Value;
+				opt.RetryInterval = TimeSpan.FromMilliseconds(k8sBuilder.RetryPeriodMilliseconds.Value);
 			}
 		});
 

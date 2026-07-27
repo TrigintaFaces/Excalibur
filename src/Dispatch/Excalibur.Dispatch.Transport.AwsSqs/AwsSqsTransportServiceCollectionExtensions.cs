@@ -12,6 +12,9 @@ using Excalibur.Dispatch.Transport.Builders;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
+using Excalibur.Dispatch.Transport.AwsSqs;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -135,7 +138,9 @@ public static class AwsSqsTransportServiceCollectionExtensions
 			{
 				o.Region = adapterOptions.Region;
 			}
-		});
+		}).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsSqsOptions>>(new AwsSqsOptionsValidator()));
 
 		// Register the transport adapter with the transport factory
 		RegisterTransportAdapter(services, name, adapterOptions);
@@ -202,9 +207,6 @@ public static class AwsSqsTransportServiceCollectionExtensions
 
 		// Register SQS message bus
 		services.TryAddSingleton<AwsSqsMessageBus>();
-
-		// Register SQS channel receiver
-		services.TryAddSingleton<AwsSqsChannelReceiver>();
 	}
 
 	/// <summary>
@@ -237,6 +239,7 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			AwsSqsTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<AwsSqsTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)
@@ -286,7 +289,8 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		{
 			var sqsClient = sp.GetRequiredService<IAmazonSQS>();
 			var logger = sp.GetRequiredService<ILogger<SqsTransportReceiver>>();
-			return new SqsTransportReceiver(sqsClient, queueUrl, logger);
+			return new SqsTransportReceiver(
+				sqsClient, queueUrl, logger, maxPayloadBytes: adapterOptions.MaxPayloadBytes);
 		});
 	}
 
@@ -306,7 +310,8 @@ public static class AwsSqsTransportServiceCollectionExtensions
 				? adapterOptions.QueueMappings.Values.First()
 				: name;
 			var nativeSubscriber = new SqsTransportSubscriber(
-				sqsClient, name, queueUrl, adapterOptions.VisibilityHeartbeat, logger);
+				sqsClient, name, queueUrl, adapterOptions.VisibilityHeartbeat, logger,
+				maxPayloadBytes: adapterOptions.MaxPayloadBytes);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));

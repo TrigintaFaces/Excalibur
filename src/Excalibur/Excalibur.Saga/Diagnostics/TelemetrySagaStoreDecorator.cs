@@ -79,6 +79,45 @@ internal sealed class TelemetrySagaStoreDecorator : ISagaStore, IDisposable
 	}
 
 	/// <inheritdoc/>
+	public async Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			return await _inner.PurgeCompletedBeforeAsync(threshold, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("purge", "(all)", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Forwards to the inner store. This override is <b>required</b>, not decorative: the interface member has a
+	/// throwing default implementation, so a decorator that did not override it would report the capability as
+	/// unsupported even when the store it wraps supports it — the decorator would silently disable estate-wide
+	/// retention just by being installed. The distinct operation name keeps the scoped and estate-wide sweeps
+	/// separable in metrics, which is the point of naming them differently in the first place.
+	/// </remarks>
+	public async Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		var start = Stopwatch.GetTimestamp();
+
+		try
+		{
+			return await _inner.PurgeAllTenantsCompletedBeforeAsync(threshold, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			RecordOperation("purge_all_tenants", "(all)", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+		}
+	}
+
+	/// <inheritdoc/>
 	public void Dispose()
 	{
 		_meter.Dispose();

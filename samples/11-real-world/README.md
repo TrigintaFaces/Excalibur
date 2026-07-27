@@ -10,7 +10,7 @@ End-to-end samples that compose multiple Dispatch and Excalibur patterns into re
 | [EnterpriseOrderProcessing](EnterpriseOrderProcessing/) | Enterprise stack (22+ packages) | CDC, Outbox, RabbitMQ, OpenTelemetry, Security, Resilience |
 | [ECommerceSample](ECommerceSample/) | ECommerce In-Memory Stores | In-memory `IInboxStore`/`IOutboxStore`/`IScheduleStore`, order processing, OTel tracing |
 | [FullStackAddExcalibur](FullStackAddExcalibur/) 🧩 *infra-gated flow* | Single-builder composition — OrderManagement domain | ES + CDC + projections + ElasticSearch + IdentityMap + DataProcessing, all composed through `AddExcalibur`. added the operational `POST /orders` command → handler → outbox → projection → `GET /orders/{id}` flow ; the full E2E path requires SQL Server + ElasticSearch. Host boot + `GET /health` work without external infra.
-| [MultiTenantEventSourcing](MultiTenantEventSourcing/) 🧩 *infra-gated flow* | Multi-tenant SaaS composition | Tenant context resolution, API routing, per-tenant projections, query scoping, sharding. added the operational `POST /orders` command with `ITenantId` resolution that exercises the `TenantRoutingEventStore` decorator ; full decorator path requires SQL Server per shard. `GET /shards` + `ValidateOnStart` work without external infra.
+| [MultiTenantEventSourcing](MultiTenantEventSourcing/) 🧩 *infra-gated flow* | Multi-tenant SaaS composition | Tenant context resolution, API routing, per-tenant projections, query scoping, sharding. added the operational `POST /orders` command with `ITenantContext` resolution that exercises the `TenantRoutingEventStore` decorator ; full decorator path requires SQL Server per shard. `GET /shards` + `ValidateOnStart` work without external infra.
 | [HealthcareApi](HealthcareApi/) | Vertical-slice architecture | Per-feature slicing, healthcare domain |
 | [IdentityMapSample](IdentityMapSample/) | Identity map pattern documentation | See README for usage (no runnable project) |
 
@@ -114,27 +114,39 @@ Your production deployment should verify:
 
 ## Upgrading from In-Memory to Production
 
+Production composition is layered — each concern registers on its own builder:
+
+- **Dispatch pipeline** → `AddDispatch(...)`: validation, resilience, observability, transport.
+- **Persistence & domain** → `AddExcalibur(...)`: event sourcing, outbox, CDC.
+
 ```csharp
-// Compose through AddExcalibur (the canonical builder)
+// 1. Dispatch pipeline (IDispatchBuilder)
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+    dispatch.UseValidation().WithFluentValidation();
+    dispatch.UseResilience();     // Polly retry + circuit breaker (Excalibur.Dispatch.Resilience.Polly)
+    dispatch.UseObservability();   // metrics + tracing (Excalibur.Dispatch.Observability)
+});
+
+// 2. Persistence & domain (IExcaliburBuilder)
 services.AddExcalibur(excalibur =>
 {
-    excalibur.AddExcaliburSqlServer(sql =>
-    {
-        sql.ConnectionString = connectionString;
-        sql.UseInbox = true;
-        sql.ConfigureAuditLogging(audit => audit.Enabled = true);
-    });
+    excalibur.AddEventSourcing(es => es
+        .UseSqlServer(sql => sql.ConnectionString(connectionString))
+        .AddRepository<OrderAggregate, Guid>());
 
-    excalibur.AddEventSourcing(es =>
-    {
-        es.AddRepository<OrderAggregate, Guid>();
-    });
+    excalibur.AddOutbox(outbox => outbox
+        .UseSqlServer(sql => sql.ConnectionString(connectionString)));
 
-    excalibur.AddExcaliburCdc();
-    excalibur.AddResilience();
-    excalibur.AddObservability();
+    excalibur.AddCdc(cdc => cdc
+        .UseSqlServer(sql => sql.ConnectionString(connectionString)));
 });
 ```
+
+> The `Excalibur.SqlServer` metapackage also offers `services.AddExcaliburSqlServer(...)` to wire the
+> SQL Server persistence stack in one call. See `EnterpriseOrderProcessing/Program.cs` for a full
+> production composition across 22+ packages.
 
 ## Related Categories
 

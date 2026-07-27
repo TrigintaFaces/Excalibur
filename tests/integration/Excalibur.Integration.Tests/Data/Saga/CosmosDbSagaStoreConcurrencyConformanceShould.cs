@@ -42,6 +42,11 @@ public sealed class CosmosDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 	/// <inheritdoc/>
 	protected override bool SupportsOptimisticConcurrency => true;
 
+	// d0wpug: CosmosDbSagaStore does not implement ISagaStore.PurgeCompletedBeforeAsync — it hits the
+	// interface default that throws NotSupportedException (SA ruling). The base gate asserts that contract.
+	/// <inheritdoc/>
+	protected override bool SupportsCompletedPurge => false;
+
 	/// <inheritdoc/>
 	protected override Task<ISagaStore> CreateStoreAsync()
 	{

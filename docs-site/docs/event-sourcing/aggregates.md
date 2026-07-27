@@ -65,7 +65,7 @@ public class Order : AggregateRoot<Guid>
     }
 
     // Event application - uses pattern matching, no reflection
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
@@ -74,16 +74,19 @@ public class Order : AggregateRoot<Guid>
                 CustomerId = e.CustomerId;
                 Status = OrderStatus.Draft;
                 TotalAmount = 0;
-                break;
+                return true;
 
             case OrderLineAdded e:
                 _lines.Add(new OrderLine(e.ProductId, e.Quantity, e.UnitPrice));
                 TotalAmount += e.Quantity * e.UnitPrice;
-                break;
+                return true;
 
             case OrderSubmitted:
                 Status = OrderStatus.Submitted;
-                break;
+                return true;
+
+            default:
+                return false;
         }
     }
 }
@@ -109,14 +112,14 @@ public abstract class AggregateRoot<TKey> : IAggregateRoot<TKey>
     // Raise a new event
     protected void RaiseEvent(IDomainEvent @event);
 
-    // Replay historical events
-    public void LoadFromHistory(IEnumerable<IDomainEvent> history);
+    // Replay historical events (each paired with its store-assigned stream version)
+    public void LoadFromHistory(IEnumerable<HistoricEvent> history);
 
     // Clear after persistence
     public void MarkEventsAsCommitted();
 
     // Implement this using pattern matching
-    protected abstract void ApplyEventInternal(IDomainEvent @event);
+    protected abstract bool ApplyEventInternal(IDomainEvent @event);
 }
 ```
 
@@ -181,7 +184,7 @@ public void Cancel(string reason)
 Use pattern matching for type-safe, reflection-free event application:
 
 ```csharp
-protected override void ApplyEventInternal(IDomainEvent @event)
+protected override bool ApplyEventInternal(IDomainEvent @event)
 {
     switch (@event)
     {
@@ -189,39 +192,41 @@ protected override void ApplyEventInternal(IDomainEvent @event)
             Id = e.OrderId;
             CustomerId = e.CustomerId;
             Status = OrderStatus.Draft;
-            break;
+            return true;
 
         case OrderLineAdded e:
             _lines.Add(new OrderLine(e.ProductId, e.Quantity, e.UnitPrice));
             TotalAmount += e.Quantity * e.UnitPrice;
-            break;
+            return true;
 
         case OrderLineRemoved e:
             var line = _lines.First(l => l.ProductId == e.ProductId);
             _lines.Remove(line);
             TotalAmount -= line.Quantity * line.UnitPrice;
-            break;
+            return true;
 
         case OrderSubmitted:
             Status = OrderStatus.Submitted;
-            break;
+            return true;
 
         case OrderShipped e:
             Status = OrderStatus.Shipped;
             TrackingNumber = e.TrackingNumber;
-            break;
+            return true;
 
         case OrderDelivered:
             Status = OrderStatus.Delivered;
-            break;
+            return true;
 
         case OrderCancelled e:
             Status = OrderStatus.Cancelled;
             CancellationReason = e.Reason;
-            break;
+            return true;
 
-        // Important: Don't throw on unknown events
-        // This allows for forward compatibility
+        // Forward compatibility: return true on unknown events so replay never
+        // throws (a false return signals "unhandled" and the base class throws).
+        default:
+            return true;
     }
 }
 ```
@@ -345,22 +350,25 @@ public class Order : AggregateRoot<Guid>
         }
     }
 
-    protected override void ApplyEventInternal(IDomainEvent @event)
+    protected override bool ApplyEventInternal(IDomainEvent @event)
     {
         switch (@event)
         {
             case OrderLineAdded e:
                 _lines.Add(new OrderLine(e.LineId, e.ProductId, e.Quantity, e.UnitPrice));
-                break;
+                return true;
 
             case OrderLineRemoved e:
                 _lines.RemoveAll(l => l.Id == e.LineId);
-                break;
+                return true;
 
             case OrderLineQuantityUpdated e:
                 var line = _lines.First(l => l.Id == e.LineId);
                 line.UpdateQuantity(e.NewQuantity);
-                break;
+                return true;
+
+            default:
+                return false;
         }
     }
 }

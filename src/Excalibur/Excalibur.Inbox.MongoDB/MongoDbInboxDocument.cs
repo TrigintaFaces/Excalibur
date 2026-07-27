@@ -108,13 +108,29 @@ internal sealed class MongoDbInboxDocument
 	public string? Source { get; set; }
 
 	/// <summary>
-	/// Creates the compound document ID from message and handler.
+	/// Gets or sets the server-clock expiry of the current processing lease, written by the atomic
+	/// lease-claim pipeline. Mapped as a first-class field so typed reads do not treat it as an
+	/// unmapped extra element (the store owns this field; it is not part of <see cref="InboxEntry"/>).
+	/// </summary>
+	[BsonElement("leaseExpiresAt")]
+	public DateTime? LeaseExpiresAt { get; set; }
+
+	/// <summary>
+	/// Creates the compound document ID from message and handler, optionally tenant-scoped.
 	/// </summary>
 	/// <param name="messageId">The message identifier.</param>
 	/// <param name="handlerType">The handler type.</param>
+	/// <param name="tenantId">
+	/// When non-null (active multi-tenancy), the tenant is composed INTO the unique <c>_id</c> so two tenants
+	/// carrying the same <c>(messageId, handlerType)</c> can never collide on the unique key — closing the
+	/// cross-tenant false-dedup (silent message loss) leak structurally. When null (non-multi-tenant), the id
+	/// is byte-identical to the un-scoped form.
+	/// </param>
 	/// <returns>The compound ID string.</returns>
-	public static string CreateId(string messageId, string handlerType) =>
-		$"{messageId}:{handlerType}";
+	public static string CreateId(string messageId, string handlerType, string? tenantId = null) =>
+		tenantId is null
+			? $"{messageId}:{handlerType}"
+			: $"{tenantId}:{messageId}:{handlerType}";
 
 	/// <summary>
 	/// Creates a document from an <see cref="InboxEntry"/>.

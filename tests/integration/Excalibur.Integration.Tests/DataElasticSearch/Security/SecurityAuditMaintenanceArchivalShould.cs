@@ -9,6 +9,7 @@ using Elastic.Clients.Elasticsearch.QueryDsl;
 using Excalibur.AuditLogging;
 using Excalibur.Data.ElasticSearch.Security;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
@@ -119,9 +120,9 @@ public sealed class SecurityAuditMaintenanceArchivalShould : ElasticsearchIntegr
 	}
 
 	// SecurityAuditMaintenanceService is internal; this assembly is not a friend assembly, so construct it
-	// via its internal ctor (ElasticsearchClient, AuditOptions, IAuditSigningKeyProvider, ILogger) and invoke
+	// via its internal ctor (ElasticsearchClient, AuditOptions, IAuditIntegrityStrategy, ILogger) and invoke
 	// through reflection — the established pattern for internal components. SecurityAuditEvent, AuditOptions,
-	// and IAuditSigningKeyProvider are public.
+	// IAuditIntegrityStrategy, and HmacAuditIntegrityStrategy are public.
 	private object CreateMaintenanceService()
 	{
 		var serviceType = typeof(AuditOptions).Assembly
@@ -134,22 +135,20 @@ public sealed class SecurityAuditMaintenanceArchivalShould : ElasticsearchIntegr
 			serviceType,
 			BindingFlags.NonPublic | BindingFlags.Instance,
 			binder: null,
-			args: [Client, options, new TestAuditSigningKeyProvider(), NullLogger.Instance],
+			args: [Client, options, BuildIntegrityStrategy(), NullLogger.Instance],
 			culture: null)!;
 	}
 
-	// Minimal in-test IAuditSigningKeyProvider double. The archival path under test is date-bound
-	// delete; it does not mint or verify integrity tags here, so a fixed non-empty key satisfies the
-	// ctor dependency without affecting the archival behavior being asserted.
-	private sealed class TestAuditSigningKeyProvider : IAuditSigningKeyProvider
+	// Builds the real IAuditIntegrityStrategy via DI (mirrors AuditIntegrityRealElasticsearchShould.BuildStrategy).
+	// The archival path under test is date-bound delete; it does not mint or verify integrity tags here, so a
+	// fixed non-empty key satisfies the ctor dependency without affecting the archival behavior being asserted.
+	private static IAuditIntegrityStrategy BuildIntegrityStrategy()
 	{
-		private static readonly byte[] SigningKey = new byte[32];
-
-		public ValueTask<(string KeyId, byte[] Key)> GetCurrentSigningKeyAsync(CancellationToken cancellationToken)
-			=> ValueTask.FromResult(("test-key", SigningKey));
-
-		public ValueTask<byte[]?> GetSigningKeyAsync(string keyId, CancellationToken cancellationToken)
-			=> ValueTask.FromResult<byte[]?>(SigningKey);
+		var services = new ServiceCollection();
+		_ = services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+			new AuditIntegrityOptions { SigningKey = new byte[32], KeyId = "test-key" }));
+		_ = services.AddAuditIntegrity();
+		return services.BuildServiceProvider().GetRequiredService<IAuditIntegrityStrategy>();
 	}
 
 	private static async Task InvokeArchiveAsync(object service, DateTimeOffset cutoff, string archiveLocation)

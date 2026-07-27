@@ -55,20 +55,13 @@ public sealed class SigningAlgorithmShould
 	}
 
 	[Fact]
-	public void HaveEd25519AsSix()
-	{
-		// Assert
-		((int)SigningAlgorithm.Ed25519).ShouldBe(6);
-	}
-
-	[Fact]
-	public void HaveSevenDefinedValues()
+	public void HaveSixDefinedValues()
 	{
 		// Arrange
 		var values = Enum.GetValues<SigningAlgorithm>();
 
 		// Assert
-		values.Length.ShouldBe(7);
+		values.Length.ShouldBe(6);
 	}
 
 	[Fact]
@@ -88,7 +81,6 @@ public sealed class SigningAlgorithmShould
 	[InlineData(SigningAlgorithm.RSASHA256, "RSASHA256")]
 	[InlineData(SigningAlgorithm.RSAPSSSHA256, "RSAPSSSHA256")]
 	[InlineData(SigningAlgorithm.ECDSASHA256, "ECDSASHA256")]
-	[InlineData(SigningAlgorithm.Ed25519, "Ed25519")]
 	public void HaveCorrectStringRepresentation(SigningAlgorithm algorithm, string expected)
 	{
 		// Act
@@ -105,7 +97,6 @@ public sealed class SigningAlgorithmShould
 	[InlineData("RSASHA256", SigningAlgorithm.RSASHA256)]
 	[InlineData("RSAPSSSHA256", SigningAlgorithm.RSAPSSSHA256)]
 	[InlineData("ECDSASHA256", SigningAlgorithm.ECDSASHA256)]
-	[InlineData("Ed25519", SigningAlgorithm.Ed25519)]
 	public void ParseFromString(string value, SigningAlgorithm expected)
 	{
 		// Act

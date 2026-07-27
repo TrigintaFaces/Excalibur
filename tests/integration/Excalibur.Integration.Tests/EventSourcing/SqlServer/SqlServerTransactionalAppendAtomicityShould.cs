@@ -162,21 +162,9 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
         (await CountOutboxAsync(staleOutboxId).ConfigureAwait(false)).ShouldBe(0, "no outbox row on conflict");
     }
 
-    // -------------------------------------------------------------------------------------------------
-    // AC-K.4 / EC-K.4 — the marker contract: SqlServerEventStore IS ITransactionalEventStore (the
-    // capability probe `eventStore is ITransactionalEventStore` works), and the marker extends IEventStore
-    // so a non-implementing (e.g. non-SqlServer) store remains an unaffected plain IEventStore.
-    // -------------------------------------------------------------------------------------------------
-    [Fact]
-    public void ExposeTransactionalCapabilityViaTheMarkerInterface()
-    {
-        var store = CreateEventStore();
-
-        store.ShouldBeAssignableTo<ITransactionalEventStore>("SqlServerEventStore must expose the transactional seam");
-        typeof(IEventStore).IsAssignableFrom(typeof(ITransactionalEventStore))
-            .ShouldBeTrue("ITransactionalEventStore must extend IEventStore so the marker probe is sound and " +
-                "non-implementing stores stay unaffected plain IEventStores (EC-K.4)");
-    }
+    // AC-K.4 / EC-K.4 marker-contract assertions are container-independent (pure type checks) and live in
+    // the fixture-less SqlServerEventStoreMarkerContractShould below — bd-2iva37: a pure type-assertion must
+    // not be collateral damage of a TestContainers start cascade under full-suite load.
 
     private IEventStore CreateEventStore() =>
         new SqlServerEventStore(_connectionString!, NullLogger<SqlServerEventStore>.Instance);
@@ -259,5 +247,33 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
         public DateTimeOffset OccurredAt { get; init; }
         public string EventType { get; init; }
         public IDictionary<string, object>? Metadata => null;
+    }
+}
+
+/// <summary>
+/// bd-2iva37 — container-independent marker-contract lock for AC-K.4 / EC-K.4, extracted from
+/// <see cref="SqlServerTransactionalAppendAtomicityShould"/> so a pure type-assertion is NOT collateral
+/// damage of a TestContainers MsSql start cascade under full-suite container load (the reported P3 flake).
+/// This class owns no fixture / <c>IAsyncLifetime</c> and touches no database — the store's connection
+/// factory is lazy, so a dummy connection string is never opened.
+/// </summary>
+[Trait("Category", "Unit")]
+[Trait("Component", "EventStore")]
+public sealed class SqlServerEventStoreMarkerContractShould
+{
+    // AC-K.4 / EC-K.4 — SqlServerEventStore IS ITransactionalEventStore (the capability probe
+    // `eventStore is ITransactionalEventStore` works), and the marker extends IEventStore so a
+    // non-implementing (e.g. non-SqlServer) store remains an unaffected plain IEventStore.
+    [Fact]
+    public void ExposeTransactionalCapabilityViaTheMarkerInterface()
+    {
+        // Lazy connection factory ⇒ never opened for a pure type assertion; no container required.
+        IEventStore store = new SqlServerEventStore(
+            "Server=unused;Database=unused;", NullLogger<SqlServerEventStore>.Instance);
+
+        store.ShouldBeAssignableTo<ITransactionalEventStore>("SqlServerEventStore must expose the transactional seam");
+        typeof(IEventStore).IsAssignableFrom(typeof(ITransactionalEventStore))
+            .ShouldBeTrue("ITransactionalEventStore must extend IEventStore so the marker probe is sound and " +
+                "non-implementing stores stay unaffected plain IEventStores (EC-K.4)");
     }
 }

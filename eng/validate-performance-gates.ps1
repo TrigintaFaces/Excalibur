@@ -37,7 +37,7 @@ param(
     [Parameter(Mandatory = $false)]
     [double]$HotPathLookupMaxDispatchRatio = 0.25,
 
-    # HandlerInvoker ratio increased after S652-S653 auto-optimize rounds shrank
+    # HandlerInvoker ratio increased after auto-optimize rounds shrank
     # dispatch overhead (lookup, context factory), compressing the denominator.
     # Actual invoker time unchanged; ratio rose from ~0.50 to ~0.67 due to
     # denominator compression. 0.75 accommodates post-optimization baseline.
@@ -589,7 +589,7 @@ elseif ($Gate -eq "DispatchHotPath") {
     # (the accurate out-of-process Default toolchain reports Mean=NA there). InProcessEmit over-reports
     # this path's per-op allocation in a way no MemoryDiagnoser knob corrects: it reads ~672-680 B on CI
     # and stayed 680 B even at InvocationCount=256, while the accurate out-of-process toolchain reads the
-    # true 232 B (identical on main and the ADR-335 branch). The authoritative allocation regression gate
+    # true 232 B (identical on main and the comparison branch). The authoritative allocation regression gate
     # is the deterministic GC.GetAllocatedBytesForCurrentThread() test
     # (Excalibur.Dispatch.Tests.Messaging.Performance.MemoryAllocationShould.AllocateBoundedBytesPerDispatch,
     # Performance shard), which measures the real allocation and fails the build on a regression. These

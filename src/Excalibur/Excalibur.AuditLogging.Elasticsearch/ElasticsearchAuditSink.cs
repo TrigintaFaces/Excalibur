@@ -29,8 +29,7 @@ internal sealed partial class ElasticsearchAuditSink
 	private readonly HttpClient _httpClient;
 	private readonly ElasticsearchAuditSinkOptions _options;
 	private readonly ILogger<ElasticsearchAuditSink> _logger;
-	private readonly Uri[] _bulkApiUris;
-	private int _nodeIndex;
+	private readonly Uri _bulkApiUri;
 
 	public ElasticsearchAuditSink(
 		HttpClient httpClient,
@@ -45,24 +44,11 @@ internal sealed partial class ElasticsearchAuditSink
 		_options = options.Value;
 		_logger = logger;
 
+		// The request is built against the first node as a template; per-attempt node failover
+		// (round-robin across the cluster) is applied by NodeFailoverHandler in the HttpClient pipeline.
 		var nodeUrls = _options.GetResolvedNodeUrls();
-		_bulkApiUris = new Uri[nodeUrls.Count];
-		for (var i = 0; i < nodeUrls.Count; i++)
-		{
-			var baseUrl = nodeUrls[i].TrimEnd('/');
-			_bulkApiUris[i] = new Uri($"{baseUrl}/_bulk?refresh={_options.RefreshPolicy}");
-		}
-	}
-
-	private Uri GetNextBulkUri()
-	{
-		if (_bulkApiUris.Length == 1)
-		{
-			return _bulkApiUris[0];
-		}
-
-		var index = Interlocked.Increment(ref _nodeIndex);
-		return _bulkApiUris[((index % _bulkApiUris.Length) + _bulkApiUris.Length) % _bulkApiUris.Length];
+		var baseUrl = nodeUrls[0].TrimEnd('/');
+		_bulkApiUri = new Uri($"{baseUrl}/_bulk?refresh={_options.RefreshPolicy}");
 	}
 
 	/// <summary>
@@ -78,7 +64,7 @@ internal sealed partial class ElasticsearchAuditSink
 
 		try
 		{
-			var response = await SendWithRetryAsync(ndjson, cancellationToken).ConfigureAwait(false);
+			var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -125,48 +111,19 @@ internal sealed partial class ElasticsearchAuditSink
 		return sb.ToString();
 	}
 
-	private async Task<HttpResponseMessage> SendWithRetryAsync(
+	// Sends the bulk payload once. Transient-fault retry and per-attempt node failover are owned by
+	// the HttpClient pipeline (standard resilience handler + NodeFailoverHandler), configured in DI.
+	private async Task<HttpResponseMessage> SendBulkAsync(
 		string ndjson,
 		CancellationToken cancellationToken)
 	{
-		var attempts = 0;
-		HttpResponseMessage? lastResponse = null;
-
-		while (attempts <= _options.MaxRetryAttempts)
-		{
-			attempts++;
-
-			try
-			{
-				using var request = CreateRequest(ndjson);
-				lastResponse = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
-				if (lastResponse.IsSuccessStatusCode || !IsTransientStatusCode(lastResponse.StatusCode))
-				{
-					return lastResponse;
-				}
-
-				if (attempts <= _options.MaxRetryAttempts)
-				{
-					var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
-					LogAuditSinkRetry(attempts, delay.TotalMilliseconds, lastResponse.StatusCode);
-
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			catch (HttpRequestException) when (attempts <= _options.MaxRetryAttempts)
-			{
-				var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		return lastResponse ?? throw new HttpRequestException("Failed after all retry attempts");
+		using var request = CreateRequest(ndjson);
+		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}
 
 	private HttpRequestMessage CreateRequest(string ndjson)
 	{
-		var request = new HttpRequestMessage(HttpMethod.Post, GetNextBulkUri())
+		var request = new HttpRequestMessage(HttpMethod.Post, _bulkApiUri)
 		{
 			Content = new StringContent(ndjson, Encoding.UTF8, "application/x-ndjson")
 		};
@@ -178,14 +135,6 @@ internal sealed partial class ElasticsearchAuditSink
 
 		return request;
 	}
-
-	private static bool IsTransientStatusCode(HttpStatusCode statusCode) =>
-		statusCode is HttpStatusCode.RequestTimeout
-			or HttpStatusCode.TooManyRequests
-			or HttpStatusCode.InternalServerError
-			or HttpStatusCode.BadGateway
-			or HttpStatusCode.ServiceUnavailable
-			or HttpStatusCode.GatewayTimeout;
 
 	[LoggerMessage(ElasticsearchAuditLoggingEventId.SinkEventWritten, LogLevel.Debug,
 		"Wrote audit event to Elasticsearch sink: {Action}")]
@@ -202,8 +151,4 @@ internal sealed partial class ElasticsearchAuditSink
 	[LoggerMessage(ElasticsearchAuditLoggingEventId.SinkTimeout, LogLevel.Error,
 		"Timeout writing audit event to Elasticsearch sink: {Action}")]
 	private partial void LogAuditSinkTimeout(Exception exception, string action);
-
-	[LoggerMessage(ElasticsearchAuditLoggingEventId.SinkRetried, LogLevel.Debug,
-		"Retrying Elasticsearch sink write (attempt {Attempt}) after {Delay}ms due to {StatusCode}")]
-	private partial void LogAuditSinkRetry(int attempt, double delay, HttpStatusCode statusCode);
 }

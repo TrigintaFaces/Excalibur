@@ -160,7 +160,6 @@ public sealed class SigningModelsCoverageShould
     [InlineData(SigningAlgorithm.RSASHA256, 3)]
     [InlineData(SigningAlgorithm.RSAPSSSHA256, 4)]
     [InlineData(SigningAlgorithm.ECDSASHA256, 5)]
-    [InlineData(SigningAlgorithm.Ed25519, 6)]
     public void SigningAlgorithmEnumValues(SigningAlgorithm algorithm, int expectedValue)
     {
         ((int)algorithm).ShouldBe(expectedValue);

@@ -43,9 +43,9 @@ public interface IHandlerActivator
 	/// The activator should ensure that handler instances are properly configured for the current message processing context and that all
 	/// required dependencies are satisfied before returning.
 	/// </para>
-	/// </remarks>
-	/// <remarks>
+	/// <para>
 	/// Uses DynamicallyAccessedMembers to preserve PublicProperties for reflection-based context injection.
+	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Handler activation may require reflection to instantiate handler types")]
 	object ActivateHandler(

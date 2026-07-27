@@ -1,6 +1,6 @@
 ﻿# IMessageUpcaster<TOld, TNew> Interface
 
-**Namespace:** `Excalibur.Dispatch.Abstractions.Versioning`
+**Namespace:** `Excalibur.Dispatch.Versioning`
 **Assembly:** `Excalibur.Dispatch.Abstractions`
 
 Generic interface for type-safe message transformations between versions.

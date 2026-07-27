@@ -46,9 +46,19 @@ public sealed class SqlSecurityEventStoreBridgeIntegrationShould : IntegrationTe
 		};
 
 		var services = new ServiceCollection();
+		// The annotation options are required because retention now cascades: deleting an audit event must
+		// delete the annotations that derive their tenant from it, so the store has to know where those live.
 		_ = services.AddSingleton<IAuditStore>(_ => new SqlServerAuditStore(
 			Microsoft.Extensions.Options.Options.Create(auditOptions),
+			Microsoft.Extensions.Options.Options.Create(new SqlServerAuditAnnotationStoreOptions
+			{
+				ConnectionString = _fixture.ConnectionString,
+				SchemaName = "audit",
+				TableName = "AuditAnnotations",
+			}),
 			AuditIntegrityTestStrategy.Create(),
+			// No ambient tenant: this bridge suite asserts security-event forwarding, not tenancy.
+			tenantContext: null,
 			EnabledTestLogger.Create<SqlServerAuditStore>()));
 		_ = services.AddSqlSecurityEventStore();
 

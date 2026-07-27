@@ -305,7 +305,7 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100, CancellationToken cancellationToken = default)
 			=> new(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000, CancellationToken cancellationToken = default)
+		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000, CancellationToken cancellationToken = default)
 			=> new(0);
 
 		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
@@ -338,7 +338,7 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 		public ValueTask<IEnumerable<OutboundMessage>> GetScheduledMessagesAsync(DateTimeOffset scheduledBefore, int batchSize = 100, CancellationToken cancellationToken = default)
 			=> new(Enumerable.Empty<OutboundMessage>());
 
-		public ValueTask<int> CleanupSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000, CancellationToken cancellationToken = default)
+		public ValueTask<int> CleanupAllTenantsSentMessagesAsync(DateTimeOffset olderThan, int batchSize = 1000, CancellationToken cancellationToken = default)
 			=> new(0);
 
 		public ValueTask<OutboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)

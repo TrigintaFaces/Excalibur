@@ -4,6 +4,7 @@
 
 using Excalibur.Data;
 using Excalibur.Data.MongoDB.Diagnostics;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -36,6 +37,8 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	private readonly MongoDbSagaOptions _options;
 	private readonly ILogger<MongoDbSagaStore> _logger;
 	private readonly DispatchJsonSerializer _serializer;
+
+	private readonly ITenantContext? _tenantContext;
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoCollection<MongoDbSagaDocument>? _collection;
@@ -48,13 +51,18 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	/// <param name="options">The saga store options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. It is accepted so the
+	/// store can DETECT a tenant scope it cannot honour and refuse it, rather than silently ignoring one.
+	/// </param>
 	/// <remarks>
 	/// This is the primary constructor for dependency injection scenarios.
 	/// </remarks>
 	public MongoDbSagaStore(
 		IOptions<MongoDbSagaOptions> options,
 		ILogger<MongoDbSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -64,6 +72,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		_options.Validate();
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 		_ownsClient = true;
 	}
 
@@ -83,12 +92,17 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	/// <item><description>Custom connection pooling</description></item>
 	/// <item><description>Integration with existing MongoDB infrastructure</description></item>
 	/// </list>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. It is accepted so the
+	/// store can DETECT a tenant scope it cannot honour and refuse it, rather than silently ignoring one.
+	/// </param>
 	/// </remarks>
 	public MongoDbSagaStore(
 		IMongoClient client,
 		IOptions<MongoDbSagaOptions> options,
 		ILogger<MongoDbSagaStore> logger,
-		DispatchJsonSerializer serializer)
+		DispatchJsonSerializer serializer,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -100,6 +114,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		_options.Validate();
 		_logger = logger;
 		_serializer = serializer;
+		_tenantContext = tenantContext;
 		_collection = client.GetDatabase(_options.DatabaseName)
 			.GetCollection<MongoDbSagaDocument>(_options.CollectionName);
 	}
@@ -118,6 +133,7 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		// LoadAsync<TSagaState>(id) must return null when no saga of that type exists at the id — the contract
 		// already enforced structurally by InMemory (`state is TSagaState`), Cosmos, Firestore, and DynamoDb.
 		var filter = Builders<MongoDbSagaDocument>.Filter.And(
+			TenantFilter(),
 			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaId),
 			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaType, typeof(TSagaState).Name));
 		var document = await _collection!
@@ -171,7 +187,14 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		//   - stale version (concurrent write) -> filter doesn't match -> upsert attempts an INSERT on the
 		//     already-present _id -> E11000 duplicate key, which we surface as ConcurrencyException instead of
 		//     silently overwriting the newer write (the previous blind upsert lost the update).
+		// The tenant is part of the MATCH, not merely stored: without it a save under tenant A could match and
+		// overwrite tenant B's saga at the same id. With it, a cross-tenant save matches nothing and falls into
+		// the no-resurrect guard below rather than silently clobbering another tenant's state.
+		var scope = TenantScope.FromContext(_tenantContext);
+		var tenantId = scope.IsScoped ? scope.TenantId : sagaState.TenantId;
+
 		var filter = Builders<MongoDbSagaDocument>.Filter.And(
+			TenantFilter(),
 			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId),
 			Builders<MongoDbSagaDocument>.Filter.Eq(d => d.Version, expectedVersion));
 
@@ -179,9 +202,14 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 			.Set(d => d.SagaType, typeof(TSagaState).Name)
 			.Set(d => d.StateJson, stateJson)
 			.Set(d => d.IsCompleted, sagaState.Completed)
+			.Set(d => d.CompletedAt, sagaState.CompletedAt?.UtcDateTime)
 			.Set(d => d.UpdatedUtc, now)
 			.Set(d => d.Version, expectedVersion + 1)
 			.SetOnInsert(d => d.SagaId, sagaState.SagaId)
+			// SetOnInsert, never Set: ownership is fixed when the saga is created. Re-stamping the tenant on
+			// every update would let a save under a different scope quietly re-home an existing saga, which is
+			// the overwrite leak wearing the costume of a fix.
+			.SetOnInsert(d => d.TenantId, tenantId)
 			.SetOnInsert(d => d.CreatedUtc, now);
 
 		// No-resurrect guard (SqlServer reference contract): only a brand-new saga (expected version 0) may
@@ -199,8 +227,15 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 			{
 				// Update-only path matched nothing: the saga was deleted or its version moved on. Throw
 				// instead of resurrecting (mirrors the MERGE's "@ExpectedVersion = 0"-guarded INSERT branch).
+				// TENANT-FILTERED, like every other read. This is a diagnostic fetch — it exists only to report
+				// the persisted version in the exception below — but an unfiltered read here would return
+				// ANOTHER tenant's document and put ITS version number into an error message this caller can
+				// see. A cross-tenant save must look like "no such saga" (version -1), not like a conflict
+				// with a row the caller is not entitled to know exists.
 				var current = await _collection!
-					.Find(Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId))
+					.Find(Builders<MongoDbSagaDocument>.Filter.And(
+						TenantFilter(),
+						Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId)))
 					.FirstOrDefaultAsync(cancellationToken)
 					.ConfigureAwait(false);
 
@@ -215,8 +250,12 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		{
 			// Reachable only on the insert path (expected == 0): a document already exists at this _id but
 			// not at version 0 → a concurrent create / stale insert. Surface as a concurrency conflict.
+			// TENANT-FILTERED for the same reason as the update path above: a diagnostic read is still a read,
+			// and an unfiltered one discloses another tenant's version through the exception it raises.
 			var current = await _collection!
-				.Find(Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId))
+				.Find(Builders<MongoDbSagaDocument>.Filter.And(
+					TenantFilter(),
+					Builders<MongoDbSagaDocument>.Filter.Eq(d => d.SagaId, sagaState.SagaId)))
 				.FirstOrDefaultAsync(cancellationToken)
 				.ConfigureAwait(false);
 
@@ -232,6 +271,54 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		sagaState.Version = expectedVersion + 1;
 
 		LogSagaSaved(typeof(TSagaState).Name, sagaState.SagaId, sagaState.Completed);
+	}
+
+	/// <inheritdoc/>
+	public async Task<int> PurgeCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Now a real predicate rather than a refusal. Until the tenant became a first-class document field this
+		// store could not express "this tenant's completed sagas" at all, so it refused the call rather than
+		// delete every tenant's rows while reporting success. With TenantFilter() the scope is expressible, so
+		// the honest answer changed from "I cannot" to the filtered delete itself.
+		var cutoff = threshold.UtcDateTime;
+		var filter = Builders<MongoDbSagaDocument>.Filter.And(
+			TenantFilter(),
+			Builders<MongoDbSagaDocument>.Filter.Ne(d => d.CompletedAt, null),
+			Builders<MongoDbSagaDocument>.Filter.Lt(d => d.CompletedAt, cutoff));
+
+		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+
+		return (int)result.DeletedCount;
+	}
+
+	/// <inheritdoc/>
+	/// <remarks>
+	/// The estate-wide sweep: no tenant discriminator, every tenant's completed sagas in range. Reachable only
+	/// by writing this method's name, never by omitting a scope.
+	/// </remarks>
+	public async Task<int> PurgeAllTenantsCompletedBeforeAsync(DateTimeOffset threshold, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Query the dedicated completedAt field directly from the document (SA w8aqq3 ruling). Compare as UTC
+		// DateTime — the MongoDB LINQ/filter provider cannot translate DateTimeOffset. Filtered to non-null so a
+		// running saga (completedAt == null) is never purged.
+		var cutoff = threshold.UtcDateTime;
+		var filter = Builders<MongoDbSagaDocument>.Filter.And(
+			Builders<MongoDbSagaDocument>.Filter.Ne(d => d.CompletedAt, null),
+			Builders<MongoDbSagaDocument>.Filter.Lt(d => d.CompletedAt, cutoff));
+
+		var result = await _collection!.DeleteManyAsync(filter, cancellationToken).ConfigureAwait(false);
+
+		var removed = result.IsAcknowledged ? (int)result.DeletedCount : 0;
+		LogSagasPurged(removed, threshold);
+		return removed;
 	}
 
 	/// <inheritdoc/>
@@ -296,9 +383,38 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 		_initialized = true;
 	}
 
+	/// <summary>
+	/// Builds the tenant predicate every keyed operation must carry.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A scoped store matches its own tenant. An unscoped store matches the untenanted partition — documents
+	/// with no tenant — rather than everything, so "no tenant established" narrows the query instead of
+	/// widening it. Mongo's equality against <see langword="null"/> matches both an explicit null and a missing
+	/// field, which is what documents written before this field existed look like.
+	/// </para>
+	/// <para>
+	/// <b>This centralises the predicate; it does not enforce its use.</b> Calling it remains optional, so a
+	/// new query path can still be written without it and nothing will fail — the compiler cannot tell a
+	/// deliberate estate-wide sweep from a forgotten filter. Every operation that addresses a specific saga
+	/// MUST compose this in, and a reviewer adding a path here should treat its absence as the finding rather
+	/// than assume the helper covered it. The enforceable version of this would make the unfiltered collection
+	/// unreachable rather than merely unused, which is a larger change than this one.
+	/// </para>
+	/// </remarks>
+	private FilterDefinition<MongoDbSagaDocument> TenantFilter()
+	{
+		var scope = TenantScope.FromContext(_tenantContext);
+		return Builders<MongoDbSagaDocument>.Filter.Eq(d => d.TenantId, scope.IsScoped ? scope.TenantId : null);
+	}
+
 	[LoggerMessage(DataMongoDbEventId.SagaStateLoaded, LogLevel.Debug, "Loaded saga {SagaType}/{SagaId}")]
 	private partial void LogSagaLoaded(string sagaType, Guid sagaId);
 
+	[LoggerMessage(DataMongoDbEventId.SagaStatePurged, LogLevel.Debug, "Purged {Count} completed sagas older than {Threshold}")]
+	private partial void LogSagasPurged(int count, DateTimeOffset threshold);
+
 	[LoggerMessage(DataMongoDbEventId.SagaStateSaved, LogLevel.Debug, "Saved saga {SagaType}/{SagaId}, Completed={IsCompleted}")]
+
 	private partial void LogSagaSaved(string sagaType, Guid sagaId, bool isCompleted);
 }

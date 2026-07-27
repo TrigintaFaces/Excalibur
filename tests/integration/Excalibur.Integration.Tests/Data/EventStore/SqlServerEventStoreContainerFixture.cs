@@ -88,8 +88,20 @@ public sealed class SqlServerEventStoreContainerFixture : ContainerFixtureBase
 					Metadata VARBINARY(MAX) NULL,
 					Version BIGINT NOT NULL,
 					Timestamp DATETIMEOFFSET NOT NULL,
+					TenantId NVARCHAR(255) NULL,
 					CONSTRAINT PK_{TableName} PRIMARY KEY (Position),
-					CONSTRAINT UQ_{TableName}_Stream UNIQUE (AggregateId, AggregateType, Version)
+					-- TenantId belongs in this key, and its absence made the fixture diverge from the
+					-- schema the product actually ships (001_CreateEventStoreSchema.sql declares
+					-- UNIQUE (AggregateId, AggregateType, Version, TenantId)).
+					--
+					-- The divergence was STRICTER than production, which is the direction that hides:
+					-- everything kept passing while two different tenants writing the same
+					-- (aggregate, version) collided here and would not collide in production. It matters
+					-- now because this constraint IS the store's concurrency control -- the append runs at
+					-- READ COMMITTED and translates a violation of this key into a concurrency conflict --
+					-- so a test asserting that behaviour against the wrong key is asserting the wrong
+					-- contract.
+					CONSTRAINT UQ_{TableName}_Stream UNIQUE (AggregateId, AggregateType, Version, TenantId)
 				);
 			END
 			""";

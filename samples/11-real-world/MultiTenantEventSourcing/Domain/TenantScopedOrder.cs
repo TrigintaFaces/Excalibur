@@ -14,7 +14,7 @@ namespace MultiTenantEventSourcing.Domain;
 /// <remarks>
 /// Two ways to encode tenant isolation in event-sourced aggregates:
 /// 1. Composite aggregate id (shown here) -- simple, works across providers.
-/// 2. Separate <see cref="Excalibur.Dispatch.ITenantId"/> +
+/// 2. Ambient <see cref="Excalibur.Dispatch.ITenantContext"/> +
 ///    <c>EnableTenantSharding()</c> -- framework-managed, picks the right shard
 ///    per operation.
 /// This sample uses approach (2) and keeps the aggregate id tenant-free.
@@ -34,11 +34,13 @@ public sealed class TenantScopedOrder : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case OrderCreated c: Id = c.OrderId; Total = c.Total; break;
+			case OrderCreated c: Id = c.OrderId; Total = c.Total; return true;
+			default:
+				return false;
 		}
 	}
 }

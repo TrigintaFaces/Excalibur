@@ -23,6 +23,7 @@ namespace Excalibur.LeaderElection.SqlServer;
 /// </remarks>
 public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDisposable
 {
+	private readonly TimeProvider _timeProvider;
 	private readonly string _connectionString;
 	private readonly string _lockResource;
 	private readonly LeaderElectionOptions _options;
@@ -54,9 +55,14 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private int _disposed;
-	// Stored as UTC ticks accessed via Interlocked (a58yu6): the renewal task reads/writes this
-	// lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset would tear.
+	// Stored as a monotonic TimeProvider timestamp (3g58kl) accessed via Interlocked: the renewal task
+	// reads/writes this lock-free while BecomeLeader writes it under _lock, so a multi-field DateTimeOffset
+	// would tear. Elapsed-time computations must use TimeProvider.GetElapsedTime, never a wall-clock delta.
 	private long _lastSuccessfulRenewalTicks;
+	// 3g58kl: the fencing token minted for the current leadership tenure (0 when no provider is
+	// configured) and the instant that tenure began, read together under _lock via CurrentLeadership.
+	private long _currentFencingToken;
+	private DateTimeOffset _leadershipAcquiredAt;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerLeaderElection"/> class.
@@ -66,7 +72,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <param name="options">The leader election options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="failureClassifier">
-	/// An optional <see cref="IMessageFailureClassifier"/> (ot72w3). When supplied, a renewal-loop fault
+	/// An optional <see cref="IMessageFailureClassifier"/>. When supplied, a renewal-loop fault
 	/// classified <see cref="MessageFailureKind.Permanent"/> triggers an immediate self-demotion instead of
 	/// waiting the full grace period; transient, poison, unclassified, or absent-classifier faults retain
 	/// the grace-period wait. The classifier can only accelerate (never delay) relinquish, so the grace
@@ -79,19 +85,25 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// advanced after bounded retries the candidate relinquishes rather than leading with a stale fence.
 	/// Defaults to <see langword="null"/> (no token issued; opt-in, backward compatible).
 	/// </param>
+	/// <param name="timeProvider">
+	/// Optional time provider used for event timestamps. Defaults to <see cref="TimeProvider.System"/>.
+	/// Inject a controllable provider to make emitted timestamps deterministic in tests.
+	/// </param>
 	public SqlServerLeaderElection(
 		string connectionString,
 		string lockResource,
 		IOptions<LeaderElectionOptions> options,
 		ILogger<SqlServerLeaderElection> logger,
 		IMessageFailureClassifier? failureClassifier = null,
-		IFencingTokenProvider? fencingTokenProvider = null)
+		IFencingTokenProvider? fencingTokenProvider = null,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(connectionString);
 		_connectionString = BuildLockConnectionString(connectionString);
 		_lockResource = lockResource ?? throw new ArgumentNullException(nameof(lockResource));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_timeProvider = timeProvider ?? TimeProvider.System;
 		_failureClassifier = failureClassifier;
 		_fencingTokenProvider = fencingTokenProvider;
 
@@ -130,6 +142,18 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	public bool IsLeader => _isLeader;
 
 	/// <inheritdoc/>
+	public Leadership? CurrentLeadership
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _isLeader ? new Leadership(_currentFencingToken == 0 ? null : _currentFencingToken, _leadershipAcquiredAt) : null;
+			}
+		}
+	}
+
+	/// <inheritdoc/>
 	public string? CurrentLeaderId
 	{
 		get
@@ -146,6 +170,9 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 	/// <inheritdoc/>
 	public event EventHandler<LeaderElectionEventArgs>? LostLeadership;
+
+	/// <inheritdoc/>
+	public event EventHandler<LeaderElectionAcquisitionFailedEventArgs>? AcquisitionFailed;
 
 	/// <inheritdoc/>
 	public event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
@@ -218,7 +245,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <summary>
 	/// Shared stop logic invoked by both <see cref="StopAsync"/> and <see cref="DisposeAsync"/>. Cancels and
 	/// awaits the renewal loop, releases the application lock, and (if this candidate was leader) raises the
-	/// loss events. Deliberately performs no <c>_disposed</c> check so disposal can reuse it (8aef8d).
+	/// loss events. Deliberately performs no <c>_disposed</c> check so disposal can reuse it.
 	/// </summary>
 	private async Task StopCoreAsync()
 	{
@@ -330,18 +357,19 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 						// renewal iteration re-attempts acquire+mint.
 						LogFencingTokenIssueError(ex, CandidateId, _lockResource);
 						await ReleaseLockAsync().ConfigureAwait(false);
+						RaiseAcquisitionFailed("fencing token mint failed", ex);
 						return;
 					}
 
 					// Fence advanced — only NOW declare leadership (BecomeLeader fires BecameLeader/LeaderChanged
 					// strictly AFTER the fence is advanced).
-					BecomeLeader();
+					BecomeLeader(token);
 					LogFencingTokenIssued(CandidateId, token, _lockResource);
 				}
 				else
 				{
 					// No fencing configured (opt-in): declare leadership directly — backward compatible.
-					BecomeLeader();
+					BecomeLeader(fencingToken: 0);
 				}
 			}
 			else
@@ -351,6 +379,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 				// Close connection since we didn't get the lock
 				await _connection.CloseAsync().ConfigureAwait(false);
 				_connection = null;
+
+				RaiseAcquisitionFailed("lost the acquisition race", exception: null);
 			}
 		}
 		catch (Exception ex)
@@ -362,6 +392,24 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 				await _connection.CloseAsync().ConfigureAwait(false);
 				_connection = null;
 			}
+
+			RaiseAcquisitionFailed("error during acquisition", ex);
+		}
+	}
+
+	/// <summary>
+	/// Raises <see cref="AcquisitionFailed"/>, guarding the invocation so a throwing subscriber
+	/// can never break the acquisition/renewal loop.
+	/// </summary>
+	private void RaiseAcquisitionFailed(string reason, Exception? exception)
+	{
+		try
+		{
+			AcquisitionFailed?.Invoke(this, new LeaderElectionAcquisitionFailedEventArgs(CandidateId, _lockResource, reason, _timeProvider.GetUtcNow(), exception));
+		}
+		catch (Exception)
+		{
+			// A throwing subscriber must never break the acquire loop.
 		}
 	}
 
@@ -416,7 +464,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					var verify = await VerifyLockAsync(cancellationToken).ConfigureAwait(false);
 					if (verify == LeaderVerifyResult.StillLeader)
 					{
-						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
+						Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
 					}
 					else
 					{
@@ -425,7 +473,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 						// an Indeterminate verify (connection down / probe threw) passes definitivelyLost=false so
 						// it stays grace-gated — no false-relinquish on an ambiguous probe. Accelerate-only: the
 						// grace period remains the hard split-brain upper bound.
-						var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
+						var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
 						if (ShouldRelinquish(kind: null, definitivelyLost: verify == LeaderVerifyResult.DefinitivelyLost, elapsed, _options.GracePeriod))
 						{
 							await LoseLeadershipAsync().ConfigureAwait(false);
@@ -450,7 +498,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					// so we must NOT relinquish early (split-brain-safe / false-relinquish avoidance). Classification
 					// can only ADD the immediate-relinquish trigger, never relax the grace bound, so a stale leader
 					// can never hold past GracePeriod regardless of fault.
-					var elapsed = DateTimeOffset.UtcNow - new DateTimeOffset(Interlocked.Read(ref _lastSuccessfulRenewalTicks), TimeSpan.Zero);
+					var elapsed = _timeProvider.GetElapsedTime(Interlocked.Read(ref _lastSuccessfulRenewalTicks));
 					// An exception is ambiguous about lock ownership (we couldn't probe), so definitivelyLost=false:
 					// only the classifier's Permanent verdict accelerates here; everything else stays grace-gated.
 					if (ShouldRelinquish(_failureClassifier?.Classify(ex), definitivelyLost: false, elapsed, _options.GracePeriod))
@@ -463,7 +511,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	}
 
 	/// <summary>
-	/// Decides whether leadership must be relinquished for a renewal-loop fault (ot72w3). A definitively
+	/// Decides whether leadership must be relinquished for a renewal-loop fault. A definitively
 	/// <see cref="MessageFailureKind.Permanent"/> fault relinquishes <em>unconditionally</em> (immediate,
 	/// independent of <paramref name="elapsed"/>); every other classification — transient, poison, or an
 	/// absent/null classifier — relinquishes only once <paramref name="elapsed"/> exceeds the full
@@ -481,7 +529,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <param name="kind">The classification of the renewal fault, or <see langword="null"/> when no classifier is configured.</param>
 	/// <param name="definitivelyLost">
 	/// <see langword="true"/> when the renewal verify <em>definitively</em> established that this session no
-	/// longer holds the lock (rqntzf: an <c>APPLOCK_MODE</c> probe that succeeded and returned <c>NoLock</c>).
+	/// longer holds the lock (an <c>APPLOCK_MODE</c> probe that succeeded and returned <c>NoLock</c>).
 	/// An ambiguous/indeterminate verify (connection down, probe threw) passes <see langword="false"/> so it
 	/// stays grace-gated and never false-relinquishes.
 	/// </param>
@@ -492,7 +540,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 		=> kind == MessageFailureKind.Permanent || definitivelyLost || elapsed > gracePeriod;
 
 	/// <summary>
-	/// The three-state outcome of a renewal-time lock-ownership verify (rqntzf). Distinguishes a
+	/// The three-state outcome of a renewal-time lock-ownership verify. Distinguishes a
 	/// <em>definitive</em> loss (the store affirmatively reports we do not hold the lock) from an
 	/// <em>indeterminate</em> result (we could not establish ownership) so that only the former accelerates
 	/// relinquish; the latter stays grace-gated to avoid a false-relinquish on a transient blip.
@@ -530,8 +578,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// </para>
 	/// <para>
 	/// This addresses the reachable failover/pool-reset split-brain. The orthogonal paused/stalled-leader
-	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens, tracked
-	/// separately as <c>umemwa</c>.
+	/// split-brain (which no connectivity check can catch) is mitigated by fencing tokens.
 	/// </para>
 	/// </remarks>
 	/// <param name="cancellationToken">Token to cancel the verification.</param>
@@ -540,7 +587,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// held lock; <see cref="LeaderVerifyResult.DefinitivelyLost"/> when the probe succeeded and reports
 	/// <c>NoLock</c> (the server affirmatively says this session does not hold the lock — the only definitive
 	/// loss signal); <see cref="LeaderVerifyResult.Indeterminate"/> when the connection is closed/broken or the
-	/// probe threw (we could not establish ownership either way — stays grace-gated, rqntzf).
+	/// probe threw (we could not establish ownership either way — stays grace-gated).
 	/// </returns>
 	private async Task<LeaderVerifyResult> VerifyLockAsync(CancellationToken cancellationToken)
 	{
@@ -570,7 +617,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 		}
 	}
 
-	private void BecomeLeader()
+	private void BecomeLeader(long fencingToken)
 	{
 		string? previousLeader;
 
@@ -584,7 +631,9 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 			previousLeader = _currentLeaderId;
 			_isLeader = true;
 			_currentLeaderId = CandidateId;
-			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, DateTimeOffset.UtcNow.UtcTicks);
+			_currentFencingToken = fencingToken;
+			_leadershipAcquiredAt = _timeProvider.GetUtcNow();
+			Interlocked.Exchange(ref _lastSuccessfulRenewalTicks, _timeProvider.GetTimestamp());
 		}
 
 		LogBecameLeader(CandidateId, _lockResource);
@@ -635,7 +684,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 
 	/// <summary>
 	/// Mints a monotonic fencing token for the protected resource, retrying a bounded number of times
-	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (nxmjpm, fail-CLOSED). The caller mints
+	/// (<see cref="FencingTokenMintMaxAttempts"/>) before failing (fail-closed). The caller mints
 	/// BEFORE declaring leadership and relinquishes if this throws, so the fence is always advanced before
 	/// fenced leadership is granted. Mirrors the Redis reference.
 	/// </summary>

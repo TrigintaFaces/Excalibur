@@ -29,8 +29,10 @@ namespace Excalibur.Dispatch.LeaderElection;
 public sealed class LeaderElectionOptionsValidator : IValidateOptions<LeaderElectionOptions>
 {
 	/// <summary>
-	/// The clock-skew safety margin added to the self-demotion deadline so the holder relinquishes
-	/// strictly before lease expiry even under modest clock drift between nodes.
+	/// Safety margin added to the self-demotion deadline so the holder relinquishes strictly before lease
+	/// expiry. It budgets for both modest clock drift between nodes and the store round-trip latency (RTT)
+	/// of a renewal call — a renewal that leaves in time but completes late (slow network) must still land
+	/// before the lease expires, so the margin covers skew + RTT together.
 	/// </summary>
 	private static readonly TimeSpan ClockSkewMargin = TimeSpan.FromSeconds(1);
 

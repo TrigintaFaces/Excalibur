@@ -43,7 +43,7 @@ public sealed class CascadeErasureServiceShould
         var result = await _sut.EraseWithCascadeAsync("user-1", options, CancellationToken.None);
 
         result.Success.ShouldBeTrue();
-        result.SubjectsErased.ShouldBe(1);
+        result.SubjectsScheduled.ShouldBe(1);
         result.PrimarySubjectId.ShouldBe("user-1");
     }
 
@@ -66,7 +66,7 @@ public sealed class CascadeErasureServiceShould
         var result = await _sut.EraseWithCascadeAsync("user-1", options, CancellationToken.None);
 
         result.Success.ShouldBeTrue();
-        result.SubjectsErased.ShouldBe(3);
+        result.SubjectsScheduled.ShouldBe(3);
         result.RelatedSubjectsErased.Count.ShouldBe(2);
     }
 
@@ -89,7 +89,7 @@ public sealed class CascadeErasureServiceShould
 
         result.Success.ShouldBeTrue();
         result.IsDryRun.ShouldBeTrue();
-        result.SubjectsErased.ShouldBe(2);
+        result.SubjectsScheduled.ShouldBe(2);
 
         A.CallTo(() => _erasureService.RequestErasureAsync(
             A<ErasureRequest>._, A<CancellationToken>._))
@@ -107,7 +107,7 @@ public sealed class CascadeErasureServiceShould
 
         var result = await _sut.EraseWithCascadeAsync("user-1", options, CancellationToken.None);
 
-        result.SubjectsErased.ShouldBe(1);
+        result.SubjectsScheduled.ShouldBe(1);
 
         A.CallTo(() => _resolver.GetRelatedSubjectsAsync(
             A<string>._, A<CancellationToken>._))

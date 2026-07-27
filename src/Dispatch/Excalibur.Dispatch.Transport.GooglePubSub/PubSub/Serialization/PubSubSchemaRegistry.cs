@@ -41,6 +41,10 @@ internal sealed class PubSubSchemaRegistry : ISchemaRegistry, IDisposable
 
 		_schemaCache = new ConcurrentDictionary<string, SchemaMetadata>(StringComparer.Ordinal);
 		_registrationLock = new SemaphoreSlim(1, 1);
+		// Intentionally NOT the event canonical serializer (EventSerializationDefaults.Canonical): this
+		// serializes Pub/Sub schema-registry metadata (a transport-interop concern dictated by the registry),
+		// not event payloads. Case-insensitive matching interops with the registry's own shape. Documented-exempt
+		// in the 4o8i86 event-serializer guard.
 		_jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
 		if (_options.Value.SchemaRegistryUrl is not null)

@@ -1,5 +1,7 @@
-using NetArchTest.Rules;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 using Shouldly;
 
@@ -8,58 +10,51 @@ using Xunit;
 namespace Boundary.Tests.Architecture;
 
 /// <summary>
-/// Report-only checks around provider packages referencing A3 abstractions and avoiding A3 implementation.
+/// Data provider packages must not couple to the CONCRETE <c>Excalibur.A3</c> implementation assembly; if a
+/// provider needs A3 at all, it depends on <c>Excalibur.A3.Abstractions</c>.
 /// </summary>
+/// <remarks>
+/// The former positive "every provider must reference A3.Abstractions" check was deleted — it is not a
+/// boundary (a data provider needn't depend on the authorization/audit layer). This negative guard IS a
+/// boundary and is kept. It enumerates the loaded <c>Excalibur.Data.*</c> provider assemblies dynamically
+/// (self-maintaining), rather than the former stale hardcoded namespace list which loaded zero assemblies.
+/// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Architecture")]
 public sealed class ProviderAbstractionsReferencesTests
 {
-    private static readonly string[] ProviderNamespaces = new[]
-    {
-        "Excalibur.Data.SqlServer",
-        "Excalibur.Data.Postgres",
-        "Excalibur.Data.Providers.MongoDB",
-        "Excalibur.Data.Providers.Redis",
-        "Excalibur.Data.ElasticSearch",
-    };
-
-    [Fact]
-    public void Providers_Should_Prefer_A3_Abstractions()
-    {
-        foreach (var ns in ProviderNamespaces)
-        {
-            var hasAbstractions = Types.InCurrentDomain()
-                .That().ResideInNamespace(ns)
-                .Should().HaveDependencyOn("Excalibur.A3.Abstractions")
-                .GetResult()
-                .IsSuccessful;
-
-            hasAbstractions.ShouldBeTrue($"Provider '{ns}' must reference Excalibur.A3.Abstractions.");
-        }
-    }
-
     [Fact]
     public void Providers_Should_Not_Reference_A3_Implementation()
     {
-        foreach (var ns in ProviderNamespaces)
+        // Excalibur.Data.* provider assemblies (exclude the core Excalibur.Data, the .Abstractions layers,
+        // and test assemblies). Enumerated from the loaded set, which the module initializer force-loads in
+        // full — so this stays correct as providers are added or renamed.
+        var providerAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => a.GetName().Name is { } n
+                        && n.StartsWith("Excalibur.Data.", StringComparison.Ordinal)
+                        && !n.EndsWith(".Abstractions", StringComparison.Ordinal)
+                        && !n.Contains("Test", StringComparison.Ordinal))
+            .ToArray();
+
+        providerAssemblies.ShouldNotBeEmpty(
+            "No Excalibur.Data.* provider assemblies are loaded — the module initializer force-loads the full " +
+            "framework set, so an empty set means drift, not a pass.");
+
+        var violations = new List<string>();
+        foreach (var assembly in providerAssemblies)
         {
-            // Get assemblies for this provider namespace
-            var assemblies = Types.InCurrentDomain()
-                .That().ResideInNamespace(ns)
-                .GetTypes()
-                .Select(t => t.Assembly)
-                .Distinct();
+            // Allow Excalibur.A3.Abstractions; forbid the concrete Excalibur.A3 implementation assembly.
+            var referencesConcreteA3 = assembly.GetReferencedAssemblies()
+                .Any(a => a.Name is not null && a.Name.Equals("Excalibur.A3", StringComparison.Ordinal));
 
-            foreach (var assembly in assemblies)
+            if (referencesConcreteA3)
             {
-                // Check assembly references for Excalibur.A3 (but allow Excalibur.A3.Abstractions)
-                var a3References = assembly.GetReferencedAssemblies()
-                    .Where(a => a.Name != null && a.Name.Equals("Excalibur.A3", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-
-                a3References.Any().ShouldBeFalse(
-                    $"Provider '{ns}' assembly '{assembly.GetName().Name}' references Excalibur.A3 implementation assembly. Only Excalibur.A3.Abstractions is allowed.");
+                violations.Add(assembly.GetName().Name!);
             }
         }
+
+        violations.ShouldBeEmpty(
+            "Data provider assemblies must not reference the concrete Excalibur.A3 implementation assembly " +
+            "(only Excalibur.A3.Abstractions is allowed). Violations: " + string.Join(", ", violations));
     }
 }

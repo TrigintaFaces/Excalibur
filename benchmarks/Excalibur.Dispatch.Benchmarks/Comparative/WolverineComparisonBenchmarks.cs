@@ -382,7 +382,6 @@ public class WolverineComparisonBenchmarks
 		HandlerInvokerRegistry.FreezeCache();
 		HandlerActivator.FreezeCache();
 		FinalDispatchHandler.FreezeResultFactoryCache();
-		MiddlewareApplicabilityEvaluator.FreezeCache();
 	}
 
 	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)

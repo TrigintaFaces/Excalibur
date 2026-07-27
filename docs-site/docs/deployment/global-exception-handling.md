@@ -216,10 +216,9 @@ builder.Services.AddGlobalExceptionHandler();
 var app = builder.Build();
 app.UseExcaliburWebHost();
 
-app.MapPost("/ping", async (PingCommand command, IDispatcher dispatcher) =>
+app.MapPost("/ping", async (PingCommand command, IDispatcher dispatcher, CancellationToken ct) =>
 {
-    var context = DispatchContextInitializer.CreateDefaultContext();
-    var result = await dispatcher.DispatchAsync<PingCommand, string>(command, context);
+    var result = await dispatcher.DispatchAsync<PingCommand, string>(command, ct);
     return Results.Ok(result.ReturnValue);
 });
 

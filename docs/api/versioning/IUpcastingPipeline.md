@@ -1,6 +1,6 @@
 ﻿# IUpcastingPipeline Interface
 
-**Namespace:** `Excalibur.Dispatch.Abstractions.Versioning`
+**Namespace:** `Excalibur.Dispatch.Versioning`
 **Assembly:** `Excalibur.Dispatch.Abstractions`
 
 Manages automatic message version migration using registered upcasters.

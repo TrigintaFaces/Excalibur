@@ -3,7 +3,7 @@
 #
 # Triggered when commits touching shipping code, public-API baselines, dep versions,
 # or build config are being pushed without a corresponding CHANGELOG.md update.
-# Prevents the multi-sprint drift that accumulated pre-S811.
+# Prevents the multi-sprint drift that accumulated previously.
 #
 # git passes push refs on stdin: "<local_ref> <local_sha> <remote_ref> <remote_sha>\n..."
 # For new branches (no remote), remote_sha is all zeros.
@@ -23,6 +23,61 @@ CYAN='\033[0;36m'
 GRAY='\033[0;37m'
 NC='\033[0m'
 
+# ── Hook-drift check — runs on EVERY push, BEFORE the CHANGELOG bypass ────────────────────────────
+#
+# ckywco: `verify-hooks-current.sh --check` is a correct, working detector that NOTHING invokes.
+# Its only caller fired from pre-commit when the DETECTOR'S OWN SOURCE was among the staged paths —
+# so it detected drift exactly when someone edited the detector, and never for the drift class it
+# exists to catch (a stale install, an accidental --heal, a canonical hook edited without reinstall).
+# A detector whose trigger is its own source path is a smoke alarm wired to the smoke alarm.
+#
+# Pre-push is the right home (per the standing PM ruling on this bead): `--check`'s property is
+# "the hook the developer will execute matches the canonical one", which is only evaluable where a
+# hook is actually installed. It is deliberately NOT wired into CI — a fresh clone has no installed
+# hook, so --check there would report MISSING and exit 1 forever. CI asserts the INSTALLER instead
+# (eng/hooks/hooks-wiring.test.sh).
+#
+# PLACEMENT IS LOAD-BEARING: this sits ABOVE the SKIP_CHANGELOG_CHECK bypass on purpose. That
+# bypass exists to skip CHANGELOG enforcement; letting it also skip the drift check would mean a
+# routine "[skip changelog]"-shaped push silently disarms an unrelated safety control. A bypass must
+# only buy what it names.
+#
+# `--check`, never the bare/default mode: bare is `--heal`, which silently REINSTALLS and exits 0.
+# As a gate that is worthless (it can never fail) and actively harmful (it mutates hook state as a
+# side effect of "checking"). Ask the question; do not let the question answer itself.
+_VHC="$(git rev-parse --show-toplevel 2>/dev/null)/eng/hooks/verify-hooks-current.sh"
+if [ -f "$_VHC" ]; then
+    bash "$_VHC" --check && _vhc_rc=0 || _vhc_rc=$?
+    # Three-state contract (0 PASS · 1 FAIL · 2 REFUSE); every declared code mapped, catch-all REFUSE.
+    case "${_vhc_rc:-0}" in
+        0) ;;  # installed hooks are current — say nothing, this is the common path
+        1)
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" >&2
+            echo -e "${RED}pre-push REFUSED: your installed git hooks are STALE.${NC}" >&2
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" >&2
+            echo "" >&2
+            echo -e "${YELLOW}The hooks that ran on your commits are NOT the ones in eng/hooks/.${NC}" >&2
+            echo -e "${YELLOW}Every gate you believe protected those commits may not have run at all.${NC}" >&2
+            echo "" >&2
+            echo -e "${CYAN}  Fix:  bash eng/hooks/install-hooks.sh${NC}" >&2
+            echo -e "${GRAY}  Then re-push. (Deliberate bypass: git push --no-verify — records intent.)${NC}" >&2
+            exit 1
+            ;;
+        *)
+            # REFUSE — anything not PASS/FAIL, including bash's own syntax-error 2, which collides
+            # with the script's declared E_ENV=2. The collision is irrelevant: both mean the property
+            # was NOT EVALUATED, and both land here.
+            #
+            # Fails OPEN + LOUD. Hook drift is recoverable (reinstall), and wedging every push on an
+            # unevaluable check is worse than the harm — but silence would be a lie, because "the
+            # check did not run" is not "your hooks are current".
+            echo -e "${YELLOW}⚠ pre-push: hook-drift check REFUSED (exit ${_vhc_rc}) — hooks were NOT verified.${NC}" >&2
+            echo -e "${YELLOW}  This is NOT a clean bill of health. Allowing the push; diagnose with:${NC}" >&2
+            echo -e "${YELLOW}      bash eng/hooks/verify-hooks-current.sh --check${NC}" >&2
+            ;;
+    esac
+fi
+
 # Bypass via env var
 if [ "${SKIP_CHANGELOG_CHECK:-0}" = "1" ]; then
     echo -e "${YELLOW}pre-push: SKIP_CHANGELOG_CHECK=1 set — skipping CHANGELOG enforcement${NC}"
@@ -39,7 +94,47 @@ EXCL_RE='(/sprints/|management/governance/framework-governance\.json|/reports/|/
 
 violation=0
 
+# ── PUBLISH GUARD: refuse a multi-tag push that would release the wrong package ──────────────────
+# WHY. `.github/workflows/release.yml` fires on `push: tags: v*` and derives the published version
+# by stripping the leading v from the ref. `NUGET_API_KEY` is set and deploys work. So a single
+# reflex — `git push --tags` — publishes EVERY unpushed v* tag to nuget.org, irreversibly.
+#
+# Measured at the time this was written: `v3.0.0-alpha.178` existed LOCALLY and on no remote,
+# pointing at a nine-month-old commit. `git push --tags` would have published 3.0.0-alpha.178 as a
+# real release, from stale code, looking entirely deliberate. 16 local tags were unpushed.
+#
+# WHY A GUARD AND NOT A RULE. The agreed mitigation was "never use --tags, push the tag by name".
+# That is a habit, and the failure mode is a reflex during a release everyone has been waiting on.
+# A habit cannot survive a reflex; the repository refusing is the only control that survives it.
+#
+# THE DISCRIMINATOR IS THE COUNT, NOT THE NAME. A deliberate release pushes exactly ONE tag ref
+# (`git push origin v10.0.0-alpha.1`). `--tags` pushes every unpushed tag at once. So:
+#
+#   0 tag refs        a branch push                      ALLOWED
+#   1 tag ref         the deliberate release             ALLOWED  <- liveness. This MUST pass.
+#   2+ tag refs       --tags, or a bulk push             REFUSED
+#
+# Keying on the count rather than on a tag allow-list means this keeps working for versions nobody
+# has thought of yet — no list to maintain, and no list to go stale. (A hand-maintained scope list
+# going stale is the defect class this repository spent tonight finding in four other gates.)
+#
+# SCOPE. This refuses a bulk push. It deliberately does NOT judge whether the single tag you named
+# is the right one — that is a human decision and a guard that second-guessed it would block real
+# releases. Counting is observable; intent is not.
+tag_ref_count=0
+tag_ref_names=""
+
 while read -r local_ref local_sha remote_ref remote_sha; do
+    # Count tag refs BEFORE any `continue` below, or a bulk push of deletions/skipped refs would
+    # slip past the guard uncounted.
+    case "$remote_ref" in
+        refs/tags/*)
+            tag_ref_count=$((tag_ref_count + 1))
+            tag_ref_names="${tag_ref_names}  ${remote_ref#refs/tags/}
+"
+            ;;
+    esac
+
     # Skip deletions
     if [ "$local_sha" = "$ZERO" ]; then
         continue
@@ -118,9 +213,62 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
 done
 
+# ── PUBLISH GUARD verdict (see the rationale above the loop) ─────────────────────────────────────
+# Evaluated after the loop because the count is only complete once every ref has been read.
+if [ "$tag_ref_count" -ge 2 ]; then
+    echo "" >&2
+    echo -e "${RED}pre-push REFUSED: this push carries ${tag_ref_count} tags.${NC}" >&2
+    echo "" >&2
+    echo "  A tag matching 'v*' triggers .github/workflows/release.yml, which PACKS AND" >&2
+    echo "  PUBLISHES to nuget.org. Publishing cannot be undone." >&2
+    echo "" >&2
+    echo "  Tags in this push:" >&2
+    printf '%s' "$tag_ref_names" >&2
+    echo "" >&2
+    echo -e "  ${YELLOW}Push the one tag you mean, by name:${NC}" >&2
+    echo "      git push origin <tag-name>" >&2
+    echo "" >&2
+    echo "  If you genuinely intend to push several tags, push them one at a time." >&2
+    echo "" >&2
+    exit 1
+fi
+
 if [ "$violation" -ne 0 ]; then
     echo ""
     exit 1
 fi
 
 exit 0
+
+# --- BEGIN BEADS INTEGRATION v1.1.0 ---
+# This section is managed by beads. Do not remove these markers.
+if command -v bd >/dev/null 2>&1; then
+  export BD_GIT_HOOK=1
+  _bd_timeout=${BEADS_HOOK_TIMEOUT:-300}
+  _bd_used_perl=0
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$_bd_timeout" bd hooks run pre-push "$@"
+    _bd_exit=$?
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$_bd_timeout" bd hooks run pre-push "$@"
+    _bd_exit=$?
+  elif command -v perl >/dev/null 2>&1; then
+    _bd_used_perl=1
+    perl -e 'alarm shift; exec @ARGV' "$_bd_timeout" bd hooks run pre-push "$@"
+    _bd_exit=$?
+  else
+    echo >&2 "beads: hook 'pre-push' running without timeout; install coreutils or perl to enable BEADS_HOOK_TIMEOUT"
+    bd hooks run pre-push "$@"
+    _bd_exit=$?
+  fi
+  if [ $_bd_exit -eq 124 ] || { [ $_bd_used_perl -eq 1 ] && [ $_bd_exit -eq 142 ]; }; then
+    echo >&2 "beads: hook 'pre-push' timed out after ${_bd_timeout}s — continuing without beads"
+    _bd_exit=0
+  fi
+  if [ $_bd_exit -eq 3 ]; then
+    echo >&2 "beads: database not initialized — skipping hook 'pre-push'"
+    _bd_exit=0
+  fi
+  if [ $_bd_exit -ne 0 ]; then exit $_bd_exit; fi
+fi
+# --- END BEADS INTEGRATION v1.1.0 ---

@@ -127,35 +127,35 @@ Configure low-level broker behavior via `RabbitMqOptions`:
 ```csharp
 services.Configure<RabbitMqOptions>(options =>
 {
-    options.ConnectionString = "amqp://user:pass@rabbitmq:5672/vhost";
+    options.Connection.ConnectionString = "amqp://user:pass@rabbitmq:5672/vhost";
     options.Exchange = "dispatch.events";
     options.RoutingKey = "orders.#";
-    options.QueueName = "orders-processing";
+    options.Queue.QueueName = "orders-processing";
 
     // Queue behavior
-    options.QueueDurable = true;
-    options.QueueExclusive = false;
-    options.QueueAutoDelete = false;
-    options.QueueArguments["x-message-ttl"] = 86400000; // 24 hours
+    options.Queue.QueueDurable = true;
+    options.Queue.QueueExclusive = false;
+    options.Queue.QueueAutoDelete = false;
+    options.Queue.QueueArguments["x-message-ttl"] = 86400000; // 24 hours
 
     // Consumer behavior
-    options.PrefetchCount = 100;
-    options.PrefetchGlobal = false;
-    options.AutoAck = false;
-    options.RequeueOnReject = false;
-    options.MaxBatchSize = 50;
-    options.MaxBatchWaitMs = 500;
-    options.ConsumerTag = "order-service";
+    options.Consumption.PrefetchCount = 100;
+    options.Consumption.PrefetchGlobal = false;
+    options.Consumption.AutoAck = false;
+    options.DeadLetter.RequeueOnReject = false;
+    options.Consumption.MaxBatchSize = 50;
+    options.Consumption.MaxBatchWaitMs = 500;
+    options.Consumption.ConsumerTag = "order-service";
 
     // Dead letter exchange (non-CloudEvents)
-    options.EnableDeadLetterExchange = true;
-    options.DeadLetterExchange = "dispatch.dlx";
-    options.DeadLetterRoutingKey = "failed";
+    options.DeadLetter.EnableDeadLetterExchange = true;
+    options.DeadLetter.DeadLetterExchange = "dispatch.dlx";
+    options.DeadLetter.DeadLetterRoutingKey = "failed";
 
     // Connection resilience
-    options.AutomaticRecoveryEnabled = true;
-    options.ConnectionTimeoutSeconds = 30;
-    options.NetworkRecoveryIntervalSeconds = 10;
+    options.Connection.AutomaticRecoveryEnabled = true;
+    options.Connection.ConnectionTimeoutSeconds = 30;
+    options.Connection.NetworkRecoveryIntervalSeconds = 10;
 });
 ```
 
@@ -182,7 +182,7 @@ services.AddRabbitMQTransport(rmq =>
 Use `RabbitMqCloudEventOptions` for CloudEvents-specific features:
 
 ```csharp
-services.UseCloudEventsForRabbitMq(options =>
+services.AddCloudEventsForRabbitMq(options =>
 {
     options.ExchangeType = RabbitMQExchangeType.Topic;
     options.RoutingStrategy = RabbitMqRoutingStrategy.EventType;
@@ -206,20 +206,20 @@ services.UseCloudEventsForRabbitMq(options =>
 Configure advanced consumer behavior with `RabbitMqConsumerOptions` via CloudEvents options:
 
 ```csharp
-services.UseCloudEventsForRabbitMq(options =>
+services.AddCloudEventsForRabbitMq(options =>
 {
     // Acknowledgment mode
     options.Consumer.AckMode = AckMode.Manual; // Auto, Manual, or Batch
 
     // Retry policy for failed messages
-    options.Consumer.RabbitMqRetryOptions = RabbitMqRetryOptions.Exponential(
+    options.Consumer.RetryPolicy = RabbitMqRetryOptions.Exponential(
         maxRetries: 3,
         initialDelay: TimeSpan.FromSeconds(1),
         maxDelay: TimeSpan.FromMinutes(5));
 
     // Dead letter exchange for failed messages
-    options.Consumer.DeadLetterExchange = "dlx.exchange";
-    options.Consumer.DeadLetterRoutingKey = "failed";
+    options.Consumer.DeadLetter.Exchange = "dlx.exchange";
+    options.Consumer.DeadLetter.RoutingKey = "failed";
 });
 ```
 
@@ -230,6 +230,15 @@ services.UseCloudEventsForRabbitMq(options =>
 | `Auto` | Automatic acknowledgment on receive | Non-critical, fire-and-forget |
 | `Manual` | Explicit ack after processing (default) | Guaranteed delivery |
 | `Batch` | Grouped acknowledgments | High throughput scenarios |
+
+### Maximum Payload Size
+
+The consumer rejects oversized deliveries before the body is deserialized (DoS hardening — the RabbitMQ
+analogue of Kestrel's `MaxRequestBodySize`). An over-limit message is nacked with `requeue: false` (routed
+to the dead-letter exchange when configured) and the rest of the batch continues, so a single large message
+never poison-loops or strands the batch. The limit is `RabbitMqOptions.Consumption.MaxPayloadBytes`
+(default **4 MiB**); set it to `null` to opt out for larger legitimate payloads. See the
+[Payload Size Contract](../operations/runtime-contract.md#payload-size-contract).
 
 ### RabbitMqRetryOptions Factory Methods
 
@@ -252,7 +261,7 @@ RabbitMqRetryOptions.Exponential(
 Enable publisher confirms for guaranteed delivery:
 
 ```csharp
-services.UseCloudEventsForRabbitMq(options =>
+services.AddCloudEventsForRabbitMq(options =>
 {
     options.Publisher.EnableConfirms = true;
     options.Publisher.ConfirmTimeout = TimeSpan.FromSeconds(5);
@@ -267,8 +276,8 @@ For non-CloudEvents usage, configure via `RabbitMqOptions`:
 ```csharp
 services.Configure<RabbitMqOptions>(options =>
 {
-    options.AutoAck = false;      // Manual ack after successful processing
-    options.RequeueOnReject = false; // Reject goes to DLQ if enabled
+    options.Consumption.AutoAck = false;      // Manual ack after successful processing
+    options.DeadLetter.RequeueOnReject = false; // Reject goes to DLQ if enabled
 });
 ```
 

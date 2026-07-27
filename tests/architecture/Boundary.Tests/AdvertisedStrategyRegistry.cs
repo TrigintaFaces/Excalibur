@@ -55,6 +55,13 @@ internal static class AdvertisedStrategyRegistry
 
 		/// <summary>(c) A named dev-only allowlist entry with a written reason (none today).</summary>
 		Allowlist,
+
+		/// <summary>
+		/// (d) The advertised-but-unhonorable seam was DELETED — the "absent" arm of ADR-336 (better no promise than a
+		/// false one). Capability-only classification (dhsik1): the named evidence type MUST be ABSENT; re-introducing it
+		/// re-opens the false advertisement and turns the meta-guard RED, forcing re-classification.
+		/// </summary>
+		Removed,
 	}
 
 	/// <summary>Coverage classification for one value of an advertised strategy enum.</summary>
@@ -98,6 +105,8 @@ internal static class AdvertisedStrategyRegistry
 	private const string DispatchAsm = "Excalibur.Dispatch";
 	private const string OutboxAsm = "Excalibur.Outbox";
 	private const string KafkaAsm = "Excalibur.Dispatch.Transport.Kafka";
+	private const string ComplianceAsm = "Excalibur.Compliance";
+	private const string MultiTenancyAsm = "Excalibur.MultiTenancy";
 
 	/// <summary>
 	/// The implementation-selecting strategy enums the meta-guard enforces (curation rule: a value SELECTS an
@@ -217,6 +226,29 @@ internal static class AdvertisedStrategyRegistry
 					"Excalibur.Dispatch.Transport.Kafka.TopicRecordNameStrategy", KafkaAsm,
 					"ToStrategy maps TopicRecordName to a TopicRecordNameStrategy; the default arm throws (fail-loud)."),
 			]),
+
+		new AdvertisedStrategyEnum(
+			"Excalibur.MultiTenancy.TenantIsolationStrategy",
+			MultiTenancyAsm,
+			[
+				new StrategyValueCoverage(
+					"Unspecified", 0, CoverageKind.FailLoudGuard,
+					"Excalibur.MultiTenancy.MultiTenancyOptionsValidator", MultiTenancyAsm,
+					"AddMultiTenancy rejects Unspecified/invalid at startup (composition-time fail-fast + the "
+					+ "IValidateOptions MultiTenancyOptionsValidator) — a multi-tenant host must choose an explicit strategy."),
+				new StrategyValueCoverage(
+					"RowDiscriminator", 1, CoverageKind.Implementor,
+					"Excalibur.EventSourcing.Sharding.TenantScopedEventStore", EsAsm,
+					"RowDiscriminator wraps each registered store with its fail-closed tenant-scoping decorator "
+					+ "(TenantScopedEventStore/SagaStore/ProjectionStore); RequireTenantScopingCapability additionally fails "
+					+ "loud at registration when the store's provider is not tenant-capable (bd-b1g4o0)."),
+				new StrategyValueCoverage(
+					"Sharding", 2, CoverageKind.Implementor,
+					"Microsoft.Extensions.DependencyInjection.TenantShardingServiceCollectionExtensions", EsAsm,
+					"Sharding selects tenant-routing stores via TenantShardingServiceCollectionExtensions."
+					+ "RegisterTenantRoutingStores (the shared tenant-routing wiring point, also reached by "
+					+ "EnableTenantSharding)."),
+			]),
 	];
 
 	/// <summary>
@@ -272,20 +304,12 @@ internal static class AdvertisedStrategyRegistry
 			"Parameterizes the dedup hash-key option only; IDeduplicationStrategy implementations are DI-selected "
 			+ "independently, not chosen by this enum."),
 		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.FailureHandlingStrategy", "Excalibur.Dispatch.Abstractions",
-			"Connection-pool failure-handling shape set on an options object; no consuming switch/factory selects an "
-			+ "implementor (inertness tracked by the S862 inert-advertised-options audit)."),
-		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.MessageIdStrategy", "Excalibur.Dispatch.Abstractions",
 			"IdempotentHandlerMiddleware switch computes an id string; the Custom value defers to a DI IMessageIdProvider, "
 			+ "the enum itself selects no implementor."),
 		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.Observability.Sampling.SamplingStrategy", "Excalibur.Dispatch.Observability",
 			"TraceSampler switch returns a bool sampling decision; selects no implementor."),
-		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Pooling.Configuration.ResetStrategy", "Excalibur.Dispatch",
-			"Pool object-reset shape set on an options object; no consuming switch/factory selects an implementor "
-			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
 		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.Resilience.BackoffStrategy", "Excalibur.Dispatch",
 			"RetryPolicy switch picks a delay formula (Constant/Linear/Exponential); selects no implementor."),
@@ -299,31 +323,87 @@ internal static class AdvertisedStrategyRegistry
 			"Excalibur.Dispatch.Transport.Azure.PartitionKeyStrategy", "Excalibur.Dispatch.Transport.AzureServiceBus",
 			"AzureEventHubsCloudEventAdapter switch returns a partition-key string; selects no implementor."),
 		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Transport.BatchCompletionStrategy", "Excalibur.Dispatch.Transport.Abstractions",
-			"Batch-completion shape set on an options object; no consuming switch/factory selects an implementor "
-			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
-		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.Transport.DeadLetterStrategy", "Excalibur.Dispatch.Transport.Abstractions",
 			"Generic dead-letter shape set on an options object; no consuming switch/factory selects an implementor "
 			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
 		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Transport.ErrorHandlingStrategy", "Excalibur.Dispatch.Transport.Abstractions",
-			"Transport error-handling shape set on an options object; no consuming switch/factory selects an implementor "
-			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
-		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Transport.Google.BatchAckStrategy", "Excalibur.Dispatch.Transport.GooglePubSub",
-			"Batch-ack shape set on an options object; no consuming switch/factory selects an implementor "
-			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
-		new ExcludedStrategyEnum(
 			"Excalibur.Dispatch.Transport.Kafka.KafkaPartitioningStrategy", "Excalibur.Dispatch.Transport.Kafka",
 			"KafkaCloudEventAdapter switch returns a partition-key string; selects no implementor."),
-		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Transport.RabbitMQ.QuorumDeadLetterStrategy", "Excalibur.Dispatch.Transport.RabbitMQ",
-			"Quorum-queue dead-letter shape set on an options object; no consuming switch/factory selects an implementor "
-			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
-		new ExcludedStrategyEnum(
-			"Excalibur.Dispatch.Transport.RabbitMQ.RabbitMqRoutingStrategy", "Excalibur.Dispatch.Transport.RabbitMQ",
-			"RabbitMQ routing shape set on an options object; no consuming switch/factory selects an implementor "
-			+ "(inertness tracked by the S862 inert-advertised-options audit)."),
+	];
+
+	/// <summary>
+	/// An advertised framework <em>capability</em> (a method/feature promising an effect) and the evidence it is
+	/// wired-or-fail-loud. ADR-336 amendment: the invariant extends beyond strategy-enums to advertised
+	/// capabilities — a configured capability whose required infrastructure is absent must be rejected at startup,
+	/// never silently dropped or fabricated.
+	/// </summary>
+	/// <param name="CapabilityName">Short capability name (e.g. <c>IdempotencyClaim</c>).</param>
+	/// <param name="Kind">How the capability is covered — a fail-loud startup validator, or a live implementor.</param>
+	/// <param name="EvidenceTypeFullName">The type the arch-test reflectively confirms exists (non-vacuity).</param>
+	/// <param name="EvidenceAssemblyName">The assembly that contains the evidence type.</param>
+	/// <param name="Reason">Why this evidence proves the capability is honored (not advertised-but-inert).</param>
+	public sealed record AdvertisedCapability(
+		string CapabilityName,
+		CoverageKind Kind,
+		string EvidenceTypeFullName,
+		string EvidenceAssemblyName,
+		string Reason);
+
+	/// <summary>
+	/// The per-seam capability validators that enforce advertised-or-fail-loud at the CAPABILITY level: a
+	/// configured capability whose required infrastructure is absent is rejected at startup, not silently
+	/// downgraded. Catalogued here — previously scattered across the delivery/DI options folders — so a
+	/// validator's removal (re-opening a silent-degrade hole) is a structural arch-test failure, not a review miss.
+	/// </summary>
+	public static IReadOnlyList<AdvertisedCapability> Capabilities { get; } =
+	[
+		new AdvertisedCapability(
+			"IdempotencyClaim", CoverageKind.FailLoudGuard,
+			"Excalibur.Dispatch.Options.Delivery.IdempotencyClaimCapabilityValidator", DispatchAsm,
+			"Rejects at startup when idempotent-claim deduplication is advertised but the configured store lacks the "
+			+ "required atomic-claim capability."),
+		new AdvertisedCapability(
+			"InboxProcessing", CoverageKind.FailLoudGuard,
+			"Excalibur.Dispatch.Options.Delivery.InboxProcessingCapabilityValidator", DispatchAsm,
+			"Rejects at startup when inbox processing is advertised but its required store capability is absent."),
+		new AdvertisedCapability(
+			"OutboxDeadLetter", CoverageKind.FailLoudGuard,
+			"Excalibur.Dispatch.Options.Delivery.OutboxDeadLetterCapabilityValidator", DispatchAsm,
+			"Rejects at startup when outbox dead-lettering is advertised but its required store capability is absent."),
+		new AdvertisedCapability(
+			"TransactionalStaging", CoverageKind.FailLoudGuard,
+			"Excalibur.EventSourcing.DependencyInjection.TransactionalStagingCapabilityValidator", EsAsm,
+			"Rejects at startup when transactional outbox staging is advertised but the store lacks a transactional "
+			+ "staging capability — the capability-level twin of the OutboxStagingStrategy.Transactional enum guard."),
+		new AdvertisedCapability(
+			"EventSourcedRepositoryStaging", CoverageKind.FailLoudGuard,
+			"Excalibur.EventSourcing.DependencyInjection.EventSourcedRepositoryStagingCapabilityValidator", EsAsm,
+			"Rejects at startup when the event-sourced repository is configured for a staging strategy whose required "
+			+ "infrastructure is absent."),
+
+		// ---- dhsik1: register the three closed ADR-336-family fixes as capability coverage entries, one per resolution
+		// arm (fail-loud / fail-closed / removed). Grounded run->read->cite (TestsDeveloper); evidence types confirmed
+		// present (FailLoud) or absent (Removed) by AdvertisedStrategyWiredOrFailLoudShould. ----
+		new AdvertisedCapability(
+			"EncryptionKeyRotation", CoverageKind.FailLoudGuard,
+			"Excalibur.Compliance.KeyRotation.KeyRotationOptionsValidator", ComplianceAsm,
+			"Key rotation is advertised; misconfigured rotation is rejected at startup via IValidateOptions "
+			+ "(KeyRotationOptionsValidator) instead of a RotateKeysAsync that fabricates success while rotating nothing "
+			+ "(bd-9so1s5)."),
+		new AdvertisedCapability(
+			"DeduplicationUnderSaturation", CoverageKind.FailLoudGuard,
+			"Excalibur.Dispatch.Delivery.DeduplicationCapacityExceededException", DispatchAsm,
+			"Deduplication is a correctness guarantee; at MaxEntries the in-memory deduplicator FAILS CLOSED (throws "
+			+ "DeduplicationCapacityExceededException) rather than silently dropping tracking and degrading to duplicate "
+			+ "delivery (bd-nbannx)."),
+		new AdvertisedCapability(
+			"GenericOrderingValidationMiddleware", CoverageKind.FailLoudGuard,
+			"Excalibur.Dispatch.Middleware.Ordering.OrderingValidationMiddleware", DispatchAsm,
+			"Ordering validation is now WIRED and fail-closed (wtezay), replacing the prior advisory-only, non-enforcing "
+			+ "seam that was briefly deleted. Once AddOrderingValidation() is registered the middleware enforces "
+			+ "strictly-increasing per-ordering-key sequences and REJECTS both an unstamped-while-active message and an "
+			+ "out-of-order sequence by throwing OutOfOrderMessageException (an IFailClosedException, so it propagates "
+			+ "unwrapped through DispatchMiddlewareBase) — never a silent pass. This entry asserts the type is PRESENT "
+			+ "and fail-loud, the re-added arm of ADR-336."),
 	];
 }

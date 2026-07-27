@@ -18,7 +18,7 @@ public static class DispatchOrchestrationExtensions
 	/// <summary>
 	/// Registers dispatch orchestration services with the service collection. Adds the saga coordinator and saga
 	/// handling middleware for managing long-running business processes and distributed transactions. The saga
-	/// store is NOT registered here (iuv3s1) — register a persistent provider or opt into the in-memory store
+	/// store is NOT registered here — register a persistent provider or opt into the in-memory store
 	/// via <see cref="SagaServiceCollectionExtensions.AddInMemorySagaStore"/>; startup validation fails fast if neither is present.
 	/// </summary>
 	/// <param name="services"> The service collection to configure. </param>
@@ -30,7 +30,7 @@ public static class DispatchOrchestrationExtensions
 
 		// iuv3s1: do NOT silently bind an in-memory saga store as the "default". Saga state is lost on
 		// restart/scale-out, so the store is a required deployment decision — register a persistent
-		// provider or opt in explicitly via AddInMemorySagaStore() / ISagaBuilder.UseInMemoryStore().
+		// provider or opt in explicitly via AddInMemorySagaStore() / ISagaBuilder.WithInMemoryStore().
 		// SagaPrerequisiteValidator fails loud at host startup if neither registered a "default" store.
 		// (Consistent with the AddExcaliburSaga() site — same fail-fast mechanism, no fork.)
 		services.TryAddSingleton<ISagaCoordinator, SagaCoordinator>();

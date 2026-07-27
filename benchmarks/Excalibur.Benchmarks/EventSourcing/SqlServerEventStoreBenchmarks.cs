@@ -267,7 +267,10 @@ public class SqlServerEventStoreBenchmarks
 				[Version] BIGINT NOT NULL,
 				[Data] VARBINARY(MAX) NOT NULL,
 				[Metadata] NVARCHAR(MAX) NULL,
-				[CreatedAt] DATETIMEOFFSET NOT NULL
+				[CreatedAt] DATETIMEOFFSET NOT NULL,
+				-- Empty string in a single-tenant host. The store's save path references this
+				-- column, so the benchmark schema must define it or the run fails at the INSERT.
+				[TenantId] NVARCHAR(256) NOT NULL CONSTRAINT [DF_Bench_Snapshots_TenantId] DEFAULT ('')
 			);
 			""", connection);
 
@@ -282,6 +285,10 @@ public class SqlServerEventStoreBenchmarks
 /// </summary>
 internal sealed class BenchmarkSnapshot : ISnapshot
 {
+	// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
+	// that this double is unscoped instead of assuming it.
+	public string? TenantId { get; init; }
+
 	public required string SnapshotId { get; init; }
 	public required string AggregateId { get; init; }
 	public required string AggregateType { get; init; }

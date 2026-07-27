@@ -4,12 +4,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Data;
+using Excalibur.Domain.Model;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Snapshots;
@@ -322,18 +323,33 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			return null;
 		}
 
-		// Detect version gaps when loading from snapshot (T.9: version gap detection)
+		// Detect a version hole between the snapshot and the events that follow it and FAIL LOUD.
+		// Events are loaded with Version >= snapshotVersion (LoadAsync filters Version > snapshotVersion - 1),
+		// so the first event after the snapshot must be exactly at snapshotVersion for the history to be
+		// contiguous. When the first available event is BEYOND snapshotVersion, the intervening versions are
+		// missing: the snapshot's own version sits ahead of the events that would connect to it, so replaying
+		// the loaded events onto the snapshot would reconstitute an aggregate with a version hole. That is a
+		// silent data-integrity corruption (the returned aggregate would be in a state that never legitimately
+		// existed), so refuse it -- mirroring the load-path refusals to skip an unresolvable/erased event or
+		// apply a stale-schema snapshot -- rather than warning and proceeding.
 		if (snapshotVersion > 0 && storedEvents.Count > 0 && storedEvents[0].Version > snapshotVersion)
 		{
-			_logger?.LogWarning(
-				"Version gap detected for aggregate '{AggregateId}' ({AggregateType}): " +
-				"snapshot at version {SnapshotVersion}, first event at version {FirstEventVersion}. " +
-				"Events between these versions may have been retired or compacted.",
+			_logger?.LogError(
+				"Version hole detected for aggregate '{AggregateId}' ({AggregateType}): " +
+				"snapshot at version {SnapshotVersion}, first available event at version {FirstEventVersion}. " +
+				"Refusing to reconstitute an aggregate with a version hole.",
 				stringId, aggregateType, snapshotVersion, storedEvents[0].Version);
+
+			throw new InvalidOperationException(
+				$"Version hole detected while rehydrating aggregate '{stringId}' ({aggregateType}): the snapshot " +
+				$"is at version {snapshotVersion} but the first available event is at version {storedEvents[0].Version}, " +
+				$"leaving versions {snapshotVersion} to {storedEvents[0].Version - 1} missing. Replaying the available " +
+				$"events onto the snapshot would produce an aggregate with a version hole (a state that never legitimately " +
+				$"existed). Refusing to return a corrupt aggregate; restore the missing events or rebuild the snapshot.");
 		}
 
 		// Deserialize, optionally upcast, and collect events for replay
-		var eventsToApply = new List<IDomainEvent>(storedEvents.Count);
+		var eventsToApply = new List<HistoricEvent>(storedEvents.Count);
 		foreach (var storedEvent in storedEvents)
 		{
 			// GDPR erasure (FR-A7): an erased stream is tombstoned in place with the closed,
@@ -358,7 +374,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 			// Upcast if enabled and event is versioned
 			var eventToApply = TryUpcastEvent(domainEvent);
-			eventsToApply.Add(eventToApply);
+
+			// The store's version is authoritative and travels in the persistence envelope, never on the
+			// event payload. Pair each event with its stream position so replay reconstructs the aggregate
+			// from the envelope rather than trusting the payload to carry its own version.
+			eventsToApply.Add(new HistoricEvent(eventToApply, storedEvent.Version));
 		}
 
 		// Use LoadFromHistory to properly replay events with version tracking
@@ -404,12 +424,6 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		var stringId = aggregate.Id.ToString() ?? throw new InvalidOperationException(
 			Resources.EventSourcedRepository_AggregateIdCannotConvertToNullString);
-
-		// Verify all events have consistent AggregateId (set by RaiseEvent)
-		Debug.Assert(
-			uncommittedEvents.All(e => e.AggregateId == stringId),
-			"All uncommitted events must have matching AggregateId. " +
-			"Events should be raised via AggregateRoot.RaiseEvent which sets AggregateId automatically.");
 
 		// Propagate CorrelationId/TenantId from current Activity into event metadata
 		EnrichEventsWithActivityContext(uncommittedEvents);
@@ -485,7 +499,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		if (_eventNotificationBroker is not null)
 		{
 			var context = new EventNotificationContext(
-				uncommittedEvents[0].AggregateId,
+				stringId,
 				aggregate.AggregateType,
 				aggregate.Version,
 				_timeProvider.GetUtcNow());
@@ -888,11 +902,8 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// <summary>
 	/// Creates an <see cref="OutboundMessage"/> from a domain event for outbox staging.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed.")]
-	[RequiresDynamicCode("JSON serialization may require dynamic code generation.")]
 	private OutboundMessage CreateOutboundMessage(IDomainEvent @event, string aggregateId, string aggregateType)
 	{
-		var eventData = JsonSerializer.Serialize(@event, @event.GetType());
 		var headers = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
 			[OutboxHeaderNames.AggregateId] = aggregateId,
@@ -923,7 +934,9 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			// per-event identifier on IDomainEvent (framework-stamped UUID v7 for DomainEvent-derived events).
 			Id = @event.EventId,
 			MessageType = @event.EventType,
-			Payload = Encoding.UTF8.GetBytes(eventData),
+			// Route through the injected IEventSerializer (single serialization seam) so the outbox
+			// payload casing matches the event-store write — never a raw JsonSerializer default-PascalCase variant.
+			Payload = _eventSerializer.SerializeEvent(@event),
 			Headers = headers,
 			CreatedAt = _timeProvider.GetUtcNow(),
 			TenantId = tenantId,
@@ -983,6 +996,12 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		public DateTimeOffset CreatedAt => _original.CreatedAt;
 		public ReadOnlyMemory<byte> Data => _upgradedData;
 		public string AggregateType => _original.AggregateType;
+
+		/// <summary>
+		/// Forwards the wrapped snapshot's tenant. An upgraded snapshot that dropped this would strip
+		/// the discriminator during schema upgrade, losing one tenant's snapshot to another.
+		/// </summary>
+		public string? TenantId => _original.TenantId;
 
 		public IDictionary<string, object>? Metadata
 		{

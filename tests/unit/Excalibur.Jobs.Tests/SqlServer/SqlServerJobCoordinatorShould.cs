@@ -16,7 +16,16 @@ public sealed class SqlServerJobCoordinatorShould : UnitTestBase
 	public void ThrowWhenOptionsIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerJobCoordinator(null!, NullLogger<SqlServerJobCoordinator>.Instance));
+			new SqlServerJobCoordinator(null!, TimeProvider.System, NullLogger<SqlServerJobCoordinator>.Instance));
+	}
+
+	[Fact]
+	public void ThrowWhenTimeProviderIsNull()
+	{
+		var options = Options.Create(new SqlServerJobCoordinatorOptions { ConnectionString = "Server=.;Database=Jobs;Trusted_Connection=True" });
+
+		Should.Throw<ArgumentNullException>(() =>
+			new SqlServerJobCoordinator(options, null!, NullLogger<SqlServerJobCoordinator>.Instance));
 	}
 
 	[Fact]
@@ -25,7 +34,7 @@ public sealed class SqlServerJobCoordinatorShould : UnitTestBase
 		var options = Options.Create(new SqlServerJobCoordinatorOptions { ConnectionString = "Server=.;Database=Jobs;Trusted_Connection=True" });
 
 		Should.Throw<ArgumentNullException>(() =>
-			new SqlServerJobCoordinator(options, null!));
+			new SqlServerJobCoordinator(options, TimeProvider.System, null!));
 	}
 
 	[Fact]
@@ -131,7 +140,7 @@ public sealed class SqlServerJobCoordinatorShould : UnitTestBase
 			ConnectionString = "Server=.;Database=Jobs;Trusted_Connection=True",
 		});
 
-		return new SqlServerJobCoordinator(options, NullLogger<SqlServerJobCoordinator>.Instance);
+		return new SqlServerJobCoordinator(options, TimeProvider.System, NullLogger<SqlServerJobCoordinator>.Instance);
 	}
 
 	private static SqlServerJobCoordinator CreateSutWithUnreachableSql()
@@ -141,7 +150,7 @@ public sealed class SqlServerJobCoordinatorShould : UnitTestBase
 			ConnectionString = "Server=tcp:127.0.0.1,1;Database=Jobs;User ID=sa;Password=BadPassword123!;Encrypt=False;TrustServerCertificate=True;Connect Timeout=1",
 		});
 
-		return new SqlServerJobCoordinator(options, NullLogger<SqlServerJobCoordinator>.Instance);
+		return new SqlServerJobCoordinator(options, TimeProvider.System, NullLogger<SqlServerJobCoordinator>.Instance);
 	}
 
 	private static JobInstanceInfo CreateInstanceInfo() =>

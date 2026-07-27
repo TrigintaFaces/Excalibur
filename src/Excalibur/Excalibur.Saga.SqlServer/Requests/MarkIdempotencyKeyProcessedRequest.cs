@@ -32,8 +32,11 @@ internal sealed class MarkIdempotencyKeyProcessedRequest : DataRequestBase<IDbCo
 		ArgumentException.ThrowIfNullOrWhiteSpace(qualifiedTableName);
 		SagaSqlValidator.ThrowIfInvalidQualifiedName(qualifiedTableName);
 
+		// WITH (HOLDLOCK) takes a serializable key-range lock on the MERGE target so two concurrent marks for
+		// the same (SagaId, IdempotencyKey) cannot both evaluate WHEN NOT MATCHED and both INSERT -> primary-key
+		// violation. This INSERT-only MERGE is the textbook upsert race; HOLDLOCK is Microsoft's documented guard.
 		var sql = $"""
-			MERGE {qualifiedTableName} AS target
+			MERGE {qualifiedTableName} WITH (HOLDLOCK) AS target
 			USING (SELECT @SagaId AS SagaId, @IdempotencyKey AS IdempotencyKey) AS source
 			ON target.SagaId = source.SagaId AND target.IdempotencyKey = source.IdempotencyKey
 			WHEN NOT MATCHED THEN

@@ -8,6 +8,7 @@ using Excalibur.A3.Governance.OrphanedAccess;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -81,6 +82,10 @@ public static class OrphanedAccessGovernanceBuilderExtensions
 
 	private static IGovernanceBuilder AddOrphanedAccessDetectionCore(this IGovernanceBuilder builder)
 	{
+		// Startup validation for the bound options (reflection-free, AOT-safe).
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<OrphanedAccessOptions>, OrphanedAccessOptionsValidator>());
+
 		// Default detector (overridable)
 		builder.Services.TryAddSingleton<IOrphanedAccessDetector, DefaultOrphanedAccessDetector>();
 

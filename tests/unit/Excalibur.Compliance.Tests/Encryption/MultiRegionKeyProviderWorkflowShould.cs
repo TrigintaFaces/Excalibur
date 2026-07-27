@@ -139,7 +139,7 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 	{
 		// Arrange
 		A.CallTo(() => ((IKeyManagementAdmin)_secondary).DeleteKeyAsync("k1", 90, A<CancellationToken>._))
-			.Returns(Task.FromResult(true));
+			.Returns(Task.FromResult(KeyDestructionOutcome.CompletedAt(DateTimeOffset.UtcNow)));
 
 		// Act
 		await _sut.ForceFailoverAsync("failover", CancellationToken.None)
@@ -148,8 +148,8 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 		var result = await ((IKeyManagementAdmin)_sut).DeleteKeyAsync("k1", 90, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Assert
-		result.ShouldBeTrue();
+		// Assert — after failover, MultiRegion delegates to the secondary and surfaces its outcome.
+		result.State.ShouldBe(KeyDestructionState.Completed);
 		A.CallTo(() => ((IKeyManagementAdmin)_secondary).DeleteKeyAsync("k1", 90, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}

@@ -44,12 +44,14 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 	}
 
 	/// <inheritdoc />
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
-			case OrderCreated c: Id = c.OrderId; break;
-			case OrderNoteAppended n: _notes.Add(n.Note); break;
+			case OrderCreated c: Id = c.OrderId; return true;
+			case OrderNoteAppended n: _notes.Add(n.Note); return true;
+			default:
+				return false;
 		}
 	}
 }

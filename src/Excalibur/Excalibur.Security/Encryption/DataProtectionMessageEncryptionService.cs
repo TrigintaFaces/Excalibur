@@ -12,6 +12,7 @@ using Excalibur.Compliance;
 using Excalibur.Security.Diagnostics;
 
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,6 +37,7 @@ public sealed partial class DataProtectionMessageEncryptionService : IMessageEnc
 	private static readonly long TtlTicks = Stopwatch.Frequency * 30 * 60; // 30 minutes
 
 	private readonly IDataProtectionProvider _dataProtectionProvider;
+	private readonly IKeyManager _keyManager;
 	private readonly EncryptionOptions _options;
 	private readonly ILogger<DataProtectionMessageEncryptionService> _logger;
 	private readonly ConcurrentDictionary<string, (IDataProtector Protector, long ExpiresAtTimestamp)> _protectorCache = new(StringComparer.Ordinal);
@@ -45,18 +47,22 @@ public sealed partial class DataProtectionMessageEncryptionService : IMessageEnc
 	/// Initializes a new instance of the <see cref="DataProtectionMessageEncryptionService" /> class.
 	/// </summary>
 	/// <param name="dataProtectionProvider"> The data protection provider used to create protectors. </param>
+	/// <param name="keyManager"> The Data Protection key manager used to create real key-ring keys on rotation. </param>
 	/// <param name="options"> The encryption service options. </param>
 	/// <param name="logger"> The logger used for diagnostics. </param>
 	public DataProtectionMessageEncryptionService(
 		IDataProtectionProvider dataProtectionProvider,
+		IKeyManager keyManager,
 		IOptions<EncryptionOptions> options,
 		ILogger<DataProtectionMessageEncryptionService> logger)
 	{
 		ArgumentNullException.ThrowIfNull(dataProtectionProvider);
+		ArgumentNullException.ThrowIfNull(keyManager);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_dataProtectionProvider = dataProtectionProvider;
+		_keyManager = keyManager;
 		_options = options.Value;
 		_logger = logger;
 	}
@@ -228,15 +234,23 @@ public sealed partial class DataProtectionMessageEncryptionService : IMessageEnc
 	public Task<KeyRotationResult> RotateKeysAsync(CancellationToken cancellationToken)
 	{
 		var previousKeyId = _options.CurrentKeyId ?? "default";
-		var newKeyId = Guid.NewGuid().ToString();
 		var rotatedAt = DateTimeOffset.UtcNow;
 
 		try
 		{
-			// Clear the protector cache to force recreation with new keys
+			// Create a REAL new key in the Data Protection key-ring (honest rotation). The previous impl only
+			// spun a Guid and flipped CurrentKeyId, rotating no actual key material — the key-ring is the
+			// authoritative key source, so rotation MUST go through it. CreateNewKey persists new key material
+			// that protectors then pick up.
+			var newKey = _keyManager.CreateNewKey(
+				activationDate: rotatedAt,
+				expirationDate: rotatedAt.AddDays(_options.KeyRotationIntervalDays));
+			var newKeyId = newKey.KeyId.ToString();
+
+			// Clear the protector cache to force recreation against the new key-ring state
 			_protectorCache.Clear();
 
-			// Update configuration with new key ID
+			// Update configuration with the newly-created key ID
 			_options.CurrentKeyId = newKeyId;
 
 			LogKeysRotated(previousKeyId, newKeyId);

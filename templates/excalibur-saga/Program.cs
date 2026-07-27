@@ -46,7 +46,6 @@ builder.Services.AddExcalibur(excalibur => excalibur
         });
 #endif
         saga.WithCoordination()
-            .WithCorrelation()
             .WithInstrumentation();
     }));
 

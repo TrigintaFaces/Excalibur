@@ -26,14 +26,6 @@ public sealed class RabbitMqCloudEventExchangeOptions
 	public RabbitMQExchangeType ExchangeType { get; set; } = RabbitMQExchangeType.Topic;
 
 	/// <summary>
-	/// Gets or sets the routing key strategy for CloudEvents.
-	/// </summary>
-	/// <value>
-	/// The routing key strategy for CloudEvents.
-	/// </value>
-	public RabbitMqRoutingStrategy RoutingStrategy { get; set; } = RabbitMqRoutingStrategy.EventType;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether exchanges should be durable.
 	/// </summary>
 	/// <value>

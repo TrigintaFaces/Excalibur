@@ -34,6 +34,12 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
+# Supersede in-flight runs for the same ref. Without this, consecutive pushes queue and each
+# run to completion, so the newest commit waits behind work that is already obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   aot-suppression-audit:
     name: AOT Suppression Baseline Audit
@@ -41,7 +47,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -103,12 +109,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -116,7 +122,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
@@ -142,6 +148,15 @@ jobs:
           path: aot-restore-output.tar.gz
           retention-days: 1
           compression-level: 0
+
+      - name: Verify AOT verdict logic can still fail
+        shell: pwsh
+        run: |
+          ./eng/ci/Invoke-AotPublishValidation.ps1 -SelfTest -OutputPath ./validation-results
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::AOT verdict self-test failed - the gate cannot be trusted to report a real verdict"
+            exit $LASTEXITCODE
+          }
 
       - name: Run AOT publish validation
         shell: pwsh
@@ -199,12 +214,12 @@ jobs:
     needs: aot-publish-validation
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -281,12 +296,12 @@ jobs:
     needs: aot-publish-validation
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x

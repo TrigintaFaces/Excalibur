@@ -29,6 +29,11 @@ public sealed class OutboxProcessorJobShould
 		A.CallTo(() => _fakeScopeFactory.CreateScope()).Returns(_fakeScope);
 		A.CallTo(() => _fakeScope.ServiceProvider).Returns(_fakeServiceProvider);
 
+		// No processing gate registered by default: the job dispatches unconditionally (fail-open),
+		// exactly as it did before the optional leadership gate was added. Individual tests that exercise
+		// the gate override this.
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IProcessingGate))).Returns(null);
+
 		_sut = new OutboxProcessorJob(
 			_fakeScopeFactory,
 			NullLogger<OutboxProcessorJob>.Instance);
@@ -121,6 +126,80 @@ public sealed class OutboxProcessorJobShould
 		await _sut.ExecuteAsync(CancellationToken.None);
 
 		A.CallTo(() => _fakeScopeFactory.CreateScope())
+			.MustHaveHappenedOnceExactly();
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// vttjcz — leader-processing-gate lock (safety ∧ liveness).
+	//
+	// OutboxProcessorJob consults an optional IProcessingGate before draining the outbox:
+	//   gate is not null && !gate.ShouldProcess  =>  skip the dispatch cycle.
+	// A wired-but-unenforced gate (or a flipped '!' / removed check) would let a non-leader instance
+	// drain the outbox = split-brain double-dispatch. These three arms bind the full contract so the
+	// violation is inexpressible behind a passing gate:
+	//   (1) gate ABSENT            -> dispatch (fail-open backward-compat, single-instance)
+	//   (2) gate present + false   -> SKIP     (SAFETY: a non-leader never drains)
+	//   (3) gate present + true    -> dispatch (LIVENESS: the leader still drains — the arm that
+	//                                 fails if the gate is inert and silently skips everyone)
+	// ---------------------------------------------------------------------------------------------
+
+	[Fact]
+	public async Task DispatchWhenNoProcessingGateRegistered()
+	{
+		// Gate absent (default fixture returns null) => fail-open, dispatch unconditionally.
+		var fakeOutbox = A.Fake<IOutboxDispatcher>();
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IOutboxDispatcher)))
+			.Returns(fakeOutbox);
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.Returns(0);
+
+		await _sut.ExecuteAsync(CancellationToken.None);
+
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task SkipDispatchWhenGatePresentAndShouldProcessFalse()
+	{
+		// SAFETY: a registered gate that denies leadership must PREVENT the drain cycle.
+		// RED if the '!gate.ShouldProcess' guard is removed or flipped (non-leader would drain).
+		var fakeOutbox = A.Fake<IOutboxDispatcher>();
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IOutboxDispatcher)))
+			.Returns(fakeOutbox);
+
+		var fakeGate = A.Fake<IProcessingGate>();
+		A.CallTo(() => fakeGate.ShouldProcess).Returns(false);
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IProcessingGate)))
+			.Returns(fakeGate);
+
+		await _sut.ExecuteAsync(CancellationToken.None);
+
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DispatchWhenGatePresentAndShouldProcessTrue()
+	{
+		// LIVENESS: a registered gate that grants leadership must still allow the drain cycle.
+		// This is the arm an inert/always-skip gate fails — safety alone is satisfied by doing nothing.
+		var fakeOutbox = A.Fake<IOutboxDispatcher>();
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IOutboxDispatcher)))
+			.Returns(fakeOutbox);
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.Returns(3);
+
+		var fakeGate = A.Fake<IProcessingGate>();
+		A.CallTo(() => fakeGate.ShouldProcess).Returns(true);
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IProcessingGate)))
+			.Returns(fakeGate);
+
+		await _sut.ExecuteAsync(CancellationToken.None);
+
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(
+			A<string>.That.StartsWith("job-"),
+			A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 }

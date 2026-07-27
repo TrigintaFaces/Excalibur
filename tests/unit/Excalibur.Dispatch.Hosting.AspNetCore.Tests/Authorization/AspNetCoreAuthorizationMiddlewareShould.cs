@@ -98,13 +98,13 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveActionMessageKinds()
+	public void ApplyToActionsAndEvents()
 	{
 		// Arrange
 		var middleware = CreateMiddleware();
 
 		// Assert
-		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
 	}
 
 	[Fact]

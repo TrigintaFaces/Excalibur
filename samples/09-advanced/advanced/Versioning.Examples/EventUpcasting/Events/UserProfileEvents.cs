@@ -16,9 +16,10 @@ namespace EventUpcasting.Events;
 // V2: Added address (single string)
 // V3: Split address into components (street, city, postal code, country)
 //
-// NOTE: IVersionedMessage.Version (schema version, int) is different from
-// IDomainEvent.Version (aggregate version, long). We implement the schema
-// version explicitly to avoid conflicts.
+// NOTE: IVersionedMessage.Version is the message SCHEMA version (int) — used by the upcasting
+// chain to select which transformation to apply. It is unrelated to a stream position; the
+// authoritative aggregate version lives in the persistence envelope. We implement the schema
+// version explicitly on each event.
 // ============================================================
 
 #region Version 1 Events

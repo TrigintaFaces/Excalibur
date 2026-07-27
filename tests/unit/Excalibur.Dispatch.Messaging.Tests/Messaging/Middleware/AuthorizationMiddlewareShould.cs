@@ -106,14 +106,14 @@ public sealed class AuthorizationMiddlewareShould
 	}
 
 	[Fact]
-	public void HaveActionApplicableMessageKinds()
+	public void ApplyToActionsAndEvents()
 	{
 		// Arrange
 		var options = MsOptions.Create(new AuthorizationOptions());
 		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
 
 		// Assert
-		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action);
+		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
 	}
 
 	#endregion

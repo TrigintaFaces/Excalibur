@@ -24,6 +24,7 @@
 using EnterpriseOrderProcessing.Commands;
 using EnterpriseOrderProcessing.LegacyIntegration;
 
+using Excalibur.Compliance;
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Validation;
@@ -102,12 +103,23 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 services.AddSingleton<IDataChangeHandler, LegacyOrderChangeHandler>();
 
 // ---- Compliance: GDPR erasure + monitoring (B.1) ----
+// Demo-only: accept key material that is lost on restart. Production registers a durable provider
+// (for example Azure Key Vault, AWS KMS, or HashiCorp Vault) and deletes this line.
+services.Configure<KeyDurabilityOptions>(o => o.AllowVolatileKeyProvider = true);
+
 services.AddGdprErasure(options =>
 {
 	options.DefaultGracePeriod = TimeSpan.FromHours(72);
 	options.EnableAutoDiscovery = true;
 	options.RequireVerification = true;
 });
+
+// Keyed data-subject pseudonymization requires a secret pepper; the framework fails closed at startup without
+// one. DEMO ONLY — in production supply a high-entropy secret from your secret manager / KMS, stored apart
+// from the erasure data (never a literal in source).
+services.Configure<Excalibur.Compliance.Erasure.DataSubjectHashingOptions>(o =>
+	o.Pepper = builder.Configuration["Gdpr:DataSubjectPepper"]
+		?? "sample-demo-pepper-not-a-secret-change-me-0123456789");
 
 services.AddComplianceMonitoring();
 

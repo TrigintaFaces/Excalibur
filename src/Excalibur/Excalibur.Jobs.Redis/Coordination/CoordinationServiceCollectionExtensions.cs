@@ -5,6 +5,7 @@
 using Excalibur.Jobs.Coordination;
 using Excalibur.Jobs.Redis.Coordination;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 using StackExchange.Redis;
@@ -41,12 +42,15 @@ public static class CoordinationServiceCollectionExtensions
 			return connection.GetDatabase();
 		});
 
+		services.TryAddSingleton(TimeProvider.System);
+
 		// Register job coordinator and sub-interfaces
 		_ = services.AddSingleton(provider =>
 		{
 			var database = provider.GetRequiredService<IDatabase>();
+			var timeProvider = provider.GetRequiredService<TimeProvider>();
 			var logger = provider.GetRequiredService<ILogger<RedisJobCoordinator>>();
-			return new RedisJobCoordinator(database, logger, keyPrefix);
+			return new RedisJobCoordinator(database, timeProvider, logger, keyPrefix);
 		});
 		_ = services.AddSingleton<IJobLockProvider>(provider => provider.GetRequiredService<RedisJobCoordinator>());
 		_ = services.AddSingleton<IJobRegistry>(provider => provider.GetRequiredService<RedisJobCoordinator>());
@@ -81,12 +85,15 @@ public static class CoordinationServiceCollectionExtensions
 			return connection.GetDatabase();
 		});
 
+		services.TryAddSingleton(TimeProvider.System);
+
 		// Register job coordinator and sub-interfaces
 		_ = services.AddSingleton(provider =>
 		{
 			var database = provider.GetRequiredService<IDatabase>();
+			var timeProvider = provider.GetRequiredService<TimeProvider>();
 			var logger = provider.GetRequiredService<ILogger<RedisJobCoordinator>>();
-			return new RedisJobCoordinator(database, logger, keyPrefix);
+			return new RedisJobCoordinator(database, timeProvider, logger, keyPrefix);
 		});
 		_ = services.AddSingleton<IJobLockProvider>(provider => provider.GetRequiredService<RedisJobCoordinator>());
 		_ = services.AddSingleton<IJobRegistry>(provider => provider.GetRequiredService<RedisJobCoordinator>());

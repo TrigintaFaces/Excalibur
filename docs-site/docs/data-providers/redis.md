@@ -104,7 +104,10 @@ services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le =>
 
 Redis is primarily used in Excalibur for:
 
-- **Inbox deduplication** — Ensure messages are processed exactly once
+- **Inbox deduplication** — Turn at-least-once delivery into **effectively-once** processing per
+  `(MessageId, HandlerType)`. Exactly-once for *concurrent* redelivery; **at-least-once across a process
+  crash**, because the claim and the post-handler mark are two steps rather than one transaction — so
+  handlers must be idempotent
 - **Outbox store** — Reliable message publishing with at-least-once delivery
 - **Caching layer** — Paired with `Excalibur.Dispatch.Caching` for middleware-level caching
 - **Leader election** — See `Excalibur.LeaderElection.Redis`

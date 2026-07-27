@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pre-commit hook for ADR-050 namespace depth validation
+# Pre-commit hook for namespace depth validation
 #
 # NS-001 Rules (Production Code - src/):
 #   - Depth ≤4: Preferred (no warnings)
@@ -22,38 +22,568 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# ── Beads tracker flush guard (bd-xlnd5e / S849 I1) ─────────────────────────────────────────────
-# When the tracked Beads tracker (.beads/issues.jsonl) is staged — i.e. an integration/close commit —
-# ensure it reflects the DB BEFORE git snapshots it. Closes the recurring daemon-mtime race that left
-# fresh closes un-persisted in committed HEAD (bd-flush-then-commit clause 6). The helper is hardened
-# and data-loss-safe (export --no-auto-import, foreign-change guard, bounded retry, fails LOUD).
-# Runs BEFORE the C#-only early-exit below so a tracker-only commit is still flushed.
-if git diff --cached --name-only --diff-filter=ACM | grep -qx '.beads/issues.jsonl'; then
-    REPO_ROOT="$(git rev-parse --show-toplevel)"
-    echo -e "${CYAN}Flushing Beads tracker (bd-flush-guard)...${NC}"
-    if bash "$REPO_ROOT/eng/ci/bd-flush-guard.sh"; then
-        git add .beads/issues.jsonl   # re-stage the freshly-flushed tracker so the commit snapshots it
-        echo -e "${GREEN}✓ Beads tracker flushed + re-staged${NC}"
-    else
-        flush_rc=$?
-        echo -e "${RED}✗ COMMIT REJECTED: Beads tracker flush failed (exit ${flush_rc}).${NC}"
-        echo -e "${RED}  exit 1 = genuine flush failure (diagnose); exit 2 = on-disk .jsonl is AHEAD of the DB${NC}"
-        echo -e "${RED}  (foreign change) — reconcile first (e.g. 'bd sync --import-only'), then retry the commit.${NC}"
+# Every gate below resolves its script through REPO_ROOT, so it is set once, here, unconditionally.
+# It used to be assigned inside the tracker-flush branch below, which meant it was empty for every
+# commit that did not stage .beads/issues.jsonl — i.e. every code commit. The blocking-bead gate then
+# invoked "/eng/ci/blocking-bead-gate.sh", bash reported "No such file or directory", and the hook
+# rejected the commit. A fail-closed control that fires on a benign, universal condition does not get
+# fixed. It gets bypassed.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# ── Operator freeze (79ssi6) — runs FIRST ────────────────────────────────────────────────────────
+# .claude/FREEZE.json present = frozen. Under a freeze, ONLY evidence/governance/tracker paths may
+# commit (forge clause 9); ANY other staged path blocks the commit (deny-by-default). The flag is
+# self-exempt, so the commit that SETS or LIFTS the freeze always passes. This runs before the
+# expensive gates so a frozen commit is rejected immediately, and reads the SAME flag the poll hook
+# reads (a stop-order living only in a message could stop neither a commit nor a nudge).
+FREEZE_GUARD="$REPO_ROOT/.claude/harness/freeze-guard.sh"
+if [ -f "$FREEZE_GUARD" ]; then
+    bash "$FREEZE_GUARD" --check-commit && freeze_rc=0 || freeze_rc=$?
+    if [ "${freeze_rc:-0}" -ne 0 ]; then
+        # freeze-guard already printed which path was blocked + how to lift the freeze. Block the commit.
         exit 1
     fi
-    # ── Staged-tracker backstop (bd-m3dmht / forge clause 6) ────────────────────────────────────
-    # Verify the *staged* blob (what the commit will snapshot) actually reflects the DB — a pre-close
-    # snapshot that slipped past the re-stage above is caught HERE, not discovered in committed HEAD.
-    if ! bash "$REPO_ROOT/eng/ci/bd-flush-guard.sh" --verify-staged; then
-        echo -e "${RED}✗ COMMIT REJECTED: staged .beads/issues.jsonl is STALE vs the DB (forge clause 6).${NC}"
-        echo -e "${RED}  A fresh close is not in the staged blob. Re-run the flush + 'git add .beads/issues.jsonl', then retry.${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}✓ Staged Beads tracker verified against DB${NC}"
+fi
+
+# ── Lock self-tests for the bd-dependent gates (A-15) ───────────────────────────────────────────
+# bd-flush-guard.test.sh and single-filing-path.test.sh were invoked by NOTHING. They could not be
+# wired into CI: no runner installs `bd`, and both drive it heavily. Their gate's environment is
+# THIS hook, so this is where their control belongs — a control that runs somewhere its gate does
+# not proves nothing about the environment the gate actually guards.
+#
+# Each runs only when its own subject is staged. A lock that fires on every commit is a lock that
+# gets bypassed; one that fires when you change the thing it guards is a lock that gets read.
+staged_paths="$(git diff --cached --name-only --diff-filter=ACM)"
+for guard in single-filing-path duplicate-xml-doc-tags decomposition-coverage-gate; do
+    case "$staged_paths" in
+        *"eng/ci/$guard.sh"*|*"eng/ci/$guard.test.sh"*)
+            echo -e "${CYAN}Staged $guard — proving its lock is non-vacuous...${NC}"
+            # Three-state, matching the discipline this file already documents for the bd guards
+            # below: a lock that FAILED TO RUN has not told us the lock is broken. Reporting
+            # "its own lock no longer holds" on a timeout or a parse error is a FALSE ACCUSATION
+            # against the committer, and it sends them hunting a defect that is not there.
+            bash "$REPO_ROOT/eng/ci/$guard.test.sh" && lock_rc=0 || lock_rc=$?
+            case "$lock_rc" in
+                0)
+                    echo -e "${GREEN}✓ $guard.test.sh GREEN${NC}"
+                    ;;
+                1)
+                    echo -e "${RED}✗ COMMIT REJECTED: $guard.test.sh is RED.${NC}"
+                    echo -e "${RED}  You changed the gate; its own lock no longer holds.${NC}"
+                    exit 1
+                    ;;
+                *)
+                    # REFUSE. Fails CLOSED — this is the lock proving a gate you are EDITING, so
+                    # "could not evaluate" must not wave the edit through — but it says what
+                    # actually happened rather than blaming the lock's content. 124 = timeout,
+                    # 2 = bash could not parse it, 127 = missing interpreter.
+                    echo -e "${RED}✗ COMMIT REFUSED: $guard.test.sh could not be evaluated (exit ${lock_rc}).${NC}" >&2
+                    echo -e "${RED}  This is NOT 'your lock is broken' — the lock never ran, so nothing${NC}" >&2
+                    echo -e "${RED}  was proven either way. Run it directly to see why:${NC}" >&2
+                    echo -e "${CYAN}    bash eng/ci/$guard.test.sh${NC}" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+    esac
+done
+
+
+# bd-file.test.sh locks bd-file.sh's transient-EOF retry (1rknoh, F1). bd-file.sh is the ONE
+# mandated filing path; a single-attempt abort filed NOTHING on a daemon restart. This lock lives
+# in .claude/tools/beads/ (outside gate-wiring.sh's eng/ci|eng/hooks watch — it would otherwise rot
+# uncaught), so it is wired HERE and fires when you change the thing it guards. It drives a stub bd
+# on PATH; no real tracker, no bd binary, no working-copy mutation.
+case "$staged_paths" in
+    *".claude/tools/beads/bd-file.sh"*|*".claude/tools/beads/_dupcheck.py"*|*".claude/tools/beads/bd-file.test.sh"*)
+        echo -e "${CYAN}Staged bd-file.sh — proving bd-file.test.sh (EOF-retry lock) is non-vacuous...${NC}"
+        # Three-state, same reasoning as the eng/ci loop above.
+        bash "$REPO_ROOT/.claude/tools/beads/bd-file.test.sh" && bdf_rc=0 || bdf_rc=$?
+        case "$bdf_rc" in
+            0)
+                echo -e "${GREEN}✓ bd-file.test.sh GREEN${NC}"
+                ;;
+            1)
+                echo -e "${RED}✗ COMMIT REJECTED: bd-file.test.sh is RED.${NC}"
+                echo -e "${RED}  You changed the mandated filing path; its retry lock no longer holds.${NC}"
+                exit 1
+                ;;
+            *)
+                echo -e "${RED}✗ COMMIT REFUSED: bd-file.test.sh could not be evaluated (exit ${bdf_rc}).${NC}" >&2
+                echo -e "${RED}  The lock never ran — that is not the same as your retry lock failing,${NC}" >&2
+                echo -e "${RED}  and it is not a clean bill of health either. Run it directly:${NC}" >&2
+                echo -e "${CYAN}    bash .claude/tools/beads/bd-file.test.sh${NC}" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+esac
+
+# ── gate self-tests (w0jt1b: relocated OUT of ci.yml) ────────────────────────────────────────────
+# These gates (the gate-wiring meta-gate + its locks) used to run in a ci.yml `gate-selftests` job.
+# ci.yml is copied to a downstream repo and the operator ruled no beads reference may appear in a
+# SHIPPED workflow (a guarded `run: bash bd-status-tokens.sh` is still a reference). So the job was
+# lifted OUT of ci.yml into this dev-only hook, which never ships.
+#
+# Each gate fires ONLY when its own script is staged (the staged-subject pattern above) — a lock that
+# fires when you change the thing it guards is a lock that gets read; running the whole set on every
+# commit would be slow and get bypassed. gate-wiring is the META-gate: it must re-verify wiring
+# whenever ANY lock/gate script changes, so it runs on any eng/ci|eng/hooks|.claude/harness change.
+_run_gate() {  # $1 = label ; $2.. = scripts to run in order. Rejects the commit on any RED.
+    local label="$1"; shift
+    echo -e "${CYAN}Staged ${label} — proving its gate self-test(s)...${NC}"
+    local s
+    for s in "$@"; do
+        if ! bash "$REPO_ROOT/$s"; then
+            echo -e "${RED}✗ COMMIT REJECTED: ${s} is RED. You changed a gate; its self-test no longer holds.${NC}"
+            echo -e "${RED}  Fix it, or delete the gate in writing.${NC}"
+            exit 1
+        fi
+    done
+    echo -e "${GREEN}✓ ${label} GREEN${NC}"
+}
+
+# ── bd harness guards ──
+# These guards live in .claude/harness/ (bd MACHINERY — off product CI, off tests/**). They are wired
+# HERE, in the local pre-commit dev hook: a pure-harness gate must NOT be a
+# product ci.yml required check. Each is fail-CLOSED on a real violation (exit 1) and fail-OPEN on
+# cannot-evaluate (exit 2 — e.g. no DB on a fresh clone), so the hook never wedges on an absent tracker.
+#
+# This banner previously advertised three guards — comments, descriptions, clobber — that were RETIRED
+# as obsolete during the tracker migration. All three scripts were deleted; only the banner survived,
+# so a reader saw three durability guarantees this hook has never provided. Name only what the loop
+# below actually runs, and let the loop be the source of truth.
+# Exit is captured with `&& rc=0 || rc=$?` so `set -e` (line 16) cannot abort mid-gate before we branch.
+HARNESS_DIR="$REPO_ROOT/.claude/harness"
+
+# (1) Prove each harness gate's self-test is non-vacuous WHEN its own script/test is staged — the same
+#     discipline as the eng/ci lock loop above. A gate you changed must re-prove it can still FAIL
+#     (safety) and still PASS (liveness) before it is trusted to guard this very commit.
+for hguard in bd-verified-write freeze-guard; do
+    case "$staged_paths" in
+        *".claude/harness/$hguard.sh"*|*".claude/harness/$hguard.test.sh"*)
+            if [ -f "$HARNESS_DIR/$hguard.test.sh" ]; then
+                echo -e "${CYAN}Staged $hguard — proving its self-test is non-vacuous...${NC}"
+                # Three-state, same as the eng/ci loop. NOT named by the bead that fixed the other
+                # two sites — its enumeration said "two of them" and there are four.
+                bash "$HARNESS_DIR/$hguard.test.sh" && hg_rc=0 || hg_rc=$?
+                case "$hg_rc" in
+                    0)
+                        echo -e "${GREEN}✓ $hguard.test.sh GREEN${NC}"
+                        ;;
+                    1)
+                        echo -e "${RED}✗ COMMIT REJECTED: $hguard.test.sh is RED.${NC}"
+                        echo -e "${RED}  You changed a bd-harness gate; its own self-test no longer holds.${NC}"
+                        exit 1
+                        ;;
+                    *)
+                        echo -e "${RED}✗ COMMIT REFUSED: $hguard.test.sh could not be evaluated (exit ${hg_rc}).${NC}" >&2
+                        echo -e "${RED}  The self-test never ran; that is not the same as it failing.${NC}" >&2
+                        echo -e "${CYAN}    bash .claude/harness/$hguard.test.sh${NC}" >&2
+                        exit 1
+                        ;;
+                esac
+            fi
+            ;;
+    esac
+done
+
+# (2) The agent-mesh guards, wired to their SUBJECT — not only to themselves.
+#
+# Both of these were committed, executable, non-vacuous, and invoked by NOTHING. Measured: the only
+# references to either name anywhere outside .git were the two scripts themselves plus the tracker.
+# They are the advertised-but-unwired class applied to our own instruments — the exact defect they
+# were written to catch, in the artifact that catches it.
+#
+# WHY THEY ARE NOT IN LOOP (1) ABOVE. That loop is a CHANGE gate: it fires only when the guard's own
+# file is staged, proving a gate you edited can still fail. That shape cannot work here, and wiring
+# them that way would have shipped a second inert control:
+#
+#   the loop keys on          $hguard.sh + $hguard.test.sh   (a matched pair)
+#   rewake-discriminator      is a .sh with --self-test       (no .test.sh sibling)
+#   liveness-both-directions  is a .test.sh with no .sh       (it IS both gate and self-test)
+#
+# More importantly, their subject is not themselves. Both read the LIVENESS RULE FILE and assert a
+# property of its text — one an ABSENCE (no live prescriptive form of the refuted
+# "REWAKE-without-START means hung" claim), one a PRESENCE (the discriminator names both directions
+# of the poller-vs-agent asymmetry). A guard that runs only when the guard changes cannot catch the
+# regression it exists for: someone editing the RULE. So it is staged-subject-triggered.
+#
+# Exit contract, both scripts, matching every other gate here: 0 pass · 1 real violation (fail
+# CLOSED) · 2 cannot-evaluate (fail OPEN — missing scope, unreadable subject). REFUSE is not a pass.
+LIVENESS_RULE=".claude/rules/process/verify-worker-liveness-before-dispatch.md"
+for mguard in rewake-discriminator-guard.sh liveness-both-directions.test.sh; do
+    case "$staged_paths" in
+        *"$LIVENESS_RULE"*|*".claude/harness/$mguard"*)
+            [ -f "$HARNESS_DIR/$mguard" ] || continue
+            echo -e "${CYAN}Staged the liveness rule or its guard — running $mguard...${NC}"
+            bash "$HARNESS_DIR/$mguard" && mrc=0 || mrc=$?
+            case "$mrc" in
+                0) echo -e "${GREEN}✓ $mguard GREEN${NC}" ;;
+                2) echo -e "${YELLOW}⚠ $mguard REFUSED (exit 2, cannot evaluate) — not counted as a pass.${NC}" ;;
+                *) echo -e "${RED}✗ COMMIT REJECTED: $mguard is RED (exit $mrc).${NC}"
+                   echo -e "${RED}  The liveness rule no longer states both directions of the discriminator,${NC}"
+                   echo -e "${RED}  or a refuted prescriptive form has come back. Fix the rule, not the guard.${NC}"
+                   exit 1 ;;
+            esac
+            ;;
+    esac
+done
+
+# (3) The live-hook write-path controls (qjrw6q), wired to THEIR subject the same way.
+#
+# Subject = anything that can reintroduce the partial-read window: a CLI hook itself, the deny gate
+# that protects them, or the atomic installer the gate routes to. Staging any of those re-proves the
+# pair still holds. Wired here for the same reason as loop (2) — these were about to be two more
+# committed, executable, non-vacuous, uninvoked scripts.
+LIVE_HOOK_LOCK="$HARNESS_DIR/live-hook-inplace-write-guard.test.sh"
+case "$staged_paths" in
+    *".claude/hooks/"*|*".claude/tools/safe-hook-install.sh"*|*"live-hook-inplace-write-guard"*)
+        if [ -f "$LIVE_HOOK_LOCK" ]; then
+            echo -e "${CYAN}Staged a live hook or its write-path controls — proving the guard holds...${NC}"
+            bash "$LIVE_HOOK_LOCK" && lhrc=0 || lhrc=$?
+            case "$lhrc" in
+                0) echo -e "${GREEN}✓ live-hook-inplace-write-guard GREEN (9 arms)${NC}" ;;
+                2) echo -e "${YELLOW}⚠ live-hook write-path lock REFUSED (exit 2) — not a pass.${NC}" ;;
+                *) echo -e "${RED}✗ COMMIT REJECTED: live-hook write-path lock is RED (exit $lhrc).${NC}"
+                   echo -e "${RED}  The deny-gate or the atomic installer no longer holds. A regression here${NC}"
+                   echo -e "${RED}  silently kills pollers roster-wide and presents as a hung session.${NC}"
+                   exit 1 ;;
+            esac
+        fi
+        ;;
+esac
+
+# (4) Tracker-export staleness — ADVISORY, and the advisory choice is deliberate (cbhnw1).
+#
+# clause-6 mandates verifying a close by reading `git show HEAD:.beads/issues.jsonl`. That read is
+# only sound while the committed export tracks the DB; when it lags, a genuinely closed bead reads
+# `open` and a newly-filed bead is invisible — under-reporting in the false-INCOMPLETE direction.
+#
+# WHY IT DOES NOT BLOCK, and why that is not a cop-out:
+#   - a lagging export is NORMAL mid-sprint (beads are filed continuously between integrations);
+#     blocking on it would red every commit all sprint and get the gate disabled by the first
+#     integrator it stopped, which is strictly worse than an advisory;
+#   - the commit that FIXES the lag stages the export — a blocking form would have to special-case
+#     its own remedy;
+#   - it does NOT flush. pre-commit once flushed and re-staged the export on the success path; bd's
+#     exporter truncates-then-writes non-atomically, so the file sat at 0 bytes and the re-add staged
+#     a 9,220-bead DELETION. That auto-flush was removed on purpose. This never writes.
+#
+# It ALWAYS prints a verdict — never silently skips. A report-only check that says nothing on the
+# clean path is indistinguishable from one that did not run (the ARM-8 caller-polarity lesson).
+# Blocking-vs-advisory is an integrator/architect call; if it should block, flip this branch.
+TRACKER_STALENESS="$HARNESS_DIR/tracker-export-staleness-guard.sh"
+if [ -f "$TRACKER_STALENESS" ]; then
+    bash "$TRACKER_STALENESS" >/dev/null 2>&1 && trrc=0 || trrc=$?
+    case "$trrc" in
+        0) echo -e "${GREEN}✓ tracker export current — clause-6 close reads are reliable${NC}" ;;
+        1) echo -e "${YELLOW}⚠ ADVISORY: committed tracker export LAGS the DB.${NC}"
+           echo -e "${YELLOW}  A clause-6 read (git show HEAD:.beads/issues.jsonl) will UNDER-REPORT:${NC}"
+           echo -e "${YELLOW}  a closed bead can read 'open' and a newly-filed bead is invisible.${NC}"
+           echo -e "${YELLOW}  Run: bash .claude/harness/tracker-export-staleness-guard.sh${NC}"
+           echo -e "${YELLOW}  Flush + stage .beads/issues.jsonl before verifying any close.${NC}" ;;
+        *) echo -e "${YELLOW}⚠ tracker staleness check REFUSED (exit $trrc) — status UNKNOWN, not clean.${NC}" ;;
+    esac
+fi
+
+# (5) Mail-integrity detector's own lock (mcoyyp). Subject-triggered like (2)-(4).
+#
+# The DETECTOR itself is not run here — it inspects a live mailbox, which is a runtime property of
+# the mesh, not a property of the commit. Running it in the commit path would also make every
+# commit depend on OPCOM being up. Its natural home is the poll hook that produces the banner; that
+# wiring adds per-turn cost for the whole roster and is an integrator/architect call, not mine to
+# impose unilaterally. What IS wired here is its LOCK, so the detector cannot silently rot into
+# something that can no longer go red.
+MAIL_LOCK="$HARNESS_DIR/announced-but-unretrievable-guard.test.sh"
+case "$staged_paths" in
+    *"announced-but-unretrievable-guard"*|*".claude/hooks/poll-opcom.sh"*)
+        if [ -f "$MAIL_LOCK" ]; then
+            echo -e "${CYAN}Staged the mail-integrity detector or the poll hook — proving the lock...${NC}"
+            bash "$MAIL_LOCK" && mlrc=0 || mlrc=$?
+            case "$mlrc" in
+                0) echo -e "${GREEN}✓ announced-but-unretrievable lock GREEN (8 arms)${NC}" ;;
+                2) echo -e "${YELLOW}⚠ mail-integrity lock REFUSED (exit 2) — not a pass.${NC}" ;;
+                *) echo -e "${RED}✗ COMMIT REJECTED: mail-integrity lock is RED (exit $mlrc).${NC}"
+                   echo -e "${RED}  The detector can no longer distinguish an announced-but-unreadable${NC}"
+                   echo -e "${RED}  message from a healthy inbox. That is how a sprint loses a ruling.${NC}"
+                   exit 1 ;;
+            esac
+        fi
+        ;;
+esac
+
+# (6) Decomposition coverage — run the GATE ITSELF when a sprint spec or decomposition is staged.
+#
+# The loop above only re-proves this gate's lock when the GATE changes. That is not the case that
+# bites: the decomposition is a DERIVED artifact, and it goes stale when its SOURCE moves. So the
+# trigger is the spec/decomposition pair, not the gate. Measured cost of not having this: a spec
+# moved, the mapping was never re-derived, 15 ids went unmapped, and one of them was a live P0 with
+# no mini-spec and therefore no owner — while four lanes built from the table. No diff, no failure,
+# no signal; a person caught it. This BLOCKS, because an unmapped id means unowned work and the
+# commit staging the spec is exactly the moment to re-derive.
+case "$staged_paths" in
+    *"management/specs/sprint-"*)
+        DECOMP_GATE="$REPO_ROOT/eng/ci/decomposition-coverage-gate.sh"
+        if [ -f "$DECOMP_GATE" ]; then
+            echo -e "${CYAN}Staged a sprint spec/decomposition — checking coverage...${NC}"
+            bash "$DECOMP_GATE" && dcrc=0 || dcrc=$?
+            case "$dcrc" in
+                0) echo -e "${GREEN}✓ decomposition covers the spec${NC}" ;;
+                2) echo -e "${YELLOW}⚠ decomposition coverage REFUSED (exit 2) — status UNKNOWN, not clean.${NC}" ;;
+                *) echo -e "${RED}✗ COMMIT REJECTED: spec ids are UNMAPPED by the decomposition (see above).${NC}"
+                   echo -e "${RED}  Each unmapped id has no mini-spec, therefore no owner. Re-derive${NC}"
+                   echo -e "${RED}  the decomposition from the current spec before committing.${NC}"
+                   exit 1 ;;
+            esac
+        fi
+        ;;
+esac
+
+# ── Beads tracker: no daemon in the commit path ──────────────────────────────────────────
+# This hook once flushed the tracker and then re-staged .beads/issues.jsonl on the SUCCESS path.
+# bd's exporter truncates-then-writes non-atomically, so the file sits at 0 bytes for real
+# intervals; the re-add then staged a 9,220-bead DELETION on the success path.
+# Flush deliberately, before you stage, and verify the file is non-empty before `git add`.
+
+# ── Blocking-bead gate ──────────────────────────────────────────────────────────
+# A blocking ruling that lives in an inbox cannot stop a commit; one that lives here cannot fail to.
+# Refuses a commit whose staged paths fall under a live P0's `BLOCKS-PATHS:` declaration.
+#
+# Runs ABOVE the C#-only early-exit below: a blocking ruling may name a .sql, a .yml, or a shard
+# filter, and a gate that only inspects C# commits would silently pass every one of them.
+#
+# Exit 2 (tracker unreadable) is fail-closed and rejects. Exit 3 (no tracker at all) passes loudly:
+# NOT-APPLICABLE is not CANNOT-VERIFY.
+# Capture the gate's exit DIRECTLY. `if ! cmd; then rc=$?` reads the exit of the *negation*, which is
+# always 0, so the rejection message reported "exit 0" while rejecting — and rc=127 (script not found)
+# was indistinguishable from rc=1 (a real blocking ruling). Same masking class as piping a command
+# whose status you intend to branch on.
+bash "$REPO_ROOT/.claude/harness/blocking-bead-gate.sh" && gate_rc=0 || gate_rc=$?
+if [ "$gate_rc" -ne 0 ] && [ "$gate_rc" -ne 3 ]; then
+    echo -e "${RED}✗ COMMIT REJECTED by blocking-bead-gate (exit ${gate_rc}).${NC}"
+    echo -e "${RED}  rc=1: a staged path is under a live P0 ruling — see above, or run --list${NC}"
+    echo -e "${RED}  rc=2: the tracker exists but could not be read — diagnose, do not bypass blindly${NC}"
+    echo -e "${RED}  rc=127: the gate script was not found — the hook is broken, not your commit${NC}"
+    exit 1
+fi
+
+# ── unfiled-bug gate ────────────────────────────────────────────────────────
+# ── The unfiled-bug gate is gone ─────────────────────────────────────────────────────────
+# A `log-discovery.sh bug` note blocked every commit until "cleared" by a lockless
+# read-modify-write over a file eight agents append to concurrently. Noticing a bug cost more
+# than ignoring one, and filing a bug deleted other agents' bug reports.
+# The Issue Accountability Rule stands, enforced by `bd create` -- which is what it always was.
+
+# ── Staged secret scan (BLOCKING) ──────────────────────────────────────────────────
+# The real control that bd-flush-then-commit.md clause 4 references. Lives in .claude/harness/ (repo
+# machinery — off product CI, off tests/**, never published), wired HERE in the local pre-commit hook.
+# Greps the STAGED added lines against the secret-pattern corpus (security-rules.md + security/dotnet.md);
+# blocks the commit (exit 1) on a hit. `# pragma: allowlist secret` exempts a documented example line —
+# the scanner is never relaxed to clear a token. Fail-CLOSED on a hit, fail-OPEN on cannot-evaluate.
+# MUST run BEFORE the namespace block below, whose no-C#-files branch `exit 0`s and would otherwise
+# bypass this gate on every non-.cs commit (a secret in a .md/.json/.env would sail through).
+SECRET_SCAN="$REPO_ROOT/eng/ci/staged-secret-scan.sh"
+SECRET_LOCK="$REPO_ROOT/eng/ci/staged-secret-scan.harness-lock.sh"
+
+# (1) If the scanner OR its lock is staged, prove the lock is non-vacuous before trusting the gate —
+#     the same discipline as the bd-harness gates above (a gate you changed must re-prove it can still
+#     FAIL on a planted secret AND still PASS on a clean tree before it guards this very commit).
+case "$staged_paths" in
+    *"eng/ci/staged-secret-scan.sh"*|*"eng/ci/staged-secret-scan.harness-lock.sh"*)
+        if [ -f "$SECRET_LOCK" ]; then
+            echo -e "${CYAN}Staged staged-secret-scan — proving its lock is non-vacuous...${NC}"
+            # Three-state — and this is the site where the distinction matters MOST, because it is
+            # the non-vacuity lock on the BLOCKING SECRET SCAN. Telling someone "your secret-scan
+            # lock is RED" when it merely timed out sends them to audit a security control that is
+            # fine; and passing on a lock that never ran would let a weakened scanner through.
+            # Both states block, and both say which one happened.
+            bash "$SECRET_LOCK" && sl_rc=0 || sl_rc=$?
+            case "$sl_rc" in
+                0)
+                    echo -e "${GREEN}✓ staged-secret-scan.harness-lock.sh GREEN${NC}"
+                    ;;
+                1)
+                    echo -e "${RED}✗ COMMIT REJECTED: staged-secret-scan.harness-lock.sh is RED.${NC}"
+                    echo -e "${RED}  You changed the secret-scan gate; its own non-vacuity lock no longer holds.${NC}"
+                    exit 1
+                    ;;
+                *)
+                    echo -e "${RED}✗ COMMIT REFUSED: the secret-scan non-vacuity lock could not be evaluated (exit ${sl_rc}).${NC}" >&2
+                    echo -e "${RED}  NOTHING was proven about the scanner — neither that it works nor that${NC}" >&2
+                    echo -e "${RED}  it is broken. On a security control that is a REFUSE, never a pass.${NC}" >&2
+                    echo -e "${CYAN}    bash eng/ci/staged-secret-scan.harness-lock.sh${NC}" >&2
+                    exit 1
+                    ;;
+            esac
+        fi
+        ;;
+esac
+
+# (2) Run the scanner on EVERY commit — BLOCKING on a staged secret-shaped token.
+if [ -f "$SECRET_SCAN" ]; then
+    # Three-state contract. The scanner DECLARES its codes in its own header; this site maps every
+    # declared code explicitly, and the catch-all is REFUSE — the ways a script can fail to run are not
+    # enumerable, so an undeclared code must never be read as a verdict.
+    #
+    # REFUSE BLOCKS here, and that disposition is specific to what this gate protects. A leaked
+    # credential is IRREVERSIBLE — it cannot be recalled, and rotation is the cheapest outcome on the
+    # table. So a scanner that could not run must stop the commit, exactly as an authN control never
+    # skips. (A recoverable-hygiene gate rules the other way: a desynced tracker is fixable after
+    # the fact, and wedging every fresh clone would be worse than the desync.)
+    #
+    # The previous read was `-eq 1` with a comment asserting "any non-1 (cannot-evaluate) is a pass".
+    # bash exits 2 on a syntax error, so a BLOCKING secret scan that failed to parse reported PASS and
+    # permitted the commit. A gate broken badly enough not to run was indistinguishable from a gate
+    # that ran and found nothing.
+    bash "$SECRET_SCAN" && secret_rc=0 || secret_rc=$?
+    case "${secret_rc:-0}" in
+        0) ;;  # PASS — evaluated, nothing secret-shaped staged.
+        1)
+            echo -e "${RED}✗ COMMIT REJECTED by staged-secret-scan (secret-shaped token in staged changes — see above).${NC}"
+            echo -e "${RED}  Remove the secret; if it is a documented example, add '# pragma: allowlist secret' on that line.${NC}"
+            exit 1
+            ;;
+        *)
+            echo -e "${RED}✗ COMMIT REFUSED: staged-secret-scan could not be evaluated (exit ${secret_rc}).${NC}"
+            echo -e "${RED}  This is NOT a clean bill of health — the scan never ran, so nothing was checked.${NC}"
+            echo -e "${RED}  A leaked credential cannot be un-leaked; this control does not fail open.${NC}"
+            echo -e "${RED}  Fix the scanner (${SECRET_SCAN}) — do not route around it.${NC}"
+            exit 1
+            ;;
+    esac
+else
+    # The [ -f ] test above had NO else, so an ABSENT scanner skipped this entire block and the commit
+    # proceeded silently. Every assurance in it — including "this control does not fail open" — lives
+    # INSIDE the branch a missing scanner never enters, so the comment asserting the control holds was
+    # itself unreachable in the one case where it mattered. A control that ceases to exist when its
+    # script is deleted is not a control; it is a comment.
+    #
+    # Same disposition as the undeclared-code branch above, for the same reason: a leaked credential is
+    # IRREVERSIBLE. An absent scanner and an unparseable scanner are the same state — nothing was
+    # checked — so both REFUSE, and REFUSE blocks. This is the deny-by-default half of the 3-state
+    # contract: REFUSE is never PASS.
+    echo -e "${RED}✗ COMMIT REFUSED: staged-secret-scan is ABSENT (${SECRET_SCAN}).${NC}"
+    echo -e "${RED}  This is NOT a clean bill of health — the scanner does not exist, so nothing was checked.${NC}"
+    echo -e "${RED}  A leaked credential cannot be un-leaked; this control does not fail open.${NC}"
+    echo -e "${RED}  Restore the scanner — do not route around it.${NC}"
+    exit 1
 fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}ADR-050 Namespace Depth Validation (Pre-Commit)${NC}"
+# ── committed-SHA coherence (k947g1) ────────────────────────────────────────────────────────────────
+# THE defect this catches: `dotnet build --no-incremental` compiles the WORKING TREE, not the committed
+# SHA. An under-staged coupled set leaves the missing file in your tree, the build goes GREEN, and the
+# commit does not compile for anyone who checks it out. Five commits in one night; THREE produced a
+# non-compiling HEAD; four seats then "verified" one by READING it. Presence is not compilation.
+#
+# This runs BEFORE the commit exists — the only moment a gate can still block it. It is the INSTANT
+# half (no build): it asserts `git status` is clean for the inputs of every project the commit touches,
+# which is the precondition that makes a working-tree build equal to the SHA.
+#
+# ESCAPE HATCH, deliberately visible: COMMITTED_SHA_GATE=warn git commit …
+#   Use it ONLY for a knowingly-partial stage (one logical change per commit, foreign dirt in a shared
+#   project). It prints the finding and proceeds. It is a documented bypass, not a silent one — if it
+#   becomes routine, that is evidence the gate is mis-scoped, and it should be re-ruled, not ignored.
+CSBG="$REPO_ROOT/eng/ci/committed-sha-build-gate.sh"
+if [ -f "$CSBG" ]; then
+    bash "$CSBG" --staged && csbg_rc=0 || csbg_rc=$?
+    case "${csbg_rc:-0}" in
+        0) ;;  # PASS — the commit matches the tree that was built.
+        1)
+            if [ "${COMMITTED_SHA_GATE:-}" = "warn" ]; then
+                echo -e "${YELLOW}⚠ committed-sha-build-gate WARN-ONLY (COMMITTED_SHA_GATE=warn): proceeding on a${NC}"
+                echo -e "${YELLOW}  knowingly-partial stage. The committed SHA is NOT the tree you built.${NC}"
+            else
+                echo -e "${RED}✗ COMMIT REJECTED by committed-sha-build-gate: this commit is a SUBSET of your tree.${NC}"
+                echo -e "${RED}  The files named above are in the tree your build compiled and NOT in this commit,${NC}"
+                echo -e "${RED}  so any green you have does not describe the SHA you are about to create.${NC}"
+                echo -e "${RED}  Fix: stage them, or re-run with COMMITTED_SHA_GATE=warn if the partial stage is deliberate.${NC}"
+                exit 1
+            fi
+            ;;
+        *)
+            echo -e "${RED}✗ COMMIT REFUSED: committed-sha-build-gate could not be evaluated (exit ${csbg_rc}).${NC}" >&2
+            echo -e "${RED}  Nothing was checked — that is not a clean bill of health. Fix the gate (${CSBG}).${NC}" >&2
+            exit 1
+            ;;
+    esac
+fi
+
+# ── STAGED-SNAPSHOT COHERENCE — the BUILD half of the check above ─────────────────────────────────
+#
+# The gate above is the INSTANT half: it asserts `git status` is clean for the inputs of every project
+# the commit touches, which catches UNDER-STAGING (a file dirty in your tree and absent from the
+# commit). It is structurally blind to the opposite shape — a staged SET that is individually valid
+# file-by-file and INCOHERENT as a snapshot. Measured examples, in opposite directions: a PublicAPI
+# baseline staged describing members the interface at that same commit does not declare (RS0017), and
+# a source file staged adding a public member whose baseline line is in no commit at all (RS0016).
+# Neither is visible to `git status` — in both cases the coupled file is not dirty, so there is
+# nothing for a cleanliness check to report — and neither is visible to any working-tree build,
+# because the tree holds both files and therefore compiles. The incoherence exists ONLY in the commit.
+#
+# PLACEMENT IS LOAD-BEARING, and this is the ONLY placement that works: the gate materialises the
+# INDEX (`git write-tree` + `git commit-tree`, a dangling commit — no ref, no index, no working-tree
+# file is touched). Pre-push was considered and REJECTED on measurement: at push time the index is
+# empty, so the gate would hit its own "nothing staged" arm and exit 0 forever. That would be worse
+# than leaving it unwired — the orphan check would go green while the gate enforced nothing, an
+# advertised-but-unwired control wearing a caller. A gate must be placed where its subject exists.
+#
+# UNCONDITIONAL, with a named escape hatch. It was opt-in for one sprint and that was WRONG — falsified
+# by evidence, not by argument:
+#
+#   the commit that WIRED this gate also SHIPPED the defect it exists to catch. A test landed calling a
+#   kit member that did not, HEAD stopped compiling, and the gate was silent — because it was opt-in and
+#   nobody exports a variable they are not thinking about. The person who needs this check is, by
+#   definition, the person who has not noticed they need it. An opt-in gate is not a weaker control than
+#   an unconditional one; on that evidence it is not a control at all.
+#
+# It also failed its own bead's acceptance criterion, which reads "the commit path verifies the STAGED
+# SNAPSHOT ... failing the commit if the snapshot does not compile" — a gate that runs only when asked
+# does not make the commit path verify anything.
+#
+#   STAGED_SNAPSHOT_GATE=off git commit …    deliberate, disclosed bypass (one logical change, a known
+#                                            partial stage, or a genuinely wedged machine)
+#
+# COST is real and is the reason for the hatch rather than for opt-in: this one BUILDS, though only the
+# projects the staged files touch, and it exits without building at all when nothing is staged. If the
+# added latency ever becomes the binding constraint, bound the build or narrow the trigger — do NOT go
+# back to opt-in, which trades a measurable cost for an unmeasurable false sense of coverage.
+if [ "${STAGED_SNAPSHOT_GATE:-}" != "off" ]; then
+    SSC="$REPO_ROOT/eng/ci/staged-snapshot-coherence.sh"
+    if [ -f "$SSC" ]; then
+        bash "$SSC" && ssc_rc=0 || ssc_rc=$?
+        # Three-state contract (0 PASS · 1 FAIL · 64 REFUSE); every declared code mapped, catch-all REFUSE.
+        case "${ssc_rc:-0}" in
+            0) ;;  # the staged snapshot compiles as its own commit — common path, say nothing
+            1)
+                echo -e "${RED}✗ COMMIT REJECTED: the STAGED SNAPSHOT does not compile.${NC}" >&2
+                echo -e "${RED}  This commit would create a HEAD no clean checkout can build. Your tree${NC}" >&2
+                echo -e "${RED}  compiling is not evidence — it holds files this commit omits.${NC}" >&2
+                echo -e "${CYAN}  Usual cause: a public member staged without its PublicAPI baseline line,${NC}" >&2
+                echo -e "${CYAN}  or a baseline staged without the source change it describes.${NC}" >&2
+                exit 1
+                ;;
+            *)
+                # REFUSE. Fails CLOSED, unlike the hook-drift check in pre-push, and deliberately so:
+                # that check guards a recoverable condition (reinstall the hooks), whereas this one is
+                # the last thing standing between an incoherent snapshot and committed HEAD. "The check
+                # did not run" is not "your snapshot is coherent", and the gate was explicitly opted
+                # into — so refusing is what the caller asked for.
+                echo -e "${RED}✗ COMMIT REFUSED: staged-snapshot-coherence could not be evaluated (exit ${ssc_rc}).${NC}" >&2
+                echo -e "${RED}  Nothing was checked — that is not a clean bill of health. Fix the gate (${SSC}).${NC}" >&2
+                exit 1
+                ;;
+        esac
+    else
+        echo -e "${RED}✗ COMMIT REFUSED: ${SSC} is missing — the staged snapshot was NOT verified.${NC}" >&2
+        echo -e "${RED}  A gate whose script has vanished must not pass silently. Restore it, or bypass${NC}" >&2
+        echo -e "${CYAN}  deliberately with: STAGED_SNAPSHOT_GATE=off git commit …${NC}" >&2
+        exit 1
+    fi
+fi
+
+echo -e "${CYAN}Namespace Depth Validation (Pre-Commit)${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # Get list of staged C# files
@@ -134,7 +664,7 @@ if [ "$DEPTH6_COUNT" -gt 0 ]; then
     echo -e "${RED}✗ COMMIT REJECTED: Namespace depth violations detected${NC}"
     echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-    echo -e "${RED}Found $DEPTH6_COUNT namespace(s) exceeding maximum depth (ADR-050):${NC}"
+    echo -e "${RED}Found $DEPTH6_COUNT namespace(s) exceeding maximum depth:${NC}"
     echo -e "${RED}  • Production code (src/): max depth 5 (NS-001)${NC}"
     echo -e "${RED}  • Test code (tests/): max depth 7 (NS-001a)${NC}"
     echo ""
@@ -167,7 +697,7 @@ if [ "$DEPTH5_COUNT" -gt 0 ]; then
     echo ""
     echo -e "${CYAN}Recommendation:${NC}"
     echo -e "  • These depths are acceptable but consider reducing if possible"
-    echo -e "  • See ADR-050 NS-001/NS-001a for guidance"
+    echo -e "  • See the namespace-depth guidance in the contributor docs"
     echo ""
     echo -e "${GREEN}✓ Commit allowed (within acceptable limits)${NC}"
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -175,11 +705,101 @@ fi
 
 # Success case
 if [ "$DEPTH6_COUNT" -eq 0 ] && [ "$DEPTH5_COUNT" -eq 0 ]; then
-    echo -e "${GREEN}✓ All staged namespaces comply with ADR-050 depth requirements${NC}"
+    echo -e "${GREEN}✓ All staged namespaces comply with namespace depth requirements${NC}"
     echo -e "${GREEN}✓ No violations detected (all namespaces ≤4 segments)${NC}"
 fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
+
+# ── WWMD BCL-reinvention smell scan (ADVISORY — never blocks) ────────────────────────────────────
+# Surfaces candidate hand-rolled reinventions of BCL/first-party primitives in the STAGED .cs files so
+# the author runs the two-prong test (microsoft-first.md §C) at authoring time, not just at REVIEW.
+# Heuristic with expected false positives → prints candidates + exit 0; NEVER fails the commit.
+# The verdict is human (build-ON beats reinvents; default skeptical). See the BCL-First Authoring Gate
+# in the implementer agent configs (.claude/agents/*.md).
+STAGED_SRC_CS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.cs$' | grep -viE '^tests?/|Tests?\.cs$|/samples/' || true)
+# Cap the advisory scan so it can NEVER slow a commit: benchmarks show ~1s for a typical
+# commit but ~8s for a whole-tree stage (5k+ files). Above the cap we skip with a note (run
+# `--base` manually); and we wrap the run in a hard `timeout` (when available) as a backstop.
+WWMD_MAX_FILES="${WWMD_MAX_FILES:-500}"
+WWMD_TIMEOUT="${WWMD_TIMEOUT:-6}"
+if [ -n "$STAGED_SRC_CS" ]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    SMELL="$REPO_ROOT/eng/ci/wwmd-reinvention-smells.sh"
+    STAGED_COUNT=$(printf '%s\n' "$STAGED_SRC_CS" | grep -c . || true)
+    if [ -x "$SMELL" ] && [ "$STAGED_COUNT" -gt "$WWMD_MAX_FILES" ]; then
+        echo -e "${CYAN}ℹ WWMD smell scan skipped — $STAGED_COUNT staged src files > cap ($WWMD_MAX_FILES).${NC}"
+        echo -e "${CYAN}  Run manually if useful:  eng/ci/wwmd-reinvention-smells.sh --base origin/main${NC}"
+        echo ""
+    elif [ -x "$SMELL" ]; then
+        if command -v timeout >/dev/null 2>&1; then
+            SMELL_OUT="$(timeout "${WWMD_TIMEOUT}"s bash "$SMELL" --files $STAGED_SRC_CS 2>/dev/null || true)"
+        else
+            SMELL_OUT="$(bash "$SMELL" --files $STAGED_SRC_CS 2>/dev/null || true)"
+        fi
+        if [ -n "$SMELL_OUT" ]; then
+            echo -e "${YELLOW}⚠ WWMD BCL-reinvention smells in staged src (ADVISORY — not blocking):${NC}"
+            echo "$SMELL_OUT"
+            echo -e "${CYAN}  → Triage each with the two-prong test (microsoft-first.md §C):${NC}"
+            echo -e "${CYAN}    build ON the BCL primitive unless it genuinely can't express the requirement;${NC}"
+            echo -e "${CYAN}    if you deviate, record the specific reason in the bead + commit.${NC}"
+            echo ""
+        fi
+    fi
+fi
+
+# ── Duplicate XML doc tags (qcizyz — enforcement arm for b9dwlt) ──────────────────────────────────
+# A single /// doc block carrying two <summary>/<remarks>/<value> ships HALF a member's documented
+# contract: the XML doc generator keeps one element and silently drops the rest, with ZERO compiler
+# warnings. Fail-CLOSED on the staged shipped src (.cs, excl tests/samples — the NuGet .xml surface)
+# so a duplicate tag cannot re-enter the shipped documentation. exit 2 (nothing to evaluate) = pass.
+DUP_DOC_GATE="$REPO_ROOT/eng/ci/duplicate-xml-doc-tags.sh"
+if [ -n "$STAGED_SRC_CS" ]; then
+    # The gate MUST exist. `[ -f "$DUP_DOC_GATE" ]` used to guard this whole block, so an absent
+    # gate skipped it SILENTLY and the commit passed with no check and no word — and the gate WAS
+    # absent: its script sat untracked while these lines referenced it three times. On a fresh clone
+    # the branch below could never execute, and the "✗ COMMIT REJECTED" text was unreachable prose.
+    # A missing gate is not a clean tree; it is an unevaluated one, and it says so now.
+    if [ ! -f "$DUP_DOC_GATE" ]; then
+        echo -e "${RED}✗ COMMIT REFUSED: duplicate-xml-doc-tags gate is MISSING (${DUP_DOC_GATE}).${NC}" >&2
+        echo -e "${RED}  Staged shipped .cs was NOT checked for duplicate doc tags. This is not a pass.${NC}" >&2
+        echo -e "${RED}  Restore the gate; do not route around it.${NC}" >&2
+        exit 1
+    fi
+
+    bash "$DUP_DOC_GATE" $STAGED_SRC_CS && dup_rc=0 || dup_rc=$?
+    # Three-state dispatch (r4dzl2's 6th site — named in its own bead as "L499 dup-doc" and missed
+    # by the sweep that closed it; reopened as mmatkv).
+    #
+    # The previous read was `-eq 1`, under a header declaring "Fail-CLOSED on the staged shipped
+    # src". It was not fail-closed: 2 (syntax error), 127 (not executable), 143 (killed) all fell
+    # through to `exit 0` = clean. The header's other clause — "exit 2 (nothing to evaluate) = pass"
+    # — is TRUE for the case it was written about (no staged .cs, nothing to scan) and that case is
+    # already excluded by the `[ -n "$STAGED_SRC_CS" ]` guard above. Inside this block there IS
+    # something to evaluate, so a non-verdict exit means the gate BROKE, not that the tree is clean.
+    # A correct rule, applied one scope too wide.
+    #
+    # REFUSE blocks here, per the gate's own declared intent ("Fail-CLOSED … so a duplicate tag
+    # cannot re-enter the shipped documentation"): the protected surface is the NuGet .xml a
+    # consumer reads, the compiler warns about NOTHING, and a silently half-documented member ships
+    # unnoticed. That is the whole reason this gate exists — an unrun check must not certify it.
+    case "${dup_rc:-0}" in
+        0) ;;  # PASS — evaluated, no duplicate doc tags in the staged shipped src.
+        1)
+            echo -e "${RED}✗ COMMIT REJECTED by duplicate-xml-doc-tags (qcizyz): a staged .cs has two${NC}"
+            echo -e "${RED}  <summary>/<remarks>/<value> in one doc block — the generator drops all but one.${NC}"
+            echo -e "${RED}  Merge into a single tag (use <para> for multiple paragraphs); see file:line above.${NC}"
+            exit 1
+            ;;
+        *)
+            echo -e "${RED}✗ COMMIT REFUSED: duplicate-xml-doc-tags could not be evaluated (exit ${dup_rc}).${NC}" >&2
+            echo -e "${RED}  The scan never ran, so nothing was checked — this is NOT a clean bill of health.${NC}" >&2
+            echo -e "${RED}  The compiler warns about duplicate doc tags NOT AT ALL; an unchecked commit can${NC}" >&2
+            echo -e "${RED}  ship a silently half-documented public member. Fix the gate (${DUP_DOC_GATE}).${NC}" >&2
+            exit 1
+            ;;
+    esac
+fi
 
 exit 0

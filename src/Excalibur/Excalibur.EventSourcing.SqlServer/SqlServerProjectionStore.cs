@@ -8,6 +8,9 @@ using System.Text.RegularExpressions;
 
 using Dapper;
 
+using Excalibur.Data;
+using Excalibur.Dispatch;
+
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
@@ -41,16 +44,15 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
 	private static partial Regex ValidTableNameRegex();
 
-	private static readonly JsonSerializerOptions DefaultJsonOptions = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		WriteIndented = false
-	};
-
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _tableName;
 	private readonly ILogger<SqlServerProjectionStore<TProjection>> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
+	private readonly ITenantContext? _tenantContext;
+
+	// Row-level tenant discriminator predicate, single-sourced so the SQL Server column name and
+	// parameter (TenantId = @TenantId) are not repeated across the read/delete/query builders.
+	private const string TenantColumnPredicate = "TenantId = @TenantId";
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerProjectionStore{TProjection}"/> class.
@@ -59,6 +61,14 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tableName">Optional table name. Defaults to projection type name.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context. Every query is scoped to the resolved tenant (row-level <c>TenantId</c>
+	/// discriminator) in the same atomic statement, and fails closed: if no tenant resolves — because the
+	/// context is <see langword="null"/> or its ambient tenant is null/whitespace — the operation throws
+	/// <see cref="System.ArgumentException"/> rather than returning every tenant's rows. Dependency injection
+	/// always registers a non-null default context, so single-tenant applications resolve the built-in
+	/// default tenant automatically.
+	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
 	/// </remarks>
@@ -66,8 +76,9 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		string connectionString,
 		ILogger<SqlServerProjectionStore<TProjection>> logger,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null)
-		: this(CreateConnectionFactory(connectionString), logger, tableName, jsonOptions)
+		JsonSerializerOptions? jsonOptions = null,
+		ITenantContext? tenantContext = null)
+		: this(CreateConnectionFactory(connectionString), logger, tableName, jsonOptions, tenantContext)
 	{
 	}
 
@@ -80,6 +91,9 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tableName">Optional table name. Defaults to projection type name.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="tenantContext">
+	/// Optional ambient tenant context for row-level tenant scoping (see the simple constructor's remarks).
+	/// </param>
 	/// <remarks>
 	/// This is the advanced constructor for scenarios requiring custom connection management.
 	/// </remarks>
@@ -87,10 +101,12 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerProjectionStore<TProjection>> logger,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null)
+		JsonSerializerOptions? jsonOptions = null,
+		ITenantContext? tenantContext = null)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext;
 		var resolvedName = tableName ?? typeof(TProjection).Name;
 		if (!ValidTableNameRegex().IsMatch(resolvedName))
 		{
@@ -98,7 +114,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		}
 
 		_tableName = resolvedName;
-		_jsonOptions = jsonOptions ?? DefaultJsonOptions;
+
+		// Converged on the single ProjectionSerializationDefaults read-model factory (camelCase +
+		// null-omission) so every projection store's wire shape stays byte-compatible on the read path.
+		_jsonOptions = jsonOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 	/// <inheritdoc/>
 	[UnconditionalSuppressMessage("Trimming", "IL2046", Justification = "Implementation inherently uses reflection-based serialization; interface intentionally omits attribute for clean consumer API.")]
@@ -112,17 +131,23 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-		const string sqlTemplate = """
-		                           SELECT Data FROM [{0}] WHERE Id = @Id
-		                           """;
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		var tenantPredicate = " AND " + TenantColumnPredicate;
+		var sql = $"SELECT Data FROM [{_tableName}] WHERE Id = @Id{tenantPredicate}";
 
-		var sql = string.Format(sqlTemplate, _tableName);
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var json = await connection.QuerySingleOrDefaultAsync<string>(
-				new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken))
+				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
 		if (json is null)
@@ -146,20 +171,40 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 		ArgumentNullException.ThrowIfNull(projection);
 
-		const string sqlTemplate = """
-		                           MERGE [{0}] AS target
-		                           USING (SELECT @Id AS Id, @Data AS Data, @UpdatedAt AS UpdatedAt) AS source
-		                           ON target.Id = source.Id
-		                           WHEN MATCHED THEN
-		                           	UPDATE SET Data = source.Data, UpdatedAt = source.UpdatedAt
-		                           WHEN NOT MATCHED THEN
-		                           	INSERT (Id, Data, CreatedAt, UpdatedAt)
-		                           	VALUES (source.Id, source.Data, source.UpdatedAt, source.UpdatedAt);
-		                           """;
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
 
-		var sql = string.Format(sqlTemplate, _tableName);
+		// Tenant scoping rides the MERGE atomically: the tenant discriminator is part of the match key so a
+		// tenant-A upsert can NEVER match (and overwrite) a tenant-B row with the same Id, and the INSERT
+		// stamps the tenant. Tenant-facing write — fails closed: a null/blank ambient tenant is rejected up
+		// front. This must never degrade to a client-side check — the isolation is in the match key itself.
+		var sourceTenantSelect = ", @TenantId AS TenantId";
+		var onTenantPredicate = " AND target.TenantId = source.TenantId";
+		var insertTenantColumn = ", TenantId";
+		var insertTenantValue = ", source.TenantId";
+
+		var sql = $"""
+			MERGE [{_tableName}] AS target
+			USING (SELECT @Id AS Id, @Data AS Data, @UpdatedAt AS UpdatedAt{sourceTenantSelect}) AS source
+			ON target.Id = source.Id{onTenantPredicate}
+			WHEN MATCHED THEN
+				UPDATE SET Data = source.Data, UpdatedAt = source.UpdatedAt
+			WHEN NOT MATCHED THEN
+				INSERT (Id, Data, CreatedAt, UpdatedAt{insertTenantColumn})
+				VALUES (source.Id, source.Data, source.UpdatedAt, source.UpdatedAt{insertTenantValue});
+			""";
+
 		var json = JsonSerializer.Serialize(projection, _jsonOptions);
 		var now = DateTimeOffset.UtcNow;
+
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@Data", json);
+		parameters.Add("@UpdatedAt", now);
+		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -167,7 +212,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		_ = await connection.ExecuteAsync(
 				new CommandDefinition(
 					sql,
-					new { Id = id, Data = json, UpdatedAt = now },
+					parameters,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -181,17 +226,23 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-		const string sqlTemplate = """
-		                           DELETE FROM [{0}] WHERE Id = @Id
-		                           """;
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+		var tenantPredicate = " AND " + TenantColumnPredicate;
+		var sql = $"DELETE FROM [{_tableName}] WHERE Id = @Id{tenantPredicate}";
 
-		var sql = string.Format(sqlTemplate, _tableName);
+		var parameters = new DynamicParameters();
+		parameters.Add("@Id", id);
+		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		_ = await connection.ExecuteAsync(
-				new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken))
+				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
 		_logger.LogDebug("Deleted projection {ProjectionType}/{Id}", typeof(TProjection).Name, id);
@@ -203,7 +254,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		QueryOptions? options,
 		CancellationToken cancellationToken)
 	{
-		var (whereClause, parameters) = BuildWhereClause(filters);
+		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 		var orderByClause = BuildOrderByClause(options);
 		var paginationClause = BuildPaginationClause(options, parameters);
 
@@ -230,7 +281,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		IDictionary<string, object>? filters,
 		CancellationToken cancellationToken)
 	{
-		var (whereClause, parameters) = BuildWhereClause(filters);
+		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 
 		var sql = $"""
 		           SELECT COUNT(*) FROM [{_tableName}]
@@ -261,7 +312,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
 
-		var (whereClause, parameters) = BuildWhereClause(filters);
+		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 		var orderByClause = BuildOrderByClause(options);
 
 		var offset = (pageNumber - 1) * pageSize;
@@ -320,6 +371,34 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 
 	[GeneratedRegex(@"^[a-zA-Z][a-zA-Z0-9_]*$")]
 	private static partial Regex ValidPropertyNameRegex();
+
+	/// <summary>
+	/// Builds the filter WHERE clause and appends the row-level tenant predicate
+	/// (<c>TenantId = @TenantId</c>) so every read is scoped to the current tenant in the same statement.
+	/// Fails closed: a null or whitespace ambient tenant throws <see cref="System.ArgumentException"/>
+	/// rather than returning every tenant's rows.
+	/// </summary>
+	private (string WhereClause, DynamicParameters Parameters) BuildTenantScopedWhereClause(
+		IDictionary<string, object>? filters)
+	{
+		var (whereClause, parameters) = BuildWhereClause(filters);
+
+		// Fail closed: a projection query is a tenant-facing consumer read, so a null ambient tenant under
+		// multi-tenancy must throw rather than silently return every tenant's rows (symmetric with the
+		// keyed ops and the event-store fdepwq fix). The single-tenant default context is non-null.
+		// Canonical fail-closed seam for an always-tenant-scoped store: Scoped() throws
+		// TenantRequiredException when the ambient tenant is null/blank, so an unscoped (false-isolation)
+		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
+		// TenantId discriminator — so it requires a tenant rather than degrading to TenantScope.None.
+		var tenantId = TenantScope.Scoped(_tenantContext?.TenantId).TenantId;
+
+		parameters.Add("@TenantId", tenantId);
+		whereClause = string.IsNullOrEmpty(whereClause)
+			? "WHERE " + TenantColumnPredicate
+			: whereClause + " AND " + TenantColumnPredicate;
+
+		return (whereClause, parameters);
+	}
 
 	private static (string WhereClause, DynamicParameters Parameters) BuildWhereClause(
 		IDictionary<string, object>? filters)

@@ -14,6 +14,9 @@
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
+    <ProjectReference Include="..\Excalibur.Workflows.Abstractions\Excalibur.Workflows.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Workflows\Excalibur.Workflows.csproj" />
+    <ProjectReference Include="..\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

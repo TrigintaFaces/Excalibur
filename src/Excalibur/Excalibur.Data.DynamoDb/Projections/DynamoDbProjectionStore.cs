@@ -95,7 +95,7 @@ public sealed class DynamoDbProjectionStore<
 		_options = options.Value;
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_jsonOptions = _options.JsonSerializerOptions ?? new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_jsonOptions = _options.JsonSerializerOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 
 	/// <inheritdoc/>
@@ -563,21 +563,29 @@ public sealed class DynamoDbProjectionStore<
 		}
 		catch (ResourceNotFoundException)
 		{
-			await _client.CreateTableAsync(new CreateTableRequest
+			try
 			{
-				TableName = _options.TableName,
-				KeySchema =
-				[
-					new KeySchemaElement(_options.PartitionKeyName, KeyType.HASH),
-				],
-				AttributeDefinitions =
-				[
-					new AttributeDefinition(_options.PartitionKeyName, ScalarAttributeType.S),
-				],
-				BillingMode = BillingMode.PAY_PER_REQUEST,
-			}, cancellationToken).ConfigureAwait(false);
+				await _client.CreateTableAsync(new CreateTableRequest
+				{
+					TableName = _options.TableName,
+					KeySchema =
+					[
+						new KeySchemaElement(_options.PartitionKeyName, KeyType.HASH),
+					],
+					AttributeDefinitions =
+					[
+						new AttributeDefinition(_options.PartitionKeyName, ScalarAttributeType.S),
+					],
+					BillingMode = BillingMode.PAY_PER_REQUEST,
+				}, cancellationToken).ConfigureAwait(false);
 
-			_logger.LogInformation("Created DynamoDB projection table {TableName}", _options.TableName);
+				_logger.LogInformation("Created DynamoDB projection table {TableName}", _options.TableName);
+			}
+			catch (ResourceInUseException)
+			{
+				// Multi-instance cold-start race: another instance created (or is creating) the table
+				// between our DescribeTable and CreateTable. Benign — the table now exists.
+			}
 		}
 
 		_tableVerified = true;

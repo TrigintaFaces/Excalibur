@@ -38,7 +38,6 @@ namespace Excalibur.Dispatch;
 /// <item><see cref="IOutboxStore"/> -- Core polling-based outbox (stage, get unsent, mark sent/failed)</item>
 /// <item><see cref="IOutboxStoreAdmin"/> -- Admin operations (failed retrieval, scheduled messages, cleanup, stats)</item>
 /// <item><see cref="IOutboxStoreBatch"/> -- Batch mark sent/failed operations</item>
-/// <item><see cref="ITransactionalOutboxStore"/> -- Atomic batch mark-sent within a single transaction</item>
 /// <item><see cref="IMultiTransportOutboxStore"/> -- Per-transport delivery tracking for fan-out scenarios</item>
 /// <item><see cref="ITransactionalOutboxWriter"/> -- External transaction participation for atomic staging (this interface)</item>
 /// </list>

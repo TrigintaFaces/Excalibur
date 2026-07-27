@@ -10,15 +10,42 @@ namespace Excalibur.A3.Authorization;
 /// <remarks>
 /// <para>
 /// Follows the Microsoft ASP.NET Core Identity <c>IUserStore&lt;TUser&gt;</c> pattern:
-/// minimal CRUD surface (5 methods) with <see cref="GetService"/> for ISP extensions.
+/// minimal CRUD surface (5 methods) with <see cref="IServiceProvider.GetService(Type)"/> for ISP extensions.
 /// </para>
 /// <para>
 /// Replaces both the internal <c>IGrantRequestProvider</c> (11-method, SQL-coupled) and the
 /// abstractions-level <c>IGrantRequestProvider</c> (5 methods + GetService).
 /// </para>
+/// <para>
+/// Optional capabilities — including durability, discovered via <see cref="IDurableGrantStore"/> —
+/// are resolved through <see cref="IServiceProvider.GetService(Type)"/>, never by casting the store.
+/// A store answers for the capabilities it provides; decorators MUST forward <c>GetService</c> to the
+/// wrapped store.
+/// </para>
 /// </remarks>
-public interface IGrantStore
+public interface IGrantStore : IServiceProvider
 {
+	/// <summary>
+	/// Resolves an optional grant-store capability, or <see langword="null"/> when it is unavailable.
+	/// </summary>
+	/// <param name="serviceType"> The capability interface to resolve, for example <see cref="IDurableGrantStore"/>. </param>
+	/// <returns>
+	/// An instance assignable to <paramref name="serviceType"/> when this store provides the capability;
+	/// otherwise <see langword="null"/>.
+	/// </returns>
+	/// <remarks>
+	/// The default implementation answers for any capability this instance itself implements. Leaf stores
+	/// need not override it. Decorators MUST override it to defer unknown capabilities to the store they
+	/// wrap; a decorator that does not forward silently disables the capability beneath it.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"> Thrown when <paramref name="serviceType"/> is null. </exception>
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
 	/// <summary>
 	/// Retrieves a specific grant.
 	/// </summary>
@@ -95,10 +122,14 @@ public interface IGrantStore
 	Task<bool> GrantExistsAsync(string userId, string tenantId, string grantType,
 		string qualifier, CancellationToken cancellationToken);
 
-	/// <summary>
-	/// Gets a sub-interface or service from this store.
-	/// </summary>
-	/// <param name="serviceType">The type of service to retrieve (e.g., <c>typeof(IGrantQueryStore)</c>).</param>
-	/// <returns>The service instance, or <see langword="null"/> if not supported.</returns>
-	object? GetService(Type serviceType);
+}
+
+/// <summary>
+/// Marks an <see cref="IGrantStore"/> whose grant persistence is durable — grants survive a process
+/// restart. A store advertises this capability by answering for it from
+/// <see cref="IServiceProvider.GetService(Type)"/>; consumers query rather than cast, so the capability
+/// is discoverable through decorators.
+/// </summary>
+public interface IDurableGrantStore
+{
 }

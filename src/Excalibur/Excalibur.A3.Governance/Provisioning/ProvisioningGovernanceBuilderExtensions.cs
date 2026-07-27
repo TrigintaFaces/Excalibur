@@ -100,6 +100,12 @@ public static class ProvisioningGovernanceBuilderExtensions
 				Microsoft.Extensions.Options.IValidateOptions<JitAccessOptions>,
 				JitAccessOptionsValidator>());
 
+		// Startup validation for ProvisioningOptions (reflection-free, AOT-safe).
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<
+				Microsoft.Extensions.Options.IValidateOptions<ProvisioningOptions>,
+				ProvisioningOptionsValidator>());
+
 		// Fallback in-memory store (overridable)
 		builder.Services.TryAddSingleton<IProvisioningStore, InMemoryProvisioningStore>();
 

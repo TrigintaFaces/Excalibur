@@ -42,6 +42,7 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerErasureStoreOptions>,
 				SqlServerErasureStoreOptionsValidator>());
 
+		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
 		services.TryAddSingleton<SqlServerErasureStore>();
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());

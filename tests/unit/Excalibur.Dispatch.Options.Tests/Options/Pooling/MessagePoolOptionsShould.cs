@@ -58,16 +58,6 @@ public sealed class MessagePoolOptionsShould
 	}
 
 	[Fact]
-	public void Default_DefaultResetStrategy_IsAuto()
-	{
-		// Arrange & Act
-		var options = new MessagePoolOptions();
-
-		// Assert
-		options.DefaultResetStrategy.ShouldBe(ResetStrategy.Auto);
-	}
-
-	[Fact]
 	public void Default_TrimBehavior_IsAdaptive()
 	{
 		// Arrange & Act
@@ -146,19 +136,6 @@ public sealed class MessagePoolOptionsShould
 	}
 
 	[Fact]
-	public void DefaultResetStrategy_CanBeSet()
-	{
-		// Arrange
-		var options = new MessagePoolOptions();
-
-		// Act
-		options.DefaultResetStrategy = ResetStrategy.Interface;
-
-		// Assert
-		options.DefaultResetStrategy.ShouldBe(ResetStrategy.Interface);
-	}
-
-	[Fact]
 	public void TrimBehavior_CanBeSet()
 	{
 		// Arrange
@@ -197,7 +174,6 @@ public sealed class MessagePoolOptionsShould
 			Enabled = false,
 			MaxPoolSizePerType = 50,
 			AggressivePooling = false,
-			DefaultResetStrategy = ResetStrategy.SourceGenerated,
 			TrimBehavior = TrimBehavior.Fixed,
 			MaxTrackedTypes = 200,
 		};
@@ -206,7 +182,6 @@ public sealed class MessagePoolOptionsShould
 		options.Enabled.ShouldBeFalse();
 		options.MaxPoolSizePerType.ShouldBe(50);
 		options.AggressivePooling.ShouldBeFalse();
-		options.DefaultResetStrategy.ShouldBe(ResetStrategy.SourceGenerated);
 		options.TrimBehavior.ShouldBe(TrimBehavior.Fixed);
 		options.MaxTrackedTypes.ShouldBe(200);
 	}

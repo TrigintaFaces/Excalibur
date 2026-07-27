@@ -66,7 +66,7 @@ dotnet add package Excalibur.Domain  # For [PersonalData] attribute
 
 - [ ] Read `docs/security/gdpr-compliance.md` (1,000+ lines)
 - [ ] Understand cryptographic erasure approach
-- [ ] Review conformance test kits (80 total tests)
+- [ ] Review conformance test kits, and note that their arms are opt-in — you wrap what you run
 
 ---
 
@@ -144,6 +144,29 @@ builder.Services.AddErasureScheduler();
 - [ ] Configure SQL Server erasure store
 - [ ] Set certificate retention period (7 years recommended)
 - [ ] Configure signing key for certificate signatures
+
+:::warning Shipped test evidence for the production compliance stores is uneven — verify against your own database
+
+`✅ SATISFIED` in the table above means **the framework provides a technical implementation**. It does not
+mean every provider of that implementation carries shipped test evidence, and for the compliance stores it
+does not. Measured in this framework's own test suite:
+
+| Store | Shipped test files |
+|---|---|
+| `SqlServerAuditStore` / `PostgresAuditStore` | 7 / 7 |
+| `SqlServerErasureStore` / `PostgresErasureStore` | 2 / **0** |
+| `SqlServerLegalHoldStore` / `PostgresLegalHoldStore` | **0** / **0** |
+| `SqlServerDataInventoryStore` / `PostgresDataInventoryStore` | 1 / **0** |
+
+The audit store is well covered. **The erasure, legal-hold and data-inventory SQL stores are not**, and the
+conformance kits for those three are exercised against the in-memory store only — so neither route gives you
+evidence about the provider you actually deploy.
+
+This does not mean those stores are broken; it means **we have not demonstrated they are correct on your
+provider, so you should not present our artifacts as if we had.** Before relying on Article 17, 17(3) or 30
+behaviour in production, exercise it against your own database and keep that result as your evidence.
+
+:::
 
 #### 2.2 Implement Erasure API
 
@@ -285,11 +308,11 @@ public async Task RequestErasure_WithValidRequest_SchedulesErasure()
 - [ ] Write unit tests for erasure request submission
 - [ ] Test grace period cancellation
 - [ ] Test certificate generation
-- [ ] Run conformance test kit (24 tests)
+- [ ] Wrap and run the `ErasureStoreConformanceTestKit` arms (24 available)
 
 **Evidence:**
 - `docs/security/gdpr-compliance.md:642-687` - Testing guide
-- Conformance test results (ErasureStoreConformanceTestKit)
+- Conformance results from the arms you wrapped (`ErasureStoreConformanceTestKit` — in-memory store only; does not evidence SQL Server or PostgreSQL behaviour)
 
 ---
 
@@ -430,7 +453,7 @@ public async Task RequestErasure_WithActiveLegalHold_BlocksErasure()
 - [ ] Test erasure blocking with active holds
 - [ ] Test hold release and subsequent erasure
 - [ ] Test expired hold cleanup
-- [ ] Run conformance test kit (19 tests)
+- [ ] Wrap and run the `LegalHoldStoreConformanceTestKit` arms (19 available)
 
 **Evidence:**
 - Conformance test results (LegalHoldStoreConformanceTestKit)
@@ -481,6 +504,22 @@ public class UserProfile
 
 #### 4.2 Register External Data Locations
 
+:::danger Data-location registrations are not tenant-scoped
+
+**In a multi-tenant deployment, do not treat the data inventory as tenant-isolated.** Two limitations apply to the SQL Server and PostgreSQL stores today.
+
+**Registrations are keyed by table and field only.** The registration record's primary key is `(TableName, FieldName)`, which carries no tenant term, and `RegisterDataLocationAsync` takes no tenant argument. Registering `("CRM_Contacts", "PersonalInfo")` for one tenant therefore **overwrites** any registration another tenant holds for the same table and field — including its `DataCategory`, `KeyIdColumn`, and `Description`. The last writer wins silently; no error is raised.
+
+**`TenantIdColumn` is a column *name*, not a tenant *value*.** It records which column in *your* table holds the tenant identifier. It does not associate the registration itself with a tenant, and it is not used to restrict which registrations a caller can read (see §4.3).
+
+**What to do until this is resolved:**
+
+- Use a **separate database or schema per tenant** for the compliance store if your registrations differ by tenant.
+- Otherwise, treat the registration set as **estate-wide**: agree table/field registrations centrally, and do not let individual tenants register overlapping locations.
+- Namespacing `TableName` per tenant works, but the resulting registrations are still readable by every tenant.
+
+:::
+
 **Manual Registration:**
 
 ```csharp
@@ -504,9 +543,32 @@ await _dataInventoryService.RegisterDataLocationAsync(new DataLocationRegistrati
 
 #### 4.3 Generate RoPA Report
 
+:::danger The `tenantId` argument does not restrict results
+
+**A scoped read returns the whole estate's registrations, not the querying tenant's.** This affects `DiscoverAsync` and `GetDataMapAsync` on the SQL Server and PostgreSQL stores.
+
+Supplying a `tenantId` does **not** filter to that tenant. The value is accepted and then never compared against anything; the query it produces selects every registration that merely *has* a tenant column configured, regardless of which tenant owns it. Passing `"tenant-a"` and passing `"tenant-b"` return **identical results**. Passing a tenant that owns nothing at all still returns other tenants' rows.
+
+The in-memory store behaves differently again — it compares your `tenantId` against the configured column *name*, so it generally returns nothing rather than everything. **Do not use in-memory behaviour to predict SQL behaviour here.**
+
+**Why this matters for Article 30:** a RoPA report generated per tenant from these calls will contain other controllers' processing records. If you export or hand that report to a tenant, an auditor, or a data subject, you are disclosing another tenant's data map.
+
+**What to do until this is resolved:**
+
+- **Do not generate per-tenant RoPA reports from a shared compliance store.** Use a separate store per tenant, or generate one estate-wide report and filter it yourself against your own record of tenant ownership.
+- If you must filter in application code, do it on data *you* control — the framework's returned rows carry no trustworthy owner field to filter on.
+- Single-tenant deployments are unaffected: there is only one tenant's data to return.
+
+**Verification is not covered by the shipped conformance kit.** The data-inventory conformance suite runs against the in-memory store only; neither SQL store is exercised by it. A green conformance run therefore does **not** demonstrate tenant isolation in your deployment. Test scoping directly against your real database before relying on it.
+
+:::
+
 **Data Inventory Query:**
 
 ```csharp
+// NOTE: on the SQL Server and PostgreSQL stores, tenantId does NOT restrict
+// the result to that tenant -- see the warning above. In a multi-tenant
+// deployment the returned locations may belong to other tenants.
 var inventory = await _dataInventoryService.DiscoverAsync(
     userId,
     DataSubjectIdType.UserId,
@@ -538,12 +600,14 @@ foreach (var entry in dataMap.Entries)
 - [ ] Query data inventory for sample users
 - [ ] Verify all personal data locations are tracked
 - [ ] Generate RoPA report (CSV or JSON format)
-- [ ] Run conformance test kit (19 tests)
+- [ ] Run conformance test kit
+- [ ] **Multi-tenant deployments:** confirm your own tenant-isolation test against your real database — query as a tenant that owns no registrations and assert the result is empty. The shipped conformance kit does not cover this (see the warning above).
 
 **Evidence:**
 - `docs/security/gdpr-compliance.md:859-941` - Data inventory conformance
 - RoPA report export
-- Conformance test results (DataInventoryStoreConformanceTestKit)
+- Conformance test results (DataInventoryStoreConformanceTestKit — in-memory store only; does not evidence SQL Server or PostgreSQL behaviour)
+- Multi-tenant deployments: your own cross-tenant isolation test result against the real database
 
 ---
 
@@ -742,21 +806,54 @@ Notify supervisory authority and data subjects of personal data breaches within 
 
 **Week 8: Conformance Testing**
 
-- [ ] Run ErasureStoreConformanceTestKit (24 tests)
-- [ ] Run LegalHoldStoreConformanceTestKit (19 tests)
-- [ ] Run DataInventoryStoreConformanceTestKit (19 tests)
-- [ ] Run AuditStoreConformanceTestKit (18 tests)
-- [ ] **Total: 80 conformance tests PASSED**
+- [ ] Run `ErasureStoreConformanceTestKit` — 24 arms *(shipped evidence: in-memory store only)*
+- [ ] Run `LegalHoldStoreConformanceTestKit` — 19 arms *(shipped evidence: in-memory store only)*
+- [ ] Run `DataInventoryStoreConformanceTestKit` — 20 arms (`protected`) *(shipped evidence: in-memory store only)*
+- [ ] Run `AuditStoreConformanceTestKit` — 27 arms *(also exercised against SQL Server and PostgreSQL)*
+- [ ] **Record your executed and passed counts in your own evidence pack**
+
+:::warning The executed count is authored by you, not by this framework
+
+**The conformance kits deliberately carry no test attributes.** Every arm is `virtual` — and on
+`DataInventoryStoreConformanceTestKit`, `protected` — so **nothing is discovered or executed until you
+declare an attributed wrapper in your own derived class.** Conformance is opt-in per arm.
+
+This is intentional: it is what lets you run the suite against *your* store, with your fixtures and your
+provider, rather than against ours. But it has a consequence for your evidence pack:
+
+**Do not record a passed count you did not produce.** An arm you have not wrapped has not run, and a kit
+you have merely referenced has asserted nothing. The counts above are the arms **available** to wrap in
+each kit; the number that actually executed is whatever your own test run reports.
+
+**And check *which store* the shipped evidence covers.** Of the four kits above, only
+`AuditStoreConformanceTestKit` is exercised against real SQL Server and PostgreSQL in this framework's own
+test suite. The Erasure, Legal Hold and Data Inventory kits are exercised **against the in-memory store
+only** — so a green run here does not evidence the behaviour of the SQL stores this checklist tells you to
+deploy for production. Run those arms against your real database before treating them as Article 17,
+17(3) or 30 evidence.
+
+The `--RunConfiguration.TreatNoTestsAsError=true` flag in the commands below is there for exactly this
+reason — without it, a filter that matches nothing exits successfully and reads as a pass.
+
+:::
 
 **Commands:**
 
 ```bash
 # Run all GDPR conformance tests
-dotnet test --filter "FullyQualifiedName~ErasureStoreConformance"
-dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance"
-dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance"
-dotnet test --filter "FullyQualifiedName~AuditStoreConformance"
+dotnet test --filter "FullyQualifiedName~ErasureStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~LegalHoldStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~DataInventoryStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
+dotnet test --filter "FullyQualifiedName~AuditStoreConformance" -- RunConfiguration.TreatNoTestsAsError=true
 ```
+
+> **A conformance run that executes nothing is not a pass.** These commands carry
+> `RunConfiguration.TreatNoTestsAsError=true` deliberately: without it, `dotnet test --filter` **exits `0`
+> when the filter matches nothing**, so if the conformance package is not referenced or a type has been
+> renamed, the command prints `No test matches the given testcase filter` and **succeeds** — and this
+> checklist item would be ticked on a run that verified nothing. With the setting, a filter matching no
+> tests fails the command. **Confirm each run reports a non-zero `Total`;** an exit code alone is not
+> evidence that a check ran.
 
 **Week 9: Integration Testing**
 
@@ -777,7 +874,7 @@ dotnet test --filter "FullyQualifiedName~AuditStoreConformance"
 ### External Audit Preparation
 
 - [ ] Compile evidence package:
-  - Conformance test results (80 tests)
+  - Conformance test results
   - Erasure certificates (sample)
   - RoPA export
   - Audit log samples
@@ -796,13 +893,13 @@ dotnet test --filter "FullyQualifiedName~AuditStoreConformance"
 **Framework Implementation:**
 - `docs/security/gdpr-compliance.md` - Comprehensive GDPR guide (1,000+ lines)
 - `docs/advanced/security.md` - Security capabilities (encryption, audit, access control)
-- `src/Excalibur/Excalibur.Testing/Conformance/` - Conformance test kits (80 tests)
+- `src/Excalibur/Excalibur.Testing.Conformance/Conformance/` - Conformance test kits (shipped as the `Excalibur.Testing.Conformance` package)
 
-**Conformance Test Results:**
-- ErasureStoreConformanceTestKit (24 tests) - Article 17
-- LegalHoldStoreConformanceTestKit (19 tests) - Article 17(3)
-- DataInventoryStoreConformanceTestKit (19 tests) - Article 30
-- AuditStoreConformanceTestKit (18 tests) - SOC 2 / Article 32
+**Conformance arms available to wrap** (your evidence pack records what *your* run executed):
+- `ErasureStoreConformanceTestKit` — 24 arms - Article 17
+- `LegalHoldStoreConformanceTestKit` — 19 arms - Article 17(3)
+- `DataInventoryStoreConformanceTestKit` — 20 arms (`protected`) - Article 30
+- `AuditStoreConformanceTestKit` — 27 arms - SOC 2 / Article 32
 
 **SQL Server Schema:**
 - `compliance.ErasureRequests` - Erasure request tracking

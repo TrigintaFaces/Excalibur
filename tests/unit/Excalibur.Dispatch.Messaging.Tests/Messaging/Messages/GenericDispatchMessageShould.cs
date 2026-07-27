@@ -113,16 +113,6 @@ public sealed class GenericDispatchMessageShould
 
 	#region Kind Property Tests
 
-	[Fact]
-	public void Kind_ReturnsAction()
-	{
-		// Arrange & Act
-		var message = new GenericDispatchMessage("Test", "payload");
-
-		// Assert
-		message.Kind.ShouldBe(MessageKinds.Action);
-	}
-
 	#endregion
 
 	#region CorrelationId Property Tests

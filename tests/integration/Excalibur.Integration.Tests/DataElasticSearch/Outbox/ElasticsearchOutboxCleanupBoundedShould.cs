@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Integration.Tests.DataElasticSearch.Outbox;
 
 // Author≠impl regression lock for bd-v8k7jo (MS-A1, DATA LOSS HEADLINE):
-// ElasticsearchOutboxStore.CleanupSentMessagesAsync previously issued a MatchAll DeleteByQuery against a
+// ElasticsearchOutboxStore.CleanupAllTenantsSentMessagesAsync previously issued a MatchAll DeleteByQuery against a
 // HARDCODED "excalibur-outbox" index literal, deleting the ENTIRE live outbox (Staged + recent Sent
 // included) regardless of olderThan. The fix is a bounded BoolQuery (status==Sent AND sentAt < olderThan)
 // on the CONFIGURED IndexName. Run against a CUSTOM IndexName so the lock is non-vacuous against BOTH
@@ -53,7 +53,7 @@ public sealed class ElasticsearchOutboxCleanupBoundedShould : ElasticsearchInteg
 			LoggerFactory.CreateLogger<ElasticsearchOutboxStore>());
 
 		// Act
-		var deleted = await store.CleanupSentMessagesAsync(cutoff, batchSize: 100, CancellationToken.None);
+		var deleted = await store.CleanupAllTenantsSentMessagesAsync(cutoff, batchSize: 100, CancellationToken.None);
 		_ = await Client.Indices.RefreshAsync(customIndex).ConfigureAwait(false);
 
 		// Assert — only the two strictly-older Sent docs were deleted; everything else remains.

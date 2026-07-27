@@ -82,6 +82,11 @@ public sealed class EncryptionConfigurationBuilder
 
 		// Register key management provider
 		_services.TryAddSingleton(keyManagementOptions);
+		// See ComplianceEncryptionBuilder: volatile keys must be an explicit choice, never a silent default.
+		// Calling this method IS that choice, and the option below records it. The startup durability gate
+		// installed by AddEncryption READS this option: without it, a silent volatile fallback on this
+		// collection fails closed at startup.
+		_ = _services.Configure<KeyDurabilityOptions>(o => o.AllowVolatileKeyProvider = true);
 		_services.TryAddSingleton<InMemoryKeyManagementProvider>();
 		_services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
 

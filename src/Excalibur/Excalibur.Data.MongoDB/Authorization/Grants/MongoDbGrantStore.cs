@@ -18,7 +18,7 @@ namespace Excalibur.Data.MongoDB.Authorization;
 /// Uses MongoDB.Driver with Filter.Builder for type-safe queries.
 /// Implements upsert via ReplaceOneAsync with IsUpsert=true.
 /// </remarks>
-public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, IAsyncDisposable
+public sealed partial class MongoDbGrantStore : IGrantStore, IDurableGrantStore, IGrantQueryStore, IAsyncDisposable
 {
 	private readonly MongoDbAuthorizationOptions _options;
 	private readonly ILogger<MongoDbGrantStore> _logger;
@@ -265,6 +265,11 @@ public sealed partial class MongoDbGrantStore : IGrantStore, IGrantQueryStore, I
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IDurableGrantStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IGrantQueryStore))
 		{

@@ -46,12 +46,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -59,7 +59,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -78,7 +78,14 @@ jobs:
           dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run performance test shard
-        run: dotnet test eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" --logger "console;verbosity=minimal" --filter "Category=Performance"
+        # Via run-filtered-tests.sh: a --filter that matches nothing makes `dotnet test` exit 0 having
+        # executed zero tests, so the wrapper refuses a run with no executed count rather than letting
+        # a typo'd or stale filter report success.
+        run: |
+          bash eng/ci/run-filtered-tests.sh --filter "Category=Performance" -- \
+            eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build \
+            --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" \
+            --logger "console;verbosity=minimal"
 
       - name: Package build output for benchmark jobs
         shell: bash
@@ -121,12 +128,12 @@ jobs:
             artifact-name: perf-build-output-macos
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -134,7 +141,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -183,12 +190,12 @@ jobs:
             artifact: perf-build-output-macos
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -242,96 +249,24 @@ jobs:
 
       - name: Performance regression check
         if: github.event_name == 'pull_request'
-        shell: pwsh
+        shell: bash
         run: |
-          Write-Host "🔍 Checking for performance regressions against Sprint 458 baselines..." -ForegroundColor Yellow
-
-          $baselinesPath = "./benchmarks/baselines/performance-baselines.json"
-          $resultsPath = "./BenchmarkDotNet.Artifacts/results"
-
-          # Load baselines
-          if (-not (Test-Path $baselinesPath)) {
-            Write-Host "::warning::Baselines file not found - skipping regression check" -ForegroundColor Yellow
-            exit 0
-          }
-
-          $baselines = Get-Content $baselinesPath | ConvertFrom-Json
-          $regressionThreshold = $baselines.regressionThreshold  # 0.10 = 10%
-
-          # Flatten baselines for lookup
-          $baselineLookup = @{}
-          foreach ($category in @("dispatch", "middleware", "pipeline", "cache")) {
-            if ($baselines.baselines.PSObject.Properties.Name -contains $category) {
-              foreach ($prop in $baselines.baselines.$category.PSObject.Properties) {
-                $baselineLookup[$prop.Name] = $prop.Value
-              }
-            }
-          }
-
-          Write-Host "Loaded $($baselineLookup.Count) baseline measurements (threshold: $($regressionThreshold * 100)%)" -ForegroundColor Gray
-
-          # Find and analyze results
-          $regressions = @()
-          $improvements = @()
-          $resultFiles = Get-ChildItem -Path $resultsPath -Filter "*-report.json" -Recurse -ErrorAction SilentlyContinue
-
-          foreach ($resultFile in $resultFiles) {
-            try {
-              $results = Get-Content $resultFile.FullName | ConvertFrom-Json
-              if (-not $results.Benchmarks) { continue }
-
-              foreach ($benchmark in $results.Benchmarks) {
-                $methodName = $benchmark.Method
-                $currentMeanNs = [double]$benchmark.Statistics.Mean
-                $baseline = $baselineLookup[$methodName]
-
-                if ($baseline) {
-                  $baselineMeanNs = [double]$baseline.meanNs
-                  if ($baselineMeanNs -gt 0) {
-                    $change = ($currentMeanNs - $baselineMeanNs) / $baselineMeanNs
-
-                    if ($change -gt $regressionThreshold) {
-                      $regressions += @{
-                        Method = $methodName
-                        Change = $change
-                        Baseline = $baselineMeanNs
-                        Current = $currentMeanNs
-                      }
-                    }
-                    elseif ($change -lt -0.05) {
-                      $improvements += @{
-                        Method = $methodName
-                        Improvement = -$change
-                      }
-                    }
-                  }
-                }
-              }
-            } catch {
-              Write-Host "::warning::Error processing $($resultFile.Name): $_" -ForegroundColor Yellow
-            }
-          }
-
-          # Report results
-          if ($improvements.Count -gt 0) {
-            Write-Host "`nPerformance Improvements:" -ForegroundColor Green
-            foreach ($imp in $improvements) {
-              Write-Host "  ✅ $($imp.Method): $([math]::Round($imp.Improvement * 100, 1))% faster" -ForegroundColor Green
-            }
-          }
-
-          if ($regressions.Count -gt 0) {
-            Write-Host "`nPERFORMANCE REGRESSIONS DETECTED:" -ForegroundColor Red
-            foreach ($reg in $regressions) {
-              Write-Host "  ❌ $($reg.Method): +$([math]::Round($reg.Change * 100, 1))% ($([math]::Round($reg.Baseline, 2))ns → $([math]::Round($reg.Current, 2))ns)" -ForegroundColor Red
-              Write-Host "::error::Performance regression in $($reg.Method): +$([math]::Round($reg.Change * 100, 1))%"
-            }
-            Write-Host "`n::error::$($regressions.Count) performance regression(s) exceed $($regressionThreshold * 100)% threshold"
-            Write-Host "Fix regressions or update baselines if changes are intentional." -ForegroundColor Yellow
+          # Three-state gate: 0 PASS / 1 FAIL / 2 REFUSE. REFUSE is not a pass -
+          # a run that compared nothing must not certify the build as clean.
+          # GitHub runs this block as `bash -e {0}`. `set -uo pipefail` does NOT
+          # disable errexit, so a bare `cmd` followed by `rc=$?` is UNREACHABLE on
+          # any non-zero exit - the shell aborts at cmd and the REFUSE diagnostic
+          # below never prints. `|| rc=$?` is the form that survives errexit.
+          set -uo pipefail
+          rc=0
+          pwsh -NoProfile -File ./eng/ci/perf-regression-check.ps1 \
+            -ResultsPath './BenchmarkDotNet.Artifacts/results' \
+            -BaselinesPath './benchmarks/baselines/performance-baselines.json' || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::error::Performance regression check REFUSED - it compared nothing. Treating as failure: an unmeasured build is not a verified build."
             exit 1
-          } else {
-            Write-Host "`n✅ No performance regressions detected" -ForegroundColor Green
-          }
+          fi
+          exit $rc
 
   # Memory allocation benchmarks
   memory-benchmarks:
@@ -342,10 +277,10 @@ jobs:
     if: github.event.inputs.run_full_suite == 'true' || github.event_name == 'schedule'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -391,10 +326,10 @@ jobs:
     if: github.event.inputs.run_full_suite == 'true' || github.event_name == 'schedule'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -464,7 +399,7 @@ jobs:
     if: always() && needs.hot-path-benchmarks.result == 'success'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download all benchmark results
         uses: actions/download-artifact@v8
@@ -634,7 +569,7 @@ jobs:
     if: github.event.inputs.update_baselines == 'true' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 

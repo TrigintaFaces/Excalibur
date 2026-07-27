@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
+using Excalibur.Inbox;
 using Excalibur.Inbox.DependencyInjection;
 using Excalibur.Inbox.SqlServer;
 
@@ -130,20 +131,39 @@ public static class InboxBuilderSqlServerExtensions
 		// Register ValidateOnStart
 		builder.Services.AddSingleton<IValidateOptions<SqlServerInboxOptions>>(
 			new SqlServerInboxBuilderOptionsValidator { HasBuilderConnection = hasBuilderConnection });
+
+		// Enforce the SQL-identifier allowlist on schema/table names for parity with the
+		// options-based registration path (SqlServerInboxExtensions) — otherwise a malicious
+		// identifier supplied via SchemaName()/TableName() would reach SQL text unvalidated.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<SqlServerInboxOptions>, SqlServerInboxOptionsValidator>());
+
 		builder.Services.AddOptions<SqlServerInboxOptions>().ValidateOnStart();
 
+		// The fail-closed single-tenant default guarantees a non-null ITenantContext for the tenant
+		// predicate; the multi-tenancy composition replaces it with the ambient context.
+		builder.Services.AddDefaultTenantContext();
+
 		// Register inbox store with connection factory
-		builder.Services.TryAddSingleton(sp =>
+		// AddTenantScopedStore builds the store (injecting ITenantContext so the documented UseSqlServer()
+		// path applies the tenant predicate) AND emits the ITenantScopingCapability<IInboxStore> marker
+		// inseparably (S886 rw2ull — no lying marker).
+		builder.Services.AddTenantScopedStore<IInboxStore, SqlServerInboxStore>((sp, tenantContext) =>
 		{
 			var factory = connectionFactory(sp);
 			var inboxOptions = sp.GetRequiredService<IOptions<SqlServerInboxOptions>>().Value;
 			var logger = sp.GetRequiredService<ILogger<SqlServerInboxStore>>();
-			return new SqlServerInboxStore(factory, inboxOptions, logger);
+			return new SqlServerInboxStore(factory, inboxOptions, logger, tenantContext, sp.GetService<IOptions<TenantContextOptions>>());
 		});
 		builder.Services.AddKeyedSingleton<IInboxStore>(
 			"sqlserver", (sp, _) => sp.GetRequiredService<SqlServerInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>(
 			"default", (sp, _) => sp.GetRequiredKeyedService<IInboxStore>("sqlserver"));
+		builder.Services.AddInboxSchemaValidation();
+		builder.Services.AddSingleton<IInboxSchemaValidator>(sp => sp.GetRequiredService<SqlServerInboxStore>());
+
+		// The ITenantScopingCapability<IInboxStore> marker is emitted by AddTenantScopedStore above,
+		// inseparably from the store registration (S886 rw2ull).
 
 		// Register health checks if enabled
 		if (sqlBuilder.HealthChecksEnabled && !string.IsNullOrWhiteSpace(options.ConnectionString))

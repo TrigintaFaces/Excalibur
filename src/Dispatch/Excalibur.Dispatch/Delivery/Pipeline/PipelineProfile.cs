@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <summary>
 /// Default implementation of a pipeline profile that defines middleware composition for specific processing scenarios.
 /// </summary>
-public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
+internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 {
 	private const int MaxCacheEntries = 1024;
 	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindsCache = new();
@@ -56,7 +56,13 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 			middlewareTypeList.Add(type);
 		}
 
-		MiddlewareTypes = middlewareTypeList.AsReadOnly();
+		var entries = new MiddlewareEntry[middlewareTypeList.Count];
+		for (var i = 0; i < middlewareTypeList.Count; i++)
+		{
+			entries[i] = new MiddlewareEntry(middlewareTypeList[i], MiddlewareCriticality.Required);
+		}
+
+		MiddlewareEntries = Array.AsReadOnly(entries);
 		_middlewareRules = new MiddlewareRule[middlewareTypeList.Count];
 		for (var i = 0; i < middlewareTypeList.Count; i++)
 		{
@@ -71,44 +77,18 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 	public string Description { get; }
 
 	/// <inheritdoc />
-	public IReadOnlyList<Type> MiddlewareTypes { get; }
+	/// <remarks>
+	/// Every declared entry is <see cref="MiddlewareCriticality.Required" />: this profile validates at construction that each type
+	/// implements the middleware contract, so a type reaching this list was deliberately named and must not be silently dropped when it
+	/// cannot be resolved.
+	/// </remarks>
+	public IReadOnlyList<MiddlewareEntry> MiddlewareEntries { get; }
 
 	/// <inheritdoc />
 	public bool IsStrict { get; }
 
 	/// <inheritdoc />
 	public MessageKinds SupportedMessageKinds { get; }
-
-	/// <summary>
-	/// Creates a strict pipeline profile for command/action processing.
-	/// </summary>
-	/// <remarks>
-	/// Correlation is handled at the Dispatcher level before middleware runs.
-	/// </remarks>
-	public static PipelineProfile CreateStrictProfile() =>
-		new(
-			"Strict",
-			"Strict pipeline with full validation, authorization, and transactional processing",
-			[
-				typeof(AuthorizationMiddleware),
-			],
-			isStrict: true,
-			supportedMessageKinds: MessageKinds.Action);
-
-	/// <summary>
-	/// Creates a lightweight pipeline profile for internal events.
-	/// </summary>
-	/// <remarks>
-	/// Correlation is handled at the Dispatcher level,
-	/// so internal event profiles can be truly minimal with zero middleware overhead.
-	/// </remarks>
-	public static PipelineProfile CreateInternalEventProfile() =>
-		new(
-			"InternalEvent",
-			"Lightweight pipeline for trusted internal event processing (zero middleware overhead)",
-			[],
-			isStrict: false,
-			supportedMessageKinds: MessageKinds.Event);
 
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Uses reflection to determine message kind.")]
@@ -206,10 +186,9 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 			kinds |= MessageKinds.Document;
 		}
 
-		// Default to Document if no specific kind
 		if (kinds == MessageKinds.None)
 		{
-			kinds = MessageKinds.Document;
+			kinds = UnclassifiedMessage.FailClosed(type);
 		}
 
 		return kinds;
@@ -262,19 +241,13 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 	private readonly struct MiddlewareRule
 	{
-		private readonly MessageKinds _includedKinds;
-		private readonly MessageKinds _excludedKinds;
 		private readonly DispatchFeatures[] _requiredFeatures;
 
 		private MiddlewareRule(
 			Type middlewareType,
-			MessageKinds includedKinds,
-			MessageKinds excludedKinds,
 			DispatchFeatures[] requiredFeatures)
 		{
 			MiddlewareType = middlewareType;
-			_includedKinds = includedKinds;
-			_excludedKinds = excludedKinds;
 			_requiredFeatures = requiredFeatures;
 		}
 
@@ -282,8 +255,10 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 		public static MiddlewareRule Create(Type middlewareType)
 		{
-			var appliesToAttribute = middlewareType.GetCustomAttribute<AppliesToAttribute>();
-			var excludeKindsAttribute = middlewareType.GetCustomAttribute<ExcludeKindsAttribute>();
+			// akwb5j: message-kind applicability is resolved at runtime from each middleware's
+			// ApplicableMessageKinds property via IMiddlewareApplicabilityStrategy (the single source of
+			// truth). The build-time [AppliesTo]/[ExcludeKinds] kinds filter was a divergent second source
+			// and is removed; only the orthogonal [RequiresFeatures] gate remains here.
 			var requiresFeaturesAttribute = middlewareType.GetCustomAttribute<RequiresFeaturesAttribute>();
 
 			var requiredFeatures = requiresFeaturesAttribute?.Features;
@@ -303,23 +278,15 @@ public sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatcher
 
 			return new MiddlewareRule(
 				middlewareType,
-				appliesToAttribute?.MessageKinds ?? MessageKinds.All,
-				excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
 				requiredFeatureArray);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public bool IsApplicable(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
 		{
-			if ((_excludedKinds & messageKind) != MessageKinds.None)
-			{
-				return false;
-			}
-
-			if ((_includedKinds & messageKind) == MessageKinds.None)
-			{
-				return false;
-			}
+			// Kind applicability is the runtime property strategy's responsibility (akwb5j); this rule now
+			// gates only on required features. messageKind is retained for the IPipelineProfile signature.
+			_ = messageKind;
 
 			for (var i = 0; i < _requiredFeatures.Length; i++)
 			{

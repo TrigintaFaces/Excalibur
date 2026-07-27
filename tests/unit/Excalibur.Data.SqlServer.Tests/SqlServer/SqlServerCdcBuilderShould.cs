@@ -82,7 +82,7 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		var options = provider.GetService<IOptions<SqlServerCdcOptions>>();
 		_ = options.ShouldNotBeNull();
 		_ = options.Value.ShouldNotBeNull();
-		options.Value.ConnectionString.ShouldBe(TestConnectionString);
+		options.Value.Connection.ConnectionString.ShouldBe(TestConnectionString);
 	}
 
 	[Fact]
@@ -329,7 +329,7 @@ public sealed class SqlServerCdcBuilderShould : UnitTestBase
 		// Assert - defaults are applied
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 		_ = options.Value.ShouldNotBeNull();
-		options.Value.ConnectionString.ShouldBe(TestConnectionString);
+		options.Value.Connection.ConnectionString.ShouldBe(TestConnectionString);
 	}
 
 	// Test event types

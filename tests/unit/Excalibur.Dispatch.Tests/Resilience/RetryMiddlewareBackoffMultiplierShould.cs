@@ -32,11 +32,14 @@ public sealed class RetryMiddlewareBackoffMultiplierShould
 	private static readonly MethodInfo CalculateDelayMethod =
 		typeof(RetryMiddleware).GetMethod("CalculateDelay", BindingFlags.NonPublic | BindingFlags.Static)
 		?? throw new InvalidOperationException(
-			"0yum52: RetryMiddleware.CalculateDelay(RetryOptions, int) not found — the configured-backoff " +
+			"0yum52: RetryMiddleware.CalculateDelay(RetryOptions, int, double) not found — the configured-backoff " +
 			"seam is the thing under test; its absence/rename is the pre-fix RED.");
 
+	// xh4jru wired DecorrelatedJitter through the retry loop, adding a `double previousDelayMs` parameter
+	// (CalculateDelay(RetryOptions, int, double)). The default Exponential/Fixed/Linear strategies ignore
+	// previousDelayMs, so passing 0.0 preserves the exact configured-backoff values under test here.
 	private static TimeSpan CalculateDelay(RetryOptions options, int attempt) =>
-		(TimeSpan)CalculateDelayMethod.Invoke(null, [options, attempt])!;
+		(TimeSpan)CalculateDelayMethod.Invoke(null, [options, attempt, 0.0])!;
 
 	private static RetryOptions Exponential(double multiplier) => new()
 	{

@@ -25,7 +25,7 @@ namespace Excalibur.Compliance.Erasure;
 /// <para>
 /// Inventory does NOT synthesize erase-able locations from <c>[PersonalData]</c> attributes (the attribute
 /// carries no storage location). Instead, <c>[PersonalData]</c> annotations drive a <b>coverage gate</b>
-/// (vxp56x): an annotated category with no registered/discovered location forces a non-Completed erasure
+/// An annotated category with no registered/discovered location forces a non-Completed erasure
 /// certificate, so annotated personal data is never silently skipped. To make annotated data actionable,
 /// register its location via <see cref="RegisterDataLocationAsync"/>.
 /// </para>
@@ -35,6 +35,7 @@ public sealed partial class DataInventoryService : IDataInventoryService
 	private readonly IDataInventoryStore _store;
 	private readonly IDataInventoryQueryStore _queryStore;
 	private readonly IKeyManagementProvider _keyProvider;
+	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<DataInventoryService> _logger;
 
 	/// <summary>
@@ -42,16 +43,19 @@ public sealed partial class DataInventoryService : IDataInventoryService
 	/// </summary>
 	/// <param name="store">The data inventory store.</param>
 	/// <param name="keyProvider">The key management provider.</param>
+	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
 	/// <param name="logger">The logger.</param>
 	public DataInventoryService(
 		IDataInventoryStore store,
 		IKeyManagementProvider keyProvider,
+		IDataSubjectHasher dataSubjectHasher,
 		ILogger<DataInventoryService> logger)
 	{
 		_store = store ?? throw new ArgumentNullException(nameof(store));
 		_queryStore = (IDataInventoryQueryStore?)store.GetService(typeof(IDataInventoryQueryStore))
 			?? throw new InvalidOperationException("The data inventory store does not support query operations.");
 		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -119,7 +123,7 @@ public sealed partial class DataInventoryService : IDataInventoryService
 
 		var inventory = new DataInventory
 		{
-			DataSubjectId = DataSubjectHasher.HashDataSubjectId(dataSubjectId),
+			DataSubjectId = _dataSubjectHasher.HashDataSubjectId(dataSubjectId),
 			Locations = locations,
 			AssociatedKeys = keyReferences,
 			DiscoveredAt = DateTimeOffset.UtcNow
@@ -194,7 +198,7 @@ public sealed partial class DataInventoryService : IDataInventoryService
 		string dataSubjectId,
 		CancellationToken cancellationToken)
 	{
-		var hashedId = DataSubjectHasher.HashDataSubjectId(dataSubjectId);
+		var hashedId = _dataSubjectHasher.HashDataSubjectId(dataSubjectId);
 		await _store.RecordDiscoveredLocationAsync(location, hashedId, cancellationToken)
 			.ConfigureAwait(false);
 	}

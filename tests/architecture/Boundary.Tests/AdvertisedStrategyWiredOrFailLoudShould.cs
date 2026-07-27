@@ -83,6 +83,69 @@ public sealed class AdvertisedStrategyWiredOrFailLoudShould
 	}
 
 	[Fact]
+	public void Confirm_each_advertised_capability_validator_exists_in_the_loaded_assemblies()
+	{
+		// ADR-336 capability extension (dhsik1): the per-seam fail-loud capability validators are catalogued,
+		// so removing one (re-opening a silent-degrade hole) makes this RED, naming the un-guarded capability.
+		var missing = new List<string>();
+
+		foreach (var capability in AdvertisedStrategyRegistry.Capabilities)
+		{
+			// Removed capabilities are asserted ABSENT by a separate fact (the deleted "absent" arm), not here.
+			if (capability.Kind == AdvertisedStrategyRegistry.CoverageKind.Removed)
+			{
+				continue;
+			}
+
+			capability.EvidenceTypeFullName.ShouldNotBeNullOrWhiteSpace(
+				$"Capability {capability.CapabilityName} must name an evidence type");
+
+			var evidence = ResolveType(capability.EvidenceAssemblyName, capability.EvidenceTypeFullName);
+			if (evidence is null)
+			{
+				missing.Add($"{capability.CapabilityName} -> {capability.EvidenceTypeFullName} "
+					+ $"({capability.EvidenceAssemblyName})");
+			}
+		}
+
+		missing.ShouldBeEmpty(
+			"Every advertised-capability validator must exist in the built assemblies (dhsik1). Missing: "
+			+ string.Join("; ", missing));
+	}
+
+	[Fact]
+	public void Confirm_each_removed_capability_seam_stays_absent()
+	{
+		// ADR-336 "absent" arm (dhsik1): a capability resolved by DELETING its advertised-but-unwired seam must stay
+		// deleted. If the named type is re-introduced, the false advertisement re-opens — this goes RED, naming it, and
+		// forces re-classification (non-vacuity: the guard is meaningful only while the type is genuinely gone).
+		var resurrected = new List<string>();
+
+		foreach (var capability in AdvertisedStrategyRegistry.Capabilities)
+		{
+			if (capability.Kind != AdvertisedStrategyRegistry.CoverageKind.Removed)
+			{
+				continue;
+			}
+
+			capability.EvidenceTypeFullName.ShouldNotBeNullOrWhiteSpace(
+				$"Removed capability {capability.CapabilityName} must name the type that must stay absent");
+
+			var evidence = ResolveType(capability.EvidenceAssemblyName, capability.EvidenceTypeFullName);
+			if (evidence is not null)
+			{
+				resurrected.Add($"{capability.CapabilityName} -> {capability.EvidenceTypeFullName} "
+					+ $"({capability.EvidenceAssemblyName})");
+			}
+		}
+
+		resurrected.ShouldBeEmpty(
+			"A capability marked Removed (advertised-but-unwired seam deleted) has re-appeared in the built assemblies — "
+			+ "the false advertisement is re-opened; re-classify or re-remove it (dhsik1). Resurrected: "
+			+ string.Join("; ", resurrected));
+	}
+
+	[Fact]
 	public void Carry_zero_allowlist_entries_today()
 	{
 		// An unwired value is a reviewed registry entry, never a silent allowlist omission.

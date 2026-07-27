@@ -6,12 +6,21 @@ using System.Diagnostics.CodeAnalysis;
 namespace Excalibur.Dispatch.ErrorHandling;
 
 /// <summary>
-/// A no-op implementation of <see cref="IDeadLetterQueue"/> that silently discards all operations.
+/// A no-op implementation of <see cref="IDeadLetterQueue"/> that discards every message handed to it.
 /// </summary>
 /// <remarks>
-/// This implementation follows the Null Object pattern to provide a safe default when
-/// dead letter queue functionality is not configured or not needed. All operations
-/// complete successfully without side effects.
+/// <para>
+/// <strong>This is not a default.</strong> Nothing registers it on your behalf; a host that enables
+/// dead-letter routing without a store is refused at composition rather than given this type. Register it
+/// explicitly — <c>services.AddSingleton&lt;IDeadLetterQueue&gt;(NullDeadLetterQueue.Instance)</c> — to state
+/// that exhausted messages should be dropped.
+/// </para>
+/// <para>
+/// Every caller in the framework checks for this type and reports a discard rather than a dead-letter
+/// routing, so <see cref="EnqueueAsync"/> is never invoked on it and its <see cref="Guid.Empty"/> return is
+/// never handed to a caller as an entry id. Preserve that discipline in your own code: an entry id from this
+/// type names no entry, and a log line claiming a message was dead-lettered through it would be false.
+/// </para>
 /// </remarks>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
 	Justification = "Represents a dead letter queue implementation.")]
@@ -55,8 +64,13 @@ public sealed class NullDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueueAdmi
 		Task.FromResult(0L);
 
 	/// <inheritdoc />
-	Task<int> IDeadLetterQueueAdmin.ReplayBatchAsync(DeadLetterQueryFilter filter, CancellationToken cancellationToken) =>
-		Task.FromResult(0);
+	Task<ReplayBatchResult> IDeadLetterQueueAdmin.ReplayBatchAsync(
+		DeadLetterQueryFilter filter,
+		int limit,
+		CancellationToken cancellationToken) =>
+		// Nothing is stored, so nothing was enumerated and nothing was cut short: Truncated is false because
+		// the queue is genuinely drained, not because the question was skipped.
+		Task.FromResult(new ReplayBatchResult(Enumerated: 0, Replayed: 0, Truncated: false));
 
 	/// <inheritdoc />
 	Task<bool> IDeadLetterQueueAdmin.PurgeAsync(Guid entryId, CancellationToken cancellationToken) =>

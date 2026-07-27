@@ -8,6 +8,7 @@ using Excalibur.Jobs.Cdc;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -60,6 +61,9 @@ public static class CdcJobServiceCollectionExtensions
 			.Bind(configuration.GetSection(CdcJob.JobConfigSectionName))
 			.ValidateOnStart();
 #pragma warning restore IL2026, IL3050
+
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<CdcJobOptions>, CdcJobOptionsValidator>());
 
 		// SQL Server data-access policy factory (Polly-wrapped SQL calls). TryAdd so that
 		// AddExcaliburSqlServices() or a consumer override keeps precedence.

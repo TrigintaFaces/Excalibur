@@ -52,11 +52,14 @@ public sealed class JobOptionsHostedWatcherServiceAsyncVoidShould
 		_ = A.CallTo(() => scheduler.PauseJob(A<JobKey>._, A<CancellationToken>._))
 			.Throws(() => new InvalidOperationException("scheduler fault during config reload"));
 
+		var schedulerFactory = A.Fake<ISchedulerFactory>();
+		A.CallTo(() => schedulerFactory.GetScheduler(A<CancellationToken>._)).Returns(scheduler);
+
 		var monitor = new TriggerableOptionsMonitor<AsyncVoidWatcherJobOptions>(
 			new AsyncVoidWatcherJobOptions { Disabled = false });
 
 		using var service = new JobOptionsHostedWatcherService<AsyncVoidWatcherJob, AsyncVoidWatcherJobOptions>(
-			scheduler,
+			schedulerFactory,
 			monitor,
 			NullLogger<JobOptionsHostedWatcherService<AsyncVoidWatcherJob, AsyncVoidWatcherJobOptions>>.Instance);
 

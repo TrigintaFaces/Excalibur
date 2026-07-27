@@ -50,7 +50,23 @@ internal static class DynamoDbSnapshotDocument
 	/// </summary>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <returns>The partition key value.</returns>
-	public static string CreatePK(string aggregateId) => $"{SnapshotPrefix}{aggregateId}";
+	public static string CreatePK(string aggregateId) => CreatePK(aggregateId, null);
+
+	/// <summary>
+	/// Creates the partition key, including the tenant when the host is multi-tenant.
+	/// </summary>
+	/// <remarks>
+	/// The tenant goes in the PARTITION key. A DynamoDB partition key is a per-item attribute rather than
+	/// container-level configuration, so this is adoptable without recreating the table, and it also
+	/// distributes partitions by tenant. Single-tenant keys keep their existing shape.
+	/// </remarks>
+	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="tenantId">The owning tenant, or <see langword="null"/> in a single-tenant host.</param>
+	/// <returns>The partition key.</returns>
+	public static string CreatePK(string aggregateId, string? tenantId) =>
+		string.IsNullOrEmpty(tenantId)
+			? $"{SnapshotPrefix}{aggregateId}"
+			: $"{SnapshotPrefix}t:{tenantId}:{aggregateId}";
 
 	/// <summary>
 	/// Creates the sort key value for a given aggregate type.
@@ -64,13 +80,14 @@ internal static class DynamoDbSnapshotDocument
 	/// </summary>
 	/// <param name="snapshot">The snapshot to convert.</param>
 	/// <param name="ttlSeconds">Optional TTL in seconds (0 = no TTL).</param>
+	/// <param name="tenantId">The ambient tenant, or <see langword="null"/> in a single-tenant host.</param>
 	/// <returns>The DynamoDB item attributes.</returns>
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	public static Dictionary<string, AttributeValue> FromSnapshot(ISnapshot snapshot, int ttlSeconds = 0)
+	public static Dictionary<string, AttributeValue> FromSnapshot(ISnapshot snapshot, int ttlSeconds = 0, string? tenantId = null)
 	{
 		var item = new Dictionary<string, AttributeValue>
 		{
-			[PK] = new() { S = CreatePK(snapshot.AggregateId) },
+			[PK] = new() { S = CreatePK(snapshot.AggregateId, tenantId) },
 			[SK] = new() { S = CreateSK(snapshot.AggregateType) },
 			[SnapshotId] = new() { S = snapshot.SnapshotId },
 			[Version] = new() { N = snapshot.Version.ToString(CultureInfo.InvariantCulture) },

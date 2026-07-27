@@ -58,7 +58,7 @@ public sealed class SqlServerCdcWithStateStoreShould : UnitTestBase
 		// Assert -- SqlServerCdcOptions still has source connection string
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<SqlServerCdcOptions>>();
-		options.Value.ConnectionString.ShouldBe(SourceConnectionString);
+		options.Value.Connection.ConnectionString.ShouldBe(SourceConnectionString);
 	}
 
 	[Theory]

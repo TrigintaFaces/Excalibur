@@ -91,6 +91,8 @@ public static class GcsColdEventStoreExtensions
 		}
 
 		builder.Services.AddOptionsWithValidateOnStart<GcsColdEventStoreOptions>();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<GcsColdEventStoreOptions>, GcsColdEventStoreOptionsValidator>());
 
 		// Register StorageClient based on connection path
 		var hasBuilderClient = gcsBuilder.ClientInstance is not null

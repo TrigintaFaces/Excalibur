@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Nodes;
 
 using Azure;
 using Azure.ResourceManager;
@@ -17,7 +18,13 @@ namespace Excalibur.Jobs.Azure;
 /// <summary>
 /// Provides Azure Logic Apps integration for Excalibur background jobs.
 /// </summary>
-public sealed partial class AzureLogicAppsJobProvider
+/// <remarks>
+/// Does not implement <see cref="IDisposable"/>: the injected <see cref="ArmClient"/> (and the
+/// <see cref="IArmClientSeam"/> adapter over it) owns no disposable resource of its own — its lifetime
+/// and any underlying HTTP pipeline are owned by the caller/DI container that constructed it, matching
+/// the Azure SDK's own <c>ArmClient</c> contract.
+/// </remarks>
+public sealed partial class AzureLogicAppsJobProvider : IJobSchedulerProvider
 {
 	private readonly IArmClientSeam _armClient;
 	private readonly AzureLogicAppsOptions _options;
@@ -66,21 +73,28 @@ public sealed partial class AzureLogicAppsJobProvider
 	/// </summary>
 	/// <typeparam name="TJob"> The type of job to schedule. </typeparam>
 	/// <param name="jobName"> The name of the job. </param>
-	/// <param name="cronExpressionUnused"> Cron expression (unused - Logic Apps uses recurrence triggers). </param>
+	/// <param name="cronExpression">
+	/// The 5-field cron expression describing the recurrence schedule. Mapped to an Azure Logic Apps
+	/// recurrence trigger; expressions outside the supported subset throw <see cref="NotSupportedException"/>.
+	/// </param>
 	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns> A task that represents the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("Creates workflow definition using JSON serialization which requires unreferenced code")]
-	[RequiresDynamicCode("Creates workflow definition using JSON serialization which requires dynamic code generation")]
-	public async Task ScheduleJobAsync<TJob>(string jobName, string cronExpressionUnused, CancellationToken cancellationToken)
+	/// <exception cref="ArgumentException"> <paramref name="cronExpression"/> is not a valid cron expression. </exception>
+	/// <exception cref="NotSupportedException">
+	/// <paramref name="cronExpression"/> cannot be represented as an Azure Logic Apps recurrence trigger.
+	/// </exception>
+	public async Task ScheduleJobAsync<TJob>(string jobName, string cronExpression, CancellationToken cancellationToken)
 		where TJob : class, IBackgroundJob
 	{
+		var recurrence = CronRecurrenceMapper.Map(cronExpression);
+
 		try
 		{
 			var subscription = await _armClient.GetDefaultSubscriptionAsync(cancellationToken).ConfigureAwait(false);
 			var resourceGroup = await subscription.GetResourceGroupAsync(_options.ResourceGroupName, cancellationToken)
 				.ConfigureAwait(false);
 
-			var workflowDefinition = CreateWorkflowDefinition<TJob>(jobName);
+			var workflowDefinition = CreateWorkflowDefinition<TJob>(jobName, recurrence);
 
 			var workflow = new LogicWorkflowData(_options.Location) { Definition = workflowDefinition };
 
@@ -135,48 +149,74 @@ public sealed partial class AzureLogicAppsJobProvider
 	}
 
 	/// <summary>
-	/// Creates a Logic App workflow definition with recurrence trigger.
+	/// Creates a Logic App workflow definition with a recurrence trigger honoring the given schedule.
 	/// </summary>
 	/// <typeparam name="TJob"> The job type. </typeparam>
 	/// <param name="jobName"> The job name. </param>
+	/// <param name="recurrence"> The recurrence trigger shape mapped from the configured cron expression. </param>
 	/// <returns> The workflow definition as a BinaryData object. </returns>
-	[RequiresUnreferencedCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.BinaryData.FromObjectAsJson<T>(T, JsonSerializerOptions)")]
-	private BinaryData CreateWorkflowDefinition<TJob>(string jobName)
+	/// <remarks>
+	/// Built as a hand-assembled <see cref="JsonObject"/> tree (never via reflection-based object
+	/// serialization) so this method requires no unreferenced-code or dynamic-code capability and is
+	/// safe under trimming and Native AOT.
+	/// </remarks>
+	private BinaryData CreateWorkflowDefinition<TJob>(string jobName, AzureRecurrence recurrence)
 		where TJob : class, IBackgroundJob
 	{
-		var definition = new
+		var recurrenceValue = new JsonObject
 		{
-			contentVersion = "1.0.0.0",
-			parameters = new { },
-			triggers = new
+			["frequency"] = recurrence.Frequency,
+			["interval"] = recurrence.Interval,
+		};
+
+		if (recurrence.Hours is not null || recurrence.Minutes is not null || recurrence.WeekDays is not null)
+		{
+			recurrenceValue["schedule"] = new JsonObject
 			{
-				recurrence = new
+				["hours"] = ToJsonArray(recurrence.Hours),
+				["minutes"] = ToJsonArray(recurrence.Minutes),
+				["weekDays"] = ToJsonArray(recurrence.WeekDays),
+			};
+		}
+
+		var definition = new JsonObject
+		{
+			["contentVersion"] = "1.0.0.0",
+			["parameters"] = new JsonObject(),
+			["triggers"] = new JsonObject
+			{
+				["recurrence"] = new JsonObject
 				{
-					type = "recurrence",
-					recurrence = new
-					{
-						frequency = "minute",
-						interval = 5, // This would need proper cron parsing
-					},
+					["type"] = "recurrence",
+					["recurrence"] = recurrenceValue,
 				},
 			},
-			actions = new
+			["actions"] = new JsonObject
 			{
-				http_request = new
+				["http_request"] = new JsonObject
 				{
-					type = "Http",
-					inputs = new
+					["type"] = "Http",
+					["inputs"] = new JsonObject
 					{
-						method = "POST",
-						uri = _options.JobExecutionEndpoint,
-						headers = new { ContentType = "application/json" },
-						body = new { jobType = typeof(TJob).AssemblyQualifiedName, jobName },
+						["method"] = "POST",
+						["uri"] = _options.JobExecutionEndpoint,
+						["headers"] = new JsonObject { ["ContentType"] = "application/json" },
+						["body"] = new JsonObject
+						{
+							["jobType"] = typeof(TJob).AssemblyQualifiedName,
+							["jobName"] = jobName,
+						},
 					},
 				},
 			},
 		};
 
-		return BinaryData.FromObjectAsJson(definition);
+		return BinaryData.FromString(definition.ToJsonString());
 	}
+
+	private static JsonArray? ToJsonArray(int[]? values) =>
+		values is null ? null : new JsonArray([.. values.Select(value => (JsonNode?)JsonValue.Create(value))]);
+
+	private static JsonArray? ToJsonArray(string[]? values) =>
+		values is null ? null : new JsonArray([.. values.Select(value => (JsonNode?)JsonValue.Create(value))]);
 }

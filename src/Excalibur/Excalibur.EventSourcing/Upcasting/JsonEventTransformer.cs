@@ -116,8 +116,10 @@ public sealed class JsonEventTransformer : IEventUpgrader
 	{
 		if (obj.TryGetPropertyValue(rule.Path, out var value))
 		{
+			// Remove() detaches the node from its parent, so it can be re-attached under the new key
+			// directly — no clone/re-parse needed (a JsonNode has a single parent).
 			obj.Remove(rule.Path);
-			obj[rule.TargetPath!] = value is not null ? JsonNode.Parse(value.ToJsonString()) : null;
+			obj[rule.TargetPath!] = value;
 		}
 	}
 
@@ -139,8 +141,10 @@ public sealed class JsonEventTransformer : IEventUpgrader
 	{
 		if (obj.TryGetPropertyValue(rule.Path, out var value))
 		{
+			// Remove() detaches the node from its parent, so it can be re-attached under the new key
+			// directly — no clone/re-parse needed (a JsonNode has a single parent).
 			obj.Remove(rule.Path);
-			obj[rule.TargetPath!] = value is not null ? JsonNode.Parse(value.ToJsonString()) : null;
+			obj[rule.TargetPath!] = value;
 		}
 	}
 }

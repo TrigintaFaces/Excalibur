@@ -22,6 +22,11 @@ public sealed class IncrementOutboxMessageAttempts : DataRequest<int>
 	/// <param name="outboxTableName">The name of the outbox table.</param>
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <remarks>
+	/// The update targets the globally-unique outbox <c>message_id</c>, which addresses exactly one row, so no
+	/// tenant predicate is applied: the drain is cross-tenant infrastructure and must always be able to update
+	/// the row it claimed, regardless of any ambient tenant context.
+	/// </remarks>
 	public IncrementOutboxMessageAttempts(string messageId, string outboxTableName, int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{

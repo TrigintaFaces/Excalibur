@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Options;
@@ -31,11 +32,13 @@ namespace Excalibur.EventSourcing.Encryption.Decorators;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class EncryptingEventStoreDecorator : IEventStore
+public sealed class EncryptingEventStoreDecorator : IEventStore, IEventStoreErasure
 {
 	private readonly IEventStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
 	private readonly IOptions<EncryptionOptions> _options;
+	private readonly SubjectFieldCryptor _subjectFieldCryptor;
+	private readonly IEventSerializer _eventSerializer;
 	private readonly EncryptionContext _defaultContext;
 
 	/// <summary>
@@ -43,14 +46,26 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 	/// </summary>
 	/// <param name="inner">The underlying event store to decorate.</param>
 	/// <param name="registry">The encryption provider registry for multi-provider support.</param>
+	/// <param name="subjectFieldCryptor">
+	/// The per-subject field encryptor that protects <c>[PersonalData]</c> fields of a data-subject event under the
+	/// subject's own key, so destroying that key crypto-shreds only that subject's personal fields (GDPR erasure).
+	/// </param>
+	/// <param name="eventSerializer">
+	/// The event serializer used to materialize a stored event back into its domain event on load, so its personal
+	/// fields can be decrypted, and to resolve the event's runtime type from its stored name.
+	/// </param>
 	/// <param name="options">The encryption configuration options.</param>
 	public EncryptingEventStoreDecorator(
 		IEventStore inner,
 		IEncryptionProviderRegistry registry,
+		SubjectFieldCryptor subjectFieldCryptor,
+		IEventSerializer eventSerializer,
 		IOptions<EncryptionOptions> options)
 	{
 		_inner = inner ?? throw new ArgumentNullException(nameof(inner));
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
+		_subjectFieldCryptor = subjectFieldCryptor ?? throw new ArgumentNullException(nameof(subjectFieldCryptor));
+		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_defaultContext = new EncryptionContext
 		{
@@ -111,30 +126,51 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 			.ConfigureAwait(false);
 	}
 
-	private ValueTask<IEnumerable<IDomainEvent>> EncryptEventsAsync(
+	/// <inheritdoc/>
+	/// <remarks>
+	/// Erasure tombstones the stored event rows and is orthogonal to field encryption: the erase operates on the
+	/// rows this decorator wrote through its inner store, so it forwards to the inner store's erasure capability
+	/// unchanged. (Per-subject crypto-shredding — destroying a subject's key so their <c>[PersonalData]</c> fields
+	/// decrypt to a tombstone — is a separate GDPR mechanism handled on the read path, not by this tombstoning erase.)
+	/// </remarks>
+	public Task<int> EraseEventsAsync(
+		string aggregateId,
+		string aggregateType,
+		Guid erasureRequestId,
+		CancellationToken cancellationToken)
+		=> RequireInnerErasure().EraseEventsAsync(aggregateId, aggregateType, erasureRequestId, cancellationToken);
+
+	/// <inheritdoc/>
+	public Task<bool> IsErasedAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+		=> RequireInnerErasure().IsErasedAsync(aggregateId, aggregateType, cancellationToken);
+
+	// A decorator can only forward the capability the store it wraps supports; if the inner store does not
+	// implement IEventStoreErasure, surface that explicitly rather than silently stripping erasure.
+	private IEventStoreErasure RequireInnerErasure()
+		=> _inner as IEventStoreErasure
+			?? throw new NotSupportedException(
+				$"The inner event store ({_inner.GetType().Name}) does not support GDPR erasure (IEventStoreErasure).");
+
+	private async ValueTask<IEnumerable<IDomainEvent>> EncryptEventsAsync(
 		IEnumerable<IDomainEvent> events,
 		CancellationToken cancellationToken)
 	{
-		_ = cancellationToken; // reserved for future async encryption
-
-		// Mark events with encryption context so the inner store's serializer can
-		// encrypt field data during the IDomainEvent -> StoredEvent conversion.
-		// The decorator operates on IDomainEvent (pre-serialization), so actual byte-level
-		// encryption must happen at the serialization boundary where the event payload
-		// is converted to byte[].
+		// Per-subject field encryption: encrypt each [PersonalData] field of a data-subject event under that
+		// subject's own key, in place, BEFORE the inner store serializes it — so the bytes reach the store with
+		// the subject's personal fields already ciphertext ("at rest"), and destroying the subject's key renders
+		// only that subject's fields unrecoverable (GDPR crypto-shred) while non-personal structure stays readable.
+		// An event with no [DataSubjectId] is left untouched (the cryptor no-ops), so non-personal events flow through.
 		var result = new List<IDomainEvent>();
 		foreach (var evt in events)
 		{
-			if (evt.Metadata is { } metadata)
-			{
-				metadata["__encryptionRequired"] = "true";
-				metadata["__encryptionKeyId"] = _defaultContext.Purpose ?? string.Empty;
-			}
-
+			await _subjectFieldCryptor.EncryptFieldsAsync(evt, cancellationToken).ConfigureAwait(false);
 			result.Add(evt);
 		}
 
-		return ValueTask.FromResult<IEnumerable<IDomainEvent>>(result);
+		return result;
 	}
 
 	[UnconditionalSuppressMessage(
@@ -172,23 +208,59 @@ public sealed class EncryptingEventStoreDecorator : IEventStore
 
 		foreach (var evt in events)
 		{
+			// 1. Legacy whole-blob decrypt (mixed-mode migration: data written by the whole-blob provider path).
 			var decryptedEventData = await TryDecryptFieldAsync(evt.EventData, cancellationToken).ConfigureAwait(false);
 			var decryptedMetadata = evt.Metadata is not null
 				? await TryDecryptFieldAsync(evt.Metadata, cancellationToken).ConfigureAwait(false)
 				: null;
 
-			if (ReferenceEquals(decryptedEventData, evt.EventData) &&
-				ReferenceEquals(decryptedMetadata, evt.Metadata))
-			{
-				results.Add(evt);
-			}
-			else
-			{
-				results.Add(evt with { EventData = decryptedEventData, Metadata = decryptedMetadata });
-			}
+			var current = ReferenceEquals(decryptedEventData, evt.EventData) && ReferenceEquals(decryptedMetadata, evt.Metadata)
+				? evt
+				: evt with { EventData = decryptedEventData, Metadata = decryptedMetadata };
+
+			// 2. Per-subject field decrypt: materialize the domain event and decrypt its [PersonalData] fields under
+			// the subject's key. A field whose subject key was destroyed decrypts to a null tombstone, leaving the
+			// rest of the event intact (so the aggregate still loads after erasure).
+			current = await DecryptSubjectFieldsAsync(current, cancellationToken).ConfigureAwait(false);
+
+			results.Add(current);
 		}
 
 		return results;
+	}
+
+	private async ValueTask<StoredEvent> DecryptSubjectFieldsAsync(StoredEvent stored, CancellationToken cancellationToken)
+	{
+		// Resolve + materialize the event so its [PersonalData] fields can be decrypted in place. An event whose type
+		// cannot be resolved/deserialized was not written through this decorator's field-encryption path, so it is
+		// returned unchanged rather than failing the load.
+		IDomainEvent? domainEvent;
+		try
+		{
+			var eventType = _eventSerializer.ResolveType(stored.EventType);
+			if (eventType is null)
+			{
+				return stored;
+			}
+
+			domainEvent = _eventSerializer.DeserializeEvent(stored.EventData, eventType);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			return stored;
+		}
+
+		// An unresolvable/undeserializable event was not written through this decorator's field-encryption
+		// path, so there is nothing to decrypt — return it unchanged rather than materializing a null.
+		if (domainEvent is null)
+		{
+			return stored;
+		}
+
+		await _subjectFieldCryptor.DecryptFieldsAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+
+		var reserialized = _eventSerializer.SerializeEvent(domainEvent);
+		return stored with { EventData = reserialized };
 	}
 
 	private async ValueTask<byte[]> TryDecryptFieldAsync(byte[] data, CancellationToken cancellationToken)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Dapper;
@@ -10,10 +11,12 @@ using Excalibur.Data;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Metadata;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Inbox.SqlServer;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -44,7 +47,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 	Justification = "Store class implements multiple ISP sub-interfaces (IMultiTransportOutboxStore, IOutboxStoreAdmin, IOutboxStoreBatch, ITransactionalOutboxWriter) by design.")]
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin, IOutboxStoreBatch, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITransactionalOutboxWriter
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;
@@ -53,17 +56,21 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly JsonSerializerOptions _jsonOptions;
 
+	// Optional, exactly as SqlServerDeadLetterQueue takes it in this package. Absent in a single-tenant
+	// host, where every read resolves to the reserved untenanted partition rather than to "no predicate".
+	private readonly ITenantContext? _tenantContext;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerOutboxStore" /> class.
 	/// </summary>
 	/// <param name="options"> The configuration options. </param>
 	/// <param name="logger"> The logger instance. </param>
 	/// <remarks>
-	/// This is the simple constructor for most users. Use
-	/// <see cref="SqlServerOutboxStore(Func{SqlConnection}, SqlServerOutboxOptions, IPayloadSerializer?, SqlServerInboxOptions?, ILogger{SqlServerOutboxStore})" />
+	/// This is the simple constructor for most users. Use the overload that takes a
+	/// <see cref="Func{TResult}" /> connection factory together with a <see cref="SqlServerOutboxOptions" />
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
-	public SqlServerOutboxStore(
+	internal SqlServerOutboxStore(
 		IOptions<SqlServerOutboxOptions> options,
 		ILogger<SqlServerOutboxStore> logger)
 		: this(options, payloadSerializer: null, inboxOptions: null, logger)
@@ -76,10 +83,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// <param name="options"> The configuration options. </param>
 	/// <param name="inboxOptions">
 	/// Optional inbox configuration for transactional outbox+inbox completion. When provided and connection strings match, enables
-	/// exactly-once delivery via <see cref="TryMarkSentAndReceivedAsync" />.
+	/// effectively-once processing via <see cref="TryMarkSentAndReceivedAsync" />. Delivery remains at-least-once.
 	/// </param>
 	/// <param name="logger"> The logger instance. </param>
-	public SqlServerOutboxStore(
+	internal SqlServerOutboxStore(
 		IOptions<SqlServerOutboxOptions> options,
 		IOptions<SqlServerInboxOptions>? inboxOptions,
 		ILogger<SqlServerOutboxStore> logger)
@@ -96,15 +103,14 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// </param>
 	/// <param name="inboxOptions">
 	/// Optional inbox configuration for transactional outbox+inbox completion. When provided and connection strings match, enables
-	/// exactly-once delivery via <see cref="TryMarkSentAndReceivedAsync" />.
+	/// effectively-once processing via <see cref="TryMarkSentAndReceivedAsync" />. Delivery remains at-least-once.
 	/// </param>
 	/// <param name="logger"> The logger instance. </param>
 	/// <remarks>
-	/// This is the simple constructor for most users. Use
-	/// <see cref="SqlServerOutboxStore(Func{SqlConnection}, SqlServerOutboxOptions, IPayloadSerializer?, SqlServerInboxOptions?, ILogger{SqlServerOutboxStore})" />
-	/// for advanced scenarios like multi-database setups or custom connection pooling.
+	/// This is the simple constructor for most users; use the connection-factory overload for advanced scenarios
+	/// like multi-database setups or custom connection pooling.
 	/// </remarks>
-	public SqlServerOutboxStore(
+	internal SqlServerOutboxStore(
 		IOptions<SqlServerOutboxOptions> options,
 		IPayloadSerializer? payloadSerializer,
 		IOptions<SqlServerInboxOptions>? inboxOptions,
@@ -149,7 +155,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// </code>
 	/// </para>
 	/// </remarks>
-	public SqlServerOutboxStore(
+	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
 		ILogger<SqlServerOutboxStore> logger)
@@ -171,9 +177,21 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// <param name="logger"> The logger instance. </param>
 	/// <remarks>
 	/// <para> This is the advanced constructor for scenarios that need custom connection management. </para>
+	/// <para>
+	/// Tenant isolation is enforced on the write/stage path (each message carries and persists its own
+	/// <c>TenantId</c>) and on tenant-facing queries; the drain/mark-by-Id path is cross-tenant infrastructure
+	/// and stays global (it addresses the globally-unique outbox <c>Id</c>). The store reads no ambient tenant
+	/// context — fail-closed enforcement is provided by the multi-tenancy composition.
+	/// </para>
+	/// <para>
+	/// Retention is the one remaining unscoped path, and it is global for a different reason than the drain:
+	/// it matches rows by age rather than by id, so the by-id justification above does not extend to it. It is
+	/// an administrative estate-wide sweep, and <see cref="CleanupAllTenantsSentMessagesAsync"/> carries that
+	/// scope in its name rather than inheriting an exemption written for a different shape.
+	/// </para>
 	/// <para> To enable transactional outbox+inbox completion, use the overload that accepts <see cref="SqlServerInboxOptions" />. </para>
 	/// </remarks>
-	public SqlServerOutboxStore(
+	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
 		IPayloadSerializer? payloadSerializer,
@@ -196,7 +214,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// </param>
 	/// <param name="inboxOptions">
 	/// Optional inbox configuration for transactional outbox+inbox completion. When provided and connection strings match, enables
-	/// exactly-once delivery via <see cref="TryMarkSentAndReceivedAsync" />.
+	/// effectively-once processing via <see cref="TryMarkSentAndReceivedAsync" />. Delivery remains at-least-once.
 	/// </param>
 	/// <param name="logger"> The logger instance. </param>
 	/// <remarks>
@@ -223,12 +241,18 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// </code>
 	/// </para>
 	/// </remarks>
-	public SqlServerOutboxStore(
+	/// <param name="tenantContext">
+	/// The ambient tenant, when the host established one. Optional: a single-tenant host supplies none and
+	/// every tenant-facing read resolves to the reserved untenanted partition, which is a real predicate
+	/// rather than an absent one. The drain path does not consult this — it is deliberately cross-tenant.
+	/// </param>
+	internal SqlServerOutboxStore(
 		Func<SqlConnection> connectionFactory,
 		SqlServerOutboxOptions options,
 		IPayloadSerializer? payloadSerializer,
 		SqlServerInboxOptions? inboxOptions,
-		ILogger<SqlServerOutboxStore> logger)
+		ILogger<SqlServerOutboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -239,7 +263,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		_inboxOptions = inboxOptions;
 		_payloadSerializer = payloadSerializer;
 		_logger = logger;
-		_jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+		_tenantContext = tenantContext;
+		// Canonical event-serialization contract (camelCase + enum-as-string + omit-null), shared with every
+		// store and the default serializer, so persisted payloads/headers/metadata round-trip byte-for-byte.
+		_jsonOptions = EventSerializationDefaults.Canonical;
 	}
 
 	/// <inheritdoc />
@@ -264,7 +291,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			{
 				foreach (var delivery in message.TransportDeliveries)
 				{
-					await InsertTransportDeliveryAsync(connection, transaction, delivery, cancellationToken).ConfigureAwait(false);
+					await InsertTransportDeliveryAsync(connection, transaction, delivery, message.TenantId, cancellationToken).ConfigureAwait(false);
 				}
 			}
 
@@ -273,7 +300,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			_logger.LogDebug("Staged outbox message {MessageId} of type {MessageType}",
 				message.Id, message.MessageType);
 		}
-		catch (SqlException ex) when (ex.Number is 2627 or 2601)
+		catch (Exception ex) when (TryGetDuplicateKeyViolation(ex, out var duplicateEx))
 		{
 			result = WriteStoreTelemetry.Results.Conflict;
 			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
@@ -286,7 +313,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 				message.CorrelationId,
 				message.CausationId);
 			_logger.LogWarning(
-				ex,
+				duplicateEx,
 				"Duplicate outbox message detected for {MessageId}",
 				message.Id);
 			throw new InvalidOperationException(
@@ -323,10 +350,14 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
+		// Derive the routing destination from the message context (cys98n) — falling back to the message
+		// type name rather than a hardcoded "default", so a consumer's configured destination is persisted
+		// and honored on dispatch (identical fix to the Postgres provider).
+		var messageTypeName = message.GetType().FullName ?? message.GetType().Name;
 		var outboundMessage = OutboundMessage.FromContext(
-			message.GetType().FullName ?? message.GetType().Name,
+			messageTypeName,
 			SerializePayload(message),
-			"default",
+			context.ExtractMetadata().GetDestination() ?? messageTypeName,
 			context,
 			context.Items.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal));
 		try
@@ -345,10 +376,26 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(
+	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
+		GetUnsentMessagesCoreAsync(batchSize, fencingToken: null, cancellationToken);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Leadership fencing is durable: the high-water mark lives in the dedicated <c>OutboxFence</c> control
+	/// table, which cleanup never touches, so a superseded leader's stale token is still rejected after a
+	/// cleanup has purged the sent, token-bearing rows. The per-message lease independently prevents two
+	/// processors from claiming the same row.
+	/// </remarks>
+	public ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesAsync(int batchSize, long fencingToken, CancellationToken cancellationToken) =>
+		GetUnsentMessagesCoreAsync(batchSize, fencingToken, cancellationToken);
+
+	private async ValueTask<IEnumerable<OutboundMessage>> GetUnsentMessagesCoreAsync(
 		int batchSize,
+		long? fencingToken,
 		CancellationToken cancellationToken)
 	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
@@ -357,13 +404,38 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 		try
 		{
+			// Fence FIRST: advance the durable high-water and detect supersession before any claim. A stale
+			// (superseded) token yields ZERO claimable rows and MUST NOT throw — throwing would crash-loop a
+			// superseded leader's drain. The claim below re-guards against the same durable high-water, so a
+			// leader superseded between this advance and the claim still claims nothing (no TOCTOU window).
+			if (fencingToken.HasValue)
+			{
+				var highWater = await connection.ResolveAsync(
+						new Requests.EnforceOutboxFenceRequest(
+							_options.Tables.QualifiedFenceTableName,
+							_options.Tables.QualifiedOutboxTableName,
+							fencingToken.Value,
+							_options.Processing.CommandTimeoutSeconds,
+							transaction: null,
+							cancellationToken))
+					.ConfigureAwait(false);
+
+				if (highWater > fencingToken.Value)
+				{
+					return [];
+				}
+			}
+
 			var rows = await connection.ResolveAsync(
 					new Requests.GetUnsentMessagesRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						batchSize,
-						_options.CommandTimeoutSeconds,
-						_options.LeaseTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
+						_options.Processing.LeaseTimeoutSeconds,
 						_options.ProcessorId,
+						fencingToken,
+						_options.Tables.QualifiedFenceTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -401,7 +473,20 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	}
 
 	/// <inheritdoc />
-	public async ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken)
+	public ValueTask MarkSentAsync(string messageId, CancellationToken cancellationToken) =>
+		MarkSentCoreAsync(messageId, fencingToken: null, cancellationToken);
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Leadership fencing is durable: the high-water mark lives in the dedicated <c>OutboxFence</c> control
+	/// table, which cleanup never touches, so a superseded leader's stale token is still rejected after a
+	/// cleanup has purged the sent, token-bearing rows. The per-message lease independently prevents two
+	/// processors from marking the same row.
+	/// </remarks>
+	public ValueTask MarkSentAsync(string messageId, long fencingToken, CancellationToken cancellationToken) =>
+		MarkSentCoreAsync(messageId, fencingToken, cancellationToken);
+
+	private async ValueTask MarkSentCoreAsync(string messageId, long? fencingToken, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
@@ -413,16 +498,66 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 		try
 		{
+			// Fence FIRST: monotonically advance the durable high-water and capture it. The mark UPDATE below
+			// re-guards against this same durable high-water inside its own statement (guard + mutation are one
+			// atomic step), so a leader superseded between this advance and the mark affects zero rows and is
+			// reported fail-closed. The captured value is the recorded high-water reported on the diagnostic —
+			// it survives a cleanup that purges the token-bearing rows, so a stale token stays rejected.
+			long? recordedHighWater = null;
+			if (fencingToken.HasValue)
+			{
+				recordedHighWater = await connection.ResolveAsync(
+						new Requests.EnforceOutboxFenceRequest(
+							_options.Tables.QualifiedFenceTableName,
+							_options.Tables.QualifiedOutboxTableName,
+							fencingToken.Value,
+							_options.Processing.CommandTimeoutSeconds,
+							transaction: null,
+							cancellationToken))
+					.ConfigureAwait(false);
+			}
+
 			var affected = await connection.ResolveAsync(
 					new Requests.MarkMessageSentRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						messageId,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
+						fencingToken,
+						_options.Tables.QualifiedFenceTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						cancellationToken))
 				.ConfigureAwait(false);
 
 			if (affected == 0)
 			{
+				// Distinguish "not found" from "fencing rejected" so a superseded leader gets a fail-closed
+				// signal (StaleOutboxFencingTokenException) rather than a generic not-found error.
+				if (fencingToken.HasValue)
+				{
+					var exists = await connection.ExecuteScalarAsync<int>(
+						new CommandDefinition(
+							$"SELECT COUNT(1) FROM {_options.Tables.QualifiedOutboxTableName} WHERE Id = @MessageId",
+							new { MessageId = messageId },
+							commandTimeout: _options.Processing.CommandTimeoutSeconds,
+							cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+					if (exists > 0)
+					{
+						// Report the recorded high-water the presented token was fenced against (the fencing
+						// contract's diagnostic). It is the durable OutboxFence high-water captured by the
+						// fence-first advance above — the same value the mark-sent guard compares against. Because
+						// that control row is never deleted by cleanup, the high-water survives the purge of the
+						// sent, token-bearing rows and a superseded leader's stale token stays rejected.
+						result = WriteStoreTelemetry.Results.Conflict;
+						throw new StaleOutboxFencingTokenException(
+							$"The presented outbox fencing token ({fencingToken.Value}) for message '{messageId}' was rejected as stale (recorded high-water {recordedHighWater}).")
+						{
+							PresentedToken = fencingToken.Value,
+							HighWaterToken = recordedHighWater,
+						};
+					}
+				}
+
 				result = WriteStoreTelemetry.Results.NotFound;
 				throw new InvalidOperationException($"Message {messageId} not found or already sent.");
 			}
@@ -431,7 +566,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		}
 		catch
 		{
-			if (result != WriteStoreTelemetry.Results.NotFound)
+			if (result is not (WriteStoreTelemetry.Results.NotFound or WriteStoreTelemetry.Results.Conflict))
 			{
 				result = WriteStoreTelemetry.Results.Failure;
 			}
@@ -461,7 +596,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		try
 		{
 			var sql = $"""
-				UPDATE {_options.QualifiedOutboxTableName}
+				UPDATE {_options.Tables.QualifiedOutboxTableName}
 				SET Status = 2, SentAt = @SentAt, LastError = NULL, LeasedAt = NULL, LeasedBy = NULL
 				WHERE Id IN @Ids AND Status != 2
 				""";
@@ -470,7 +605,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 				new CommandDefinition(
 					sql,
 					new { Ids = messageIds, SentAt = DateTimeOffset.UtcNow },
-					commandTimeout: _options.CommandTimeoutSeconds,
+					commandTimeout: _options.Processing.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 			_logger.LogDebug("Batch marked {Count}/{Total} messages as sent", affected, messageIds.Count);
@@ -505,7 +640,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		try
 		{
 			var sql = $"""
-				UPDATE {_options.QualifiedOutboxTableName}
+				UPDATE {_options.Tables.QualifiedOutboxTableName}
 				SET Status = 3, RetryCount = RetryCount + 1, LastError = @Reason, LastAttemptAt = @Now,
 					LeasedAt = NULL, LeasedBy = NULL
 				WHERE Id IN @Ids
@@ -515,7 +650,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 				new CommandDefinition(
 					sql,
 					new { Ids = messageIds, Reason = reason, Now = DateTimeOffset.UtcNow },
-					commandTimeout: _options.CommandTimeoutSeconds,
+					commandTimeout: _options.Processing.CommandTimeoutSeconds,
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 			_logger.LogWarning("Batch marked {Count}/{Total} messages as failed: {Reason}", affected, messageIds.Count, reason);
@@ -552,7 +687,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	/// <description> Insert the inbox entry for deduplication (INSERT) </description>
 	/// </item>
 	/// </list>
-	/// Both operations succeed or fail together, providing exactly-once delivery semantics.
+	/// Both operations succeed or fail together, so a redelivered message is skipped rather than reprocessed (effectively-once processing).
+	/// Delivery itself remains at-least-once; handlers must be idempotent.
 	/// </para>
 	/// </remarks>
 	public async ValueTask<bool> TryMarkSentAndReceivedAsync(
@@ -588,7 +724,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			// Step 1: Mark outbox message as sent
 			var markSentSql = $"""
-			                   UPDATE {_options.QualifiedOutboxTableName}
+			                   UPDATE {_options.Tables.QualifiedOutboxTableName}
 			                   SET Status = 2, SentAt = @SentAt, LastError = NULL
 			                   WHERE Id = @MessageId
 			                   """;
@@ -597,7 +733,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 				markSentSql,
 				new { MessageId = messageId, SentAt = DateTimeOffset.UtcNow },
 				transaction,
-				_options.CommandTimeoutSeconds,
+				_options.Processing.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
 			var affected = await connection.ExecuteAsync(markSentCommand).ConfigureAwait(false);
@@ -634,7 +770,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 					inboxEntry.Source
 				},
 				transaction,
-				_options.CommandTimeoutSeconds,
+				_options.Processing.CommandTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
 			_ = await connection.ExecuteAsync(insertInboxCommand).ConfigureAwait(false);
@@ -705,17 +841,32 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 		try
 		{
-			_ = await connection.ResolveAsync(
+			var rowsAffected = await connection.ResolveAsync(
 					new Requests.MarkMessageFailedRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						messageId,
 						errorMessage,
 						retryCount,
-						_options.CommandTimeoutSeconds,
-						cancellationToken))
+						_options.ProcessorId,
+						_options.Processing.CommandTimeoutSeconds,
+						cancellationToken,
+						floorSeconds: _options.Processing.FailureBackoffFloorSeconds))
 				.ConfigureAwait(false);
 
-			_logger.LogWarning("Marked message {MessageId} as failed: {Error}", messageId, errorMessage);
+			// See the sibling overload: no rows means this attempt no longer owns the message, or the message
+			// was already delivered. Reporting it as a completed transition would hide exactly the case an
+			// operator is trying to explain.
+			if (rowsAffected == 0)
+			{
+				_logger.LogWarning(
+					"MarkFailed for message {MessageId} matched no rows: it was delivered, or a peer holds the "
+					+ "lease. No state change was made and this attempt no longer owns the message.",
+					messageId);
+			}
+			else
+			{
+				_logger.LogWarning("Marked message {MessageId} as failed: {Error}", messageId, errorMessage);
+			}
 		}
 		catch
 		{
@@ -747,20 +898,36 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 		try
 		{
-			_ = await connection.ResolveAsync(
+			var rowsAffected = await connection.ResolveAsync(
 					new Requests.MarkMessageFailedRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						messageId,
 						errorMessage,
 						retryCount,
-						_options.CommandTimeoutSeconds,
+						_options.ProcessorId,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken,
 						nextAttemptAt))
 				.ConfigureAwait(false);
 
-			_logger.LogWarning(
-				"Marked message {MessageId} as failed with backoff (next attempt at {NextAttemptAt:O}): {Error}",
-				messageId, nextAttemptAt, errorMessage);
+			// A zero-row mark is NOT a success. The statement is guarded on ownership and on the message not
+			// already being Sent, so no rows means either a peer re-claimed this message or it was delivered
+			// while this attempt was in flight. Logging the success line regardless would assert a state
+			// transition that did not happen, and this path is precisely where an operator looks to explain
+			// a redelivery.
+			if (rowsAffected == 0)
+			{
+				_logger.LogWarning(
+					"MarkFailed for message {MessageId} matched no rows: it was delivered, or a peer holds the "
+					+ "lease. No state change was made and this attempt no longer owns the message.",
+					messageId);
+			}
+			else
+			{
+				_logger.LogWarning(
+					"Marked message {MessageId} as failed with backoff (next attempt at {NextAttemptAt:O}): {Error}",
+					messageId, nextAttemptAt, errorMessage);
+			}
 		}
 		catch
 		{
@@ -789,10 +956,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			_ = await connection.ResolveAsync(
 					new Requests.MarkMessageDeadLetteredRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						messageId,
 						reason,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -826,11 +993,11 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			var rows = await connection.ResolveAsync(
 					new Requests.GetFailedMessagesRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						maxRetries,
 						olderThan,
 						batchSize,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -863,10 +1030,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			var rows = await connection.ResolveAsync(
 					new Requests.GetScheduledMessagesRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						scheduledBefore,
 						batchSize,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -884,7 +1051,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<int> CleanupSentMessagesAsync(
+	public async ValueTask<int> CleanupAllTenantsSentMessagesAsync(
 		DateTimeOffset olderThan,
 		int batchSize,
 		CancellationToken cancellationToken)
@@ -901,23 +1068,23 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			// Delete transport deliveries first
 			_ = await connection.ResolveAsync(
 					new Requests.CleanupTransportDeliveriesRequest(
-						_options.QualifiedOutboxTableName,
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedOutboxTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						olderThan,
 						batchSize,
 						transaction,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
 			// Then delete messages
 			var deleted = await connection.ResolveAsync(
 					new Requests.CleanupSentMessagesRequest(
-						_options.QualifiedOutboxTableName,
+						_options.Tables.QualifiedOutboxTableName,
 						olderThan,
 						batchSize,
 						transaction,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -952,8 +1119,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			return await connection.ResolveAsync(
 					new Requests.GetOutboxStatisticsRequest(
-						_options.QualifiedOutboxTableName,
-						_options.CommandTimeoutSeconds,
+						_options.Tables.QualifiedOutboxTableName,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 		}
@@ -1047,20 +1214,20 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			_ = await connection.ResolveAsync(
 					new Requests.MarkTransportSentRequest(
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
 						transportName,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
 			// Update aggregate status
 			_ = await connection.ResolveAsync(
 					new Requests.UpdateAggregateStatusRequest(
-						_options.QualifiedOutboxTableName,
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedOutboxTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -1104,21 +1271,21 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			_ = await connection.ResolveAsync(
 					new Requests.MarkTransportFailedRequest(
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
 						transportName,
 						errorMessage,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
 			// Update aggregate status
 			_ = await connection.ResolveAsync(
 					new Requests.UpdateAggregateStatusRequest(
-						_options.QualifiedOutboxTableName,
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedOutboxTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -1162,8 +1329,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		           	t.Id AS TransportId, t.MessageId, t.TransportName, t.Destination AS TransportDestination,
 		           	t.Status AS TransportStatus, t.CreatedAt AS TransportCreatedAt, t.AttemptedAt, t.SentAt AS TransportSentAt,
 		           	t.RetryCount AS TransportRetryCount, t.LastError AS TransportLastError, t.TransportMetadata
-		           FROM {_options.QualifiedOutboxTableName} m
-		           INNER JOIN {_options.QualifiedTransportsTableName} t ON m.Id = t.MessageId
+		           FROM {_options.Tables.QualifiedOutboxTableName} m
+		           INNER JOIN {_options.Tables.QualifiedTransportsTableName} t ON m.Id = t.MessageId
 		           WHERE t.TransportName = @TransportName
 		           	AND t.Status IN (0, 3) -- Pending, Failed
 		           	AND t.RetryCount < @MaxRetries
@@ -1174,8 +1341,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 		var command = new CommandDefinition(
 			sql,
-			new { TransportName = transportName, BatchSize = batchSize, MaxRetries = _options.MaxRetryCount },
-			commandTimeout: _options.CommandTimeoutSeconds,
+			new { TransportName = transportName, BatchSize = batchSize, MaxRetries = _options.Processing.MaxRetryCount },
+			commandTimeout: _options.Processing.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		try
@@ -1236,12 +1403,19 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 
 			foreach (var transport in transportsList)
 			{
-				await InsertTransportDeliveryAsync(connection, transaction, transport, cancellationToken).ConfigureAwait(false);
+				await InsertTransportDeliveryAsync(connection, transaction, transport, message.TenantId, cancellationToken).ConfigureAwait(false);
 			}
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
 			_logger.LogDebug("Staged message {MessageId} with {TransportCount} transports", message.Id, transportsList.Count);
+		}
+		catch (Exception ex) when (TryGetDuplicateKeyViolation(ex, out var duplicateEx))
+		{
+			result = WriteStoreTelemetry.Results.Conflict;
+			await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+			_logger.LogWarning(duplicateEx, "Duplicate outbox message detected for {MessageId}", message.Id);
+			throw new InvalidOperationException($"Outbox message '{message.Id}' already exists.", ex);
 		}
 		catch
 		{
@@ -1291,16 +1465,16 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			{
 				foreach (var delivery in message.TransportDeliveries)
 				{
-					await InsertTransportDeliveryAsync(connection, sqlTransaction, delivery, cancellationToken).ConfigureAwait(false);
+					await InsertTransportDeliveryAsync(connection, sqlTransaction, delivery, message.TenantId, cancellationToken).ConfigureAwait(false);
 				}
 			}
 
 			_logger.LogDebug("Staged outbox message {MessageId} within external transaction", message.Id);
 		}
-		catch (SqlException ex) when (ex.Number is 2627 or 2601)
+		catch (Exception ex) when (TryGetDuplicateKeyViolation(ex, out var duplicateEx))
 		{
 			result = WriteStoreTelemetry.Results.Conflict;
-			_logger.LogWarning(ex, "Duplicate outbox message detected for {MessageId}", message.Id);
+			_logger.LogWarning(duplicateEx, "Duplicate outbox message detected for {MessageId}", message.Id);
 			throw new InvalidOperationException($"Outbox message '{message.Id}' already exists.", ex);
 		}
 		catch (Exception ex)
@@ -1332,9 +1506,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			return await connection.ResolveAsync(
 					new Requests.GetTransportDeliveriesRequest(
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
-						_options.CommandTimeoutSeconds,
+						KeyedTenantPartition.FromContext(_tenantContext),
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 		}
@@ -1375,21 +1550,21 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			_ = await connection.ResolveAsync(
 					new Requests.MarkTransportSkippedRequest(
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
 						transportName,
 						reason,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
 			// Update aggregate status
 			_ = await connection.ResolveAsync(
 					new Requests.UpdateAggregateStatusRequest(
-						_options.QualifiedOutboxTableName,
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedOutboxTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -1437,8 +1612,8 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		           	t.Id AS TransportId, t.MessageId, t.TransportName, t.Destination AS TransportDestination,
 		           	t.Status AS TransportStatus, t.CreatedAt AS TransportCreatedAt, t.AttemptedAt, t.SentAt AS TransportSentAt,
 		           	t.RetryCount AS TransportRetryCount, t.LastError AS TransportLastError, t.TransportMetadata
-		           FROM {_options.QualifiedOutboxTableName} m
-		           INNER JOIN {_options.QualifiedTransportsTableName} t ON m.Id = t.MessageId
+		           FROM {_options.Tables.QualifiedOutboxTableName} m
+		           INNER JOIN {_options.Tables.QualifiedTransportsTableName} t ON m.Id = t.MessageId
 		           WHERE t.TransportName = @TransportName
 		           	AND t.Status = 3 -- Failed
 		           	AND t.RetryCount < @MaxRetries
@@ -1451,7 +1626,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		var command = new CommandDefinition(
 			sql,
 			new { TransportName = transportName, MaxRetries = maxRetries, OlderThan = olderThan, BatchSize = batchSize },
-			commandTimeout: _options.CommandTimeoutSeconds,
+			commandTimeout: _options.Processing.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		try
@@ -1501,10 +1676,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		{
 			_ = await connection.ResolveAsync(
 					new Requests.UpdateAggregateStatusRequest(
-						_options.QualifiedOutboxTableName,
-						_options.QualifiedTransportsTableName,
+						_options.Tables.QualifiedOutboxTableName,
+						_options.Tables.QualifiedTransportsTableName,
 						messageId,
-						_options.CommandTimeoutSeconds,
+						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
@@ -1537,7 +1712,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			   	SUM(CASE WHEN Status = 3 THEN 1 ELSE 0 END) AS FailedCount,
 			   	SUM(CASE WHEN Status = 4 THEN 1 ELSE 0 END) AS SkippedCount,
 			   	MIN(CASE WHEN Status = 0 THEN CreatedAt END) AS OldestPendingCreatedAt
-			   FROM {_options.QualifiedTransportsTableName}
+			   FROM {_options.Tables.QualifiedTransportsTableName}
 			   """
 			: $"""
 			   SELECT
@@ -1546,7 +1721,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 			   	SUM(CASE WHEN Status = 3 THEN 1 ELSE 0 END) AS FailedCount,
 			   	SUM(CASE WHEN Status = 4 THEN 1 ELSE 0 END) AS SkippedCount,
 			   	MIN(CASE WHEN Status = 0 THEN CreatedAt END) AS OldestPendingCreatedAt
-			   FROM {_options.QualifiedTransportsTableName}
+			   FROM {_options.Tables.QualifiedTransportsTableName}
 			   WHERE TransportName = @TransportName
 			   """;
 
@@ -1555,7 +1730,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		var command = new CommandDefinition(
 			sql,
 			new { TransportName = transportName },
-			commandTimeout: _options.CommandTimeoutSeconds,
+			commandTimeout: _options.Processing.CommandTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		try
@@ -1699,6 +1874,27 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 #pragma warning restore IL2026, IL3050
 	}
 
+	/// <summary>
+	/// Determines whether <paramref name="exception"/> represents a SQL Server unique-constraint /
+	/// duplicate-key violation (error <c>2627</c> or <c>2601</c>), whether it surfaces directly as a
+	/// <see cref="SqlException"/> or is wrapped by the data-request layer — <c>ResolveAsync</c> rethrows
+	/// the underlying <see cref="SqlException"/> as the inner exception of an
+	/// <c>OperationFailedException</c>. This lets every stage entry point honor the cross-provider
+	/// contract of throwing <see cref="InvalidOperationException"/> on a duplicate stage, matching the
+	/// in-memory, MongoDB, and PostgreSQL stores.
+	/// </summary>
+	private static bool TryGetDuplicateKeyViolation(Exception exception, [NotNullWhen(true)] out SqlException? sqlException)
+	{
+		sqlException = exception as SqlException ?? exception.InnerException as SqlException;
+		if (sqlException is { Number: 2627 or 2601 })
+		{
+			return true;
+		}
+
+		sqlException = null;
+		return false;
+	}
+
 	private async Task InsertMessageAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
@@ -1707,10 +1903,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	{
 		_ = await connection.ResolveAsync(
 				new Requests.InsertOutboxMessageRequest(
-					_options.QualifiedOutboxTableName,
+					_options.Tables.QualifiedOutboxTableName,
 					message,
 					transaction,
-					_options.CommandTimeoutSeconds,
+					_options.Processing.CommandTimeoutSeconds,
 					cancellationToken))
 			.ConfigureAwait(false);
 	}
@@ -1719,14 +1915,16 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 		SqlConnection connection,
 		SqlTransaction transaction,
 		OutboundMessageTransport delivery,
+		string? tenantId,
 		CancellationToken cancellationToken)
 	{
 		_ = await connection.ResolveAsync(
 				new Requests.InsertTransportDeliveryRequest(
-					_options.QualifiedTransportsTableName,
+					_options.Tables.QualifiedTransportsTableName,
 					delivery,
+					tenantId,
 					transaction,
-					_options.CommandTimeoutSeconds,
+					_options.Processing.CommandTimeoutSeconds,
 					cancellationToken))
 			.ConfigureAwait(false);
 	}
@@ -1738,9 +1936,10 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTra
 	{
 		return await connection.ResolveAsync(
 				new Requests.GetTransportDeliveriesRequest(
-					_options.QualifiedTransportsTableName,
+					_options.Tables.QualifiedTransportsTableName,
 					messageId,
-					_options.CommandTimeoutSeconds,
+					KeyedTenantPartition.FromContext(_tenantContext),
+					_options.Processing.CommandTimeoutSeconds,
 					cancellationToken))
 			.ConfigureAwait(false);
 	}

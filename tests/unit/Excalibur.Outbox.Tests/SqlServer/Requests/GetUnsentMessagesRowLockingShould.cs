@@ -15,12 +15,13 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 {
 	private const string TestTableName = "[dbo].[OutboxMessages]";
+	private const string TestFenceTableName = "[dbo].[OutboxFence]";
 
 	[Fact]
 	public void UseOrderedCteUpdateForAtomicClaim()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert - An ordered CTE (TOP @BatchSize in partition/sequence order) selects the eligible rows,
 		// then UPDATE...OUTPUT atomically claims them. The TOP/order MUST live in the CTE because SQL
@@ -34,7 +35,7 @@ public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 	public void IncludeOutputClauseForClaimedRows()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert - OUTPUT returns the claimed rows in a single atomic operation
 		request.Command.CommandText.ShouldContain("OUTPUT");
@@ -44,7 +45,7 @@ public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 	public void SetLeaseOwnershipOnClaim()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert - Lease columns prevent double-processing by concurrent processors
 		request.Command.CommandText.ShouldContain("LeasedAt = GETUTCDATE()");
@@ -55,7 +56,7 @@ public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 	public void ReclaimStaleLeases()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert - Stale leases older than timeout are automatically reclaimed
 		request.Command.CommandText.ShouldContain("LeasedAt IS NULL");
@@ -66,7 +67,7 @@ public sealed class GetUnsentMessagesRowLockingShould : UnitTestBase
 	public void IncludeStatusFilterForDeterministicBatchSelection()
 	{
 		// Act
-		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", CancellationToken.None);
+		var request = new GetUnsentMessagesRequest(TestTableName, 100, 30, 300, "test-processor", fencingToken: null, TestFenceTableName, TestTableName, CancellationToken.None);
 
 		// Assert - Only processes Staged (0), Failed (3), PartiallyFailed (4)
 		request.Command.CommandText.ShouldContain("Status IN (0, 3, 4)");

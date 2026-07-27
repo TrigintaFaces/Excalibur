@@ -38,7 +38,7 @@ public sealed class SigningOptionsTenantAlgorithmsShould
         var options = new SigningOptions();
         options.TenantAlgorithms["tenant-a"] = SigningAlgorithm.HMACSHA256;
         options.TenantAlgorithms["tenant-b"] = SigningAlgorithm.HMACSHA512;
-        options.TenantAlgorithms["tenant-c"] = SigningAlgorithm.Ed25519;
+        options.TenantAlgorithms["tenant-c"] = SigningAlgorithm.ECDSASHA256;
 
         options.TenantAlgorithms.Count.ShouldBe(3);
     }
@@ -107,9 +107,8 @@ public sealed class SigningOptionsTenantAlgorithmsShould
         options.TenantAlgorithms["t-rsa256"] = SigningAlgorithm.RSASHA256;
         options.TenantAlgorithms["t-rsapss"] = SigningAlgorithm.RSAPSSSHA256;
         options.TenantAlgorithms["t-ecdsa"] = SigningAlgorithm.ECDSASHA256;
-        options.TenantAlgorithms["t-ed25519"] = SigningAlgorithm.Ed25519;
 
-        options.TenantAlgorithms.Count.ShouldBe(7);
+        options.TenantAlgorithms.Count.ShouldBe(6);
     }
 
     [Fact]
@@ -120,9 +119,9 @@ public sealed class SigningOptionsTenantAlgorithmsShould
             DefaultAlgorithm = SigningAlgorithm.HMACSHA256,
         };
 
-        options.TenantAlgorithms["premium-tenant"] = SigningAlgorithm.Ed25519;
+        options.TenantAlgorithms["premium-tenant"] = SigningAlgorithm.RSAPSSSHA256;
 
         options.DefaultAlgorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
-        options.TenantAlgorithms["premium-tenant"].ShouldBe(SigningAlgorithm.Ed25519);
+        options.TenantAlgorithms["premium-tenant"].ShouldBe(SigningAlgorithm.RSAPSSSHA256);
     }
 }

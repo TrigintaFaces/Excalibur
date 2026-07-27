@@ -16,6 +16,8 @@ public sealed class SqlServerHealthBasedLeaderElectionOptionsValidatorShould
 
 	private static SqlServerHealthBasedLeaderElectionOptions Valid() => new()
 	{
+		ConnectionString = "Server=.;Database=Test;Trusted_Connection=True;",
+		LockResource = "leader-lock",
 		SchemaName = "dbo",
 		TableName = "LeaderElectionHealth",
 		HealthExpirationSeconds = 60,

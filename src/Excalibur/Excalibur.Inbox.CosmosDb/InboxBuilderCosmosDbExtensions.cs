@@ -9,6 +9,7 @@ using Excalibur.Inbox.DependencyInjection;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Inbox.CosmosDb;
@@ -112,8 +113,14 @@ public static class InboxBuilderCosmosDbExtensions
 			builder.Services.TryAddSingleton(_ => new CosmosClient(connStr, new CosmosClientOptions { UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase } }));
 		}
 
-		// Register store services
-		builder.Services.TryAddSingleton<CosmosDbInboxStore>();
+		// AddTenantScopedStore builds the store injecting ITenantContext (so the dedup id + every keyed
+		// read/claim scope per tenant) AND emits the ITenantScopingCapability<IInboxStore> marker inseparably
+		// from that wiring — an unwired provider cannot carry a truthful marker.
+		builder.Services.AddTenantScopedStore<IInboxStore, CosmosDbInboxStore>((sp, tenantContext) =>
+			new CosmosDbInboxStore(
+				sp.GetRequiredService<IOptions<CosmosDbInboxOptions>>(),
+				sp.GetRequiredService<ILogger<CosmosDbInboxStore>>(),
+				tenantContext));
 		builder.Services.AddKeyedSingleton<IInboxStore>("cosmosdb", (sp, _) => sp.GetRequiredService<CosmosDbInboxStore>());
 		builder.Services.TryAddKeyedSingleton<IInboxStore>("default", (sp, _) =>
 			sp.GetRequiredKeyedService<IInboxStore>("cosmosdb"));

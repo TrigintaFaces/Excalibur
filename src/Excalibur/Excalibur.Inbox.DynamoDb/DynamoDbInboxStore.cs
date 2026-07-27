@@ -35,8 +35,21 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 {
 	private readonly DynamoDbInboxOptions _options;
 	private readonly ILogger<DynamoDbInboxStore> _logger;
+	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
+
+	/// <summary>
+	/// Whether this store CREATED the client and may therefore dispose it.
+	/// </summary>
+	/// <remarks>
+	/// A consumer-supplied client is owned by the consumer. Disposing it here reaches outside this object
+	/// and breaks every other holder: in a host that registers one IAmazonDynamoDB in DI, disposing this
+	/// store would leave every other service with a dead client and no indication why. The rule is the
+	/// ordinary one for injected dependencies -- dispose what you created, never what you were handed.
+	/// </remarks>
+	private readonly bool _ownsClient;
+
 	private bool _initialized;
 	private volatile bool _disposed;
 
@@ -45,9 +58,15 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// </summary>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. When absent every
+	/// entry resolves to the reserved untenanted term, which is a concrete value rather than a null, so
+	/// the dedup key has the same shape either way.
+	/// </param>
 	public DynamoDbInboxStore(
 		IOptions<DynamoDbInboxOptions> options,
-		ILogger<DynamoDbInboxStore> logger)
+		ILogger<DynamoDbInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -55,6 +74,12 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
+		_tenantContext = tenantContext;
+
+		// No client was supplied, so InitializeAsync will construct one (see the `_client ??= CreateClient()`
+		// below). This store therefore OWNS it and must dispose it -- the symmetric half of not disposing a
+		// consumer-supplied client: dispose exactly what you created.
+		_ownsClient = true;
 	}
 
 	/// <summary>
@@ -63,18 +88,25 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// <param name="client">The DynamoDB client.</param>
 	/// <param name="options">The configuration options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// The ambient tenant context, or <see langword="null"/> in a single-tenant host. See the other
+	/// constructor: an absent context resolves to the reserved untenanted term, never to a null.
+	/// </param>
 	public DynamoDbInboxStore(
 		IAmazonDynamoDB client,
 		IOptions<DynamoDbInboxOptions> options,
-		ILogger<DynamoDbInboxStore> logger)
+		ILogger<DynamoDbInboxStore> logger,
+		ITenantContext? tenantContext = null)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
+		_ownsClient = false;
 		_options = options.Value;
 		_logger = logger;
+		_tenantContext = tenantContext;
 
 		// Do NOT mark initialized here: a consumer-supplied client still needs InitializeAsync to run the
 		// table auto-create (CreateTableIfNotExists) + TTL enablement, otherwise the table is never created and
@@ -175,7 +207,15 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 				BillingMode = BillingMode.PAY_PER_REQUEST
 			};
 
-			_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				_ = await _client!.CreateTableAsync(createRequest, cancellationToken).ConfigureAwait(false);
+			}
+			catch (ResourceInUseException)
+			{
+				// Multi-instance cold-start race: another instance created (or is creating) the table
+				// between our DescribeTable and CreateTable. Benign — fall through to wait-for-active.
+			}
 
 			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };
 			TableStatus status;
@@ -343,7 +383,9 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		var item = new Dictionary<string, AttributeValue>
 		{
 			[_options.PartitionKeyAttribute] = new() { S = handlerType },
-			[_options.SortKeyAttribute] = new() { S = messageId },
+			[_options.SortKeyAttribute] = new() { S = ComposeDedupTerm(messageId) },
+			["message_id_raw"] = new() { S = messageId },
+			["tenant_id"] = new() { S = TenantTerm },
 			["message_type"] = new() { S = string.Empty },
 			["payload"] = new() { B = new MemoryStream([]) },
 			["status"] = new() { N = ((int)InboxStatus.Processed).ToString() },
@@ -400,7 +442,9 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		var item = new Dictionary<string, AttributeValue>
 		{
 			[_options.PartitionKeyAttribute] = new() { S = handlerType },
-			[_options.SortKeyAttribute] = new() { S = messageId },
+			[_options.SortKeyAttribute] = new() { S = ComposeDedupTerm(messageId) },
+			["message_id_raw"] = new() { S = messageId },
+			["tenant_id"] = new() { S = TenantTerm },
 			["message_type"] = new() { S = string.Empty },
 			["payload"] = new() { B = new MemoryStream([]) },
 			["status"] = new() { N = ((int)InboxStatus.Processing).ToString() },
@@ -824,7 +868,12 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock.Dispose();
 	}
 
@@ -837,17 +886,48 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+
 		_initLock.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// Gets the ambient tenant term used to discriminate the dedup key.
+	/// </summary>
+	/// <remarks>
+	/// Always a concrete, non-empty term: an unscoped host resolves to the reserved untenanted sentinel
+	/// rather than to <see langword="null"/>, so the key shape never varies by tenancy mode.
+	/// </remarks>
+	private string TenantTerm => KeyedTenantPartition.FromContext(_tenantContext).TenantId;
+
+	/// <summary>
+	/// Composes the sort-key term that identifies an inbox entry within its handler partition.
+	/// </summary>
+	/// <remarks>
+	/// The tenant term is part of the DEDUP KEY, not merely a carried attribute. Without it the key is
+	/// (handler_type, message_id), so two tenants processing messages that share a message id collide:
+	/// the second write fails the conditional put, the caller reads that as a duplicate, and the message
+	/// is dropped. That is a cross-tenant isolation breach and a silent message-loss bug at once, and it
+	/// fails on the SUCCESS path — a suppressed message is indistinguishable from a genuine duplicate.
+	/// <para>
+	/// Every read and every write goes through this one method, so the write key and the lookup key
+	/// cannot drift apart: composing on one side only would make each tenant unable to find its own
+	/// entries, which is the failure this shape is built to make inexpressible.
+	/// </para>
+	/// </remarks>
+	private string ComposeDedupTerm(string messageId) => $"{TenantTerm}:{messageId}";
+
 	private Dictionary<string, AttributeValue> CreateKey(string messageId, string handlerType) =>
 		new()
 		{
 			[_options.PartitionKeyAttribute] = new AttributeValue { S = handlerType },
-			[_options.SortKeyAttribute] = new AttributeValue { S = messageId }
+			[_options.SortKeyAttribute] = new AttributeValue { S = ComposeDedupTerm(messageId) }
 		};
 
 	private Dictionary<string, AttributeValue> CreateItemFromEntry(InboxEntry entry)
@@ -855,7 +935,13 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 		var item = new Dictionary<string, AttributeValue>
 		{
 			[_options.PartitionKeyAttribute] = new() { S = entry.HandlerType },
-			[_options.SortKeyAttribute] = new() { S = entry.MessageId },
+			// Composed, never the bare MessageId: this must match CreateKey or a tenant cannot read back
+			// the entry it just wrote.
+			[_options.SortKeyAttribute] = new() { S = ComposeDedupTerm(entry.MessageId) },
+			// Carried as its own attribute too, so the un-composed id survives for projection and
+			// diagnostics without anyone having to parse it back out of the sort key.
+			["message_id_raw"] = new() { S = entry.MessageId },
+			["tenant_id"] = new() { S = TenantTerm },
 			["message_type"] = new() { S = entry.MessageType },
 			["payload"] = new() { B = new MemoryStream(entry.Payload) },
 			["status"] = new() { N = ((int)entry.Status).ToString() },
@@ -890,7 +976,10 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 
 		var entry = new InboxEntry
 		{
-			MessageId = item[_options.SortKeyAttribute].S,
+			// The sort key is the tenant-composed dedup term, so the caller-facing MessageId comes from
+			// the raw attribute. Falling back to the sort key would hand the caller "{tenant}:{id}" as
+			// though it were their message id.
+			MessageId = item.TryGetValue("message_id_raw", out var rawId) ? rawId.S : item[_options.SortKeyAttribute].S,
 			HandlerType = item[_options.PartitionKeyAttribute].S,
 			MessageType = item.TryGetValue("message_type", out var mt) ? mt.S : string.Empty,
 			Payload = item.TryGetValue("payload", out var p) ? p.B.ToArray() : [],

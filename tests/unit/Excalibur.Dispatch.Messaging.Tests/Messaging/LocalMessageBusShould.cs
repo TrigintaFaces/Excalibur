@@ -294,6 +294,51 @@ public sealed class LocalMessageBusShould
 			.MustHaveHappenedOnceExactly();
 	}
 
+	[Fact]
+	public async Task PublishAsync_Event_Should_Run_All_Handlers_And_Aggregate_Faults_When_One_Throws()
+	{
+		// Arrange - three handlers; the FIRST faults. Fault-independence (Liskov note 07): the other two
+		// MUST still run and all faults surface aggregated, rather than the first fault abandoning the rest.
+		var evt = new TestEvent();
+		var context = A.Fake<IMessageContext>();
+		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
+
+		var handler1Type = typeof(TestEventHandler1);
+		var handler2Type = typeof(TestEventHandler2);
+		var handler3Type = typeof(TestEventHandler3);
+		var entries = new IHandlerRegistryEntry[]
+		{
+			new HandlerRegistryEntry(typeof(TestEvent), handler1Type, false),
+			new HandlerRegistryEntry(typeof(TestEvent), handler2Type, false),
+			new HandlerRegistryEntry(typeof(TestEvent), handler3Type, false)
+		};
+		_ = A.CallTo(() => _registry.GetAll()).Returns(entries);
+
+		var handler1 = new TestEventHandler1();
+		var handler2 = new TestEventHandler2();
+		var handler3 = new TestEventHandler3();
+		_ = A.CallTo(() => _activator.ActivateHandler(handler1Type, context, _serviceProvider)).Returns(handler1);
+		_ = A.CallTo(() => _activator.ActivateHandler(handler2Type, context, _serviceProvider)).Returns(handler2);
+		_ = A.CallTo(() => _activator.ActivateHandler(handler3Type, context, _serviceProvider)).Returns(handler3);
+
+		var boom = new InvalidOperationException("handler1 failed");
+		_ = A.CallTo(() => _invoker.InvokeAsync(handler1, evt, A<CancellationToken>._))
+			.Returns(Task.FromException<object?>(boom));
+		_ = A.CallTo(() => _invoker.InvokeAsync(handler2, evt, A<CancellationToken>._))
+			.Returns(Task.FromResult<object?>(null));
+		_ = A.CallTo(() => _invoker.InvokeAsync(handler3, evt, A<CancellationToken>._))
+			.Returns(Task.FromResult<object?>(null));
+
+		// Act
+		var ex = await Should.ThrowAsync<AggregateException>(() =>
+			_bus.PublishAsync(evt, context, CancellationToken.None));
+
+		// Assert - the fault surfaced aggregated, AND the other two handlers still ran.
+		ex.InnerExceptions.ShouldContain(boom);
+		_ = A.CallTo(() => _invoker.InvokeAsync(handler2, evt, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => _invoker.InvokeAsync(handler3, evt, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
 	#endregion
 
 	#region SendDocumentAsync Tests
@@ -695,6 +740,7 @@ public sealed class LocalMessageBusShould
 	private sealed class TestDocumentHandler { }
 	private sealed class TestEventHandler1 { }
 	private sealed class TestEventHandler2 { }
+	private sealed class TestEventHandler3 { }
 	private sealed class SingletonNoContextHandler { }
 	private sealed class SingletonWithContextHandler
 	{

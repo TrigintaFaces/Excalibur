@@ -31,7 +31,10 @@ public partial class EventVersionManager
 	private static readonly CompositeFormat NoUpgradePathFoundFormat =
 			CompositeFormat.Parse(Resources.EventVersionManager_NoUpgradePathFoundFormat);
 
-	private readonly ConcurrentDictionary<string, List<IEventUpgrader>> _upgraders = new(StringComparer.Ordinal);
+	// Copy-on-write (5gezua): the value is an immutable snapshot replaced (never mutated in place) under
+	// _registrationLock, so read paths (UpgradeEvent/FindUpgradePath/GetUpgradersForEventType) enumerate a
+	// stable list without a lock even if a registration races a read.
+	private readonly ConcurrentDictionary<string, IReadOnlyList<IEventUpgrader>> _upgraders = new(StringComparer.Ordinal);
 	private readonly Lock _registrationLock = new();
 	private readonly ILogger<EventVersionManager> _logger;
 
@@ -61,10 +64,10 @@ public partial class EventVersionManager
 		// RegisterUpgrader is a startup-time call, so contention is negligible.
 		lock (_registrationLock)
 		{
-			var upgraderList = _upgraders.GetOrAdd(upgrader.EventType, static _ => []);
+			var existing = _upgraders.TryGetValue(upgrader.EventType, out var current) ? current : [];
 
 			// Check for conflicts
-			var existingUpgrader = upgraderList.FirstOrDefault(u =>
+			var existingUpgrader = existing.FirstOrDefault(u =>
 				u.FromVersion == upgrader.FromVersion && u.ToVersion == upgrader.ToVersion);
 
 			if (existingUpgrader is not null)
@@ -78,7 +81,9 @@ public partial class EventVersionManager
 								upgrader.ToVersion));
 			}
 
-			upgraderList.Add(upgrader);
+			// Replace with a fresh immutable snapshot rather than mutating the list a reader may be
+			// enumerating (copy-on-write).
+			_upgraders[upgrader.EventType] = [.. existing, upgrader];
 		}
 
 		LogUpgraderRegistered(upgrader.EventType, upgrader.FromVersion, upgrader.ToVersion);
@@ -168,7 +173,7 @@ public partial class EventVersionManager
 	/// <param name="toVersion">The target version.</param>
 	/// <returns>A list of upgraders representing the shortest path, or null if no path exists.</returns>
 	private static List<IEventUpgrader>? FindUpgradePath(
-		List<IEventUpgrader> upgraders,
+		IReadOnlyList<IEventUpgrader> upgraders,
 		int fromVersion,
 		int toVersion)
 	{

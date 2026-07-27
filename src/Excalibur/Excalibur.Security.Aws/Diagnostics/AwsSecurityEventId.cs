@@ -34,4 +34,22 @@ public static class AwsSecurityEventId
 
 	/// <summary>Credential stored in AWS Secrets Manager.</summary>
 	public const int AwsSecretsManagerStored = 70926;
+
+	/// <summary>Signing key retrieved from AWS Secrets Manager.</summary>
+	public const int AwsSecretsManagerKeyRetrieved = 70927;
+
+	/// <summary>Signing key served from the local cache.</summary>
+	public const int AwsSecretsManagerKeyCacheHit = 70928;
+
+	/// <summary>Signing key not found in AWS Secrets Manager (fail-closed).</summary>
+	public const int AwsSecretsManagerKeyNotFound = 70929;
+
+	/// <summary>Signing key stored in AWS Secrets Manager.</summary>
+	public const int AwsSecretsManagerKeyStored = 70930;
+
+	/// <summary>Signing key rotated in AWS Secrets Manager.</summary>
+	public const int AwsSecretsManagerKeyRotated = 70931;
+
+	/// <summary>AWS Secrets Manager key operation failed.</summary>
+	public const int AwsSecretsManagerKeyOperationFailed = 70932;
 }

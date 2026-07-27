@@ -52,7 +52,7 @@ public static class ValidationServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 
 		services.TryAddSingleton<IValidatorResolver, NoOpValidatorResolver>();
-		services.TryAddSingleton<Excalibur.Dispatch.Middleware.Validation.IValidationService, NoOpValidationService>();
+		services.TryAddSingleton<Excalibur.Dispatch.Middleware.Validation.IMessageValidationService, NoOpValidationService>();
 
 		return services;
 	}

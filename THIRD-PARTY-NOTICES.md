@@ -54,6 +54,7 @@ It is generated from project files; licenses remain with their respective owners
 | Consul | 1.8.0 |
 | Cronos | 0.12.0 |
 | Dapper | 2.1.72 |
+| DotPulsar | 5.3.0 |
 | Elastic.Clients.Elasticsearch | 9.4.1 |
 | Elastic.Transport | 0.17.1 |
 | Excalibur.Compliance |  |
@@ -69,12 +70,15 @@ It is generated from project files; licenses remain with their respective owners
 | Excalibur.Dispatch.Patterns |  |
 | Excalibur.Dispatch.Serialization.MemoryPack |  |
 | Excalibur.Dispatch.Transport.Abstractions |  |
+| Excalibur.EventSourcing |  |
 | Excalibur.EventSourcing.Abstractions |  |
 | Excalibur.EventSourcing.Postgres |  |
 | Excalibur.EventSourcing.SqlServer |  |
 | Excalibur.Hosting.Web |  |
 | Excalibur.Outbox.Postgres |  |
 | Excalibur.Outbox.SqlServer |  |
+| Excalibur.Saga |  |
+| Excalibur.Workflows.Abstractions |  |
 | FluentValidation | 12.1.1 |
 | FluentValidation.DependencyInjectionExtensions | 12.1.1 |
 | Google.Api.Gax.Grpc | 4.13.1 |
@@ -85,14 +89,18 @@ It is generated from project files; licenses remain with their respective owners
 | Google.Cloud.Monitoring.V3 | 3.16.0 |
 | Google.Cloud.PubSub.V1 | 3.33.0 |
 | Google.Cloud.Scheduler.V1 | 3.6.0 |
+| Google.Cloud.Spanner.Data | 4.6.0 |
 | Google.Cloud.Storage.V1 | 4.14.0 |
 | Google.Events.Protobuf | 1.8.0 |
 | Google.Protobuf | 3.34.1 |
 | Grpc.Net.Client | 2.76.0 |
+| IBMMQDotnetClient | 10.0.0 |
 | IdentityModel | 7.0.0 |
 | JsonNet.ContractResolvers | 2.0.0 |
 | Konscious.Security.Cryptography.Argon2 | 1.3.1 |
 | KubernetesClient | 19.0.2 |
+| MQTTnet | 5.2.0.1603 |
+| Marten | 9.12.0 |
 | Medo.Uuid7 | 3.2.0 |
 | MemoryPack | 1.21.4 |
 | MessagePack | 3.1.7 |
@@ -111,30 +119,32 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues | 5.5.4 |
 | Microsoft.Data.SqlClient | 7.0.0 |
 | Microsoft.Data.Sqlite | 10.0.7 |
-| Microsoft.Extensions.Caching.Abstractions | 10.0.7 |
+| Microsoft.Extensions.Caching.Abstractions | 10.0.10 |
 | Microsoft.Extensions.Caching.Hybrid | 10.5.0 |
-| Microsoft.Extensions.Caching.Memory | 10.0.7 |
-| Microsoft.Extensions.Caching.StackExchangeRedis | 10.0.7 |
-| Microsoft.Extensions.Configuration | 10.0.7 |
-| Microsoft.Extensions.Configuration.Abstractions | 10.0.7 |
-| Microsoft.Extensions.Configuration.Binder | 10.0.7 |
-| Microsoft.Extensions.Configuration.CommandLine | 10.0.7 |
-| Microsoft.Extensions.Configuration.EnvironmentVariables | 10.0.7 |
-| Microsoft.Extensions.Configuration.Json | 10.0.7 |
-| Microsoft.Extensions.DependencyInjection | 10.0.7 |
-| Microsoft.Extensions.DependencyInjection.Abstractions | 10.0.7 |
-| Microsoft.Extensions.Diagnostics.HealthChecks | 10.0.7 |
-| Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions | 10.0.7 |
-| Microsoft.Extensions.Hosting | 10.0.7 |
-| Microsoft.Extensions.Hosting.Abstractions | 10.0.7 |
-| Microsoft.Extensions.Http | 10.0.7 |
-| Microsoft.Extensions.Logging | 10.0.7 |
-| Microsoft.Extensions.Logging.Abstractions | 10.0.7 |
-| Microsoft.Extensions.Logging.Console | 10.0.7 |
-| Microsoft.Extensions.ObjectPool | 10.0.7 |
-| Microsoft.Extensions.Options | 10.0.7 |
-| Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.7 |
-| Microsoft.Extensions.Options.DataAnnotations | 10.0.7 |
+| Microsoft.Extensions.Caching.Memory | 10.0.10 |
+| Microsoft.Extensions.Caching.StackExchangeRedis | 10.0.10 |
+| Microsoft.Extensions.Configuration | 10.0.10 |
+| Microsoft.Extensions.Configuration.Abstractions | 10.0.10 |
+| Microsoft.Extensions.Configuration.Binder | 10.0.10 |
+| Microsoft.Extensions.Configuration.CommandLine | 10.0.10 |
+| Microsoft.Extensions.Configuration.EnvironmentVariables | 10.0.10 |
+| Microsoft.Extensions.Configuration.Json | 10.0.10 |
+| Microsoft.Extensions.DependencyInjection | 10.0.10 |
+| Microsoft.Extensions.DependencyInjection.Abstractions | 10.0.10 |
+| Microsoft.Extensions.Diagnostics.HealthChecks | 10.0.10 |
+| Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions | 10.0.10 |
+| Microsoft.Extensions.FileProviders.Embedded | 10.0.10 |
+| Microsoft.Extensions.Hosting | 10.0.10 |
+| Microsoft.Extensions.Hosting.Abstractions | 10.0.10 |
+| Microsoft.Extensions.Http | 10.0.10 |
+| Microsoft.Extensions.Http.Resilience | 10.8.0 |
+| Microsoft.Extensions.Logging | 10.0.10 |
+| Microsoft.Extensions.Logging.Abstractions | 10.0.10 |
+| Microsoft.Extensions.Logging.Console | 10.0.10 |
+| Microsoft.Extensions.ObjectPool | 10.0.10 |
+| Microsoft.Extensions.Options | 10.0.10 |
+| Microsoft.Extensions.Options.ConfigurationExtensions | 10.0.10 |
+| Microsoft.Extensions.Options.DataAnnotations | 10.0.10 |
 | Microsoft.IdentityModel.Tokens | 8.17.0 |
 | MongoDB.Driver | 3.8.0 |
 | MySqlConnector | 2.5.0 |
@@ -147,12 +157,13 @@ It is generated from project files; licenses remain with their respective owners
 | OpenTelemetry.Exporter.OpenTelemetryProtocol | 1.15.3 |
 | OpenTelemetry.Exporter.Prometheus.AspNetCore | 1.13.0-beta.1 |
 | OpenTelemetry.Extensions.Hosting | 1.15.3 |
+| OpenTelemetry.Extensions.Propagators | 1.15.3 |
 | OpenTelemetry.Instrumentation.AspNetCore | 1.15.1 |
 | OpenTelemetry.Instrumentation.Http | 1.15.0 |
 | OpenTelemetry.Instrumentation.Process | 1.12.0-beta.1 |
 | OpenTelemetry.Instrumentation.Runtime | 1.15.0 |
+| Oracle.ManagedDataAccess.Core | 23.8.0 |
 | Polly | 8.6.6 |
-| Polly.RateLimiting | 8.6.6 |
 | Quartz | 3.18.0 |
 | Quartz.Extensions.DependencyInjection | 3.18.0 |
 | Quartz.Extensions.Hosting | 3.18.0 |
@@ -178,4 +189,11 @@ It is generated from project files; licenses remain with their respective owners
 | System.Text.Json | 10.0.7 |
 | System.Threading.Channels | 10.0.7 |
 | System.Threading.RateLimiting | 10.0.7 |
+| Testcontainers | 4.11.0 |
+| Testcontainers.CosmosDb | 4.11.0 |
+| Testcontainers.MsSql | 4.11.0 |
+| Testcontainers.PostgreSql | 4.11.0 |
+| Testcontainers.RabbitMq | 4.11.0 |
+| Testcontainers.Redis | 4.11.0 |
 | VaultSharp | 1.17.5.1 |
+| xunit.v3.extensibility.core | 3.2.2 |

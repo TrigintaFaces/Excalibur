@@ -16,7 +16,7 @@ public sealed class TenantDefaultsShould
 	public void DefaultTenantId_Should_BeDefault()
 	{
 		// Assert
-		TenantDefaults.DefaultTenantId.ShouldBe("Default");
+		TenantDefaults.DefaultTenantId.ShouldBe("__default__");
 	}
 
 	[Fact]

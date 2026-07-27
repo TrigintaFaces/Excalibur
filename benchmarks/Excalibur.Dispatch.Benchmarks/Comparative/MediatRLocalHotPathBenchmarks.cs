@@ -231,6 +231,5 @@ public class MediatRLocalHotPathBenchmarks
 		HandlerInvokerRegistry.FreezeCache();
 		HandlerActivator.FreezeCache();
 		FinalDispatchHandler.FreezeResultFactoryCache();
-		MiddlewareApplicabilityEvaluator.FreezeCache();
 	}
 }

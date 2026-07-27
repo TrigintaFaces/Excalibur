@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Transport;
 
@@ -220,6 +221,24 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 
 		RegisterOptions();
 
+		// ssn7a3 (AC2 — fail closed at startup): authorization was explicitly wired into the pipeline
+		// (UseAuthorization() → AuthorizationMiddleware in the global middleware set) but its activating
+		// feature is disabled, so the synthesizer/evaluator would silently drop the authorization stage and
+		// let authorization-required Action messages reach their handlers unauthorized. Fail loud, naming the
+		// missing feature — mirroring ASP.NET Core's missing-UseAuthorization InvalidOperationException. A
+		// consumer who never called UseAuthorization() has no descriptor here, so this never fires (the
+		// opt-in-complexity design principle is preserved; disabling the feature without wiring auth is a
+		// deliberate opt-out, not a misconfiguration).
+		if (_globalMiddleware.Contains(typeof(AuthorizationMiddleware)) && !_options.Features.EnableAuthorization)
+		{
+			throw new InvalidOperationException(
+				"AuthorizationMiddleware is registered in the dispatch pipeline (via UseAuthorization()), but the " +
+				"Authorization feature is disabled (DispatchOptions.Features.EnableAuthorization = false). This would " +
+				"silently drop the authorization stage and allow authorization-required Action messages to bypass " +
+				"authorization. Enable the Authorization feature, or remove UseAuthorization() if authorization is " +
+				"intentionally not used.");
+		}
+
 		foreach (var middlewareType in _globalMiddleware)
 		{
 			_ = Services.AddScoped(middlewareType);
@@ -424,7 +443,12 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 
 		foreach (var middlewareType in _globalMiddleware)
 		{
-			_ = pipelineBuilder.Use(sp => (IDispatchMiddleware)sp.GetRequiredService(middlewareType));
+			// Pass the type through: it is already in hand here, and without it an unresolvable
+			// global middleware appears in the build failure as an unnamed factory entry, which
+			// tells a consumer nothing about what to register.
+			_ = pipelineBuilder.Use(
+				middlewareType,
+				sp => (IDispatchMiddleware)sp.GetRequiredService(middlewareType));
 		}
 
 		configure(pipelineBuilder);

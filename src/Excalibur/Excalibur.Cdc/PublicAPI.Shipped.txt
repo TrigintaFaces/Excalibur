@@ -36,6 +36,10 @@ Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.CdcFatalErrorOptions() -> void
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.OnFatalError.get -> Excalibur.Cdc.CdcFatalErrorHandler<TEvent!>?
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.OnFatalError.set -> void
 Excalibur.Cdc.CdcFatalGuard
+Excalibur.Cdc.CdcLeadershipSupersededException
+Excalibur.Cdc.CdcLeadershipSupersededException.CdcLeadershipSupersededException() -> void
+Excalibur.Cdc.CdcLeadershipSupersededException.CdcLeadershipSupersededException(string! message) -> void
+Excalibur.Cdc.CdcLeadershipSupersededException.CdcLeadershipSupersededException(string! message, System.Exception! innerException) -> void
 Excalibur.Cdc.CdcMappingException
 Excalibur.Cdc.CdcMappingException.CdcMappingException() -> void
 Excalibur.Cdc.CdcMappingException.CdcMappingException(string! message) -> void
@@ -260,6 +264,7 @@ const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDisable
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDrainTimeout = 3105 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceError = 3102 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceErrorBackoff = 3109 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceNoProcessor = 3110 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceProcessedChanges = 3104 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStarting = 3101 -> int
 const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStopped = 3103 -> int

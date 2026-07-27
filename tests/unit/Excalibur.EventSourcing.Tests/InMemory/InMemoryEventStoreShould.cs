@@ -424,7 +424,9 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 
 		// Assert
 		result.Success.ShouldBeTrue();
-		result.FirstEventPosition.ShouldBeGreaterThan(0);
+		// InMemory is a real global-position provider: an actual append yields a non-null monotonic position.
+		result.FirstEventPosition.ShouldNotBeNull();
+		result.FirstEventPosition.Value.ShouldBeGreaterThan(0);
 		result.NextExpectedVersion.ShouldBe(2);
 	}
 
@@ -453,7 +455,9 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 		// Assert - Positions should be monotonically increasing across aggregates
 		result1.Success.ShouldBeTrue();
 		result2.Success.ShouldBeTrue();
-		result2.FirstEventPosition.ShouldBeGreaterThan(result1.FirstEventPosition);
+		result1.FirstEventPosition.ShouldNotBeNull();
+		result2.FirstEventPosition.ShouldNotBeNull();
+		result2.FirstEventPosition.Value.ShouldBeGreaterThan(result1.FirstEventPosition.Value);
 	}
 
 	#endregion Coverage gap: AppendAsync position tracking
@@ -1165,9 +1169,9 @@ public sealed class InMemoryEventStoreShould : UnitTestBase
 			expectedVersion: -1,
 			CancellationToken.None).ConfigureAwait(false);
 
-		// Assert - Should hit early return at line 158-160
+		// Assert - Should hit early return: empty append yields no position (null), consistent with SqlServer/Postgres.
 		result.Success.ShouldBeTrue();
-		result.FirstEventPosition.ShouldBe(0);
+		result.FirstEventPosition.ShouldBeNull();
 		result.NextExpectedVersion.ShouldBe(-1);
 	}
 

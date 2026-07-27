@@ -242,33 +242,32 @@ public sealed class ContentHashDeduplicationStrategyShould : UnitTestBase
 	{
 		// Arrange
 		const string deduplicationId = "test-id";
-		_ = A.CallTo(() => _fakeStore.CheckAndMarkAsync(A<string>.Ignored, A<DeduplicationContext>.Ignored, A<CancellationToken>.Ignored))
-			.Returns(new DeduplicationResult());
+		_ = A.CallTo(() => _fakeStore.AddAsync(A<string>.Ignored, A<TimeSpan?>.Ignored, A<CancellationToken>.Ignored))
+			.Returns(Task.CompletedTask);
 
 		// Act
 		await _strategy.MarkAsProcessedAsync(deduplicationId, null, CancellationToken.None);
 
-		// Assert
-		_ = A.CallTo(() => _fakeStore.CheckAndMarkAsync(deduplicationId, A<DeduplicationContext>.Ignored, A<CancellationToken>.Ignored))
+		// Assert — marks via AddAsync (which honors expiration), not the expiry-less CheckAndMarkAsync.
+		_ = A.CallTo(() => _fakeStore.AddAsync(deduplicationId, A<TimeSpan?>.Ignored, A<CancellationToken>.Ignored))
 			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
-	public async Task MarkAsProcessedAsync_PassesContext()
+	public async Task MarkAsProcessedAsync_HonorsExpiration()
 	{
 		// Arrange
 		const string deduplicationId = "test-id";
-		DeduplicationContext? capturedContext = null;
-		_ = A.CallTo(() => _fakeStore.CheckAndMarkAsync(A<string>.Ignored, A<DeduplicationContext>.Ignored, A<CancellationToken>.Ignored))
-			.Invokes((string _, DeduplicationContext ctx, CancellationToken _) => capturedContext = ctx)
-			.Returns(new DeduplicationResult());
+		var expiration = TimeSpan.FromMinutes(15);
+		_ = A.CallTo(() => _fakeStore.AddAsync(A<string>.Ignored, A<TimeSpan?>.Ignored, A<CancellationToken>.Ignored))
+			.Returns(Task.CompletedTask);
 
 		// Act
-		await _strategy.MarkAsProcessedAsync(deduplicationId, null, CancellationToken.None);
+		await _strategy.MarkAsProcessedAsync(deduplicationId, expiration, CancellationToken.None);
 
-		// Assert
-		_ = capturedContext.ShouldNotBeNull();
-		capturedContext.Source.ShouldBe("ContentHash");
+		// Assert — the caller-supplied expiration is threaded to the store (the fixed bug).
+		_ = A.CallTo(() => _fakeStore.AddAsync(deduplicationId, expiration, A<CancellationToken>.Ignored))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	#endregion

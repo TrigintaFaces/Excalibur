@@ -5,7 +5,9 @@ using System.Data;
 
 using Excalibur.Data;
 using Excalibur.Data.Persistence;
+using Excalibur.Data.SqlServer;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -166,82 +168,92 @@ public sealed class AntiPatternVerificationShould
 
 	#region AC4: Decision matrix from spec is followed
 
+	// Returns every distinct constructor-parameter type declared by <paramref name="serviceType"/>,
+	// so a test can assert the real abstraction the type depends on (not a self-equal literal).
+	private static Type[] ConstructorDependencies(Type serviceType) =>
+		serviceType.GetConstructors()
+			.SelectMany(static c => c.GetParameters())
+			.Select(static p => p.ParameterType)
+			.Distinct()
+			.ToArray();
+
 	[Fact]
 	public void DecisionMatrix_FrameworkInfrastructure_UsesConnectionFactory()
 	{
-		// Per spec: Framework infrastructure (EventStore, SnapshotStore, etc.) uses Func<TConnection>
-		// This is verified by the existing SqlServerEventStore tests
-		// This test documents the decision
+		// Per spec: Framework infrastructure (EventStore, SnapshotStore, resolvers, etc.) uses a
+		// Func<TConnection> factory for maximum performance. Verify the REAL framework infrastructure
+		// type SqlDataRequestResolver adheres — it depends on a connection-factory delegate and NOT on
+		// the consumer-facing IDomainDb / IPersistenceProvider abstractions. This FAILS if the type is
+		// ever refactored onto the wrong pattern.
+		var dependencies = ConstructorDependencies(typeof(SqlDataRequestResolver));
 
-		var decision = new PatternDecision
-		{
-			Question = "Am I building framework infrastructure (EventStore, SnapshotStore, etc.)?",
-			Answer = true,
-			ExpectedPattern = "Func<TConnection> factory"
-		};
-
-		decision.ExpectedPattern.ShouldBe("Func<TConnection> factory",
-			"Framework infrastructure should use connection factory pattern for maximum performance");
+		dependencies.ShouldContain(typeof(Func<SqlConnection>),
+			"Framework infrastructure should inject a Func<TConnection> factory for maximum performance");
+		dependencies.ShouldNotContain(typeof(IDomainDb),
+			"Framework infrastructure should not depend on the consumer IDomainDb abstraction");
+		dependencies.ShouldNotContain(typeof(IPersistenceProvider),
+			"Framework infrastructure should not depend on IPersistenceProvider");
 	}
 
 	[Fact]
 	public void DecisionMatrix_ConsumerDomainRepository_UsesIDb()
 	{
-		// Per spec: Consumer domain repositories use IDb/IDomainDb
-		var decision = new PatternDecision
-		{
-			Question = "Am I building a consumer domain repository?",
-			Answer = true,
-			ExpectedPattern = "IDb / IDomainDb"
-		};
+		// Per spec: Consumer domain repositories use IDb/IDomainDb. Verify the REAL consumer repository
+		// SimpleProductRepository injects IDomainDb and NOT IPersistenceProvider or a raw connection
+		// factory. FAILS if the repository adopts the wrong (framework/resilience) pattern.
+		var dependencies = ConstructorDependencies(typeof(SimpleProductRepository));
 
-		decision.ExpectedPattern.ShouldBe("IDb / IDomainDb",
-			"Consumer domain repositories should use IDomainDb for testability");
+		dependencies.ShouldContain(typeof(IDomainDb),
+			"Consumer domain repositories should inject IDomainDb for testability");
+		dependencies.ShouldNotContain(typeof(IPersistenceProvider),
+			"Consumer domain repositories should not inject IPersistenceProvider");
+		dependencies.ShouldNotContain(typeof(Func<SqlConnection>),
+			"Consumer domain repositories should not inject a raw connection factory");
 	}
 
 	[Fact]
 	public void DecisionMatrix_AutomaticRetries_UsesIPersistenceProvider()
 	{
-		// Per spec: Services needing automatic retries and health checks use IPersistenceProvider
-		var decision = new PatternDecision
-		{
-			Question = "Do I need automatic retries and health checks?",
-			Answer = true,
-			ExpectedPattern = "IPersistenceProvider"
-		};
+		// Per spec: Services needing automatic retries and health checks use IPersistenceProvider.
+		// Verify the REAL resilient service ResilientOrderProcessingService injects IPersistenceProvider
+		// and NOT the plain IDomainDb pattern (which has no retry). FAILS on the wrong pattern choice.
+		var dependencies = ConstructorDependencies(typeof(ResilientOrderProcessingService));
 
-		decision.ExpectedPattern.ShouldBe("IPersistenceProvider",
-			"Services needing automatic retries should use IPersistenceProvider");
+		dependencies.ShouldContain(typeof(IPersistenceProvider),
+			"Services needing automatic retries should inject IPersistenceProvider");
+		dependencies.ShouldNotContain(typeof(IDomainDb),
+			"Services needing automatic retries should not use the plain IDomainDb pattern (no retry)");
 	}
 
 	[Fact]
 	public void DecisionMatrix_ExplicitTransactionControl_UsesConnectionFactory()
 	{
-		// Per spec: Explicit transaction isolation control uses connection factory
-		var decision = new PatternDecision
-		{
-			Question = "Do I need explicit transaction isolation control?",
-			Answer = true,
-			ExpectedPattern = "Func<TConnection> factory"
-		};
+		// Per spec: Explicit transaction/connection lifecycle control uses a Func<TConnection> factory so
+		// the caller owns the connection. Verify the REAL type SqlDataRequestResolver, which creates and
+		// disposes its own SqlConnection per call, depends on the connection-factory delegate rather than
+		// a shared IDomainDb / IPersistenceProvider. FAILS if refactored onto a non-factory pattern.
+		var dependencies = ConstructorDependencies(typeof(SqlDataRequestResolver));
 
-		decision.ExpectedPattern.ShouldBe("Func<TConnection> factory",
-			"Explicit transaction control scenarios should use connection factory");
+		dependencies.ShouldContain(typeof(Func<SqlConnection>),
+			"Explicit transaction control scenarios should inject a Func<TConnection> factory");
+		dependencies.ShouldNotContain(typeof(IDomainDb),
+			"Explicit transaction control should not rely on a shared IDomainDb connection");
 	}
 
 	[Fact]
 	public void DecisionMatrix_SimpleCRUD_UsesIDb()
 	{
-		// Per spec: Simple CRUD with testability uses IDb/IDomainDb
-		var decision = new PatternDecision
-		{
-			Question = "Am I doing simple CRUD with testability?",
-			Answer = true,
-			ExpectedPattern = "IDb / IDomainDb"
-		};
+		// Per spec: Simple CRUD with testability uses IDb/IDomainDb. Verify the REAL CRUD repository
+		// SimpleProductRepository injects IDomainDb and carries no resilience/factory overhead. FAILS if
+		// it adopts IPersistenceProvider (overkill) or a raw connection factory.
+		var dependencies = ConstructorDependencies(typeof(SimpleProductRepository));
 
-		decision.ExpectedPattern.ShouldBe("IDb / IDomainDb",
-			"Simple CRUD operations should use IDomainDb for testability");
+		dependencies.ShouldContain(typeof(IDomainDb),
+			"Simple CRUD operations should inject IDomainDb for testability");
+		dependencies.ShouldNotContain(typeof(IPersistenceProvider),
+			"Simple CRUD operations should not inject IPersistenceProvider (unnecessary overhead)");
+		dependencies.ShouldNotContain(typeof(Func<SqlConnection>),
+			"Simple CRUD operations should not inject a raw connection factory");
 	}
 
 	#endregion AC4: Decision matrix from spec is followed
@@ -375,16 +387,6 @@ public sealed class SimpleProductRepository
 
 	public bool UsesIDomainDb => true;
 	public bool HasBuiltInRetry => false;
-}
-
-/// <summary>
-/// Helper class for documenting pattern decisions.
-/// </summary>
-public sealed class PatternDecision
-{
-	public string Question { get; set; } = string.Empty;
-	public bool Answer { get; set; }
-	public string ExpectedPattern { get; set; } = string.Empty;
 }
 
 #endregion Test Service Classes

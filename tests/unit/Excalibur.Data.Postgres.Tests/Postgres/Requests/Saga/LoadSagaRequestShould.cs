@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Saga.Postgres;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 
@@ -34,7 +35,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -50,7 +51,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -70,7 +71,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -86,7 +87,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -102,7 +103,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		var paramNames = request.Parameters.ParameterNames.ToList();
@@ -119,7 +120,7 @@ public sealed class LoadSagaRequestShould
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
-			SagaId, options, serializer, CancellationToken.None);
+			SagaId, options, serializer, TenantScope.None, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(60);
@@ -130,7 +131,7 @@ public sealed class LoadSagaRequestShould
 	{
 		var serializer = new DispatchJsonSerializer();
 		Should.Throw<ArgumentNullException>(() => new LoadSagaRequest<TestSagaState>(
-			SagaId, null!, serializer, CancellationToken.None));
+			SagaId, null!, serializer, TenantScope.None, CancellationToken.None));
 	}
 
 	[Fact]
@@ -138,7 +139,7 @@ public sealed class LoadSagaRequestShould
 	{
 		var options = CreateOptions();
 		Should.Throw<ArgumentNullException>(() => new LoadSagaRequest<TestSagaState>(
-			SagaId, options, null!, CancellationToken.None));
+			SagaId, options, null!, TenantScope.None, CancellationToken.None));
 	}
 
 	/// <summary>

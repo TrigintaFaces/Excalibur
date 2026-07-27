@@ -77,4 +77,9 @@ public interface IMaterializedViewStore
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
 	ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken);
+
+	// An atomic view+position write is deliberately NOT declared here, not even as a virtual member with a
+	// sequential default. A default would let a store inherit an exactly-once guarantee it cannot honour,
+	// and the two-write fallback silently double-counts accumulating views after a crash. Stores that can
+	// commit both writes together implement IAtomicMaterializedViewStore and say so in the type system.
 }

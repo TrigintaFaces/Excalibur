@@ -9,6 +9,8 @@ namespace Excalibur.Dispatch.Tests.CloudEvents;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class InMemorySchemaRegistryShould
 {
+	private static readonly string[] ExpectedVersions = ["1.0", "2.0"];
+
 	[Fact]
 	public async Task GetSchemaAsync_WhenNotRegistered_ReturnsNull()
 	{
@@ -36,63 +38,42 @@ public sealed class InMemorySchemaRegistryShould
 		versions.Count.ShouldBe(0);
 	}
 
-	// --- IsCompatible ---
+	// --- Registration round-trip ---
 
-	[Theory]
-	[InlineData("1.0", "1.2", SchemaCompatibilityMode.Forward, true)]
-	[InlineData("1.2", "1.0", SchemaCompatibilityMode.Forward, false)]
-	[InlineData("1.2", "1.0", SchemaCompatibilityMode.Backward, true)]
-	[InlineData("1.0", "1.2", SchemaCompatibilityMode.Backward, false)]
-	[InlineData("1.0", "1.5", SchemaCompatibilityMode.Full, true)]
-	[InlineData("1.0", "2.0", SchemaCompatibilityMode.Full, false)]
-	[InlineData("1.0", "1.0", SchemaCompatibilityMode.None, false)]
-	public void IsCompatible_ReturnsExpectedResult(
-		string fromVersion, string toVersion, SchemaCompatibilityMode mode, bool expected)
+	[Fact]
+	public async Task RegisterSchemaAsync_ThenGetSchemaAsync_ReturnsRegisteredSchema()
 	{
-		// Arrange
 		var registry = new InMemorySchemaRegistry();
+		var ct = TestContext.Current.CancellationToken;
 
-		// Act
-		var result = registry.IsCompatible("event.type", fromVersion, toVersion, mode);
+		await registry.RegisterSchemaAsync("event.type", "1.0", "{\"type\":\"object\"}", ct);
 
-		// Assert
-		result.ShouldBe(expected);
+		(await registry.GetSchemaAsync("event.type", "1.0", ct)).ShouldBe("{\"type\":\"object\"}");
 	}
 
 	[Fact]
-	public void IsCompatible_WithInvalidVersions_ReturnsFalse()
+	public async Task RegisterSchemaAsync_TracksVersions_PerEventType()
 	{
-		// Arrange
 		var registry = new InMemorySchemaRegistry();
+		var ct = TestContext.Current.CancellationToken;
 
-		// Act & Assert
-		registry.IsCompatible("event.type", "invalid", "1.0", SchemaCompatibilityMode.Full).ShouldBeFalse();
-		registry.IsCompatible("event.type", "1.0", "invalid", SchemaCompatibilityMode.Full).ShouldBeFalse();
+		await registry.RegisterSchemaAsync("event.type", "1.0", "s1", ct);
+		await registry.RegisterSchemaAsync("event.type", "2.0", "s2", ct);
+		await registry.RegisterSchemaAsync("event.type", "1.0", "s1-again", ct); // idempotent version tracking
+
+		var versions = await registry.GetVersionsAsync("event.type", ct);
+
+		versions.ShouldBe(ExpectedVersions, ignoreOrder: true);
 	}
 
 	[Fact]
-	public void IsCompatible_SameMajorDifferentMinor_ForwardIsTrue()
+	public async Task RegisterSchemaAsync_WithNullOrEmptyArguments_Throws()
 	{
-		// Arrange
 		var registry = new InMemorySchemaRegistry();
+		var ct = TestContext.Current.CancellationToken;
 
-		// Act
-		var result = registry.IsCompatible("type", "1.0", "1.3", SchemaCompatibilityMode.Forward);
-
-		// Assert
-		result.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void IsCompatible_DifferentMajor_ForwardIsFalse()
-	{
-		// Arrange
-		var registry = new InMemorySchemaRegistry();
-
-		// Act
-		var result = registry.IsCompatible("type", "1.0", "2.0", SchemaCompatibilityMode.Forward);
-
-		// Assert
-		result.ShouldBeFalse();
+		await Should.ThrowAsync<ArgumentException>(() => registry.RegisterSchemaAsync("", "1.0", "s", ct));
+		await Should.ThrowAsync<ArgumentException>(() => registry.RegisterSchemaAsync("t", "", "s", ct));
+		await Should.ThrowAsync<ArgumentNullException>(() => registry.RegisterSchemaAsync("t", "1.0", null!, ct));
 	}
 }

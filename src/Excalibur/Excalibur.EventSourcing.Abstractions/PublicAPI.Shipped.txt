@@ -1,7 +1,7 @@
 #nullable enable
 Excalibur.EventSourcing.AppendResult
 Excalibur.EventSourcing.AppendResult.ErrorMessage.get -> string?
-Excalibur.EventSourcing.AppendResult.FirstEventPosition.get -> long
+Excalibur.EventSourcing.AppendResult.FirstEventPosition.get -> long?
 Excalibur.EventSourcing.AppendResult.IsConcurrencyConflict.get -> bool
 Excalibur.EventSourcing.AppendResult.NextExpectedVersion.get -> long
 Excalibur.EventSourcing.AppendResult.Success.get -> bool
@@ -21,9 +21,11 @@ Excalibur.EventSourcing.ArchiveCandidate.AggregateType.get -> string!
 Excalibur.EventSourcing.ArchiveCandidate.AggregateType.init -> void
 Excalibur.EventSourcing.ArchiveCandidate.ArchivableUpToVersion.get -> long
 Excalibur.EventSourcing.ArchiveCandidate.ArchivableUpToVersion.init -> void
-Excalibur.EventSourcing.ArchiveCandidate.ArchiveCandidate(string! AggregateId, string! AggregateType, long ArchivableUpToVersion, int EventCount) -> void
+Excalibur.EventSourcing.ArchiveCandidate.ArchiveCandidate(Excalibur.Dispatch.KeyedTenantPartition! Tenant, string! AggregateId, string! AggregateType, long ArchivableUpToVersion, int EventCount) -> void
 Excalibur.EventSourcing.ArchiveCandidate.EventCount.get -> int
 Excalibur.EventSourcing.ArchiveCandidate.EventCount.init -> void
+Excalibur.EventSourcing.ArchiveCandidate.Tenant.get -> Excalibur.Dispatch.KeyedTenantPartition!
+Excalibur.EventSourcing.ArchiveCandidate.Tenant.init -> void
 Excalibur.EventSourcing.ArchivePolicy
 Excalibur.EventSourcing.ArchivePolicy.ArchivePolicy() -> void
 Excalibur.EventSourcing.ArchivePolicy.MaxAge.get -> System.TimeSpan?
@@ -42,6 +44,7 @@ Excalibur.EventSourcing.AutoSnapshotOptions.TimeThreshold.get -> System.TimeSpan
 Excalibur.EventSourcing.AutoSnapshotOptions.TimeThreshold.set -> void
 Excalibur.EventSourcing.AutoSnapshotOptions.VersionThreshold.get -> long?
 Excalibur.EventSourcing.AutoSnapshotOptions.VersionThreshold.set -> void
+Excalibur.EventSourcing.ColdStorageKey
 Excalibur.EventSourcing.CursorEncoder
 Excalibur.EventSourcing.CursorPagedResult<T>
 Excalibur.EventSourcing.CursorPagedResult<T>.CursorPagedResult(System.Collections.Generic.IEnumerable<T>! items, int pageSize, long totalRecords, string? nextCursor = null, string? previousCursor = null) -> void
@@ -60,6 +63,13 @@ Excalibur.EventSourcing.CursorPagedResult<T>.TotalPages.get -> int
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalRecords.get -> long
 Excalibur.EventSourcing.CursorPagedResult<T>.TotalRecords.init -> void
 Excalibur.EventSourcing.ErasedEventMarker
+Excalibur.EventSourcing.EventBatchTooLargeException
+Excalibur.EventSourcing.EventBatchTooLargeException.ActualCount.get -> int
+Excalibur.EventSourcing.EventBatchTooLargeException.EventBatchTooLargeException() -> void
+Excalibur.EventSourcing.EventBatchTooLargeException.EventBatchTooLargeException(string! message) -> void
+Excalibur.EventSourcing.EventBatchTooLargeException.EventBatchTooLargeException(string! message, System.Exception? innerException) -> void
+Excalibur.EventSourcing.EventBatchTooLargeException.EventBatchTooLargeException(string? paramName, int actualCount, int maxBatchSize, string! message) -> void
+Excalibur.EventSourcing.EventBatchTooLargeException.MaxBatchSize.get -> int
 Excalibur.EventSourcing.EventNotificationContext
 Excalibur.EventSourcing.EventNotificationContext.AggregateId.get -> string!
 Excalibur.EventSourcing.EventNotificationContext.AggregateId.init -> void
@@ -87,11 +97,14 @@ Excalibur.EventSourcing.FilterOperator.LessThanOrEqual = 5 -> Excalibur.EventSou
 Excalibur.EventSourcing.FilterOperator.NotEquals = 1 -> Excalibur.EventSourcing.FilterOperator
 Excalibur.EventSourcing.FilterParser
 Excalibur.EventSourcing.IAggregateQuery<TAggregate>
+Excalibur.EventSourcing.IAtomicMaterializedViewStore
+Excalibur.EventSourcing.IAtomicMaterializedViewStore.SaveViewAndPositionAsync<TView>(string! viewName, string! viewId, TView! view, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.IAtomicMaterializedViewStore.SupportsAtomicWrites.get -> bool
 Excalibur.EventSourcing.IColdEventStore
-Excalibur.EventSourcing.IColdEventStore.HasArchivedEventsAsync(string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.EventSourcing.IColdEventStore.ReadAsync(string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>!
-Excalibur.EventSourcing.IColdEventStore.ReadAsync(string! aggregateId, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>!
-Excalibur.EventSourcing.IColdEventStore.WriteAsync(string! aggregateId, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>! events, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.IColdEventStore.HasArchivedEventsAsync(Excalibur.Dispatch.KeyedTenantPartition! tenant, string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.IColdEventStore.ReadAsync(Excalibur.Dispatch.KeyedTenantPartition! tenant, string! aggregateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>!
+Excalibur.EventSourcing.IColdEventStore.ReadAsync(Excalibur.Dispatch.KeyedTenantPartition! tenant, string! aggregateId, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>!
+Excalibur.EventSourcing.IColdEventStore.WriteAsync(Excalibur.Dispatch.KeyedTenantPartition! tenant, string! aggregateId, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>! events, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Excalibur.EventSourcing.ICursorMapStore
 Excalibur.EventSourcing.ICursorMapStore.GetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
 Excalibur.EventSourcing.ICursorMapStore.ResetCursorMapAsync(string! projectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -118,7 +131,7 @@ Excalibur.EventSourcing.IEventStore.AppendAsync(string! aggregateId, string! agg
 Excalibur.EventSourcing.IEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
 Excalibur.EventSourcing.IEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!>
 Excalibur.EventSourcing.IEventStoreArchive
-Excalibur.EventSourcing.IEventStoreArchive.DeleteEventsUpToVersionAsync(string! aggregateId, string! aggregateType, long toVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.EventSourcing.IEventStoreArchive.DeleteEventsUpToVersionAsync(Excalibur.Dispatch.KeyedTenantPartition! tenant, string! aggregateId, string! aggregateType, long toVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.EventSourcing.IEventStoreArchive.GetArchiveCandidatesAsync(Excalibur.EventSourcing.ArchivePolicy! policy, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.ArchiveCandidate!>!>!
 Excalibur.EventSourcing.IEventStoreErasure
 Excalibur.EventSourcing.IEventStoreErasure.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
@@ -139,6 +152,7 @@ Excalibur.EventSourcing.IIncrementalSnapshotStore<TState>.SaveFullAsync(string! 
 Excalibur.EventSourcing.IMaterializedViewBuilder<TView>
 Excalibur.EventSourcing.IMaterializedViewBuilder<TView>.Apply(TView! view, Excalibur.Dispatch.IDomainEvent! event) -> TView!
 Excalibur.EventSourcing.IMaterializedViewBuilder<TView>.CreateNew() -> TView!
+Excalibur.EventSourcing.IMaterializedViewBuilder<TView>.DeliverySemantics.get -> Excalibur.EventSourcing.ViewDeliverySemantics
 Excalibur.EventSourcing.IMaterializedViewBuilder<TView>.GetViewId(Excalibur.Dispatch.IDomainEvent! event) -> string?
 Excalibur.EventSourcing.IMaterializedViewBuilder<TView>.HandledEventTypes.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
 Excalibur.EventSourcing.IMaterializedViewBuilder<TView>.ViewName.get -> string!
@@ -308,14 +322,21 @@ Excalibur.EventSourcing.StoredEvent.Timestamp.get -> System.DateTimeOffset
 Excalibur.EventSourcing.StoredEvent.Timestamp.init -> void
 Excalibur.EventSourcing.StoredEvent.Version.get -> long
 Excalibur.EventSourcing.StoredEvent.Version.init -> void
+Excalibur.EventSourcing.TransactionalEventStoreMarker
+Excalibur.EventSourcing.TransactionalEventStoreMarker.TransactionalEventStoreMarker() -> void
 Excalibur.EventSourcing.VersionedProjection<TProjection>
 Excalibur.EventSourcing.VersionedProjection<TProjection>.Projection.get -> TProjection
 Excalibur.EventSourcing.VersionedProjection<TProjection>.Version.get -> long
 Excalibur.EventSourcing.VersionedProjection<TProjection>.VersionedProjection(TProjection projection, long version) -> void
+Excalibur.EventSourcing.ViewDeliverySemantics
+Excalibur.EventSourcing.ViewDeliverySemantics.AtLeastOnceIdempotent = 1 -> Excalibur.EventSourcing.ViewDeliverySemantics
+Excalibur.EventSourcing.ViewDeliverySemantics.ExactlyOnce = 0 -> Excalibur.EventSourcing.ViewDeliverySemantics
 const Excalibur.EventSourcing.ErasedEventMarker.EventType = "$erased" -> string!
 static Excalibur.EventSourcing.AppendResult.CreateConcurrencyConflict(long expectedVersion, long actualVersion) -> Excalibur.EventSourcing.AppendResult!
 static Excalibur.EventSourcing.AppendResult.CreateFailure(string! errorMessage) -> Excalibur.EventSourcing.AppendResult!
-static Excalibur.EventSourcing.AppendResult.CreateSuccess(long nextExpectedVersion, long firstEventPosition) -> Excalibur.EventSourcing.AppendResult!
+static Excalibur.EventSourcing.AppendResult.CreateSuccess(long nextExpectedVersion, long? firstEventPosition) -> Excalibur.EventSourcing.AppendResult!
+static Excalibur.EventSourcing.ColdStorageKey.AggregateSegment(string! aggregateId) -> string!
+static Excalibur.EventSourcing.ColdStorageKey.TenantSegment(Excalibur.Dispatch.KeyedTenantPartition! tenant) -> string!
 static Excalibur.EventSourcing.CursorEncoder.Decode(string? cursor) -> object?[]?
 static Excalibur.EventSourcing.CursorEncoder.Encode(params object?[]! sortValues) -> string!
 static Excalibur.EventSourcing.FilterParser.Parse(string! key) -> Excalibur.EventSourcing.ParsedFilter!

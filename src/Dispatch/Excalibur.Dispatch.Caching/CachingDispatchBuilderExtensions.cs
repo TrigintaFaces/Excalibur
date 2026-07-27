@@ -58,7 +58,9 @@ public static class CachingDispatchBuilderExtensions
 	}
 
 	/// <summary>
-	/// Configures caching with a custom options delegate.
+	/// Configures caching with a custom options delegate. Configuring caching also enables it: the caching services
+	/// and pipeline middleware are registered as part of this call, so the configured options are always honored
+	/// without a separate <see cref="UseCaching"/> call. Registration is idempotent and safe to combine with <see cref="UseCaching"/>.
 	/// </summary>
 	/// <param name="builder"> The <see cref="IDispatchBuilder" /> to configure. </param>
 	/// <param name="configure"> Callback used to set <see cref="CacheOptions" />. </param>
@@ -70,37 +72,42 @@ public static class CachingDispatchBuilderExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		var options = new CacheOptions();
-		configure(options);
+		// Configuring the feature also ENABLES it: register the caching services + pipeline middleware so the
+		// configured options are actually honored rather than binding options that nothing consumes (pit-of-success).
+		//
+		// The consumer delegate must fire EXACTLY ONCE (a non-idempotent configure previously double-fired: once
+		// here and again on a throwaway probe). Wrap it so it runs a single time — Dispatch's options pipeline
+		// invokes the delegate eagerly at registration, so the collaborators are captured synchronously from
+		// that one invocation and then promoted into DI, with no second (probe) call.
+		IResultCachePolicy? globalPolicy = null;
+		ICacheKeyBuilder? cacheKeyBuilder = null;
 
-		if (options.GlobalPolicy is not null)
+		_ = builder.UseCaching(options =>
 		{
-			_ = builder.Services.AddSingleton(options.GlobalPolicy);
+			configure(options);
+			globalPolicy = options.GlobalPolicy;
+			cacheKeyBuilder = options.CacheKeyBuilder;
+		});
+
+		// Promote options-provided collaborators into DI so the middleware resolves them (captured above from
+		// the single configure invocation).
+		if (globalPolicy is not null)
+		{
+			_ = builder.Services.AddSingleton(globalPolicy);
 		}
 
-		if (options.CacheKeyBuilder is not null)
+		if (cacheKeyBuilder is not null)
 		{
-			_ = builder.Services.AddSingleton(options.CacheKeyBuilder);
+			_ = builder.Services.AddSingleton(cacheKeyBuilder);
 		}
-
-		_ = builder.Services.AddOptions<CacheOptions>()
-			.Configure(opts =>
-			{
-				opts.Enabled = options.Enabled;
-				opts.CacheMode = options.CacheMode;
-				opts.Behavior.DefaultExpiration = options.Behavior.DefaultExpiration;
-				opts.DefaultTags = options.DefaultTags;
-				opts.Behavior.CacheTimeout = options.Behavior.CacheTimeout;
-				opts.GlobalPolicy = options.GlobalPolicy;
-				opts.CacheKeyBuilder = options.CacheKeyBuilder;
-			})
-			.ValidateOnStart();
 
 		return builder;
 	}
 
 	/// <summary>
-	/// Binds <see cref="CacheOptions" /> from configuration.
+	/// Binds <see cref="CacheOptions" /> from configuration. Binding caching options also enables the feature: the
+	/// caching services and pipeline middleware are registered as part of this call, so the bound options are always
+	/// honored without a separate <see cref="UseCaching"/> call.
 	/// </summary>
 	/// <param name="builder"> The <see cref="IDispatchBuilder" /> to configure. </param>
 	/// <param name="configuration"> The configuration section to bind. </param>
@@ -116,10 +123,13 @@ public static class CachingDispatchBuilderExtensions
 	public static IDispatchBuilder WithCachingOptions(this IDispatchBuilder builder, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = builder.Services.AddOptions<CacheOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
+		// Configuring the feature also ENABLES it: register the caching services (bound to configuration) + pipeline
+		// middleware so the bound options are actually honored rather than binding options that nothing consumes.
+		_ = builder.Services.AddDispatchCaching(configuration);
+		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CachingMiddlewareWrapper>();
+		_ = builder.UseMiddleware<CachingServiceCollectionExtensions.CacheInvalidationMiddlewareWrapper>();
 		return builder;
 	}
 

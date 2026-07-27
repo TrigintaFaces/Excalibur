@@ -52,14 +52,14 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// <summary>
 	/// Metadata field: preserves the projection's original <c>_id</c> value before it is
 	/// overwritten with the compound document key. The MongoDB driver's default
-	/// <see cref="MongoDB.Bson.Serialization.BsonClassMap"/> convention maps any property
+	/// <c>BsonClassMap</c> convention maps any property
 	/// named <c>Id</c> to the BSON element <c>_id</c>. During write we replace <c>_id</c>
 	/// with the compound <c>{projectionType}:{id}</c> key; this field stores the original
 	/// so <see cref="StripProjectionMetadata"/> can restore it before deserialization.
-	/// If a consumer registers a custom <see cref="MongoDB.Bson.Serialization.BsonClassMap"/>
+	/// If a consumer registers a custom <c>BsonClassMap</c>
 	/// that suppresses or renames the Id mapping, <c>origId</c> will simply be absent and
 	/// the compound key is removed instead — deserialization still succeeds because
-	/// <see cref="MongoDB.Bson.Serialization.Conventions.IgnoreExtraElementsConvention"/> is
+	/// <c>IgnoreExtraElementsConvention</c> is
 	/// registered globally via <see cref="MongoDbConventionInitializer"/>.
 	/// </summary>
 	private const string MetaFieldOrigId = "origId";
@@ -215,12 +215,12 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// Deserialization uses <see cref="MongoDB.Bson.Serialization.BsonSerializer"/> with
-	/// <see cref="MongoDB.Bson.Serialization.BsonClassMap"/> conventions (not System.Text.Json).
+	/// Deserialization uses <c>BsonSerializer</c> with
+	/// <c>BsonClassMap</c> conventions (not System.Text.Json).
 	/// Projection types that rely on <c>[JsonPropertyName]</c> attributes for field mapping
 	/// should also declare <c>[BsonElement]</c> attributes to ensure consistent round-trip
 	/// serialization. Without matching BSON attributes, renamed fields may deserialize as
-	/// <see langword="null"/> because <see cref="MongoDB.Bson.Serialization.Conventions.IgnoreExtraElementsConvention"/>
+	/// <see langword="null"/> because <c>IgnoreExtraElementsConvention</c>
 	/// silently skips unrecognized elements rather than failing.
 	/// </remarks>
 	public async Task<IReadOnlyList<TProjection>> QueryAsync(
@@ -441,20 +441,20 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// The MongoDB driver's default <see cref="MongoDB.Bson.Serialization.BsonClassMap"/>
+	/// The MongoDB driver's default <c>BsonClassMap</c>
 	/// convention maps any C# property named <c>Id</c> to the BSON element <c>_id</c>.
 	/// During write (<see cref="UpsertAsync"/>) we overwrite <c>_id</c> with a compound
 	/// document key (<c>{projectionType}:{id}</c>) and stash the original value in
 	/// <c>_projection.origId</c>. This method reverses that transformation so
-	/// <see cref="MongoDB.Bson.Serialization.BsonSerializer"/> maps it back to the
+	/// <c>BsonSerializer</c> maps it back to the
 	/// projection's <c>Id</c> property correctly.
 	/// </para>
 	/// <para>
 	/// If the projection type has no <c>Id</c> property (i.e., <c>origId</c> was never
 	/// stored), the compound <c>_id</c> is removed entirely to prevent
-	/// <see cref="MongoDB.Bson.Serialization.BsonSerializer"/> from injecting it into an
+	/// <c>BsonSerializer</c> from injecting it into an
 	/// unexpected member. Deserialization still succeeds because
-	/// <see cref="MongoDB.Bson.Serialization.Conventions.IgnoreExtraElementsConvention"/>
+	/// <c>IgnoreExtraElementsConvention</c>
 	/// is registered globally.
 	/// </para>
 	/// </remarks>

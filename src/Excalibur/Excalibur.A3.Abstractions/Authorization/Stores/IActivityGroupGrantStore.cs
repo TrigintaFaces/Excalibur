@@ -13,7 +13,7 @@ namespace Excalibur.A3.Authorization;
 /// a bridging ISP sub-interface for operations that span grant and activity-group stores.
 /// </para>
 /// <para>
-/// Access via <see cref="IGrantStore.GetService(Type)"/> or
+/// Access via <see cref="IServiceProvider.GetService(Type)"/> or
 /// <see cref="IActivityGroupStore.GetService(Type)"/>.
 /// </para>
 /// <para>

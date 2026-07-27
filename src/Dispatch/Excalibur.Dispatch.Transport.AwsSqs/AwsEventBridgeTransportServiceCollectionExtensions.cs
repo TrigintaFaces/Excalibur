@@ -199,6 +199,8 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 				options.ArchiveRetentionDays = transportOptions.ArchiveRetentionDays;
 			})
 			.ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<AwsEventBridgeOptions>>(new AwsEventBridgeOptionsValidator()));
 	}
 
 	/// <summary>
@@ -233,6 +235,7 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 		registry.RegisterTransportFactory(
 			name,
 			AwsEventBridgeTransportAdapter.TransportTypeName,
+			Excalibur.Dispatch.Transport.TransportLocality.Remote,
 			sp => sp.GetRequiredKeyedService<AwsEventBridgeTransportAdapter>(name));
 
 		// Ensure hosted service lifecycle manager is registered (idempotent)

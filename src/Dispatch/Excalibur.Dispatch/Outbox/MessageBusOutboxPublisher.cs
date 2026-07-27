@@ -1,15 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Diagnostics;
 using System.Globalization;
 
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Outbox;
 
@@ -34,6 +38,10 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<MessageBusOutboxPublisher> _logger;
 
+	// Outbox-read DoS guard limit (m084l4): from OutboxDeliveryOptions; bounded 4 MiB when unconfigured
+	// (never inert), null = explicit opt-out.
+	private readonly int? _maxPayloadBytes;
+
 	private ValueStopwatch _operationStopwatch = ValueStopwatch.Empty;
 	private long _totalOperations;
 	private long _totalPublished;
@@ -56,13 +64,17 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		ILogger<MessageBusOutboxPublisher> logger)
 	{
 		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
-		_outboxStoreAdmin = outboxStore as IOutboxStoreAdmin;
-		_multiTransportStore = outboxStore as IMultiTransportOutboxStore;
-		_multiTransportStoreAdmin = outboxStore as IMultiTransportOutboxStoreAdmin;
+		// Capabilities are resolved through the store's own service-provider seam, never by casting it.
+		// A cast sees only the outermost decorator's type, so a decorated store silently reports that it
+		// lacks capabilities the underlying store implements -- scheduled messages then never dispatch.
+		_outboxStoreAdmin = outboxStore.GetService(typeof(IOutboxStoreAdmin)) as IOutboxStoreAdmin;
+		_multiTransportStore = outboxStore.GetService(typeof(IMultiTransportOutboxStore)) as IMultiTransportOutboxStore;
+		_multiTransportStoreAdmin = outboxStore.GetService(typeof(IMultiTransportOutboxStoreAdmin)) as IMultiTransportOutboxStoreAdmin;
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 		_messageBus = messageBus ?? throw new ArgumentNullException(nameof(messageBus));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = ResolveMaxPayloadBytes(serviceProvider);
 	}
 
 	/// <summary>
@@ -81,14 +93,26 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		ILogger<MessageBusOutboxPublisher> logger)
 	{
 		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
-		_outboxStoreAdmin = outboxStore as IOutboxStoreAdmin;
-		_multiTransportStore = outboxStore as IMultiTransportOutboxStore;
-		_multiTransportStoreAdmin = outboxStore as IMultiTransportOutboxStoreAdmin;
+		// Capabilities are resolved through the store's own service-provider seam, never by casting it.
+		// A cast sees only the outermost decorator's type, so a decorated store silently reports that it
+		// lacks capabilities the underlying store implements -- scheduled messages then never dispatch.
+		_outboxStoreAdmin = outboxStore.GetService(typeof(IOutboxStoreAdmin)) as IOutboxStoreAdmin;
+		_multiTransportStore = outboxStore.GetService(typeof(IMultiTransportOutboxStore)) as IMultiTransportOutboxStore;
+		_multiTransportStoreAdmin = outboxStore.GetService(typeof(IMultiTransportOutboxStoreAdmin)) as IMultiTransportOutboxStoreAdmin;
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 		_transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxPayloadBytes = ResolveMaxPayloadBytes(serviceProvider);
 	}
+
+	// Bounded-by-default (4 MiB) unless OutboxDeliveryOptions is registered with an explicit value/opt-out.
+	// Uses the non-generic GetService + a safe cast rather than GetService<T>() (which hard-casts and would
+	// throw on a service provider that returns a non-IOptions instance for the type).
+	private static int? ResolveMaxPayloadBytes(IServiceProvider serviceProvider) =>
+		serviceProvider.GetService(typeof(IOptions<OutboxDeliveryOptions>)) is IOptions<OutboxDeliveryOptions> options
+			? options.Value.MaxPayloadBytes
+			: PayloadSizeGuard.DefaultMaxPayloadBytes;
 
 	/// <inheritdoc />
 	public async Task<OutboundMessage> PublishAsync(
@@ -178,6 +202,8 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	/// <inheritdoc />
 	public async Task<PublishingResult> PublishPendingMessagesAsync(CancellationToken cancellationToken)
 	{
+		// Unfenced drain: this publisher holds no leadership tenure, so it claims through the unfenced
+		// IOutboxStore members. A fenced drain runs through OutboxProcessor, which presents its token.
 		var messages = await _outboxStore.GetUnsentMessagesAsync(100, cancellationToken).ConfigureAwait(false);
 		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
 	}
@@ -400,6 +426,11 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	{
 		try
 		{
+			// Outbox-read DoS guard (m084l4): reject an oversized stored payload before handing it to the
+			// transport. Fail-closed — PayloadTooLargeException propagates to the surrounding catch, which
+			// marks the message failed (rejected), never dispatches an over-limit body.
+			PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
+
 			var wrappedMessage = new OutboxDispatchMessage(message.Payload);
 			var destination = transport.Destination ?? message.Destination;
 
@@ -455,17 +486,57 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 	}
 
+	// W3C propagator (BCL primitive) — used to restore the staged trace context on the outbox hop
+	// instead of a hand-rolled header copy (microsoft-first: never reimplement the propagation primitive).
+	private static readonly DistributedContextPropagator W3CPropagator =
+		DistributedContextPropagator.CreateW3CPropagator();
+
 	/// <summary>
-	/// Restores the staged W3C <c>traceparent</c> from the outbox message headers onto the rebuilt publish
-	/// context (FR-A2, 5l0da9), so the transport-serialized envelope carries it and the distributed trace
+	/// Restores the staged W3C <c>traceparent</c>/<c>tracestate</c> from the outbox message headers onto the
+	/// rebuilt publish context so the transport-serialized envelope carries it and the distributed trace
 	/// continues producer → consumer. Mirrors the inbound restore in <c>DispatchContextInitializer</c>.
 	/// </summary>
+	/// <remarks>
+	/// The trace context is <strong>captured at enqueue time</strong> (persisted in <see cref="OutboundMessage.Headers"/>)
+	/// and restored here from those stored headers — <em>not</em> from <see cref="Activity.Current"/> at flush — so a
+	/// store-and-forward message keeps its originating trace. Parsing is delegated to the BCL
+	/// <see cref="DistributedContextPropagator"/> rather than hand-formatted; a malformed stored value is skipped
+	/// (best-effort propagation, never throws).
+	/// </remarks>
 	private static void RestoreTraceParent(MessageContext context, OutboundMessage message)
 	{
-		if (message.Headers.TryGetValue("traceparent", out var value) &&
-			value is string traceParent && !string.IsNullOrEmpty(traceParent))
+		W3CPropagator.ExtractTraceIdAndState(
+			message.Headers,
+			static (object? carrier, string fieldName, out string? fieldValue, out IEnumerable<string>? fieldValues) =>
+			{
+				fieldValues = null;
+				fieldValue = null;
+				if (carrier is IReadOnlyDictionary<string, object> headers &&
+					headers.TryGetValue(fieldName, out var value) &&
+					value is string stringValue)
+				{
+					fieldValue = stringValue;
+				}
+			},
+			out var traceParent,
+			out var traceState);
+
+		if (string.IsNullOrEmpty(traceParent) ||
+			!ActivityContext.TryParse(traceParent, traceState, out _))
 		{
-			context.GetOrCreateIdentityFeature().TraceParent = traceParent;
+			// No staged trace context, or a malformed value — skip (best-effort, fail-open).
+			return;
+		}
+
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.TraceParent = traceParent;
+
+		// Restore the staged W3C tracestate symmetric with the traceparent above, into the same context item
+		// slot the consumer reads (W3CTraceContextMiddleware). Only when present so an absent tracestate stays
+		// absent (best-effort propagation).
+		if (!string.IsNullOrEmpty(traceState))
+		{
+			context.SetItem("tracestate", traceState);
 		}
 	}
 
@@ -600,6 +671,11 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			throw new InvalidOperationException(
 				Resources.MessageBusOutboxPublisher_SingleTransportRequiresAdapter);
 		}
+
+		// Outbox-read DoS guard (m084l4): reject an oversized stored payload before handing it to the
+		// transport. Fail-closed — PayloadTooLargeException propagates to PublishMessagesAsync's catch,
+		// which marks the message failed (rejected), never dispatches an over-limit body.
+		PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
 
 		var wrappedMessage = new OutboxDispatchMessage(message.Payload);
 		var context = new MessageContext(wrappedMessage, _serviceProvider)

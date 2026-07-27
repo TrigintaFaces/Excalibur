@@ -24,7 +24,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-    <PackageReference Include="Polly.RateLimiting" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />

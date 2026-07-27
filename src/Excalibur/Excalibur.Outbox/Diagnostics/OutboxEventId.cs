@@ -308,9 +308,6 @@ public static class OutboxEventId
 	/// <summary>Retry with backoff.</summary>
 	public const int OutboxRetryWithBackoff = 131221;
 
-	/// <summary>Transactional fallback.</summary>
-	public const int OutboxTransactionalFallback = 131222;
-
 	/// <summary>Error marking individual outbox message status during batch completion.</summary>
 	public const int OutboxErrorMarkingMessage = 131223;
 
@@ -322,6 +319,18 @@ public static class OutboxEventId
 
 	/// <summary>Message discarded because no dead letter queue is configured.</summary>
 	public const int OutboxMessageDiscardedNoDlq = 131226;
+
+	/// <summary>
+	/// Outbox drain is running unfenced by an explicit single-active-writer opt-out even though a leader
+	/// election is registered — the observable downgrade log for <c>AsSingleWriter()</c>.
+	/// </summary>
+	public const int OutboxUnfencedBySingleWriterOptOut = 131227;
+
+	/// <summary>
+	/// Outbox drain is running unfenced because no leader election is registered — safe only when exactly one
+	/// process drains this outbox (the zero-config single-active-writer default).
+	/// </summary>
+	public const int OutboxRunningUnfenced = 131228;
 
 	// ========================================
 	// 132200-132399: InboxProcessor

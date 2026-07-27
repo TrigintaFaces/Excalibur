@@ -3,6 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Amazon.S3;
+
 using Excalibur.Dispatch.ClaimCheck.AwsS3;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
@@ -47,6 +49,14 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AwsS3ClaimCheckOptions>, AwsS3ClaimCheckOptionsValidator>());
 
+		// Depend on the abstraction: register a single IAmazonS3 built from options so the store receives it
+		// through the abstraction (rather than each store constructing its own client). TryAdd lets a consumer
+		// who pre-registered their own IAmazonS3 (e.g. the AWS SDK's AddAWSService<IAmazonS3>()) win; the
+		// container owns the client's lifecycle. With IAmazonS3 resolvable, DI selects the store's injected
+		// constructor.
+		services.TryAddSingleton<IAmazonS3>(sp =>
+			AwsS3ClaimCheckStore.CreateClient(sp.GetRequiredService<IOptions<AwsS3ClaimCheckOptions>>().Value));
+
 		services.TryAddSingleton<IClaimCheckProvider, AwsS3ClaimCheckStore>();
 
 		return services;
@@ -85,6 +95,14 @@ public static class AwsS3ClaimCheckServiceCollectionExtensions
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<AwsS3ClaimCheckOptions>, AwsS3ClaimCheckOptionsValidator>());
+
+		// Depend on the abstraction: register a single IAmazonS3 built from options so the store receives it
+		// through the abstraction (rather than each store constructing its own client). TryAdd lets a consumer
+		// who pre-registered their own IAmazonS3 (e.g. the AWS SDK's AddAWSService<IAmazonS3>()) win; the
+		// container owns the client's lifecycle. With IAmazonS3 resolvable, DI selects the store's injected
+		// constructor.
+		services.TryAddSingleton<IAmazonS3>(sp =>
+			AwsS3ClaimCheckStore.CreateClient(sp.GetRequiredService<IOptions<AwsS3ClaimCheckOptions>>().Value));
 
 		services.TryAddSingleton<IClaimCheckProvider, AwsS3ClaimCheckStore>();
 

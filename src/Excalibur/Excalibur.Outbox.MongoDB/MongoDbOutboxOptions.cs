@@ -63,6 +63,32 @@ public sealed class MongoDbOutboxOptions
 	public int MaxPoolSize { get; set; } = 100;
 
 	/// <summary>
+	/// Gets or sets the identifier this process uses when atomically claiming a batch of messages, persisted
+	/// as the claimed document's lease owner. Defaults to a value unique per machine and process so that
+	/// concurrent pollers never collide.
+	/// </summary>
+	[Required]
+	public string ProcessorId { get; set; } = $"{Environment.MachineName}:{Environment.ProcessId}";
+
+	/// <summary>
+	/// Gets or sets the number of seconds a claim lease is honored before it is considered stale and
+	/// eligible for reclamation by another poller (crash recovery).
+	/// </summary>
+	[Range(1, int.MaxValue)]
+	public int LeaseTimeoutSeconds { get; set; } = 120;
+
+	/// <summary>
+	/// Gets or sets the failure-backoff floor F, in seconds: after <see cref="MongoDbOutboxStore.MarkFailedAsync"/>
+	/// records a plain failure, the message becomes re-claimable only after F has elapsed (its <c>NextAttemptAt</c>
+	/// gate). This bounds the retry cadence of the plain (no fine-grained backoff) path so it cannot hot-loop the
+	/// drain, while the message remains eventually re-claimable (at-least-once). F must exceed the drain polling
+	/// interval; the validator enforces that cross-options invariant.
+	/// </summary>
+	/// <value>The failure-backoff floor in seconds. Defaults to 30 (uniform across the outbox family).</value>
+	[Range(1, int.MaxValue)]
+	public int FailureBackoffFloorSeconds { get; set; } = 30;
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

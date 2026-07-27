@@ -19,12 +19,12 @@ namespace Excalibur.Jobs.Core;
 /// <typeparam name="TJob"> The type of the job being monitored. </typeparam>
 /// <typeparam name="TOptions"> The type of the job configuration. </typeparam>
 /// <remarks> Initializes a new instance of the <see cref="JobOptionsHostedWatcherService{TJob, TOptions}" /> class. </remarks>
-/// <param name="scheduler"> The scheduler responsible for managing job execution. </param>
+/// <param name="schedulerFactory"> The scheduler factory used to asynchronously resolve the scheduler during startup. </param>
 /// <param name="configMonitor"> Monitors changes to the job configuration. </param>
 /// <param name="logger"> The logger for logging information and errors. </param>
 public sealed partial class JobOptionsHostedWatcherService<TJob,
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOptions>(
-	IScheduler? scheduler,
+	ISchedulerFactory schedulerFactory,
 	IOptionsMonitor<TOptions> configMonitor,
 	ILogger<JobOptionsHostedWatcherService<TJob, TOptions>> logger) : IJobOptionsHostedWatcherService
 	where TJob : IConfigurableJob<TOptions>
@@ -33,6 +33,7 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 	private readonly CancellationTokenSource _stoppingCts = new();
 	private volatile bool _disposed;
 	private IDisposable? _changeListener;
+	private IScheduler? _scheduler;
 
 	/// <summary>
 	/// Starts monitoring the job configuration and updates the scheduler when changes occur.
@@ -43,6 +44,10 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 	{
 		try
 		{
+			// Resolve the scheduler here — IHostedService.StartAsync IS the async-init seam, so the
+			// scheduler is obtained via the factory without blocking DI construction.
+			_scheduler = await schedulerFactory.GetScheduler(cancellationToken).ConfigureAwait(false);
+
 			var initialConfig = configMonitor.CurrentValue;
 			var jobKey = new JobKey(initialConfig.JobName, initialConfig.JobGroup);
 
@@ -167,7 +172,7 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	private async Task UpdateJobStateAsync(JobKey? jobKey, TOptions newConfig, CancellationToken cancellationToken)
 	{
-		if (scheduler == null || jobKey == null)
+		if (_scheduler == null || jobKey == null)
 		{
 			return;
 		}
@@ -175,12 +180,12 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 		if (newConfig.Disabled)
 		{
 			LogPausingJob(jobKey);
-			await scheduler.PauseJob(jobKey, cancellationToken).ConfigureAwait(false);
+			await _scheduler.PauseJob(jobKey, cancellationToken).ConfigureAwait(false);
 		}
 		else
 		{
 			LogResumingJob(jobKey);
-			await scheduler.ResumeJob(jobKey, cancellationToken).ConfigureAwait(false);
+			await _scheduler.ResumeJob(jobKey, cancellationToken).ConfigureAwait(false);
 		}
 	}
 

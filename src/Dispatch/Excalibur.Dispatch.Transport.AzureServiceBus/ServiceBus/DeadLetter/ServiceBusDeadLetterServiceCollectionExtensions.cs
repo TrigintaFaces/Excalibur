@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Transport.AzureServiceBus;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -70,14 +71,14 @@ public static class ServiceBusDeadLetterServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
+		var optionsBuilder = services.AddOptions<ServiceBusDeadLetterOptions>().ValidateOnStart();
 		if (configure is not null)
 		{
-			_ = services.Configure(configure);
+			_ = optionsBuilder.Configure(configure);
 		}
-		else
-		{
-			_ = services.Configure<ServiceBusDeadLetterOptions>(_ => { });
-		}
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServiceBusDeadLetterOptions>, ServiceBusDeadLetterOptionsValidator>());
 
 		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
 			(sp, _) => sp.GetRequiredService<ServiceBusDeadLetterQueueManager>());
@@ -106,7 +107,9 @@ public static class ServiceBusDeadLetterServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		_ = services.AddOptions<ServiceBusDeadLetterOptions>().Bind(configuration);
+		_ = services.AddOptions<ServiceBusDeadLetterOptions>().Bind(configuration).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<ServiceBusDeadLetterOptions>, ServiceBusDeadLetterOptionsValidator>());
 
 		services.AddKeyedSingleton<IDeadLetterQueueManager>(transportName,
 			(sp, _) => sp.GetRequiredService<ServiceBusDeadLetterQueueManager>());

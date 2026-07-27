@@ -24,32 +24,6 @@ public sealed class RabbitMqConsumerOptions
 	public RabbitMqRetryOptions RetryPolicy { get; set; } = RabbitMqRetryOptions.Exponential(maxRetries: 3);
 
 	/// <summary>
-	/// Gets or sets the dead letter exchange name for failed messages.
-	/// </summary>
-	/// <remarks>
-	/// When set, messages that exceed <see cref="RetryPolicy"/> attempts will be routed
-	/// to this exchange instead of being discarded.
-	/// </remarks>
-	/// <value>The dead letter exchange name. Default is <c>null</c> (no dead lettering).</value>
-	public string? DeadLetterExchange { get; set; }
-
-	/// <summary>
-	/// Gets or sets the dead letter routing key.
-	/// </summary>
-	/// <remarks>
-	/// If not set, the original message routing key will be used.
-	/// </remarks>
-	/// <value>The dead letter routing key. Default is <c>null</c>.</value>
-	public string? DeadLetterRoutingKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to requeue messages on rejection
-	/// when not using dead letter exchange.
-	/// </summary>
-	/// <value><see langword="true"/> to requeue rejected messages; otherwise, <see langword="false"/>. Default is <see langword="false"/>.</value>
-	public bool RequeueOnReject { get; set; }
-
-	/// <summary>
 	/// Gets or sets the prefetch count for message consumption.
 	/// </summary>
 	/// <remarks>
@@ -89,9 +63,8 @@ public sealed class RabbitMqConsumerOptions
 	public string ConsumerTag { get; set; } = "dispatch-consumer";
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to include message headers
-	/// in dead letter messages for diagnostic purposes.
+	/// Gets the dead-letter configuration for failed messages.
 	/// </summary>
-	/// <value><see langword="true"/> to include death headers; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
-	public bool IncludeDeathHeaders { get; set; } = true;
+	/// <value>The dead-letter options. Never <see langword="null"/>.</value>
+	public RabbitMqConsumerDeadLetterOptions DeadLetter { get; } = new();
 }

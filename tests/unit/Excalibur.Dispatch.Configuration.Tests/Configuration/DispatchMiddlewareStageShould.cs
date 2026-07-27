@@ -18,8 +18,8 @@ public sealed class DispatchMiddlewareStageShould
 		// Arrange
 		var values = Enum.GetValues<DispatchMiddlewareStage>();
 
-		// Assert - canonical enum has 17 members (Sprint 697 T.17 added Deduplication=599)
-		values.Length.ShouldBe(17);
+		// Assert - canonical enum has 18 members (Cascade=750 added for handler message cascading)
+		values.Length.ShouldBe(18);
 		values.ShouldContain(DispatchMiddlewareStage.Start);
 		values.ShouldContain(DispatchMiddlewareStage.RateLimiting);
 		values.ShouldContain(DispatchMiddlewareStage.PreProcessing);
@@ -35,6 +35,7 @@ public sealed class DispatchMiddlewareStageShould
 		values.ShouldContain(DispatchMiddlewareStage.Deduplication);
 		values.ShouldContain(DispatchMiddlewareStage.Processing);
 		values.ShouldContain(DispatchMiddlewareStage.PostProcessing);
+		values.ShouldContain(DispatchMiddlewareStage.Cascade);
 		values.ShouldContain(DispatchMiddlewareStage.ErrorHandling);
 		values.ShouldContain(DispatchMiddlewareStage.End);
 	}

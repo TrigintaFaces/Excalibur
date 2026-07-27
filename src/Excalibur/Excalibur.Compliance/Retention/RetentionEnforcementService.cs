@@ -83,6 +83,8 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 			};
 
 			var totalRecordsCleaned = 0;
+			var succeededCount = 0;
+			var failedCount = 0;
 
 			// Fail-open per contributor: a single contributor's failure must not abort the others
 			// (mirrors ErasureService). Failures are logged; the overall pass still reports what was cleaned.
@@ -95,10 +97,12 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 					if (result.Success)
 					{
 						totalRecordsCleaned += result.RecordsCleaned;
+						succeededCount++;
 						LogRetentionContributorCompleted(contributor.Name, result.RecordsCleaned, dryRun);
 					}
 					else
 					{
+						failedCount++;
 						LogRetentionContributorFailed(contributor.Name, result.ErrorMessage ?? "Unknown error", null);
 					}
 				}
@@ -108,11 +112,22 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 				}
 				catch (Exception ex)
 				{
+					failedCount++;
 					LogRetentionContributorFailed(contributor.Name, ex.Message, ex);
 				}
 			}
 
-			LogRetentionEnforcementCompleted(policies.Count, dryRun);
+			// yg3qyv: when contributors ran but every one failed (nothing cleaned), a bare Information
+			// 'completed' misreports a failed enforcement pass as success. Log at Warning instead so an
+			// operator sees the sink failure; otherwise report normal completion.
+			if (_contributors.Count > 0 && succeededCount == 0 && failedCount > 0)
+			{
+				LogRetentionEnforcementAllContributorsFailed(failedCount, policies.Count);
+			}
+			else
+			{
+				LogRetentionEnforcementCompleted(policies.Count, dryRun);
+			}
 
 			return new RetentionEnforcementResult
 			{
@@ -218,6 +233,12 @@ public sealed partial class RetentionEnforcementService : IRetentionEnforcementS
 		LogLevel.Information,
 		"Retention enforcement scan completed. Policies evaluated: {PolicyCount}, dry run: {DryRun}")]
 	private partial void LogRetentionEnforcementCompleted(int policyCount, bool dryRun);
+
+	[LoggerMessage(
+		ComplianceEventId.RetentionEnforcementAllContributorsFailed,
+		LogLevel.Warning,
+		"Retention enforcement scan completed but ALL {FailedCount} contributor(s) failed — no data was cleaned. Policies evaluated: {PolicyCount}. Investigate the retention sink(s).")]
+	private partial void LogRetentionEnforcementAllContributorsFailed(int failedCount, int policyCount);
 
 	[LoggerMessage(
 		ComplianceEventId.RetentionEnforcementFailed,

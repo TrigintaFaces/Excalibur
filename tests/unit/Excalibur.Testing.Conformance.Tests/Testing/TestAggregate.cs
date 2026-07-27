@@ -54,7 +54,7 @@ internal sealed class TestAggregate : AggregateRoot
 	/// </summary>
 	public void Increment()
 	{
-		RaiseEvent(new CounterIncremented { AggregateId = Id, Version = Version });
+		RaiseEvent(new CounterIncremented());
 	}
 
 	/// <summary>
@@ -69,7 +69,7 @@ internal sealed class TestAggregate : AggregateRoot
 			throw new ArgumentException("Amount must be positive", nameof(amount));
 		}
 
-		RaiseEvent(new CounterIncrementedBy { AggregateId = Id, Version = Version, Amount = amount });
+		RaiseEvent(new CounterIncrementedBy { Amount = amount });
 	}
 
 	/// <summary>
@@ -84,7 +84,7 @@ internal sealed class TestAggregate : AggregateRoot
 			throw new InvalidOperationException("Aggregate is already initialized");
 		}
 
-		RaiseEvent(new AggregateInitialized { AggregateId = Id, Version = Version, Name = name });
+		RaiseEvent(new AggregateInitialized { Name = name });
 	}
 
 	/// <summary>
@@ -95,22 +95,24 @@ internal sealed class TestAggregate : AggregateRoot
 		// Intentionally does nothing - no events raised
 	}
 
-	protected override void ApplyEventInternal(IDomainEvent @event)
+	protected override bool ApplyEventInternal(IDomainEvent @event)
 	{
 		switch (@event)
 		{
 			case CounterIncremented:
 				Counter++;
-				break;
+				return true;
 
 			case CounterIncrementedBy e:
 				Counter += e.Amount;
-				break;
+				return true;
 
 			case AggregateInitialized e:
 				Name = e.Name;
 				IsInitialized = true;
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
 }

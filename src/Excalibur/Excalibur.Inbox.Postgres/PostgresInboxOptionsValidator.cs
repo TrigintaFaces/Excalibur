@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Text.RegularExpressions;
+
 using Microsoft.Extensions.Options;
 
 namespace Excalibur.Inbox.Postgres;
@@ -9,8 +11,14 @@ namespace Excalibur.Inbox.Postgres;
 /// Validates <see cref="PostgresInboxOptions"/> at startup via the <c>ValidateOnStart</c> pipeline.
 /// Supports builder-configured connections that don't set ConnectionString on the options object.
 /// </summary>
-internal sealed class PostgresInboxOptionsValidator : IValidateOptions<PostgresInboxOptions>
+internal sealed partial class PostgresInboxOptionsValidator : IValidateOptions<PostgresInboxOptions>
 {
+	// Allowlist for SQL identifiers interpolated into DDL/DML (schema/table names): ASCII letters,
+	// digits, underscores only — prevents SQL injection via a configured identifier. Mirrors the
+	// SqlServer inbox validator's behavior. AOT-safe generated regex (no RegexOptions.Compiled).
+	[GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
+	private static partial Regex ValidIdentifierPattern();
+
 	/// <summary>
 	/// Gets or sets a value indicating whether a builder-level connection was configured.
 	/// When true, ConnectionString validation is skipped.
@@ -39,10 +47,22 @@ internal sealed class PostgresInboxOptionsValidator : IValidateOptions<PostgresI
 				"PostgresInboxOptions.SchemaName is required.");
 		}
 
+		if (!ValidIdentifierPattern().IsMatch(options.SchemaName))
+		{
+			return ValidateOptionsResult.Fail(
+				"PostgresInboxOptions.SchemaName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
+		}
+
 		if (string.IsNullOrWhiteSpace(options.TableName))
 		{
 			return ValidateOptionsResult.Fail(
 				"PostgresInboxOptions.TableName is required.");
+		}
+
+		if (!ValidIdentifierPattern().IsMatch(options.TableName))
+		{
+			return ValidateOptionsResult.Fail(
+				"PostgresInboxOptions.TableName contains invalid characters. Only alphanumeric characters and underscores are allowed.");
 		}
 
 		if (options.CommandTimeoutSeconds < 1)
