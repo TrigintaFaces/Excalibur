@@ -44,7 +44,7 @@ readonly E_ZERO_EXECUTED=3
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ "${1:-}" = "--self-test" ]; then
-    exec "$SELF_DIR/run-filtered-tests.test.sh"
+    exec bash "$SELF_DIR/run-filtered-tests.test.sh"
 fi
 
 FILTER=""
@@ -88,7 +88,12 @@ echo "[run-filtered-tests] filter: $FILTER"
 "$DOTNET_BIN" test --filter "$FILTER" "$@" 2>&1 | tee "$LOG"
 TEST_EXIT="${PIPESTATUS[0]}"
 
-"$SELF_DIR/assert-tests-executed.sh" --filter "$FILTER" < "$LOG"
+# Invoked via `bash`, NOT by path. A path invocation requires the executable bit, which lives in
+# git's index and NOT on the filesystem under Windows/NTFS -- so it is silently dropped by any
+# file-copy-based mirror and the gate then dies with exit 126 (found, not executable) in CI while
+# working locally. `bash <path>` ignores the mode entirely, which is how every other call site in
+# this repo already invokes its gates. Do not "optimise" this back to a bare path.
+bash "$SELF_DIR/assert-tests-executed.sh" --filter "$FILTER" < "$LOG"
 ASSERT_EXIT=$?
 
 # A REAL failure outranks the zero-executed refusal: if tests ran and failed, that is the finding, and

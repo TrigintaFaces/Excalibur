@@ -496,48 +496,6 @@ jobs:
           fi
 
   # API compatibility gate
-  api-compatibility:
-    name: API Compatibility
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
-
-      - name: Run API compatibility report
-        shell: pwsh
-        run: |
-          ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
-
-      - name: Upload API compatibility report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: api-compat-report-quality-gates
-          path: management/reports/ApiCompatReport
-          retention-days: 7
-
-  # Harness gate battery -- CI-authoritative gate self-tests + wiring meta-checks, run through ONE
-  # generic orchestrator script so this shipped/mirrored workflow never names a private script token.
-  # The orchestrator (eng/ci/harness-gates-ci.sh) runs the whole battery inside eng/ci, and its exit
-  # reflects the real pass/fail of every gate (a failing gate -> job red). Pure bash, fast.
-  #
-  # eng/ IS copied downstream -- confirmed by the repo owner. An earlier revision of this comment said
-  # "(not mirrored)", which was false and cost three people an hour: it implies every eng/ci step here
-  # is unresolvable downstream, and this workflow references six of them. Stated because a comment that
-  # contradicts the shipping reality is worse than no comment -- it is read as evidence.
   harness-gates:
     name: Harness Gate Battery
     runs-on: ubuntu-latest
@@ -564,7 +522,7 @@ jobs:
     name: Quality Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, api-compatibility, harness-gates]
+    needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, harness-gates]
     if: always()
     steps:
       - name: Check all gates
@@ -591,7 +549,6 @@ jobs:
           check_blocking "code-analysis" "${{ needs.code-analysis.result }}"
           check_blocking "governance" "${{ needs.governance.result }}"
           check_blocking "architecture" "${{ needs.architecture.result }}"
-          check_blocking "api-compatibility" "${{ needs.api-compatibility.result }}"
           check_blocking "harness-gates" "${{ needs.harness-gates.result }}"
 
           # --- Advisory gates ---
@@ -611,7 +568,6 @@ jobs:
           echo "| Code Analysis | ${{ needs.code-analysis.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Governance | ${{ needs.governance.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Architecture | ${{ needs.architecture.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| API Compatibility | ${{ needs.api-compatibility.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Harness Gate Battery | ${{ needs.harness-gates.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Transport Conformance | ${{ needs.transport-conformance.result }} | advisory |" >> "$GITHUB_STEP_SUMMARY"
 

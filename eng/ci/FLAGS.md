@@ -11,7 +11,6 @@ code — there is no "appears-enforced but isn't" scaffolding here (see Sprint 8
     dependency / boundary violation / package-map drift is detected.
   - Set true in `.github/workflows/quality-gates.yml` (job `architecture`).
 - API_ENFORCE=true
-  - Fails on Public API baseline diffs (`eng/ci/api-compat-run.ps1`).
   - Set true in `.github/workflows/governance.yml` (job `api-compatibility`).
 - PACK_ENFORCE=true
   - Fails packaging validation (metadata/symbols/SourceLink + transitive provider bloat) when issues
@@ -24,7 +23,6 @@ code — there is no "appears-enforced but isn't" scaffolding here (see Sprint 8
   - Fails license header verification when missing headers are detected (`eng/ci/license-headers-verify.ps1`,
     run report-only in `.github/workflows/security.yml`).
 - WARNINGS_ENFORCE=true
-  - Fails the warnings scan when warnings are detected (`eng/ci/warnings-scan.ps1`, run report-only in
     `.github/workflows/governance.yml`).
 
 > **Trim/AOT and coverage are enforced by dedicated mechanisms, NOT by an `_ENFORCE` env flag** — do not

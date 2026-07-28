@@ -311,6 +311,8 @@ public abstract class ProcessManager<TData>(
 	/// registry when available, falling back to <see cref="Activator.CreateInstance(Type, object[])"/>
 	/// in JIT environments.
 	/// </summary>
+	[RequiresDynamicCode("Falls back to Activator.CreateInstance when no AOT-safe context factory is registered")]
+	[RequiresUnreferencedCode("Reflects over the handler type's generic arguments to locate the context constructor")]
 	private object CreateContextInstance(
 		Type handlerType,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type contextType,

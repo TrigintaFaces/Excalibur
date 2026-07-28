@@ -93,9 +93,18 @@ jobs:
       - name: Run Gitleaks
         run: |
           set -euo pipefail
+          # --config is REQUIRED, and its absence here was a real inconsistency: the sibling job in
+          # secret-scan.yml scans the same tree with --config .gitleaks.toml while this one ran raw
+          # defaults, so the repository's allowlist -- the bin/, obj/, node_modules/, .beads/ and
+          # .nuget/ path exclusions, and the documented false-positive value patterns -- applied to one
+          # scanner and not the other. Two scanners over one tree must read one configuration, or a
+          # finding suppressed in one job resurfaces in the other and nobody can tell which is right.
+          #
+          # This is NOT claimed as the cause of any particular past failure; that was not established.
           gitleaks detect \
             --source . \
             --no-git \
+            --config .gitleaks.toml \
             -v \
             --redact \
             --exit-code 1 \

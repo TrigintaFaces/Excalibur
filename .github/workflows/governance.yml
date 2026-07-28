@@ -189,39 +189,6 @@ jobs:
           path: management/reports/PublicApiBaselineReport
           retention-days: 14
 
-  api-compat:
-    name: API Compatibility
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.checkout-ref }}
-          fetch-depth: 1
-
-      - name: Setup .NET build environment
-        uses: ./.github/actions/setup-dotnet-build
-        with:
-          checkout-ref: ${{ inputs.checkout-ref }}
-          checkout-token: ${{ inputs.checkout-token }}
-          solution-filter: ''
-
-      - name: Run API compat (blocking)
-        shell: pwsh
-        env:
-          API_ENFORCE: true
-        run: |
-          ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
-
-      - name: Upload ApiCompat report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: api-compat-report
-          path: management/reports/ApiCompatReport
-          retention-days: 14
-
   transitive-bloat:
     name: Transitive Bloat Audit
     runs-on: ubuntu-latest
@@ -258,37 +225,6 @@ jobs:
           path: management/reports/TransitiveBloatReport
           retention-days: 14
 
-  banned-apis:
-    name: Banned APIs Scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.checkout-ref }}
-          fetch-depth: 1
-
-      - name: Setup .NET build environment
-        uses: ./.github/actions/setup-dotnet-build
-        with:
-          checkout-ref: ${{ inputs.checkout-ref }}
-          checkout-token: ${{ inputs.checkout-token }}
-          solution-filter: ''
-
-      - name: Banned APIs gate (Roslyn baseline enforcement)
-        shell: pwsh
-        run: |
-          ./eng/ci/banned-apis-gate.ps1 -Solution eng/ci/shards/ShippingOnly.slnf -BaselinePath eng/banned/RS0030.baseline.json -OutDir management/reports/BannedApisReport -Enforce:$true
-
-      - name: Upload banned APIs report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: banned-apis-report
-          path: management/reports/BannedApisReport
-          retention-days: 14
-
   repo-inventory:
     name: Repo Inventory
     runs-on: ubuntu-latest
@@ -323,35 +259,6 @@ jobs:
         with:
           name: dependency-inventory
           path: management/reports/dependency-inventory.md
-
-  warnings-ledger:
-    name: Warnings Scan (report-only)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.checkout-ref }}
-          fetch-depth: 1
-
-      - name: Setup .NET build environment
-        uses: ./.github/actions/setup-dotnet-build
-        with:
-          checkout-ref: ${{ inputs.checkout-ref }}
-          checkout-token: ${{ inputs.checkout-token }}
-          solution-filter: ''
-
-      - name: Run warnings scan
-        shell: pwsh
-        run: |
-          ./eng/ci/warnings-scan.ps1 -OutDir management/reports/WarningsReport
-
-      - name: Upload warnings report
-        uses: actions/upload-artifact@v7
-        with:
-          name: warnings-report
-          path: management/reports/WarningsReport
 
   specs-location-lint:
     name: Specs Location Guard

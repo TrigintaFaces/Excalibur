@@ -45,7 +45,9 @@ trap restore EXIT
 [ -f "$ENTRY" ] || fail "SPA entry module not found at ${ENTRY}"
 
 run_gate() {
-    "$GATE" --drift-only >/dev/null 2>&1
+    # `bash "$GATE"`, not "$GATE": the executable bit lives in git's index, not on an NTFS
+    # filesystem, so a file-copy mirror drops it and the gate exits 126 in CI while passing locally.
+    bash "$GATE" --drift-only >/dev/null 2>&1
     printf '%s' "$?"
 }
 

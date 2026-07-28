@@ -123,7 +123,7 @@ run_drift_check() {
 
 case "${1:-}" in
     --drift-only) run_drift_check ;;
-    --self-test)  exec "${REPO_ROOT}/eng/ci/spa-gate.test.sh" ;;
+    --self-test)  exec bash "${REPO_ROOT}/eng/ci/spa-gate.test.sh" ;;
     "")           run_tests; run_typecheck; run_drift_check; info "all checks passed" ;;
     *)            env_fail "unknown argument: $1" ;;
 esac

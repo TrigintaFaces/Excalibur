@@ -363,7 +363,11 @@ jobs:
             -PersistenceBackgroundCdcBatch100MaxNs 10000000 `
             -PersistenceBackgroundProcessBatch100MaxNs 50000 `
             -PersistenceBackgroundCdcMinimumRows 3 `
-            -PersistenceBackgroundDeliveryMinimumRows 18
+            # 12 = 3 benchmark methods x 2 batch sizes x 2 delivery guarantees, the current shape of
+            # DeliveryGuaranteeBenchmarks. It was 18 (x3 guarantees) until TransactionalWhenApplicable
+            # was cut as dead. This explicit argument OVERRIDES the script default, so correcting the
+            # default alone left the gate demanding rows the benchmark can no longer emit.
+            -PersistenceBackgroundDeliveryMinimumRows 12
 
       - name: Upload persistence/background benchmark results
         if: always()
