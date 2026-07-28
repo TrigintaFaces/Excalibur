@@ -1,7 +1,11 @@
 param(
   [string]$Output = "management/reports/dependency-inventory.md",
   [string]$ProjectRoot = ".",
-  [int]$PerProjectTimeoutSeconds = 45,
+  # 45s was too tight on a cold NuGet cache: `dotnet list package --include-transitive` resolves the
+  # graph per project, and the first few projects on a fresh runner pay for the whole restore. The
+  # 12-minute total budget below is the real runaway guard; this per-project limit only needs to catch
+  # a genuinely hung process, not a slow one.
+  [int]$PerProjectTimeoutSeconds = 150,
   [int]$TotalBudgetMinutes = 12,
   [int]$MaxDependencyProjects = 200,
   [switch]$FailOnGuardrailBreach
@@ -11,6 +15,7 @@ $ErrorActionPreference = 'Stop'
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Output) | Out-Null
 $script:GuardrailBreached = $false
+$script:TimedOutProjects = @()
 $script:GlobalStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $script:Budget = [TimeSpan]::FromMinutes([Math]::Max(1, $TotalBudgetMinutes))
 $repoRoot = (Resolve-Path $ProjectRoot).Path
@@ -150,6 +155,11 @@ try {
 
     if ($result.TimedOut) {
       $script:GuardrailBreached = $true
+      $script:TimedOutProjects += $relative
+      # Also to the console. This detail used to go ONLY to the report file, so CI failed with a bare
+      # "guardrails were breached (timeout/budget)" and nothing about WHICH project or WHICH limit --
+      # a gate that fails without saying what it found.
+      Write-Host "::warning::repo-inventory: '$relative' timed out after ${durationMs}ms (limit ${PerProjectTimeoutSeconds}s)."
       "- ``$relative`` → timeout after ${durationMs}ms (limit: ${PerProjectTimeoutSeconds}s)." |
         Out-File -FilePath $Output -Encoding UTF8 -Append
       continue
@@ -203,7 +213,14 @@ foreach ($f in $files) {
 Write-Section "End of Report"
 
 if ($script:GuardrailBreached -and $FailOnGuardrailBreach) {
-  Write-Error "Repo inventory guardrails were breached (timeout/budget)."
+  if ($script:TimedOutProjects.Count -gt 0) {
+    Write-Error ("Repo inventory: {0} project(s) exceeded the {1}s per-project limit: {2}" -f `
+      $script:TimedOutProjects.Count, $PerProjectTimeoutSeconds, ($script:TimedOutProjects -join ', '))
+  }
+  else {
+    Write-Error ("Repo inventory: total budget of {0} minute(s) exhausted with projects still unprocessed." -f `
+      $script:Budget.TotalMinutes)
+  }
   exit 1
 }
 

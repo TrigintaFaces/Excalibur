@@ -246,13 +246,27 @@ jobs:
       - name: Generate repository inventory
         shell: pwsh
         run: |
+          # NON-BLOCKING by design: -FailOnGuardrailBreach is deliberately absent.
+          #
+          # This step produces a dependency inventory REPORT. Nothing consumes it to make a decision,
+          # and its only failure mode was a stopwatch: it shells out to `dotnet list package
+          # --include-transitive` once per project, 180 times, and used to fail the build when any
+          # single call ran long. It did exactly that after completing all 180 snapshots successfully.
+          #
+          # A failure there says nothing about the code under test -- only that enumeration was slow on
+          # a cold NuGet cache. A reporting tool that red-lights a build on its own latency produces
+          # failures with no diagnostic content, which is how a gate stops being read. The report is
+          # still generated and still uploaded; a guardrail breach now surfaces as a warning naming the
+          # projects involved.
+          #
+          # PerProjectTimeoutSeconds is no longer passed here so the script's own default applies.
+          # Pinning it at 45 in this file overrode the default and made correcting the default inert --
+          # the same trap that hid the performance gate's stale row count.
           ./eng/ci/repo-inventory.ps1 `
             -Output "management/reports/dependency-inventory.md" `
             -ProjectRoot "src" `
-            -PerProjectTimeoutSeconds 45 `
             -TotalBudgetMinutes 12 `
-            -MaxDependencyProjects 180 `
-            -FailOnGuardrailBreach
+            -MaxDependencyProjects 180
 
       - name: Upload inventory report
         uses: actions/upload-artifact@v7

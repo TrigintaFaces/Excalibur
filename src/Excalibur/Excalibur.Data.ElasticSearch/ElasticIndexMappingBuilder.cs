@@ -79,11 +79,28 @@ internal static class ElasticIndexMappingBuilder
 		// We use MakeGenericMethod because TDocument is not constrained to
 		// IElasticIndexConfiguration<TDocument> at this call site.
 		// This reflection cost is acceptable — index creation happens once per app lifetime.
-#pragma warning disable IL2060, IL3050 // MakeGenericMethod — safe because we verified assignability above
+		// DISP003 is suppressed here rather than satisfied, and the distinction matters.
+		//
+		// It asks for [RequiresDynamicCode]/[RequiresUnreferencedCode] on the enclosing method. Adding
+		// either would propagate up the only call chain that exists -- BuildMappingProperties, and from
+		// there ElasticRepositoryBase and ElasticSearchProjectionStore, both of which are consumer-facing.
+		// The project standard is explicit that consumer-facing APIs never carry those attributes, so
+		// satisfying the analyzer here would push an AOT annotation onto the public surface to silence a
+		// diagnostic about an internal helper. That trade is the wrong way round.
+		//
+		// The call itself is guarded: the IsAssignableFrom check above establishes that TDocument really
+		// implements IElasticIndexConfiguration<TDocument>, so the instantiation is not open-ended. It
+		// runs once per index creation, not on any hot path. The residual AOT risk is real but narrow --
+		// under native AOT this instantiation must have been pre-generated -- and it is the same risk
+		// IL2060/IL3050 are already suppressed for on this line.
+		//
+		// The durable fix is to remove the reflection: a source generator emitting the ConfigureIndex
+		// dispatch would make the trampoline unnecessary and let all three suppressions go.
+#pragma warning disable IL2060, IL3050, DISP003 // constrained trampoline; see the note above
 		var trampoline = typeof(ElasticIndexMappingBuilder)
 			.GetMethod(nameof(InvokeConfigureIndex), BindingFlags.NonPublic | BindingFlags.Static)!
 			.MakeGenericMethod(typeof(TDocument));
-#pragma warning restore IL2060, IL3050
+#pragma warning restore IL2060, IL3050, DISP003
 
 		properties = (Properties)trampoline.Invoke(null, null)!;
 		return true;

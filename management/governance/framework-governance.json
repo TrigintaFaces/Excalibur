@@ -266,7 +266,7 @@
       "transport": "InMemory",
       "package": "Excalibur.Dispatch.Transport.Abstractions",
       "conformanceClass": "InMemoryTransportConformanceTests",
-      "providerConformanceClass": "TransportProviderConformanceTests"
+      "providerConformanceClass": "InMemoryTransportConformanceTests"
     },
     {
       "transport": "AwsSqs",

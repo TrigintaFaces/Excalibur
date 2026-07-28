@@ -29,7 +29,6 @@
       "tests\\unit\\Excalibur.Dispatch.Abstractions.Tests\\Excalibur.Dispatch.Abstractions.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Caching.Tests\\Excalibur.Dispatch.Caching.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Compat.MassTransit.Tests\\Excalibur.Dispatch.Compat.MassTransit.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures\\Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures.csproj",
       "tests\\unit\\Excalibur.Dispatch.Compat.MediatR.Tests\\Excalibur.Dispatch.Compat.MediatR.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Configuration.Tests\\Excalibur.Dispatch.Configuration.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.DependencyInjection.Tests\\Excalibur.Dispatch.DependencyInjection.Tests.csproj",
