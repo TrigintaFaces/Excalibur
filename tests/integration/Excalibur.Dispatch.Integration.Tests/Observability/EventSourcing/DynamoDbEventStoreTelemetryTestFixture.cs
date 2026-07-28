@@ -38,7 +38,7 @@ public sealed class DynamoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	public DynamoDbEventStoreTelemetryTestFixture()
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:latest")
+			.WithImage("localstack/localstack:3.8")
 			.WithName($"localstack-dynamodb-telemetry-test-{Guid.NewGuid():N}")
 			.WithEnvironment("SERVICES", "dynamodb")
 			.WithCleanUp(true)

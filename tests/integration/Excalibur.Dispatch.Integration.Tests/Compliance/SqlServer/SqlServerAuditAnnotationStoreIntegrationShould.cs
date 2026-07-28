@@ -556,6 +556,25 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 	{
 		var services = new ServiceCollection();
 
+		// BOTH registrations are required, and the split is a security boundary rather than an
+		// inconvenience. The SQL Server package deliberately does NOT bind IAuditAnnotationStore -- it
+		// registers its store under the core package's inner-store KEY only. The core package binds the
+		// interface, and always to RbacAuditAnnotationStore, which wraps that keyed inner store and applies
+		// the role and authorship checks. A provider binding the interface directly would hand callers a
+		// store with no access checks on it at all.
+		//
+		// Resolving IAuditAnnotationStore from the provider registration alone therefore cannot work by
+		// design, and this test did exactly that: every arm failed with "No service for type
+		// 'Excalibur.Compliance.IAuditAnnotationStore' has been registered". Registering the core package
+		// as well also makes these tests exercise the decorator consumers actually receive, not a bare store.
+		_ = services.AddAuditAnnotations();
+
+		// The role provider is deliberately NOT defaulted by the framework: RbacAuditAnnotationStore
+		// resolves it with GetRequiredService, and AddAuditAnnotations registers a hosted-service
+		// validator so a host missing it fails at startup rather than at the first denied read. A test
+		// that registers the core package therefore has to supply one, exactly as a host does.
+		services.AddSingleton<IAuditRoleProvider>(new AdministratorRoleProvider());
+
 		services.AddSqlServerAuditAnnotationStore(opts =>
 		{
 			opts.ConnectionString = _fixture.ConnectionString;
@@ -575,6 +594,12 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 
 		var sp = services.BuildServiceProvider();
 		return sp.GetRequiredService<IAuditAnnotationStore>();
+	}
+
+	private sealed class AdministratorRoleProvider : IAuditRoleProvider
+	{
+		public Task<AuditLogRole> GetCurrentRoleAsync(CancellationToken cancellationToken)
+			=> Task.FromResult(AuditLogRole.Administrator);
 	}
 
 	private static string UniqueEventId() => $"evt-{Guid.NewGuid():N}";
@@ -627,6 +652,25 @@ public sealed class SqlServerAuditAnnotationStoreIntegrationShould : Integration
 	private IAuditAnnotationStore CreateStoreForTenant(string? tenantId, string actorId)
 	{
 		var services = new ServiceCollection();
+
+		// BOTH registrations are required, and the split is a security boundary rather than an
+		// inconvenience. The SQL Server package deliberately does NOT bind IAuditAnnotationStore -- it
+		// registers its store under the core package's inner-store KEY only. The core package binds the
+		// interface, and always to RbacAuditAnnotationStore, which wraps that keyed inner store and applies
+		// the role and authorship checks. A provider binding the interface directly would hand callers a
+		// store with no access checks on it at all.
+		//
+		// Resolving IAuditAnnotationStore from the provider registration alone therefore cannot work by
+		// design, and this test did exactly that: every arm failed with "No service for type
+		// 'Excalibur.Compliance.IAuditAnnotationStore' has been registered". Registering the core package
+		// as well also makes these tests exercise the decorator consumers actually receive, not a bare store.
+		_ = services.AddAuditAnnotations();
+
+		// The role provider is deliberately NOT defaulted by the framework: RbacAuditAnnotationStore
+		// resolves it with GetRequiredService, and AddAuditAnnotations registers a hosted-service
+		// validator so a host missing it fails at startup rather than at the first denied read. A test
+		// that registers the core package therefore has to supply one, exactly as a host does.
+		services.AddSingleton<IAuditRoleProvider>(new AdministratorRoleProvider());
 
 		services.AddSqlServerAuditAnnotationStore(opts =>
 		{

@@ -126,7 +126,13 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 				version BIGINT NOT NULL,
 				timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				is_dispatched BOOLEAN NOT NULL DEFAULT FALSE,
-				UNIQUE (aggregate_id, aggregate_type, version)
+				-- The event store scopes every read to the row-level tenant_id discriminator, so its
+				-- absence fails LoadAsync with 42703 rather than returning unscoped rows. The uniqueness
+				-- constraint carries the tenant too: stream identity is per tenant, and a constraint on
+				-- (aggregate_id, aggregate_type, version) alone would make two tenants collide in the
+				-- fixture while they do not collide in production.
+				tenant_id VARCHAR(450) NOT NULL DEFAULT '__untenanted__',
+				UNIQUE (tenant_id, aggregate_id, aggregate_type, version)
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_events_aggregate

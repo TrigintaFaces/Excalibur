@@ -14,6 +14,8 @@ namespace Excalibur.MultiTenancy.Tests;
 /// safety arm vacuously, so a REAL tenant-filtering store is used and the liveness arm proves it serves the
 /// owning tenant.
 /// </summary>
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class TenantScopedProjectionIsolationShould
 {
     // zh70zl — the isolation guarantee, both arms, against a REAL tenant-filtering store.

@@ -29,7 +29,18 @@ namespace Excalibur.Dispatch.Tests.Threading;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class KeyedLockCleanupRaceShould
 {
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(30);
+    // CI-scaled. This class drives 16 workers x 250 iterations against ONE key, so all 4,000
+    // acquisitions are fully serialized by design -- the contention IS the test. Wall-clock therefore
+    // tracks how much CPU the runner can spare, and a Windows CI agent running a dozen test assemblies
+    // in parallel has very little: measured 2-3s for the whole class locally against a 39s overrun in
+    // CI, where sibling assemblies were simultaneously taking 1-2 minutes each.
+    //
+    // The bound is a harness deadline, not an invariant. The properties this class actually guards --
+    // no waiter observes a disposal race, and never two holders of one key -- are asserted separately
+    // and did NOT fail; only the outer WaitAsync expired. Scaling keeps the assertions and stops the
+    // deadline reporting load as a defect.
+    private static readonly TimeSpan Bound =
+        global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
     /// <summary>
     /// EC-2 (deterministic, no concurrency): disposing the same handle twice must be idempotent — it must

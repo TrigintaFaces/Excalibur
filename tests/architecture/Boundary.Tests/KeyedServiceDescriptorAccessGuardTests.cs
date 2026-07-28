@@ -36,6 +36,8 @@ namespace Boundary.Tests;
 /// XML-doc cref.
 /// </para>
 /// </remarks>
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class KeyedServiceDescriptorAccessGuardTests
 {
     /// <summary>The non-keyed <c>ServiceDescriptor</c> implementation getters that must never be read directly.</summary>

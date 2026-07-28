@@ -11,6 +11,8 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.InMemory.Tests.Snapshots;
 
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class SnapshotTenantIsolationShould
 {
     // AMBIENT, not fixed. ITenantContext is registered as a SINGLETON and AddMultiTenancy replaces it

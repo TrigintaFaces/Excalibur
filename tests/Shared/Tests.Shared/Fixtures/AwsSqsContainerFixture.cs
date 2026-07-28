@@ -32,7 +32,7 @@ public sealed class AwsSqsContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Default LocalStack Docker image. Uses latest for broadest SQS compatibility.
 	/// </summary>
-	public const string DefaultImage = "localstack/localstack:latest";
+	public const string DefaultImage = "localstack/localstack:3.8";
 
 	private LocalStackContainer? _container;
 	private AmazonSQSClient? _sqsClient;

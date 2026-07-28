@@ -40,6 +40,8 @@ namespace Excalibur.Outbox.Tests.SqlServer.Requests;
 /// implementation. These deserve the same adversarial read.
 /// </para>
 /// </remarks>
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class TransportDeliveryReadTenantTermShould
 {
 	private const string TableName = "[dbo].[OutboxMessageTransports]";

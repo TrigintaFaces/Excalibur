@@ -48,7 +48,7 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 	{
 		try
 		{
-			_container = new LocalStackBuilder().WithImage("localstack/localstack:latest").Build();
+			_container = new LocalStackBuilder().WithImage("localstack/localstack:3.8").Build();
 			using var startCts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
 			await _container.StartAsync(startCts.Token).ConfigureAwait(false);
 

@@ -319,6 +319,16 @@ public sealed class SqlServerEventStoreStreamingIntegrationShould : IAsyncLifeti
 				Metadata VARBINARY(MAX) NULL,
 				Version BIGINT NOT NULL,
 				Timestamp DATETIMEOFFSET NOT NULL,
+				-- Matches the shipped schema. TenantId is NULLable and the read path is written as
+				-- COALESCE(TenantId, '__untenanted__') = @TenantId, so a row with no tenant is reachable
+				-- rather than invisible; its absence fails every read with "Invalid column name
+				-- 'TenantId'". The binary collation is deliberate in production and is mirrored here so
+				-- the fixture cannot disagree with it about case.
+				TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NULL,
+				-- The unique stream constraint is load-bearing, not decoration: it is what enforces
+				-- append concurrency now that the store runs at READ COMMITTED and translates a unique
+				-- violation into a concurrency conflict. A fixture without it would not exercise that.
+				CONSTRAINT UQ_EventStoreEvents_Stream UNIQUE (AggregateId, AggregateType, Version, TenantId),
 				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
 			)
 			""";

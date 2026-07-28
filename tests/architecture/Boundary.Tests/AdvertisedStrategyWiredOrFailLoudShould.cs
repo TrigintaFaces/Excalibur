@@ -18,6 +18,8 @@ namespace Boundary.Tests;
 /// actually exists in the loaded assemblies (NFR-2 non-vacuity: deleting a guard/implementor type, or un-wiring a value
 /// from the registry, makes this guard go RED naming the uncovered <c>(enum, value)</c>).
 /// </remarks>
+[Trait("Category", "Unit")]
+[Trait("Component", "Core")]
 public sealed class AdvertisedStrategyWiredOrFailLoudShould
 {
 	private static readonly ConcurrentDictionary<string, Assembly?> AssemblyCache = new(StringComparer.OrdinalIgnoreCase);

@@ -205,7 +205,10 @@ public sealed class PostgresEventStoreIntegrationShould : IntegrationTestBase
 			    metadata BYTEA,
 			    version BIGINT NOT NULL,
 			    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			    CONSTRAINT uq_aggregate_version UNIQUE (aggregate_id, aggregate_type, version)
+			    -- Row-level tenant discriminator: every event-store read filters on it, and stream
+			    -- uniqueness is per tenant. Without it LoadAsync fails with 42703.
+			    tenant_id VARCHAR(450) NOT NULL DEFAULT '__untenanted__',
+			    CONSTRAINT uq_aggregate_version UNIQUE (tenant_id, aggregate_id, aggregate_type, version)
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_events_aggregate ON public.events (aggregate_id, aggregate_type, version);

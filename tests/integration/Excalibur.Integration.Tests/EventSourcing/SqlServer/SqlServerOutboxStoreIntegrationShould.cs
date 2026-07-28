@@ -526,6 +526,18 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 			)
 			""";
 
+		// The fence table is part of the outbox schema, not an optional extra: MarkMessageSent and the
+		// unsent-message read both consult dbo.OutboxFence, so its absence fails those paths with
+		// "Invalid object name 'dbo.OutboxFence'" rather than degrading. Definition matches
+		// SqlServerOutboxStoreContainerFixture, which is the fixture that already had it.
+		const string createFenceTableSql = """
+			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxFence' AND xtype='U')
+			CREATE TABLE [dbo].[OutboxFence] (
+				OutboxTable NVARCHAR(512) NOT NULL PRIMARY KEY,
+				HighWaterToken BIGINT NOT NULL
+			)
+			""";
+
 		Console.WriteLine($"Connection string: {_connectionString}");
 
 		await using var connection = new SqlConnection(_connectionString);
@@ -538,6 +550,11 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 
 		await using var createTransports = new SqlCommand(createTransportsTableSql, connection);
 		_ = await createTransports.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+		await using (var createFence = new SqlCommand(createFenceTableSql, connection))
+		{
+			_ = await createFence.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
 		Console.WriteLine("OutboxTransports table created successfully");
 	}
 }

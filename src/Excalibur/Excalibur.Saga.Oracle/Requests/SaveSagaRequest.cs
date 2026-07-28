@@ -65,6 +65,16 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		// :TenantId` never matches a NULL — so on Oracle it had to be dropped or every untenanted save would
 		// break. Resolving through KeyedTenantPartition makes the bound value a non-empty reserved sentinel
 		// instead, so equality holds on both paths and no branch can omit the term.
+		// TenantId is in the ON clause and therefore MUST NOT appear in the UPDATE SET below. Oracle
+		// rejects that with "ORA-38104: Columns referenced in the ON Clause cannot be updated", so every
+		// version-gated save against an EXISTING saga failed on this provider -- 18 conformance failures,
+		// all of them the update path. The SQL Server sibling assigns it and is accepted; this restriction
+		// is Oracle-specific, which is why the shared shape hid the defect.
+		//
+		// Dropping the assignment loses nothing: the row matched only BECAUSE target.TenantId already
+		// equals :TenantId, so re-assigning the same value was always a no-op. The tenant term stays
+		// unconditional in the match, so the isolation property the term exists for is untouched -- an
+		// unscoped save still cannot match a scoped tenant's row.
 		var partition = KeyedTenantPartition.FromScope(scope);
 		const string onTenant = " AND target.TenantId = :TenantId";
 		var sql = $"""
@@ -75,7 +85,6 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 				StateJson = :StateJson,
 				IsCompleted = :IsCompleted,
 				CompletedAt = :CompletedAt,
-				TenantId = :TenantId,
 				Version = :NewVersion,
 				UpdatedUtc = SYS_EXTRACT_UTC(SYSTIMESTAMP)
 			WHERE target.Version = :ExpectedVersion

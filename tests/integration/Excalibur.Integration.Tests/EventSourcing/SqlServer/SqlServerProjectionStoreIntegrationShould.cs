@@ -329,7 +329,19 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 	private SqlServerProjectionStore<OrderSummary> CreateProjectionStore()
 	{
 		var logger = NullLogger<SqlServerProjectionStore<OrderSummary>>.Instance;
-		return new SqlServerProjectionStore<OrderSummary>(_connectionString!, logger, "OrderSummary");
+		// The store has no unscoped mode: it throws TenantRequiredException rather than degrading to an
+		// unscoped query. Constructing it without a tenant context is what failed every test here.
+		return new SqlServerProjectionStore<OrderSummary>(
+			_connectionString!, logger, "OrderSummary", tenantContext: new FixedTenantContext(TestTenantId));
+	}
+
+	private const string TestTenantId = "projection-integration-tests";
+
+	private sealed class FixedTenantContext(string? tenantId) : Excalibur.Dispatch.ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => TenantId is not null;
 	}
 
 	private async Task ClearAllProjectionsAsync()
@@ -345,10 +357,12 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		const string createTableSql = """
 			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OrderSummary' AND xtype='U')
 			CREATE TABLE [OrderSummary] (
-				Id NVARCHAR(255) NOT NULL PRIMARY KEY,
+				TenantId NVARCHAR(200) NOT NULL,
+				Id NVARCHAR(255) NOT NULL,
 				Data NVARCHAR(MAX) NOT NULL,
 				CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				UpdatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET()
+				UpdatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+				CONSTRAINT [PK_OrderSummary] PRIMARY KEY (TenantId, Id)
 			)
 			""";
 

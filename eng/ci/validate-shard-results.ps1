@@ -96,8 +96,23 @@ foreach ($trx in $trxFiles) {
   }
 
   # testId -> assemblyKey  (from <TestDefinitions><UnitTest id="" storage="">)
+  #
+  # BOTH property hops are guarded because a TRX from a run that matched NO tests contains a
+  # ResultSummary and nothing else -- no <TestDefinitions>, no <Results>. Under
+  # Set-StrictMode -Version Latest (line 58) reading an absent property is a TERMINATING error, so
+  # one such file aborted the whole aggregation with "The property 'TestDefinitions' cannot be found
+  # on this object" and the shard reported failure without validating anything.
+  #
+  # Zero-test TRX files are normal here: an assembly with no test matching the shard's Category
+  # filter still runs and still writes a TRX. Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures
+  # produces one on every run by design -- it supplies fixture types and declares no tests.
+  #
+  # Skipping is correct rather than lenient: such a file contributes no definitions and no results,
+  # so it cannot change any total. The expected-assembly count below is what catches an assembly that
+  # SHOULD have produced results and did not -- that check stays untouched.
   $testIdToAssembly = @{}
-  $defs = @($xml.TestRun.TestDefinitions.UnitTest)
+  $defsNode = if ($xml.TestRun.PSObject.Properties.Name -contains 'TestDefinitions') { $xml.TestRun.TestDefinitions } else { $null }
+  $defs = if ($null -ne $defsNode -and $defsNode.PSObject.Properties.Name -contains 'UnitTest') { @($defsNode.UnitTest) } else { @() }
   foreach ($def in $defs) {
     if ($null -eq $def) { continue }
     $key = ConvertTo-AssemblyKey $def.storage
@@ -106,7 +121,10 @@ foreach ($trx in $trxFiles) {
     }
   }
 
-  $results = @($xml.TestRun.Results.UnitTestResult)
+  # Same guard, same reason as TestDefinitions above: a zero-test TRX has no <Results> element either,
+  # and under StrictMode that absent property is a terminating error rather than an empty set.
+  $resultsNode = if ($xml.TestRun.PSObject.Properties.Name -contains 'Results') { $xml.TestRun.Results } else { $null }
+  $results = if ($null -ne $resultsNode -and $resultsNode.PSObject.Properties.Name -contains 'UnitTestResult') { @($resultsNode.UnitTestResult) } else { @() }
   foreach ($res in $results) {
     if ($null -eq $res) { continue }
     $key = if ($res.testId -and $testIdToAssembly.ContainsKey($res.testId)) { $testIdToAssembly[$res.testId] } else { "" }

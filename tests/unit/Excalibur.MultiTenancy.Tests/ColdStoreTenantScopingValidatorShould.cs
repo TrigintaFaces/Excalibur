@@ -50,6 +50,8 @@ namespace Excalibur.MultiTenancy.Tests;
 /// turns arms 3 and 4 RED.
 /// </para>
 /// </remarks>
+[Trait("Category", "Unit")]
+[Trait("Component", "Platform")]
 public sealed class ColdStoreTenantScopingValidatorShould
 {
 	/// <summary>

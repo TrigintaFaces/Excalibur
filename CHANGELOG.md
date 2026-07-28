@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Saving an existing saga no longer fails on Oracle.** The version-gated upsert referenced `TenantId`
+  in the `MERGE` `ON` clause and also assigned it in `WHEN MATCHED THEN UPDATE SET`. Oracle rejects that
+  combination outright (`ORA-38104: Columns referenced in the ON Clause cannot be updated`), so every
+  save against a saga that already existed failed — the entire update path on this provider. Creating a
+  saga was unaffected, which is why the failure only appeared once a saga advanced. The assignment has
+  been removed: a matched row already carries the tenant the statement matched on, so writing it again
+  was always a no-op. Tenant isolation is unchanged — the tenant term remains an unconditional part of
+  the match, and new rows still stamp it on insert. Other providers were never affected; the restriction
+  is specific to Oracle.
+
 - **The workflow code-fix package now builds.** `Excalibur.Workflows.CodeFixes` pinned Roslyn 4.14.0
   while the analyzer package it depends on resolved 5.3.0, so it linked an assembly built against a
   version it did not load and the build failed on an unresolvable assembly conflict. Both now compile

@@ -26,6 +26,14 @@ paths = [
     '''(^|/)node_modules/''',
     '''docs-site/build/''',
     '''validation-results/''',
+    # Test-run output. Both scans use `--no-git`, which walks the FILESYSTEM and does NOT honour
+    # .gitignore -- so these are skipped only if named here, even though git ignores them and they are
+    # untracked in both repositories. A crash/hang dump is a raw memory image: it contains whatever the
+    # process held, so entropy-based rules match inside it constantly. Measured on this tree: 161
+    # findings, every one a generic-api-key inside a hangdump .dmp, none of it a real secret and none of
+    # it committed. Any job that builds or tests before scanning would fail on all 161.
+    '''(^|/)[Tt]est[Rr]esults?/''',
+    '''\.dmp$''',
 ]
 
 # ------------------------------------------------------------------

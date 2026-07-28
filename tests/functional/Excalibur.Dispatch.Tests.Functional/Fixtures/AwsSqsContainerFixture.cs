@@ -23,7 +23,7 @@ public sealed class AwsSqsContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:latest")
+			.WithImage("localstack/localstack:3.8")
 			.WithEnvironment("SERVICES", "sqs")
 			.WithPortBinding(4566, true)
 			.Build();

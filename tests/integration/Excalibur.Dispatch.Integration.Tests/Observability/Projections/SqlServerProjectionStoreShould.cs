@@ -3,6 +3,7 @@
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor — field is set in InitializeAsync()
 
+using Excalibur.Dispatch;
 using Dapper;
 
 using Excalibur.EventSourcing;
@@ -41,22 +42,42 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 		await using var connection = new SqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync();
 
+		// TenantId is part of the table, and part of the KEY. SqlServerProjectionStore is an
+		// always-tenant-scoped store: every read carries "TenantId = @TenantId", and the upsert MERGE
+		// matches on the tenant as well as the id so a tenant-A write can never overwrite a tenant-B row
+		// with the same Id. A table keyed on Id alone would make two tenants sharing an id collide here
+		// while they do not collide in production -- the direction of drift that stays green and hides.
 		_ = await connection.ExecuteAsync($"""
 			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '{TableName}')
 			BEGIN
 				CREATE TABLE [{TableName}] (
-					Id NVARCHAR(450) NOT NULL PRIMARY KEY,
+					TenantId NVARCHAR(200) NOT NULL,
+					Id NVARCHAR(450) NOT NULL,
 					Data NVARCHAR(MAX) NOT NULL,
 					CreatedAt DATETIMEOFFSET NOT NULL,
-					UpdatedAt DATETIMEOFFSET NOT NULL
+					UpdatedAt DATETIMEOFFSET NOT NULL,
+					CONSTRAINT [PK_{TableName}] PRIMARY KEY (TenantId, Id)
 				)
 			END
 			""");
 
+		// The store REQUIRES an ambient tenant -- it has no unscoped mode and throws
+		// TenantRequiredException rather than degrading to an unscoped query. Passing no tenant context
+		// is what made every test in this class fail.
 		_store = new SqlServerProjectionStore<TestOrderProjection>(
 			_fixture.ConnectionString,
 			_logger,
-			TableName);
+			TableName,
+			tenantContext: new FixedTenantContext(TestTenantId));
+	}
+
+	private const string TestTenantId = "projection-store-tests";
+
+	private sealed class FixedTenantContext(string? tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => TenantId is not null;
 	}
 
 	public async ValueTask DisposeAsync()
