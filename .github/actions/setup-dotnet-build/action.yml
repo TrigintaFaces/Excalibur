@@ -80,7 +80,13 @@ runs:
       # Console stays quiet; the file log is written at normal verbosity so the assertion below has
       # something to read.
       run: |
-        dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet \
+        # BuildExamplesAndTests is REQUIRED. Directory.Build.targets skips compiling any project whose
+        # path Contains('\tests\') unless it is set -- a BACKSLASH, so it matches on Windows and never
+        # on Linux. Without it the identical command builds different things per platform: on Linux
+        # test projects compile; on Windows they are silently skipped into EMPTY assemblies, the test
+        # step finds no tests, and xUnit v3 dies parsing "No test matches the given testcase filter"
+        # as a catastrophic error naming neither the skip nor the platform.
+        dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
           -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log
 
     - name: Assert the build compiled what it claims

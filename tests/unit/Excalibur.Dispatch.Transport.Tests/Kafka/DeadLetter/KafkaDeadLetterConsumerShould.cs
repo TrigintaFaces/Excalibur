@@ -39,6 +39,7 @@ public sealed class KafkaDeadLetterConsumerShould : IDisposable
 {
 	private readonly KafkaDeadLetterConsumer _sut;
 	private readonly IConsumer<string, byte[]> _consumer;
+	private bool _disposed;
 
 	public KafkaDeadLetterConsumerShould()
 	{
@@ -55,7 +56,10 @@ public sealed class KafkaDeadLetterConsumerShould : IDisposable
 		// returns when it times out with nothing to read, so this states the "topic is empty" case that
 		// these tests are actually about. No broker is contacted and no native handle is created.
 		_consumer = A.Fake<IConsumer<string, byte[]>>();
-		A.CallTo(() => _consumer.Consume(A<TimeSpan>._)).Returns(null);
+		// Explicit nullable generic: Consume's declared return is ConsumeResult<..>?, but generic
+		// inference over the expression drops the annotation, so a bare A.CallTo binds the non-nullable
+		// overload and null is a CS8620 mismatch. Stating T fixes the binding (no suppression).
+		A.CallTo<global::Confluent.Kafka.ConsumeResult<string, byte[]>?>(() => _consumer.Consume(A<TimeSpan>._)).Returns(null);
 
 		_sut = new KafkaDeadLetterConsumer(
 			_consumer,
@@ -99,7 +103,8 @@ public sealed class KafkaDeadLetterConsumerShould : IDisposable
 		// appearing to exercise one. A test whose outcome hinges on which of two stacked rules wins is not
 		// testing the consumer.
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
-		A.CallTo(() => consumer.Consume(A<TimeSpan>._)).ReturnsNextFromSequence(available, null);
+		A.CallTo<global::Confluent.Kafka.ConsumeResult<string, byte[]>?>(() => consumer.Consume(A<TimeSpan>._))
+			.ReturnsNextFromSequence(available, null);
 
 		using var sut = new KafkaDeadLetterConsumer(
 			consumer,
@@ -174,6 +179,16 @@ public sealed class KafkaDeadLetterConsumerShould : IDisposable
 
 	public void Dispose()
 	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		// Both are disposed here, and both are idempotent: the subject guards its own second Dispose
+		// (asserted by Dispose_IsIdempotent), and the fake consumer records the extra call harmlessly.
 		_sut.Dispose();
+		_consumer.Dispose();
 	}
 }

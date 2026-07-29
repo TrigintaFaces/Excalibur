@@ -219,7 +219,7 @@ static DataChangeEvent CreateMockDeleteEvent()
 // Example Command Handlers (for demonstration)
 // ============================================================================
 
-public sealed class ExampleSyncCustomerHandler : IActionHandler<SyncCustomerCommand, SyncCustomerResult>
+internal sealed class ExampleSyncCustomerHandler : IActionHandler<SyncCustomerCommand, SyncCustomerResult>
 {
 	private readonly ILogger<ExampleSyncCustomerHandler> _logger;
 
@@ -236,7 +236,7 @@ public sealed class ExampleSyncCustomerHandler : IActionHandler<SyncCustomerComm
 	}
 }
 
-public sealed class ExampleUpdateCustomerHandler : IActionHandler<UpdateCustomerCommand, UpdateCustomerResult>
+internal sealed class ExampleUpdateCustomerHandler : IActionHandler<UpdateCustomerCommand, UpdateCustomerResult>
 {
 	private readonly ILogger<ExampleUpdateCustomerHandler> _logger;
 
@@ -253,7 +253,7 @@ public sealed class ExampleUpdateCustomerHandler : IActionHandler<UpdateCustomer
 	}
 }
 
-public sealed class ExampleDeactivateCustomerHandler : IActionHandler<DeactivateCustomerCommand, DeactivateCustomerResult>
+internal sealed class ExampleDeactivateCustomerHandler : IActionHandler<DeactivateCustomerCommand, DeactivateCustomerResult>
 {
 	private readonly ILogger<ExampleDeactivateCustomerHandler> _logger;
 

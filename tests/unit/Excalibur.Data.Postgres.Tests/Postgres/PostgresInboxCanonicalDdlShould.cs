@@ -72,11 +72,14 @@ public sealed class PostgresInboxCanonicalDdlShould
 
 	// Collapse SQL comment markers/whitespace so the assertions bind the DDL text whether the MT block ships live or
 	// as a documented (commented) alternative — the structural contract is the same either way.
+	//
+	// Case is deliberately NOT folded here: both call sites already assert with Case.Insensitive, so lowercasing the
+	// DDL was redundant with the comparison that consumes it. Case-insensitivity belongs in the comparison, not in a
+	// destructive rewrite of the text being compared.
 	private static string Normalize(string sql)
 	{
 		var noComments = sql.Replace("--", " ", StringComparison.Ordinal);
-		return string.Join(' ', noComments.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
-			.ToLowerInvariant();
+		return string.Join(' ', noComments.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 	}
 
 	private static string ResolveRepoRelative(string relativePath)

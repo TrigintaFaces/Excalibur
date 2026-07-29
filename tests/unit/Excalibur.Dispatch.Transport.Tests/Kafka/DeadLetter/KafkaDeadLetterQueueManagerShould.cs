@@ -70,7 +70,10 @@ public sealed class KafkaDeadLetterQueueManagerShould : IDisposable
 		// ConsumeResult with a null Message, a shape the real client never produces, and converting it
 		// throws. Null is what a real poll returns when it times out with nothing to read.
 		var dlqConsumer = A.Fake<IConsumer<string, byte[]>>();
-		A.CallTo(() => dlqConsumer.Consume(A<TimeSpan>._)).Returns(null);
+		// Explicit nullable generic: Consume's declared return is nullable, but generic inference over
+		// the expression drops the annotation, so a bare A.CallTo binds the non-nullable overload and
+		// Returns(null) is a CS8620 mismatch. Stating T fixes the binding (no suppression).
+		A.CallTo<global::Confluent.Kafka.ConsumeResult<string, byte[]>?>(() => dlqConsumer.Consume(A<TimeSpan>._)).Returns(null);
 
 		var consumer = new KafkaDeadLetterConsumer(
 			dlqConsumer,

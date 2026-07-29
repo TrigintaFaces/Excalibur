@@ -55,17 +55,17 @@ public sealed class CdcFatalClassifierShould
 
 	[Theory]
 	[MemberData(nameof(DefinitivelyFatalExceptions))]
-	public void TreatDefinitivelyNonRetryable_AsFatal_WhenNoClassifier(Exception exception)
+	public void TreatDefinitivelyNonRetryable_AsFatal_WhenNoClassifier(Type exceptionType, string argument)
 	{
-		CdcFatalClassifier.IsFatal(exception, classifier: null).ShouldBeTrue();
+		CdcFatalClassifier.IsFatal(Create(exceptionType, argument), classifier: null).ShouldBeTrue();
 	}
 
 	[Theory]
 	[MemberData(nameof(TransientOrUnrecognisedExceptions))]
-	public void TreatTransientOrUnrecognised_AsNotFatal_WhenNoClassifier(Exception exception)
+	public void TreatTransientOrUnrecognised_AsNotFatal_WhenNoClassifier(Type exceptionType, string argument)
 	{
 		// Anything not definitively-fatal stays transient → bounded backoff-reconnect, not terminate.
-		CdcFatalClassifier.IsFatal(exception, classifier: null).ShouldBeFalse();
+		CdcFatalClassifier.IsFatal(Create(exceptionType, argument), classifier: null).ShouldBeFalse();
 	}
 
 	[Fact]
@@ -86,24 +86,31 @@ public sealed class CdcFatalClassifierShould
 		_ = Should.Throw<ArgumentNullException>(() => CdcFatalClassifier.IsFatal(null!, classifier: null));
 	}
 
-	public static IEnumerable<object[]> DefinitivelyFatalExceptions =>
+	// Rows carry the exception TYPE plus its single-string constructor argument rather than a constructed
+	// Exception: an Exception type argument is not reliably serializable (xUnit1045), which stops the runner
+	// enumerating individual data rows. Each row still produces the exact same exception as before —
+	// see <see cref="Create"/>.
+	public static TheoryData<Type, string> DefinitivelyFatalExceptions =>
 	[
-		[new System.Security.Authentication.AuthenticationException("auth")],
-		[new UnauthorizedAccessException("denied")],
-		[new NotSupportedException("nope")],
-		[new NotImplementedException("todo")],
-		[new ArgumentException("bad arg")],
-		[new ArgumentNullException("p")],
-		[new ArgumentOutOfRangeException("p")],
+		(typeof(System.Security.Authentication.AuthenticationException), "auth"),
+		(typeof(UnauthorizedAccessException), "denied"),
+		(typeof(NotSupportedException), "nope"),
+		(typeof(NotImplementedException), "todo"),
+		(typeof(ArgumentException), "bad arg"),
+		(typeof(ArgumentNullException), "p"),
+		(typeof(ArgumentOutOfRangeException), "p"),
 	];
 
-	public static IEnumerable<object[]> TransientOrUnrecognisedExceptions =>
+	public static TheoryData<Type, string> TransientOrUnrecognisedExceptions =>
 	[
-		[new TimeoutException("timeout")],
-		[new IOException("io blip")],
-		[new InvalidOperationException("unrecognised")],
-		[new OperationCanceledException("cooperative cancel is not a fault")],
+		(typeof(TimeoutException), "timeout"),
+		(typeof(IOException), "io blip"),
+		(typeof(InvalidOperationException), "unrecognised"),
+		(typeof(OperationCanceledException), "cooperative cancel is not a fault"),
 	];
+
+	private static Exception Create(Type exceptionType, string argument) =>
+		(Exception)Activator.CreateInstance(exceptionType, argument)!;
 
 	private static IMessageFailureClassifier ClassifierReturning(MessageFailureKind kind)
 	{

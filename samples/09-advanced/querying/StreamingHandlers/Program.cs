@@ -149,19 +149,21 @@ static async Task Demo4_ProgressReporting(IServiceProvider provider)
 
 // ============================================================================
 // Documents
+// (normally one type per file — inlined here to keep the sample to a single file,
+//  so they are declared internal rather than part of a public surface)
 // ============================================================================
 
-public record CsvDocument(string Content) : IDispatchDocument;
+internal sealed record CsvDocument(string Content) : IDispatchDocument;
 
-public record ReportDocument(int PageCount) : IDispatchDocument;
+internal sealed record ReportDocument(int PageCount) : IDispatchDocument;
 
 // ============================================================================
 // Data Types
 // ============================================================================
 
-public record DataRow(int Id, string Name, string Email) : IDispatchDocument;
+internal sealed record DataRow(int Id, string Name, string Email) : IDispatchDocument;
 
-public record EnrichedRow(DataRow Original, int CreditScore, string Tier);
+internal sealed record EnrichedRow(DataRow Original, int CreditScore, string Tier);
 
 // ============================================================================
 // Handler Implementations
@@ -170,7 +172,7 @@ public record EnrichedRow(DataRow Original, int CreditScore, string Tier);
 /// <summary>
 /// IStreamingDocumentHandler: Parses a CSV document into individual rows.
 /// </summary>
-public class CsvStreamingHandler : IStreamingDocumentHandler<CsvDocument, DataRow>
+internal sealed class CsvStreamingHandler : IStreamingDocumentHandler<CsvDocument, DataRow>
 {
 	public async IAsyncEnumerable<DataRow> HandleAsync(
 		CsvDocument document,
@@ -202,7 +204,7 @@ public class CsvStreamingHandler : IStreamingDocumentHandler<CsvDocument, DataRo
 /// <summary>
 /// IStreamConsumerHandler: Consumes a stream of rows with batching.
 /// </summary>
-public class BatchImportHandler : IStreamConsumerHandler<DataRow>
+internal sealed class BatchImportHandler : IStreamConsumerHandler<DataRow>
 {
 	private const int BatchSize = 5;
 
@@ -235,7 +237,7 @@ public class BatchImportHandler : IStreamConsumerHandler<DataRow>
 /// <summary>
 /// IStreamTransformHandler: Enriches data records with additional information.
 /// </summary>
-public class RecordEnricher : IStreamTransformHandler<DataRow, EnrichedRow>
+internal sealed class RecordEnricher : IStreamTransformHandler<DataRow, EnrichedRow>
 {
 	public async IAsyncEnumerable<EnrichedRow> HandleAsync(
 		IAsyncEnumerable<DataRow> input,
@@ -262,7 +264,7 @@ public class RecordEnricher : IStreamTransformHandler<DataRow, EnrichedRow>
 /// <summary>
 /// IProgressDocumentHandler: Exports a report with progress reporting.
 /// </summary>
-public class ReportExportHandler : IProgressDocumentHandler<ReportDocument>
+internal sealed class ReportExportHandler : IProgressDocumentHandler<ReportDocument>
 {
 	public async Task HandleAsync(
 		ReportDocument document,

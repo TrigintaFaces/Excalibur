@@ -11,13 +11,25 @@ namespace Excalibur.Dispatch.Security.Tests.AuditLogging;
 public sealed class InMemoryAuditStoreShould : IDisposable
 {
 	private readonly InMemoryAuditStore _store;
+	private bool _disposed;
 
 	public InMemoryAuditStoreShould()
 	{
 		_store = new InMemoryAuditStore(AuditIntegrityTestStrategy.Create());
 	}
 
-	public void Dispose() => _store.Clear();
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		_store.Clear();
+		_store.Dispose();
+	}
 
 	/// <summary>
 	/// Builds a store whose reads are confined to <paramref name="tenantId"/> by AMBIENT context.

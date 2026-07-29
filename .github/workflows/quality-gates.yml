@@ -173,7 +173,9 @@ jobs:
       - name: Restore and build shard
         run: |
           dotnet restore ${{ matrix.shard.filter }} --verbosity quiet
-          dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet
+          # See .github/actions/setup-dotnet-build: without this the shard's test projects are
+          # compile-skipped on Windows and produce empty assemblies.
+          dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       - name: Run shard tests with coverage
         run: |

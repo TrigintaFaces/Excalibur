@@ -30,6 +30,7 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 	private readonly IOptions<ErasureOptions> _options;
 	private readonly ILogger<ErasureVerificationService> _logger;
 	private readonly ErasureVerificationService _sut;
+	private bool _disposed;
 
 	public ErasureVerificationAuditIntegrationShould()
 	{
@@ -421,7 +422,13 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 
 	public void Dispose()
 	{
-		// InMemoryAuditStore doesn't need disposal, but keeping for pattern consistency
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		_auditStore.Dispose();
 	}
 
 	#endregion

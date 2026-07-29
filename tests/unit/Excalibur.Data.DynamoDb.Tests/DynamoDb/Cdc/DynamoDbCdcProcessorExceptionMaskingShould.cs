@@ -46,7 +46,22 @@ public sealed class DynamoDbCdcProcessorExceptionMaskingShould
 	private const string StreamArn =
 		"arn:aws:dynamodb:us-east-1:000000000000:table/Excalibur/stream/2026-01-01T00:00:00.000";
 
-	private const string ShardId = "shardId-000000000001";
+	/// <summary>
+	/// A realistically shaped DynamoDB Streams shard id (<c>shardId-</c> + a 20-digit epoch-ish component +
+	/// an 8-hex suffix), matching the documented minimum length of the real service.
+	/// </summary>
+	private const string ShardId = "shardId-00000001700000000000-a1b2c3d4";
+
+	/// <summary>
+	/// The shard's starting sequence number — a realistically shaped 21-character decimal string. This lock
+	/// exercises exception propagation only; nothing here compares or orders sequence numbers, so the value
+	/// is opaque and no ordering relationship needs preserving.
+	/// </summary>
+	private const string StartingSequenceNumber = "100000000000000000000";
+
+	/// <summary>The single record's sequence number — one past <see cref="StartingSequenceNumber"/>.</summary>
+	private const string RecordSequenceNumber = "100000000000000000001";
+
 	private const string InitialIterator = "ITER-0";
 	private const string NextIterator = "ITER-1";
 
@@ -166,7 +181,10 @@ public sealed class DynamoDbCdcProcessorExceptionMaskingShould
 						new Shard
 						{
 							ShardId = ShardId,
-							SequenceNumberRange = new SequenceNumberRange { StartingSequenceNumber = "0" },
+							SequenceNumberRange = new SequenceNumberRange
+							{
+								StartingSequenceNumber = StartingSequenceNumber,
+							},
 						},
 					],
 				},
@@ -189,7 +207,7 @@ public sealed class DynamoDbCdcProcessorExceptionMaskingShould
 			EventName = OperationType.INSERT,
 			Dynamodb = new StreamRecord
 			{
-				SequenceNumber = "1",
+				SequenceNumber = RecordSequenceNumber,
 				ApproximateCreationDateTime = DateTime.UtcNow,
 				Keys = new Dictionary<string, AttributeValue>(StringComparer.Ordinal)
 				{

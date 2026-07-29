@@ -370,7 +370,21 @@ public static class MultiTenancyServiceCollectionExtensions
 			}
 
 			var projectionType = serviceType.GetGenericArguments()[0];
+
+			// DISP003 suppressed, not satisfied. The analyzer wants an AOT annotation on this method;
+			// it would propagate through ApplyRowDiscriminator to AddMultiTenancy, which is the public
+			// entry point consumers call. Consumer-facing APIs do not carry AOT annotations here, so
+			// satisfying the analyzer would annotate the public surface to quiet a diagnostic about a
+			// private decoration helper.
+			//
+			// The risk is real and worth stating plainly: under native AOT, TenantScopedProjectionStore<T>
+			// must have been generated for each projection type a consumer registers. The closed type is
+			// derived from a service the consumer ALREADY registered, so the instantiation is not
+			// open-ended -- but it is not guaranteed pre-generated either, and a trimmed app can fail
+			// here at startup rather than at first use.
+#pragma warning disable DISP003 // decorator closed over an already-registered projection type; see note
 			var decoratorType = typeof(TenantScopedProjectionStore<>).MakeGenericType(projectionType);
+#pragma warning restore DISP003
 
 			ServiceDescriptor scoped;
 			if (implementationType is not null)

@@ -66,7 +66,10 @@ public sealed class KafkaConfluentFramingStripShould
 	{
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var seq = new Queue<KafkaConsumeResult?>([Record(value, offset: 3), null]);
-		A.CallTo(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
+		// Explicit nullable generic: Consume's declared return is ConsumeResult<..>?, but generic
+		// inference over the expression drops the annotation, so the non-nullable overload binds and
+		// the nullable sequence element is a CS8620 mismatch. Stating T fixes the binding (no suppression).
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
 		return consumer;
 	}
 

@@ -3,13 +3,13 @@
 <!-- SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1506</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>ExcaliburCqrs</RootNamespace>
     <!-- Samples intentionally demonstrate full feature integration, which requires coupling -->
-    <NoWarn>$(NoWarn);CA1506</NoWarn>
   </PropertyGroup>
  <!-- Updated paths for reorganized sample structure -->
   <!-- Dispatch core (messaging) -->

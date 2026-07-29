@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,8 +7,6 @@
     <Nullable>enable</Nullable>
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
-    <!-- Suppress warnings irrelevant for sample code -->
-    <NoWarn>$(NoWarn);CA1050;CA1506</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />

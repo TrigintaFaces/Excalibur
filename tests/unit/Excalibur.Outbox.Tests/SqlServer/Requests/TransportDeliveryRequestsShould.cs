@@ -124,7 +124,9 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 			"@TenantId",
 			Case.Sensitive,
 			"the INSERT must bind a TenantId parameter, not rely on the schema default.");
-		((DynamicParameters)request.Command.Parameters).ParameterNames.ShouldContain(
+		var parameters = request.Command.Parameters as DynamicParameters;
+		parameters.ShouldNotBeNull("the request must supply Dapper parameters; without them nothing is bound at all.");
+		parameters.ParameterNames.ShouldContain(
 			"TenantId",
 			"the tenant term must actually be supplied by the request, not merely mentioned in the SQL text.");
 	}
@@ -147,7 +149,9 @@ public sealed class InsertTransportDeliveryRequestShould : UnitTestBase
 		var request = new InsertTransportDeliveryRequest(TestTableName, delivery, null, null, 30, CancellationToken.None);
 
 		// Assert
-		((DynamicParameters)request.Command.Parameters).Get<string>("TenantId")
+		var parameters = request.Command.Parameters as DynamicParameters;
+		parameters.ShouldNotBeNull("the request must supply Dapper parameters; without them nothing is bound at all.");
+		parameters.Get<string>("TenantId")
 			.ShouldBe("__untenanted__", "an unscoped write must bind the reserved sentinel, never NULL or empty.");
 	}
 

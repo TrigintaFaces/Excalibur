@@ -53,10 +53,10 @@ public sealed class ShouldRelinquishAccelerateShould
 {
 	private static readonly TimeSpan Grace = TimeSpan.FromSeconds(30);
 
-	public static IEnumerable<object[]> Providers =>
+	public static TheoryData<Type> Providers =>
 	[
-		[typeof(SqlServerLeaderElection)],
-		[typeof(RedisLeaderElection)],
+		typeof(SqlServerLeaderElection),
+		typeof(RedisLeaderElection),
 	];
 
 	[Theory]

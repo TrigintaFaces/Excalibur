@@ -30,7 +30,7 @@ public sealed class HandlerUnitTests
 
         // Act
         var orderId = await harness.HandleAsync<CreateOrderCommand, string>(
-            new CreateOrderCommand("Widget", 5), TestContext.Current.CancellationToken).ConfigureAwait(false);
+            new CreateOrderCommand("Widget", 5), TestContext.Current.CancellationToken);
 
         // Assert
         orderId.ShouldBe("order-42");
@@ -49,7 +49,7 @@ public sealed class HandlerUnitTests
         // Act & Assert: invalid quantity triggers ArgumentException
         await Should.ThrowAsync<ArgumentException>(
             () => harness.HandleAsync<CreateOrderCommand, string>(
-                new CreateOrderCommand("Widget", 0), TestContext.Current.CancellationToken)).ConfigureAwait(false);
+                new CreateOrderCommand("Widget", 0), TestContext.Current.CancellationToken));
 
         A.CallTo(repo).MustNotHaveHappened();
     }
@@ -69,7 +69,7 @@ public sealed class HandlerUnitTests
         handler.ShouldNotBeNull();
 
         var result = await handler.HandleAsync(
-            new CreateOrderCommand("Gadget", 1), TestContext.Current.CancellationToken).ConfigureAwait(false);
+            new CreateOrderCommand("Gadget", 1), TestContext.Current.CancellationToken);
 
         result.ShouldBe("direct-id");
     }

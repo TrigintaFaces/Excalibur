@@ -24,6 +24,7 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 	private readonly ISagaStore _sagaStore;
 	private readonly ILogger<SagaCoordinator> _logger;
 	private readonly SagaCoordinator _sut;
+	private bool _disposed;
 
 	public SagaCoordinatorShould()
 	{
@@ -37,6 +38,18 @@ public sealed class SagaCoordinatorShould : UnitTestBase
 		_serviceProvider = services.BuildServiceProvider();
 
 		_sut = new SagaCoordinator(_serviceProvider, _sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), _logger);
+	}
+
+	/// <inheritdoc/>
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing && !_disposed)
+		{
+			_disposed = true;
+			_sut.Dispose();
+		}
+
+		base.Dispose(disposing);
 	}
 
 	#region ProcessEventAsync Argument Validation Tests

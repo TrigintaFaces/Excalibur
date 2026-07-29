@@ -250,7 +250,7 @@ logger.LogInformation("Firestore sample complete.");
 // ---------------------------------------------------------------------------
 // Sample document model
 // ---------------------------------------------------------------------------
-public class SampleItem
+internal sealed class SampleItem
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

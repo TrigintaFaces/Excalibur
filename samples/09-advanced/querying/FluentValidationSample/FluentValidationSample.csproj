@@ -3,13 +3,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1506</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>FluentValidationSample</RootNamespace>
     <!-- Suppress coupling warnings for samples (demo code intentionally couples many types) -->
-    <NoWarn>$(NoWarn);CA1506;CA1308</NoWarn>
   </PropertyGroup>
   <!-- Dispatch core (messaging, validation) -->
   <ItemGroup>

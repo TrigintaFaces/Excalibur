@@ -9,7 +9,10 @@
     <Nullable>enable</Nullable>
     <RootNamespace>ProjectionsSample</RootNamespace>
     <!-- Suppress coupling warnings for samples (demo code intentionally couples many types) -->
-    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505</NoWarn>
+      <!-- CA1505: the demo deliberately keeps one readable end-to-end flow in a single file rather than
+         fragmenting it across types the reader would have to chase. Splitting it to satisfy a
+         maintainability index would make the sample worse at the one job it has. -->
+    <NoWarn>$(NoWarn);CA1505</NoWarn>
   </PropertyGroup>
   <!-- Dispatch core (messaging, dispatching) -->
   <ItemGroup>

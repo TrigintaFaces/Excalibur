@@ -8,7 +8,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>LeaderElection</RootNamespace>
-    <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
   <!-- Dispatch Leader Election Abstractions -->
   <ItemGroup>

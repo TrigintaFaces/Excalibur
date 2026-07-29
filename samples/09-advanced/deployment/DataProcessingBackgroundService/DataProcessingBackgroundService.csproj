@@ -4,7 +4,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>DataProcessingBackgroundService</RootNamespace>
-    <NoWarn>$(NoWarn);CA1050;CA1506;CA1303;CA1505;CA1861</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />

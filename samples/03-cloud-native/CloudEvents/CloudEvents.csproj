@@ -8,7 +8,6 @@
     <RootNamespace>Excalibur.Dispatch.Samples.CloudEvents</RootNamespace>
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
-    <NoWarn>$(NoWarn);CA1506</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />

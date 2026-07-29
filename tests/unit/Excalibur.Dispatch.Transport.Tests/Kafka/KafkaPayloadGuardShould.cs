@@ -63,7 +63,10 @@ public sealed class KafkaPayloadGuardShould
         var oversized = Record("m1", 20, offset: 5); // 20 bytes > 8
         var valid = Record("m2", 4, offset: 6);      // 4 bytes
         var seq = new Queue<KafkaConsumeResult?>([oversized, valid, null]);
-        A.CallTo(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
+        // Explicit nullable generic: Consume's declared return is ConsumeResult<..>?, but generic
+        // inference over the expression drops the annotation, so the non-nullable overload binds and
+        // the nullable sequence element is a CS8620 mismatch. Stating T fixes the binding (no suppression).
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
 
         var messages = await CreateReceiver(consumer).ReceiveAsync(10, CancellationToken.None);
 
@@ -79,7 +82,10 @@ public sealed class KafkaPayloadGuardShould
     {
         var consumer = A.Fake<IConsumer<string, byte[]>>();
         var seq = new Queue<KafkaConsumeResult?>([Record("m3", 8, offset: 3), null]); // exactly 8 bytes
-        A.CallTo(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
+        // Explicit nullable generic: Consume's declared return is ConsumeResult<..>?, but generic
+        // inference over the expression drops the annotation, so the non-nullable overload binds and
+        // the nullable sequence element is a CS8620 mismatch. Stating T fixes the binding (no suppression).
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
 
         var messages = await CreateReceiver(consumer).ReceiveAsync(10, CancellationToken.None);
 
@@ -94,7 +100,10 @@ public sealed class KafkaPayloadGuardShould
     {
         var consumer = A.Fake<IConsumer<string, byte[]>>();
         var seq = new Queue<KafkaConsumeResult?>([Record("m4", 29, offset: 9), null]); // > 8 bytes
-        A.CallTo(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
+        // Explicit nullable generic: Consume's declared return is ConsumeResult<..>?, but generic
+        // inference over the expression drops the annotation, so the non-nullable overload binds and
+        // the nullable sequence element is a CS8620 mismatch. Stating T fixes the binding (no suppression).
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() => seq.Dequeue());
 
         var messages = await CreateReceiver(consumer, max: null).ReceiveAsync(10, CancellationToken.None);
 
@@ -114,7 +123,7 @@ public sealed class KafkaPayloadGuardShould
 
         using var cts = new CancellationTokenSource();
         var call = 0;
-        A.CallTo(() => consumer.Consume(A<CancellationToken>._)).ReturnsLazily(() =>
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._)).ReturnsLazily(() =>
         {
             call++;
             return call switch
@@ -145,7 +154,7 @@ public sealed class KafkaPayloadGuardShould
 
         using var cts = new CancellationTokenSource();
         var call = 0;
-        A.CallTo(() => consumer.Consume(A<CancellationToken>._)).ReturnsLazily(() =>
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._)).ReturnsLazily(() =>
         {
             call++;
             return call == 1 ? oversized : Cancel(cts);

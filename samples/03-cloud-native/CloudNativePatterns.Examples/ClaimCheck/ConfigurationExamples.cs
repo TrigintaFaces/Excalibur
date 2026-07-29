@@ -40,8 +40,12 @@ public static class ConfigurationExamples
 
 			_ = services.AddClaimCheck<AzureBlobClaimCheckProvider>(options =>
 			{
-				// Connection settings from configuration
-				options.ConnectionString = configuration.GetConnectionString("AzureStorage");
+				// Connection settings from configuration.
+				// GetConnectionString returns null when the entry is missing, so fail fast
+				// at startup with a clear message rather than at first upload.
+				options.ConnectionString = configuration.GetConnectionString("AzureStorage")
+					?? throw new InvalidOperationException(
+						"Connection string 'AzureStorage' is required for the production claim-check configuration.");
 				options.ContainerName = configuration["ClaimCheck:ContainerName"] ?? "claim-checks";
 
 				// Performance settings

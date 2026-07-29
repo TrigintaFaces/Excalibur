@@ -84,7 +84,9 @@ public sealed class TransportDeliveryReadTenantTermShould
 			TableName, MessageId, KeyedTenantPartition.Scoped("tenant-b"), 30, CancellationToken.None);
 
 		// Assert
-		((DynamicParameters)request.Command.Parameters).Get<string>("TenantId")
+		var parameters = request.Command.Parameters as DynamicParameters;
+		parameters.ShouldNotBeNull("the read must supply Dapper parameters; with none, no tenant term is bound at all.");
+		parameters.Get<string>("TenantId")
 			.ShouldBe("tenant-b", "the read must bind the partition it was given; binding anything else scopes the query to the wrong tenant.");
 	}
 
@@ -113,7 +115,9 @@ public sealed class TransportDeliveryReadTenantTermShould
 			TableName, MessageId, KeyedTenantPartition.Untenanted, 30, CancellationToken.None);
 
 		// Assert
-		((DynamicParameters)request.Command.Parameters).Get<string>("TenantId")
+		var parameters = request.Command.Parameters as DynamicParameters;
+		parameters.ShouldNotBeNull("the read must supply Dapper parameters; with none, no tenant term is bound at all.");
+		parameters.Get<string>("TenantId")
 			.ShouldBe("__untenanted__", "a caller with no ambient tenant must read the reserved partition, not be excluded from every row.");
 	}
 
@@ -138,7 +142,9 @@ public sealed class TransportDeliveryReadTenantTermShould
 			"COALESCE",
 			Case.Sensitive,
 			"legacy NULL tenant rows must resolve to the untenanted partition; a bare equality hides them from every tenant including their owner.");
-		((DynamicParameters)request.Command.Parameters).Get<string>("UntenantedSentinel")
+		var parameters = request.Command.Parameters as DynamicParameters;
+		parameters.ShouldNotBeNull("the read must supply Dapper parameters; with none, the COALESCE fallback is bound to nothing.");
+		parameters.Get<string>("UntenantedSentinel")
 			.ShouldBe("__untenanted__", "the COALESCE fallback must be the reserved sentinel so legacy rows land in the partition the store writes today.");
 	}
 }

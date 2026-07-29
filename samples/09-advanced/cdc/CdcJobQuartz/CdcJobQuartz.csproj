@@ -3,13 +3,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1506</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>CdcJobQuartz</RootNamespace>
     <!-- Suppress warnings for samples (demo code intentionally couples many types and uses inline arrays) -->
-    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505;CA1861</NoWarn>
   </PropertyGroup>
   <!-- Dispatch core (messaging, dispatching) -->
   <ItemGroup>

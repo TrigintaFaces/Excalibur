@@ -25,20 +25,39 @@ namespace Excalibur.Dispatch.Transport.Tests.CloudEvents;
 [Trait("Component", "Transport")]
 public sealed class DoDComplianceValidatorShould
 {
-	public static TheoryData<string, Action<IServiceCollection>> Transports() => new()
+	/// <summary>
+	/// The transport under test, as a SERIALIZABLE discriminator.
+	/// </summary>
+	/// <remarks>
+	/// This carried the registration delegate itself (<c>Action&lt;IServiceCollection&gt;</c>), which xUnit
+	/// cannot serialize — so Test Explorer could not enumerate the individual rows (xUnit1044) and the five
+	/// transports collapsed into one opaque theory. The string key is serializable; the delegate is looked
+	/// up from it inside the test body, which keeps all 5 transports × 5 scenarios intact.
+	/// </remarks>
+	public static TheoryData<string> Transports() =>
+	[
+		"AWS",
+		"Azure",
+		"Google",
+		"Kafka",
+		"RabbitMq",
+	];
+
+	private static Action<IServiceCollection> RegistrationFor(string transport) => transport switch
 	{
-		{ "AWS", s => s.AddAwsCloudEventValidation() },
-		{ "Azure", s => s.AddAzureCloudEventValidation() },
-		{ "Google", s => s.AddGoogleCloudEventValidation() },
-		{ "Kafka", s => s.AddKafkaCloudEventValidation() },
-		{ "RabbitMq", s => s.AddRabbitMqCloudEventValidation() },
+		"AWS" => static s => s.AddAwsCloudEventValidation(),
+		"Azure" => static s => s.AddAzureCloudEventValidation(),
+		"Google" => static s => s.AddGoogleCloudEventValidation(),
+		"Kafka" => static s => s.AddKafkaCloudEventValidation(),
+		"RabbitMq" => static s => s.AddRabbitMqCloudEventValidation(),
+		_ => throw new ArgumentOutOfRangeException(nameof(transport), transport, "unknown transport"),
 	};
 
 	[Theory]
 	[MemberData(nameof(Transports))]
-	public async Task Accept_WhenAllRequiredFieldsPresent(string transport, Action<IServiceCollection> addValidation)
+	public async Task Accept_WhenAllRequiredFieldsPresent(string transport)
 	{
-		var validator = ResolveValidator(addValidation);
+		var validator = ResolveValidator(transport);
 
 		var result = await validator(MakeEvent(correlationId: true, userId: true, traceParent: true), CancellationToken.None);
 
@@ -47,9 +66,9 @@ public sealed class DoDComplianceValidatorShould
 
 	[Theory]
 	[MemberData(nameof(Transports))]
-	public async Task Reject_WhenCorrelationIdMissing(string transport, Action<IServiceCollection> addValidation)
+	public async Task Reject_WhenCorrelationIdMissing(string transport)
 	{
-		var validator = ResolveValidator(addValidation);
+		var validator = ResolveValidator(transport);
 
 		var result = await validator(MakeEvent(correlationId: false, userId: true, traceParent: true), CancellationToken.None);
 
@@ -58,11 +77,11 @@ public sealed class DoDComplianceValidatorShould
 
 	[Theory]
 	[MemberData(nameof(Transports))]
-	public async Task Reject_WhenUserIdMissing(string transport, Action<IServiceCollection> addValidation)
+	public async Task Reject_WhenUserIdMissing(string transport)
 	{
 		// The gap: userId was never checked (OR of traceParent/correlationId). An envelope missing userId
 		// but carrying the other two previously passed.
-		var validator = ResolveValidator(addValidation);
+		var validator = ResolveValidator(transport);
 
 		var result = await validator(MakeEvent(correlationId: true, userId: false, traceParent: true), CancellationToken.None);
 
@@ -71,9 +90,9 @@ public sealed class DoDComplianceValidatorShould
 
 	[Theory]
 	[MemberData(nameof(Transports))]
-	public async Task Reject_WhenTraceParentMissing(string transport, Action<IServiceCollection> addValidation)
+	public async Task Reject_WhenTraceParentMissing(string transport)
 	{
-		var validator = ResolveValidator(addValidation);
+		var validator = ResolveValidator(transport);
 
 		var result = await validator(MakeEvent(correlationId: true, userId: true, traceParent: false), CancellationToken.None);
 
@@ -82,21 +101,21 @@ public sealed class DoDComplianceValidatorShould
 
 	[Theory]
 	[MemberData(nameof(Transports))]
-	public async Task Reject_WhenOnlyTraceParentPresent(string transport, Action<IServiceCollection> addValidation)
+	public async Task Reject_WhenOnlyTraceParentPresent(string transport)
 	{
 		// Directly targets the old OR behavior: traceParent alone previously satisfied the validator.
-		var validator = ResolveValidator(addValidation);
+		var validator = ResolveValidator(transport);
 
 		var result = await validator(MakeEvent(correlationId: false, userId: false, traceParent: true), CancellationToken.None);
 
 		result.ShouldBeFalse($"{transport}: a lone traceParent is NOT DoD-compliant (OR→AND regression)");
 	}
 
-	private static Func<CloudEvent, CancellationToken, Task<bool>> ResolveValidator(Action<IServiceCollection> addValidation)
+	private static Func<CloudEvent, CancellationToken, Task<bool>> ResolveValidator(string transport)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		addValidation(services);
+		RegistrationFor(transport)(services);
 		var provider = services.BuildServiceProvider();
 
 		var validator = provider.GetRequiredService<IOptions<CloudEventOptions>>().Value.Schema.CustomValidator;

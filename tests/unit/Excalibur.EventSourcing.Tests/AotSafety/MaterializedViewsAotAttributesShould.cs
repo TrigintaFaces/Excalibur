@@ -17,7 +17,10 @@ namespace Excalibur.EventSourcing.Tests.AotSafety;
 [Trait("Component", "Core")]
 public sealed class MaterializedViewsAotAttributesShould
 {
-	public static IEnumerable<object[]> ConsumerFacingMethods()
+	// Rows carry the declaring type plus the method's metadata token rather than a MethodInfo: a MethodInfo
+	// type argument is not reliably serializable (xUnit1045), which stops the runner enumerating individual
+	// data rows. The token resolves back to exactly the same method — one row per method, as before.
+	public static TheoryData<Type, string, int> ConsumerFacingMethods()
 	{
 		var types = new[]
 		{
@@ -26,19 +29,26 @@ public sealed class MaterializedViewsAotAttributesShould
 			typeof(MaterializedViewsServiceCollectionExtensions),
 		};
 
+		var data = new TheoryData<Type, string, int>();
+
 		foreach (var type in types)
 		{
 			foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
 			{
-				yield return new object[] { type.Name, method.Name, method };
+				data.Add(type, method.Name, method.MetadataToken);
 			}
 		}
+
+		return data;
 	}
 
 	[Theory]
 	[MemberData(nameof(ConsumerFacingMethods))]
-	public void NotCarryAotHostileAttributes(string typeName, string methodName, MethodInfo method)
+	public void NotCarryAotHostileAttributes(Type declaringType, string methodName, int metadataToken)
 	{
+		var typeName = declaringType.Name;
+		var method = (MethodInfo)declaringType.Module.ResolveMethod(metadataToken)!;
+
 		method.GetCustomAttribute<RequiresUnreferencedCodeAttribute>().ShouldBeNull(
 			$"{typeName}.{methodName} is consumer-facing and must not carry [RequiresUnreferencedCode]; "
 			+ "remove the reflection requirement rather than suppress or propagate it.");

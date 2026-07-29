@@ -30,6 +30,8 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 [Trait("Database", "Postgres")]
 public sealed class PostgresOutboxKeystoneRoundTripShould : IClassFixture<PostgresOutboxStoreContainerFixture>
 {
+	private static readonly string[] ExpectedAscendingSequenceClaimOrder = ["ord-1", "ord-2", "ord-3"];
+
 	private readonly PostgresOutboxStoreContainerFixture _fixture;
 
 	public PostgresOutboxKeystoneRoundTripShould(PostgresOutboxStoreContainerFixture fixture)
@@ -125,7 +127,7 @@ public sealed class PostgresOutboxKeystoneRoundTripShould : IClassFixture<Postgr
 		}
 
 		// Safety: ascending per-partition claim order. Liveness: all three are claimable (loop got 3).
-		claimed.ShouldBe(new[] { "ord-1", "ord-2", "ord-3" });
+		claimed.ShouldBe(ExpectedAscendingSequenceClaimOrder);
 	}
 
 	private async Task<IOutboxStore> CreateStoreAsync()

@@ -38,7 +38,7 @@ public sealed class PipelineIntegrationTests
 
         // Act
         var result = await harness.Dispatcher.DispatchAsync<CreateOrderCommand, string>(
-            new CreateOrderCommand("Widget", 3), context, CancellationToken.None).ConfigureAwait(false);
+            new CreateOrderCommand("Widget", 3), context, CancellationToken.None);
 
         // Assert: pipeline produced a successful result
         result.Succeeded.ShouldBeTrue();
@@ -59,11 +59,11 @@ public sealed class PipelineIntegrationTests
         // Act: dispatch two commands
         var ctxA = new MessageContextBuilder().Build();
         var resultA = await harness.Dispatcher.DispatchAsync<CreateOrderCommand, string>(
-            new CreateOrderCommand("Gadget", 1), ctxA, CancellationToken.None).ConfigureAwait(false);
+            new CreateOrderCommand("Gadget", 1), ctxA, CancellationToken.None);
 
         var ctxB = new MessageContextBuilder().Build();
         var resultB = await harness.Dispatcher.DispatchAsync<CreateOrderCommand, string>(
-            new CreateOrderCommand("Widget", 2), ctxB, CancellationToken.None).ConfigureAwait(false);
+            new CreateOrderCommand("Widget", 2), ctxB, CancellationToken.None);
 
         // Assert: each dispatch produced its own result
         resultA.ReturnValue.ShouldBe("order-A");
@@ -82,7 +82,7 @@ public sealed class PipelineIntegrationTests
 
         // Act: dispatch the event through the full pipeline
         var result = await harness.Dispatcher.DispatchAsync(
-            new OrderCreatedEvent("order-99", "Doohickey"), context, CancellationToken.None).ConfigureAwait(false);
+            new OrderCreatedEvent("order-99", "Doohickey"), context, CancellationToken.None);
 
         // Assert: pipeline succeeded
         result.Succeeded.ShouldBeTrue();

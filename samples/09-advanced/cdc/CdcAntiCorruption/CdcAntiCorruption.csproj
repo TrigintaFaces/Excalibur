@@ -9,8 +9,6 @@
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)GeneratedFiles</CompilerGeneratedFilesOutputPath>
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
-    <!-- Suppress warnings irrelevant for sample code -->
-    <NoWarn>$(NoWarn);CA1050;CA1506</NoWarn>
   </PropertyGroup>
  <!-- Updated paths for reorganized sample structure -->
   <ItemGroup>

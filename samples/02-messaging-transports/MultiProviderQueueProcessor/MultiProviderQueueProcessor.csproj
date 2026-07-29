@@ -5,8 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>MultiProviderQueueProcessor</RootNamespace>
-    <!-- Suppress warnings irrelevant for sample code -->
-    <NoWarn>$(NoWarn);CS8603;CA1724</NoWarn>
   </PropertyGroup>
  <!-- Updated paths for reorganized sample structure -->
   <!-- Dispatch Core -->

@@ -82,14 +82,14 @@ Console.WriteLine("================================================");
 /// A simple ping command that returns a pong response.
 /// Commands represent intent to perform an action and may return a result.
 /// </summary>
-public sealed record PingCommand : IDispatchAction<string>
+internal sealed record PingCommand : IDispatchAction<string>
 {
 	/// <summary>Gets or initializes the text to include in the ping.</summary>
 	public string Text { get; init; } = string.Empty;
 }
 
 /// <summary>Handles the <see cref="PingCommand"/> and returns a pong response.</summary>
-public sealed class PingCommandHandler : IActionHandler<PingCommand, string>
+internal sealed class PingCommandHandler : IActionHandler<PingCommand, string>
 {
 	/// <inheritdoc />
 	public Task<string> HandleAsync(PingCommand action, CancellationToken cancellationToken)
@@ -104,10 +104,10 @@ public sealed class PingCommandHandler : IActionHandler<PingCommand, string>
 /// A simple ping event.
 /// Events represent facts that have occurred and can have multiple handlers.
 /// </summary>
-public sealed record PingEvent(string Message) : IDispatchEvent;
+internal sealed record PingEvent(string Message) : IDispatchEvent;
 
 /// <summary>Handles the <see cref="PingEvent"/>. Events can have multiple handlers.</summary>
-public sealed class PingHandler : IEventHandler<PingEvent>
+internal sealed class PingHandler : IEventHandler<PingEvent>
 {
 	/// <inheritdoc />
 	public Task HandleAsync(PingEvent eventMessage, CancellationToken cancellationToken)

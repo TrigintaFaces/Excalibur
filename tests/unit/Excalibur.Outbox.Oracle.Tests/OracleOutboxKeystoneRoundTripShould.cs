@@ -26,6 +26,9 @@ namespace Excalibur.Outbox.Oracle.Tests;
 [Trait("Database", "Oracle")]
 public sealed class OracleOutboxKeystoneRoundTripShould : IClassFixture<OracleOutboxStoreContainerFixture>
 {
+	// The expected same-partition claim order, hoisted so it is not a constant array argument (CA1861).
+	private static readonly string[] ExpectedAscendingSequenceClaimOrder = ["ord-1", "ord-2", "ord-3"];
+
 	private readonly OracleOutboxStoreContainerFixture _fixture;
 
 	public OracleOutboxKeystoneRoundTripShould(OracleOutboxStoreContainerFixture fixture)
@@ -116,7 +119,7 @@ public sealed class OracleOutboxKeystoneRoundTripShould : IClassFixture<OracleOu
 			claimed.Add(batch[0].Id);
 		}
 
-		claimed.ShouldBe(new[] { "ord-1", "ord-2", "ord-3" });
+		claimed.ShouldBe(ExpectedAscendingSequenceClaimOrder);
 	}
 
 	private async Task<IOutboxStore> CreateStoreAsync()

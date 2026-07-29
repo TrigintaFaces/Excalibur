@@ -276,7 +276,12 @@ public sealed class EventSourcedRepositoryShould
 			.ReturnsLazily((FakeItEasy.Core.IFakeObjectCall call) =>
 			{
 				var data = call.GetArgument<byte[]>(0);
-				return data.AsSpan().SequenceEqual("POISON"u8) ? (IDomainEvent?)null : goodEvent;
+
+				// IEventSerializer.DeserializeEvent is declared to return a NON-nullable IDomainEvent, so this
+				// fake is DELIBERATELY violating its contract: that misbehaving-serializer case is precisely
+				// what this test asserts the repository must fail loud on, rather than silently truncating the
+				// aggregate. The suppression marks the intentional contract violation, not an unknown nullability.
+				return data.AsSpan().SequenceEqual("POISON"u8) ? null! : goodEvent;
 			});
 
 		var repository = new EventSourcedRepository<TestAggregate>(

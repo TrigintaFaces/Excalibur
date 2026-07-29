@@ -16,7 +16,6 @@ internal sealed class TestSagaState : AbstractSagaState
 	public string Status { get; set; } = string.Empty;
 	public int CurrentStepIndex { get; set; }
 	public DateTime StartedAt { get; set; }
-	public DateTime? CompletedAt { get; set; }
 	public string? ErrorMessage { get; set; }
 	public IDictionary<string, object> Metadata { get; } = new Dictionary<string, object>(StringComparer.Ordinal);
 }
@@ -187,13 +186,13 @@ public sealed class InMemorySagaStoreFunctionalShould
 		// Arrange
 		var store = new InMemorySagaStore();
 		var sagaId = Guid.NewGuid();
-		var completedAt = DateTime.UtcNow;
+		var completedAt = DateTimeOffset.UtcNow;
 
 		var state = new TestSagaState
 		{
 			SagaId = sagaId,
 			Status = "Completed",
-			StartedAt = completedAt.AddMinutes(-5),
+			StartedAt = completedAt.AddMinutes(-5).UtcDateTime,
 			CompletedAt = completedAt,
 		};
 

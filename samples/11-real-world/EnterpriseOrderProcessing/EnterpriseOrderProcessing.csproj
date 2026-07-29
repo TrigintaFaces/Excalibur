@@ -3,13 +3,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1506</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>EnterpriseOrderProcessing</RootNamespace>
     <!-- Suppress warnings for sample code (intentionally comprehensive demo) -->
-    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505;CA5394</NoWarn>
   </PropertyGroup>
 
   <!-- ========================================================================================

@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.Firestore;
 /// skip). Builds an emulator-connected <see cref="FirestoreDb"/> with the SDK's default serializer.
 /// </summary>
 #pragma warning disable CA1812 // Instantiated by the xUnit test runner as a class fixture.
-internal sealed class FirestoreCdcStateStoreContainerFixture : ContainerFixtureBase
+public sealed class FirestoreCdcStateStoreContainerFixture : ContainerFixtureBase
 {
 	private FirestoreContainer? _container;
 
@@ -118,7 +118,7 @@ internal sealed class FirestoreCdcStateStoreContainerFixture : ContainerFixtureB
 [Trait("Database", "Firestore")]
 [Trait("SubComponent", "StateStoreOptimisticConcurrency")]
 #pragma warning disable CA1812 // Instantiated by the xUnit test runner.
-internal sealed class FirestoreCdcStateStoreOptimisticConcurrencyIntegrationShould
+public sealed class FirestoreCdcStateStoreOptimisticConcurrencyIntegrationShould
 	: IClassFixture<FirestoreCdcStateStoreContainerFixture>
 {
 	private const string CollectionPath = "users/orders";

@@ -3,12 +3,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1506</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>GdprCompliance</RootNamespace>
-    <NoWarn>$(NoWarn);CA1506;CA1303;CA1861;CA2213;MSB3277</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

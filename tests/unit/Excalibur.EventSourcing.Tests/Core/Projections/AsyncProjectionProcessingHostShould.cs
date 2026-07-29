@@ -204,7 +204,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, options: options);
 
 		// Act
@@ -213,7 +213,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Poll until ReadAllAsync is called — avoids fragile fixed-delay timing on CI runners.
 		await WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref readAllCalled) > 0,
-			TimeSpan.FromSeconds(4),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -274,7 +274,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			CheckpointInterval = 100, // won't reach threshold in this test
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, fakeSerializer, options);
 
 		// Act
@@ -283,7 +283,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Poll until apply is invoked — avoids fragile fixed-delay timing on CI runners.
 		await WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref applyInvoked) > 0,
-			TimeSpan.FromSeconds(4),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -341,7 +341,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, fakeSerializer, options);
 
 		// Act
@@ -350,7 +350,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Poll until both aggregate groups have been applied — avoids fragile fixed-delay timing on CI runners.
 		await WaitHelpers.WaitUntilAsync(
 			() => applyCallContexts.Count >= 2,
-			TimeSpan.FromSeconds(4),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -388,7 +388,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, options: options);
 
 		// Act
@@ -397,7 +397,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Poll until capturedPosition is set — avoids fragile fixed-delay timing on CI runners.
 		await WaitHelpers.WaitUntilAsync(
 			() => capturedPosition != null,
-			TimeSpan.FromSeconds(4),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -456,7 +456,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -518,7 +518,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -531,7 +531,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// — avoids fragile fixed-delay timing on CI runners.
 		await WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref applyCallCount) >= 2,
-			TimeSpan.FromSeconds(4),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -590,7 +590,13 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		// Bounds are SCALED for CI. The host re-applies within milliseconds locally (this test runs in
+		// ~0.3s), but on a loaded runner the same test has taken ~10s, and an unscaled 4s window expired
+		// after a single apply -- reporting applyCount == 1 as though the host had advanced past a failed
+		// batch. The failure looked exactly like the data-loss defect this test exists to catch, which is
+		// the worst kind of flake: it accuses the very invariant it guards. Scaling keeps the assertion
+		// intact and only widens the window the runner is given to satisfy it.
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -601,7 +607,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 		await WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref applyCount) >= 2,
-			TimeSpan.FromSeconds(4),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 

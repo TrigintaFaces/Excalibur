@@ -124,7 +124,17 @@ public sealed class SecurityMiddlewareApplicabilityPolicyShould
 			+ "for the missing kind.");
 	}
 
-	public static IEnumerable<object[]> SecurityFamilyData() => SecurityFamily.Select(t => new object[] { t });
+	public static TheoryData<Type> SecurityFamilyData()
+	{
+		var data = new TheoryData<Type>();
+
+		foreach (var type in SecurityFamily)
+		{
+			data.Add(type);
+		}
+
+		return data;
+	}
 
 	private static IEnumerable<Type> MiddlewareTypesWithAppliesTo() =>
 		typeof(AuthorizationMiddleware).Assembly

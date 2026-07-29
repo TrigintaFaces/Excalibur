@@ -43,12 +43,28 @@ namespace Excalibur.Data.Tests.DynamoDb.Cdc;
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class DynamoDbCdcProcessorAckOrderingShould
 {
-	private const string ShardId = "shardId-000000000001";
+	/// <summary>
+	/// A realistically shaped DynamoDB Streams shard id (<c>shardId-</c> + a 20-digit epoch-ish component +
+	/// an 8-hex suffix), matching the documented minimum length of the real service.
+	/// </summary>
+	private const string ShardId = "shardId-00000001700000000000-a1b2c3d4";
 
 	private const string StreamArn =
 		"arn:aws:dynamodb:us-east-1:000000000000:table/Excalibur/stream/2026-01-01T00:00:00.000";
 
 	private const string IteratorPrefix = "AT-";
+
+	/// <summary>
+	/// Fixed 19-digit high-order component of a realistically shaped DynamoDB Streams sequence number.
+	/// </summary>
+	/// <remarks>
+	/// Real sequence numbers are ≥21-character monotonically increasing decimal strings. Records here use
+	/// this constant prefix plus a zero-padded 2-digit ordinal, so the full value is exactly 21 characters
+	/// AND its lexicographic order agrees with its numeric order — which is what this lock's re-delivery
+	/// assertions depend on. Only the fixed-width suffix varies, so the ordering relationships between r1,
+	/// r2 and r3 are byte-for-byte the same as they were with the former "1"/"2"/"3" fixtures.
+	/// </remarks>
+	private const string SequencePrefix = "1000000000000000000";
 
 	[Fact]
 	public async Task RedeliverRecordsAfterAHandlerFailure_NotSkipPastTheFailedChange()
@@ -56,9 +72,9 @@ public sealed class DynamoDbCdcProcessorAckOrderingShould
 		// Arrange — a single shard carrying three records r1, r2, r3.
 		var records = new[]
 		{
-			BuildRecord("1"),
-			BuildRecord("2"),
-			BuildRecord("3"),
+			BuildRecord(Seq(1)),
+			BuildRecord(Seq(2)),
+			BuildRecord(Seq(3)),
 		};
 
 		var streams = A.Fake<IAmazonDynamoDBStreams>();
@@ -73,7 +89,7 @@ public sealed class DynamoDbCdcProcessorAckOrderingShould
 						new Shard
 						{
 							ShardId = ShardId,
-							SequenceNumberRange = new SequenceNumberRange { StartingSequenceNumber = "1" },
+							SequenceNumberRange = new SequenceNumberRange { StartingSequenceNumber = Seq(1) },
 						},
 					],
 				},
@@ -87,7 +103,7 @@ public sealed class DynamoDbCdcProcessorAckOrderingShould
 			.ReturnsLazily((GetShardIteratorRequest req, CancellationToken _) =>
 			{
 				var position = req.ShardIteratorType == ShardIteratorType.AFTER_SEQUENCE_NUMBER
-					? int.Parse(req.SequenceNumber, CultureInfo.InvariantCulture)
+					? SeqOrdinal(req.SequenceNumber)
 					: 0;
 				return new GetShardIteratorResponse { ShardIterator = IteratorPrefix + position.ToString(CultureInfo.InvariantCulture) };
 			});
@@ -97,10 +113,10 @@ public sealed class DynamoDbCdcProcessorAckOrderingShould
 			{
 				var consumed = int.Parse(req.ShardIterator[IteratorPrefix.Length..], CultureInfo.InvariantCulture);
 				var batch = records
-					.Where(r => int.Parse(r.Dynamodb.SequenceNumber, CultureInfo.InvariantCulture) > consumed)
+					.Where(r => SeqOrdinal(r.Dynamodb.SequenceNumber) > consumed)
 					.ToList();
 				var lastSeq = batch.Count > 0
-					? int.Parse(batch[^1].Dynamodb.SequenceNumber, CultureInfo.InvariantCulture)
+					? SeqOrdinal(batch[^1].Dynamodb.SequenceNumber)
 					: consumed;
 				return new GetRecordsResponse
 				{
@@ -130,7 +146,7 @@ public sealed class DynamoDbCdcProcessorAckOrderingShould
 			handledSequences.Add(change.SequenceNumber);
 
 			// Fail on r2 the first time it is seen, then recover — models a transient handler failure.
-			if (change.SequenceNumber == "2" && !hasFailedOnce)
+			if (string.Equals(change.SequenceNumber, Seq(2), StringComparison.Ordinal) && !hasFailedOnce)
 			{
 				hasFailedOnce = true;
 				throw new InvalidOperationException("Simulated transient handler failure on r2.");
@@ -161,17 +177,28 @@ public sealed class DynamoDbCdcProcessorAckOrderingShould
 		var secondPollSequences = handledSequences.Skip(handledOnFirstPoll).ToList();
 
 		secondPollSequences.ShouldContain(
-			"2",
+			Seq(2),
 			customMessage:
 			"Expected r2 to be re-delivered after the handler failed: the cursor must not advance past an " +
 			"unhandled change (RED on pre-fix HEAD, which advances the iterator before handling).");
 		secondPollSequences.ShouldContain(
-			"3",
+			Seq(3),
 			customMessage: "Expected r3 (the unhandled suffix after the failure) to be re-delivered, not skipped.");
 
 		// And the first poll handled exactly the prefix up to and including the failed record (r1, r2).
-		handledSequences.Take(handledOnFirstPoll).ShouldBe(["1", "2"]);
+		handledSequences.Take(handledOnFirstPoll).ShouldBe([Seq(1), Seq(2)]);
 	}
+
+	/// <summary>
+	/// Builds the <paramref name="ordinal"/>-th realistically shaped (21-character) sequence number.
+	/// Fixed-width zero padding keeps lexicographic and numeric order in agreement.
+	/// </summary>
+	private static string Seq(int ordinal) =>
+		SequencePrefix + ordinal.ToString("D2", CultureInfo.InvariantCulture);
+
+	/// <summary>Recovers the ordinal from a sequence number produced by <see cref="Seq"/>.</summary>
+	private static int SeqOrdinal(string sequenceNumber) =>
+		int.Parse(sequenceNumber[SequencePrefix.Length..], CultureInfo.InvariantCulture);
 
 	private static StreamsRecord BuildRecord(string sequenceNumber) => new()
 	{

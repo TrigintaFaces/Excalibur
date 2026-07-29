@@ -8,7 +8,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>BindConfigurationPatterns</RootNamespace>
-    <NoWarn>$(NoWarn);CA1506;CA1303;CA1861;CA2213;MSB3277</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

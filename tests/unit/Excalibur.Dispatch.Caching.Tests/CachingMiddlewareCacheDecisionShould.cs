@@ -46,6 +46,7 @@ public sealed class CachingMiddlewareCacheDecisionShould : IDisposable
 	private readonly HybridCache _cache;
 	private readonly IMeterFactory _meterFactory;
 	private readonly ICacheKeyBuilder _keyBuilder = A.Fake<ICacheKeyBuilder>();
+	private bool _disposed;
 
 	public CachingMiddlewareCacheDecisionShould()
 	{
@@ -60,7 +61,22 @@ public sealed class CachingMiddlewareCacheDecisionShould : IDisposable
 		A.CallTo(() => _keyBuilder.CreateKey(A<IDispatchAction>._, A<IMessageContext>._)).Returns(CacheKey);
 	}
 
-	public void Dispose() => _services.Dispose();
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		if (_meterFactory is IDisposable disposableMeterFactory)
+		{
+			disposableMeterFactory.Dispose();
+		}
+
+		_services.Dispose();
+	}
 
 	// ─────────────────────────── 7n7hsb: value-type covariance gap ───────────────────────────
 

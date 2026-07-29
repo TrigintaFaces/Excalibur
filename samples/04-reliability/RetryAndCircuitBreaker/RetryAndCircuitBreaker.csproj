@@ -7,7 +7,10 @@
     <Nullable>enable</Nullable>
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
-    <!-- Suppress warnings irrelevant for sample code -->
+    <!-- CA5394: this sample simulates work with Random (fake metrics, retry jitter, demo inventory).
+         Every site was checked: none generates an identifier, key, token, or any security-sensitive
+         value, so a cryptographic RNG would add noise without adding safety. Anything a consumer
+         would copy for real secrets must use System.Security.Cryptography.RandomNumberGenerator. -->
     <NoWarn>$(NoWarn);CA5394</NoWarn>
   </PropertyGroup>
  <!-- Retry and Circuit Breaker sample -->

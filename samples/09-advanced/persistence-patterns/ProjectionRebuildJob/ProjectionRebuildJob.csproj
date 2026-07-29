@@ -8,7 +8,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>ProjectionRebuildJob</RootNamespace>
-    <NoWarn>$(NoWarn);CA1303;CA1506;CA1505</NoWarn>
   </PropertyGroup>
   <!-- Dispatch core (messaging, dispatching) -->
   <ItemGroup>

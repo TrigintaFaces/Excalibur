@@ -113,8 +113,14 @@ public sealed class AwsSecretsManagerCredentialStoreDepthShould
 	{
 		// An empty SecretString from the backend is treated as not found.
 		var client = A.Fake<IAmazonSecretsManager>();
+
+		// The empty SecretString IS the scenario under test — it is the backend response whose handling this
+		// test pins, not filler. SecretsManager1000 flags it as below the service's documented minimum
+		// length; substituting a valid value would delete the test. Suppressed at this line only.
+#pragma warning disable SecretsManager1000 // Empty SecretString is the condition under test.
 		A.CallTo(() => client.GetSecretValueAsync(A<GetSecretValueRequest>._, A<CancellationToken>._))
 			.Returns(new GetSecretValueResponse { SecretString = "" });
+#pragma warning restore SecretsManager1000
 		var store = CreateStoreWithClient(client);
 
 		var result = await store.GetCredentialAsync("empty-key", CancellationToken.None);

@@ -47,7 +47,7 @@ namespace JobWorkerSample;
 /// <summary>
 ///     Entry point for the Job Worker Service sample application demonstrating Excalibur Jobs with Quartz.NET.
 /// </summary>
-public class Program
+public static class Program
 {
 	/// <summary>
 	///     Main entry point for the application.

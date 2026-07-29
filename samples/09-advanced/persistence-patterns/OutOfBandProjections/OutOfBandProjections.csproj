@@ -9,7 +9,6 @@
     <Nullable>enable</Nullable>
     <RootNamespace>OutOfBandProjections</RootNamespace>
     <!-- Suppress coupling warnings for samples (demo code intentionally couples many types) -->
-    <NoWarn>$(NoWarn);CA1303;CA1506;CA1505</NoWarn>
   </PropertyGroup>
   <!-- Dispatch core (messaging, dispatching) -->
   <ItemGroup>

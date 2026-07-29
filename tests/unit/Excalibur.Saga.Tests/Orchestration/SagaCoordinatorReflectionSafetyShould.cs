@@ -21,6 +21,7 @@ namespace Excalibur.Saga.Tests.Orchestration;
 public sealed class SagaCoordinatorReflectionSafetyShould : UnitTestBase
 {
 	private readonly SagaCoordinator _sut;
+	private bool _disposed;
 
 	public SagaCoordinatorReflectionSafetyShould()
 	{
@@ -34,6 +35,18 @@ public sealed class SagaCoordinatorReflectionSafetyShould : UnitTestBase
 		var serviceProvider = services.BuildServiceProvider();
 
 		_sut = new SagaCoordinator(serviceProvider, sagaStore, Microsoft.Extensions.Options.Options.Create(new Excalibur.Saga.SagaOptions()), logger);
+	}
+
+	/// <inheritdoc/>
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing && !_disposed)
+		{
+			_disposed = true;
+			_sut.Dispose();
+		}
+
+		base.Dispose(disposing);
 	}
 
 	#region Reflection Safety Checks (S541.9)
