@@ -143,13 +143,21 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		await store.StoreAsync(CreateAuditEvent("evt-last-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2)), TestCancellationToken);
 		await store.StoreAsync(CreateAuditEvent("evt-last-3", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-1)), TestCancellationToken);
 
+		// The store is scoped to tenant-1 by construction, so this returns tenant-1's latest and NOT
+		// evt-last-3 (tenant-2's), even though evt-last-3 is the newest row in the table. The tenant
+		// argument is not what selects the tenant — the ambient context is.
 		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken);
-		var overallLast = await store.GetLastEventAsync(null, TestCancellationToken);
 
 		tenantLast.ShouldNotBeNull();
 		tenantLast!.EventId.ShouldBe("evt-last-2");
-		overallLast.ShouldNotBeNull();
-		overallLast!.EventId.ShouldBe("evt-last-3");
+
+		// Liveness arm: the scoping is not vacuously excluding everything — a tenant-2 store sees
+		// tenant-2's row, and neither store can reach the other's.
+		using var tenant2Store = CreateStore(tenantId: "tenant-2");
+		var tenant2Last = await tenant2Store.GetLastEventAsync(null, TestCancellationToken);
+
+		tenant2Last.ShouldNotBeNull();
+		tenant2Last!.EventId.ShouldBe("evt-last-3");
 	}
 
 	[Fact]
@@ -487,7 +495,16 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		count.ShouldBe(2);
 	}
 
-	private SqlServerAuditStore CreateStore(Action<SqlServerAuditOptions>? configure = null)
+	/// <param name="tenantId">
+	/// The ambient tenant the store reads under. Defaults to the tenant this suite's events are stamped
+	/// with, because the store binds its WRITE term from <c>auditEvent.TenantId</c> and its READ term from
+	/// the ambient context — so a store with no ambient tenant reads under the untenanted sentinel and can
+	/// never see a tenant-stamped row it just wrote. The tenant reaches the store through CONSTRUCTION,
+	/// never through a query argument: <c>AuditQuery.TenantId</c> and the <c>GetLastEventAsync</c> tenant
+	/// parameter are deliberately not consulted, so that a caller naming someone else's tenant cannot read
+	/// it. Per-tenant arms therefore build a store per tenant rather than passing a tenant argument.
+	/// </param>
+	private SqlServerAuditStore CreateStore(Action<SqlServerAuditOptions>? configure = null, string? tenantId = "tenant-1")
 	{
 		var options = new SqlServerAuditOptions
 		{
@@ -512,9 +529,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 				TableName = "AuditAnnotations",
 			}),
 			AuditIntegrityTestStrategy.Create(),
-			// No ambient tenant: this suite predates ambient scoping and asserts non-tenancy behaviour.
-			// Null is the honest representation of a host that has not established a tenant.
-			tenantContext: null,
+			tenantContext: tenantId is null ? null : new FixedTenantContext(tenantId),
 			EnabledTestLogger.Create<SqlServerAuditStore>());
 	}
 
@@ -593,5 +608,15 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 				["scenario"] = "integration"
 			}
 		};
+	}
+
+	/// <summary>
+	/// A tenant fixed at construction — the shape the store's contract actually takes.
+	/// </summary>
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
 	}
 }

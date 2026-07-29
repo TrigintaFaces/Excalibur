@@ -1168,7 +1168,9 @@ services.AddCdcProcessor(cdc =>
 });
 ```
 
-The SQL Server filter persists processed event records in a `[Cdc].[CdcProcessedEvents]` table with a clustered composite primary key on `(TableName, Lsn, SeqVal)`. Duplicate inserts are handled gracefully via primary key violation detection — concurrent instances processing the same event will not error.
+The SQL Server filter persists processed event records in a `[Cdc].[CdcProcessedEvents]` table with a clustered composite primary key on `(TableName, Lsn, SeqVal, ConsumerId)`. Duplicate inserts are handled gracefully via primary key violation detection — concurrent instances processing the same event will not error.
+
+`ConsumerId` is part of the key, not decoration. It scopes the dedupe namespace to a single consumer: without it, the first consumer to process a change would mark it done for every other consumer of that table, and the others would skip a change they never saw. A duplicate merely reprocesses, which an idempotent handler absorbs; a suppression is silent and unrecoverable. If you create this table by hand, do not omit the column or drop it from the key.
 
 #### Customizing Options
 
@@ -1211,9 +1213,10 @@ CREATE TABLE [Cdc].[CdcProcessedEvents] (
     TableName   NVARCHAR(256)   NOT NULL,
     Lsn         VARBINARY(10)   NOT NULL,
     SeqVal      VARBINARY(10)   NOT NULL,
+    ConsumerId  NVARCHAR(256)   NOT NULL,
     ProcessedAt DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_CdcProcessedEvents
-        PRIMARY KEY CLUSTERED (TableName, Lsn, SeqVal)
+        PRIMARY KEY CLUSTERED (TableName, Lsn, SeqVal, ConsumerId)
 );
 ```
 

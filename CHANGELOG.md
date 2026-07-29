@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The documented SQL Server CDC idempotency schema was missing a column the filter writes, and its
+  primary key was wrong.** The published `CREATE TABLE` for the processed-events table declared
+  `TableName`, `Lsn`, `SeqVal` and `ProcessedAt`, keyed on the first three. The filter writes and
+  dedupes on `ConsumerId`, which the schema did not declare at all, so a table created from the
+  documentation failed on the first processed event with `Invalid column name 'ConsumerId'`. The key
+  mattered as much as the column: `ConsumerId` scopes the dedupe namespace to one consumer, and without
+  it in the key the first consumer to process a change marks it done for every other consumer of that
+  table — the others then skip a change they never saw, silently. That is the multi-instance
+  configuration the same page recommends. The documented schema now declares the column and includes it
+  in the key.
+
+  **If you created this table from an earlier version of the documentation, alter it before upgrading:**
+  add the `ConsumerId` column and rebuild the primary key to include it. A table created by hand without
+  the column has never successfully recorded a processed event; one created with the column but keyed
+  only on `(TableName, Lsn, SeqVal)` may have suppressed changes for every consumer after the first, and
+  those changes will not be re-delivered by fixing the key alone.
+
 - **Snapshots no longer leak or overwrite across tenants on SQL Server.** The SQL Server snapshot
   registrations built the store without a tenant context. That parameter is optional and defaults to
   none, so every tenant's snapshot was written under the framework's reserved untenanted marker: all

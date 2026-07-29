@@ -34,6 +34,10 @@ public sealed class MongoDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDis
 		_container = new MongoDbBuilder()
 			.WithImage("mongo:7.0")
 			.WithName($"mongo-telemetry-test-{Guid.NewGuid():N}")
+			// A multi-event append commits in a transaction, and MongoDB supports transactions only on a
+			// replica set. On standalone the append fails, so the load telemetry under assertion here
+			// reported an event count of 0 rather than the appended events.
+			.WithReplicaSet("rs0")
 			.WithCleanUp(true)
 			.Build();
 

@@ -203,20 +203,12 @@ public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
 
     private async Task InitializeDatabaseAsync()
     {
+        // The event-store table comes from the shipped DDL; TestOutbox is this suite's own fixture and
+        // has no shipped counterpart, so it stays here.
+        await ShippedEventStoreSchema.EnsureCreatedAsync(_connectionString, CancellationToken.None)
+            .ConfigureAwait(false);
+
         const string createSql = """
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventStoreEvents' AND xtype='U')
-            CREATE TABLE EventStoreEvents (
-                Position BIGINT IDENTITY(1,1) PRIMARY KEY,
-                EventId NVARCHAR(255) NOT NULL UNIQUE,
-                AggregateId NVARCHAR(255) NOT NULL,
-                AggregateType NVARCHAR(255) NOT NULL,
-                EventType NVARCHAR(500) NOT NULL,
-                EventData VARBINARY(MAX) NOT NULL,
-                Metadata VARBINARY(MAX) NULL,
-                Version BIGINT NOT NULL,
-                Timestamp DATETIMEOFFSET NOT NULL,
-                INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
-            );
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='TestOutbox' AND xtype='U')
             CREATE TABLE TestOutbox (
                 Id NVARCHAR(255) NOT NULL PRIMARY KEY,

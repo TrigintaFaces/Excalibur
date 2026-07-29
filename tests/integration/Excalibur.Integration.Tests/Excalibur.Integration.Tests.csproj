@@ -63,6 +63,16 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <!--
+      The SQL Server event-store suites provision from the DDL the package ships rather than from
+      hand-written copies. Linking the file in (instead of duplicating it) is what keeps the two from
+      drifting: the copies previously diverged and every append in four suites failed with
+      "Invalid column name 'TenantId'". It also means the shipped script is exercised at all — while
+      the suites built their own schema, nothing tested the one consumers actually run.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Scripts\001_CreateEventStoreSchema.sql" Link="Schema\001_CreateEventStoreSchema.sql" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Dispatch projects -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

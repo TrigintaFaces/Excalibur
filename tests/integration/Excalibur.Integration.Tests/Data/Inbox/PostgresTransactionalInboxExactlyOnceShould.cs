@@ -41,6 +41,8 @@ public sealed class PostgresTransactionalInboxExactlyOnceShould : IAsyncLifetime
 	// handler's own data write commits/rolls back ATOMICALLY with the processed-mark (the headline atomicity proof).
 	private const string SideTable = "\"public\".\"inbox_txn_side_effect\"";
 
+	private const string ExactlyOnceTenantId = "tenant-exactly-once";
+
 	private readonly PostgresInboxStoreContainerFixture _fixture;
 	private PostgresInboxStore _store = null!;
 
@@ -69,7 +71,21 @@ public sealed class PostgresTransactionalInboxExactlyOnceShould : IAsyncLifetime
 			TableName = _fixture.TableName,
 		});
 
-		_store = new PostgresInboxStore(options, NullLogger<PostgresInboxStore>.Instance);
+		// The shared fixture creates the MULTI-TENANT inbox table -- PK (MessageId, HandlerType, TenantId)
+		// with TenantId NOT NULL. Constructed without an ITenantContext this store runs in single-tenant
+		// mode, whose schema contract demands PK (MessageId, HandlerType) and NO TenantId column, so it
+		// fail-closed on every arm with "Single-tenant inbox store: table ... must have a PRIMARY KEY on
+		// (MessageId, HandlerType) and no TenantId column". That guard is correct; the store's mode simply
+		// has to match the table it was pointed at.
+		// Both arguments are required, and supplying only the first does not work: the store selects its
+		// schema contract from TenantContextOptions.RequireTenant, not from the presence of a tenant
+		// context. With a tenant but RequireTenant left false it still verifies against the single-tenant
+		// contract and rejects the multi-tenant table.
+		_store = new PostgresInboxStore(
+			options,
+			NullLogger<PostgresInboxStore>.Instance,
+			new FixedTenantContext(ExactlyOnceTenantId),
+			Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		await EnsureSideTableAsync().ConfigureAwait(false);
 	}
@@ -282,5 +298,15 @@ public sealed class PostgresTransactionalInboxExactlyOnceShould : IAsyncLifetime
 			"the committed handler effect happens exactly once across all concurrent duplicate deliveries");
 		(await _store.IsProcessedAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false))
 			.ShouldBeTrue("after concurrent duplicate suppression the message is durably marked processed");
+	}
+
+	/// <summary>
+	/// A tenant fixed at construction, matching the multi-tenant table the fixture provisions.
+	/// </summary>
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
 	}
 }

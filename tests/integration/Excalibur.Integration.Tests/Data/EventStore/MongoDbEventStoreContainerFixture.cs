@@ -21,11 +21,20 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 /// database between tests to keep the shared container isolated.
 /// </para>
 /// <para>
-/// A <b>standalone</b> <c>mongo:7</c> is used rather than a replica set: the event store performs no
-/// multi-document transactions and opens no sessions. Optimistic concurrency is enforced entirely by a
-/// pre-write version read plus a UNIQUE compound index on (streamId, aggregateType, version) — a version
-/// conflict surfaces as a duplicate-key (11000) error. None of that requires a replica set, so the
-/// lighter standalone container is sufficient and starts faster.
+/// A <b>single-node replica set</b> is used rather than a standalone server, because the store commits a
+/// multi-event append inside a transaction and MongoDB provides transactions only on a replica set.
+/// </para>
+/// <para>
+/// This fixture previously ran standalone, on the rationale that the store "performs no multi-document
+/// transactions and opens no sessions" — true when written, and untrue once batch-append atomicity was
+/// added. Standalone kept passing for a while because the discrepancy is invisible to a single-event
+/// append: one document needs no transaction. Only appends of two or more events failed, which is why
+/// the conformance and batch-atomicity suites broke while the rest of the suite stayed green.
+/// </para>
+/// <para>
+/// Optimistic concurrency is still enforced by a pre-write version read plus a UNIQUE compound index on
+/// (streamId, aggregateType, version), surfacing a conflict as duplicate-key (11000). That part is
+/// unchanged and needs no replica set; the transaction requirement comes from batch atomicity alone.
 /// </para>
 /// </remarks>
 public sealed class MongoDbEventStoreContainerFixture : ContainerFixtureBase
@@ -51,6 +60,13 @@ public sealed class MongoDbEventStoreContainerFixture : ContainerFixtureBase
 		_container = new MongoDbBuilder()
 			.WithImage("mongo:7")
 			.WithName($"mongo-eventstore-test-{Guid.NewGuid():N}")
+			// A single-node replica set, not standalone. A MULTI-event append commits inside a
+			// transaction so the batch lands all-or-nothing, and MongoDB offers transactions only on a
+			// replica set — on standalone the driver refuses with "Standalone servers do not support
+			// transactions" and every such append fails. Single-event appends are one document and need
+			// no transaction, which is why standalone appeared to work: the suites that append one event
+			// passed while every batch append failed.
+			.WithReplicaSet("rs0")
 			.WithCleanUp(true)
 			.Build();
 

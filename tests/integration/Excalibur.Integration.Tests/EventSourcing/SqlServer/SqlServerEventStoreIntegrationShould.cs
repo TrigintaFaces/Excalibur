@@ -270,42 +270,11 @@ public sealed class SqlServerEventStoreIntegrationShould : IAsyncLifetime
 	{
 		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
-		// Reseed the Position IDENTITY so the global ordinal restarts at 1 — the range-query locks assert
-		// absolute Position values, which must be deterministic regardless of test execution order (the
-		// container is shared per-class and DELETE alone does not reset IDENTITY).
-		await using var command = new SqlCommand(
-			"DELETE FROM EventStoreEvents; DBCC CHECKIDENT ('EventStoreEvents', RESEED, 0);", connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+		await ShippedEventStoreSchema.ResetAsync(_connectionString, CancellationToken.None).ConfigureAwait(false);
 	}
 
-	private async Task InitializeDatabaseAsync()
-	{
-		const string createTableSql = """
-			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EventStoreEvents' AND xtype='U')
-			CREATE TABLE EventStoreEvents (
-				Position BIGINT IDENTITY(1,1) PRIMARY KEY,
-				EventId NVARCHAR(255) NOT NULL UNIQUE,
-				AggregateId NVARCHAR(255) NOT NULL,
-				AggregateType NVARCHAR(255) NOT NULL,
-				EventType NVARCHAR(500) NOT NULL,
-				EventData VARBINARY(MAX) NOT NULL,
-				Metadata VARBINARY(MAX) NULL,
-				Version BIGINT NOT NULL,
-				Timestamp DATETIMEOFFSET NOT NULL,
-				INDEX IX_EventStoreEvents_Aggregate (AggregateId, AggregateType, Version)
-			)
-			""";
-
-		Console.WriteLine($"Connection string: {_connectionString}");
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync().ConfigureAwait(false);
-		Console.WriteLine("Database connection opened successfully");
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-		Console.WriteLine("EventStoreEvents table created successfully");
-	}
+	private Task InitializeDatabaseAsync() =>
+		ShippedEventStoreSchema.EnsureCreatedAsync(_connectionString, CancellationToken.None);
 
 	private sealed record TestDomainEvent : IDomainEvent
 	{

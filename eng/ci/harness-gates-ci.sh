@@ -116,6 +116,7 @@ for t in \
     "eng/ci/docs-csharp-extract.test.sh" \
     "eng/ci/pre-commit-dispatch-gate.test.sh" \
     "eng/ci/shard-hang-timeout-gate.test.sh" \
+    "eng/ci/full-ci-shard-completeness.sh --self-test" \
     "eng/ci/committed-sha-build-gate.test.sh" \
     "eng/ci/aot-publish-validation-exit.test.sh" \
     "eng/ci/assert-compiled-not-skipped.test.sh" \

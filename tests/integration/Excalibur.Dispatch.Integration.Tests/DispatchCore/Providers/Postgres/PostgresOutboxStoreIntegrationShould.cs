@@ -95,8 +95,12 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 
 		await store.StageMessageAsync(message, TestCancellationToken);
 
-		// Act & Assert - Postgres implementation wraps database exceptions in OperationFailedException
-		_ = await Should.ThrowAsync<OperationFailedException>(async () =>
+		// Act & Assert - a duplicate id is one contract across providers: InvalidOperationException.
+		// The Postgres store catches the unique violation (bare, and re-wrapped by the resolve layer as
+		// OperationFailedException) and rethrows this uniform type, so a caller does not have to know
+		// which provider it is talking to. This arm previously asserted the provider-internal
+		// OperationFailedException, which was the behaviour before that unification.
+		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await store.StageMessageAsync(duplicate, TestCancellationToken));
 	}
 

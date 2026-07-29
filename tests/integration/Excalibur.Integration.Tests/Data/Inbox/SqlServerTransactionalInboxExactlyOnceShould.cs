@@ -98,10 +98,15 @@ public sealed class SqlServerTransactionalInboxExactlyOnceShould : IAsyncLifetim
 		// fail-closed on every arm with "Single-tenant inbox store: table ... must have a PRIMARY KEY on
 		// (MessageId, HandlerType) and no TenantId column". That guard is correct; the store's mode simply
 		// has to match the table it was pointed at.
+		// Both arguments are required, and supplying only the first does not work: the store selects its
+		// schema contract from TenantContextOptions.RequireTenant, not from the presence of a tenant
+		// context. With a tenant but RequireTenant left false it still verifies against the single-tenant
+		// contract and rejects the multi-tenant table.
 		_store = new SqlServerInboxStore(
 			options,
 			NullLogger<SqlServerInboxStore>.Instance,
-			new FixedTenantContext(ExactlyOnceTenantId));
+			new FixedTenantContext(ExactlyOnceTenantId),
+			Options.Create(new TenantContextOptions { RequireTenant = true }));
 
 		await EnsureSideTableAsync().ConfigureAwait(false);
 	}

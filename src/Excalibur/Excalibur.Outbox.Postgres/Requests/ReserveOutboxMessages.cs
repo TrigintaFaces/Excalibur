@@ -41,6 +41,14 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		// row lock, two concurrent dispatchers could SELECT overlapping rows before either UPDATE landed
 		// and both would claim the same message. This mirrors the SqlServer claim's READPAST/UPDLOCK/
 		// ROWLOCK hints (GetUnsentMessagesRequest.cs). The locking clause MUST follow LIMIT.
+		//
+		// The claim is wrapped in a CTE and re-ordered by an OUTER SELECT. That is load-bearing, not
+		// redundant with the inner ORDER BY: the inner one decides WHICH rows are claimed (the oldest
+		// per partition), and does not decide the order they are returned in. UPDATE ... RETURNING
+		// emits rows in whatever order the executor produces, so reading the RETURNING directly handed
+		// the dispatcher its batch in an arbitrary order and messages left the outbox out of sequence --
+		// the very ordering this table carries partition_key and sequence_number to provide. Both
+		// clauses are required: the inner for selection, the outer for delivery order.
 		var sql = $"""
 		           WITH cte_outbox AS (
 		                   SELECT message_id
@@ -51,7 +59,8 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                   ORDER BY partition_key, sequence_number, occurred_on
 		                   LIMIT {batchSize}
 		                   FOR UPDATE SKIP LOCKED
-		                   )
+		                   ),
+		                   claimed AS (
 		                   UPDATE {outboxTableName}
 		                   SET dispatcher_id = @DispatcherId,
 		                   dispatcher_timeout = NOW() + (@ReservationTimeout || ' seconds')::interval
@@ -74,7 +83,10 @@ public sealed class ReserveOutboxMessages : DataRequest<IEnumerable<IOutboxMessa
 		                   occurred_on AS CreatedAt,
 		                   attempts AS Attempts,
 		                   dispatcher_id AS DispatcherId,
-		                   dispatcher_timeout AS DispatcherTimeout;
+		                   dispatcher_timeout AS DispatcherTimeout
+		                   )
+		                   SELECT * FROM claimed
+		                   ORDER BY PartitionKey, SequenceNumber, CreatedAt;
 		           """;
 
 		var parameters = new DynamicParameters();

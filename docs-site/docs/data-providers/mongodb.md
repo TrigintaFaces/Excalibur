@@ -14,6 +14,31 @@ The MongoDB provider implements `IDocumentPersistenceProvider` for flexible docu
 - A MongoDB instance (local or Atlas)
 - Familiarity with [data access](../data-access/index.md) and [IDb interface](../data-access/idb-interface.md)
 
+:::warning Event sourcing requires a replica set
+
+If you use the MongoDB **event store**, MongoDB must run as a replica set — a single-node replica set is
+enough, and no additional members are required.
+
+Appending two or more events in one call commits them inside a transaction, so that a batch lands
+all-or-nothing and a stream can never contain a partial prefix. MongoDB offers transactions only on a
+replica set. On a standalone server the driver rejects the write and the append fails with:
+
+```text
+Standalone servers do not support transactions.
+```
+
+The failure is easy to miss in early development because it does not affect every write. Appending a
+**single** event is one document, needs no transaction, and succeeds on a standalone server — so a
+prototype that saves one event at a time works, and begins failing only once an aggregate raises two
+events in a single operation.
+
+MongoDB Atlas always runs as a replica set, so this affects self-hosted deployments. To convert a local
+standalone server, start it with `--replSet rs0` and run `rs.initiate()` once.
+
+The other MongoDB stores — snapshots, projections, saga, inbox, outbox, CDC — do not require this.
+
+:::
+
 ## Installation
 
 ```bash

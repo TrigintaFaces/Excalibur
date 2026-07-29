@@ -74,12 +74,41 @@ else
     bad "LIVENESS: pre-commit hook invokes NO tracker/bd enforcement — enforcement vanished, not relocated"
 fi
 
-# --- NON-VACUITY: the same safety grep on the pre-unwind ci.yml must RED ------
+# --- NON-VACUITY (hermetic): a planted fixture must RED ----------------------
+# This arm carries the non-vacuity proof and is repository-independent BY CONSTRUCTION.
+#
+# It replaces a git-history anchor as the PRIMARY proof. That anchor names a commit in the private
+# development repository; the public mirror is a file-copy with entirely separate history, so the SHA
+# does not exist there and cannot be fetched at any depth. The arm therefore could never pass where CI
+# runs it, and it reported FAIL for that -- asserting the code was wrong when the truth was that the
+# evidence was unreachable. A planted fixture proves the same property in either repository.
+planted="$(mktemp)"
+{
+    echo 'name: fixture'
+    echo '      - run: bd update --claim   # planted beads token'
+    echo '      - run: cat .beads/issues.jsonl   # planted excluded-dir token'
+} > "$planted"
+if grep -qE "$BEADS_RE" "$planted"; then
+    ok "NON-VACUITY (beads, hermetic): a planted 'bd' token is caught -> the safety grep bites"
+else
+    bad "NON-VACUITY (beads, hermetic): a planted 'bd' token was NOT caught -> the safety grep is vacuous"
+fi
+if grep -qE "$EXCL_RE" "$planted"; then
+    ok "NON-VACUITY (mirror, hermetic): a planted excluded-dir token is caught -> the mirror grep bites"
+else
+    bad "NON-VACUITY (mirror, hermetic): a planted excluded-dir token was NOT caught -> the mirror grep is vacuous"
+fi
+rm -f "$planted"
+
+# --- NON-VACUITY (historical, best-effort): the pre-unwind ci.yml -------------
+# Kept as corroboration where the history is present. Unreachable history is reported as SKIPPED, not
+# failed: an absent anchor means this arm did not run, which is neither a pass nor a defect. The
+# hermetic arms above are what hold the property.
 pre_unwind_file="$(mktemp)"
 git -C "$ROOT" show "$PRE_UNWIND_REF:.github/workflows/ci.yml" > "$pre_unwind_file" 2>/dev/null || true
 if [ ! -s "$pre_unwind_file" ]; then
-    # A missing anchor must not silently vacate the arm; flag it loudly (do not pass by default).
-    bad "NON-VACUITY: could not read $PRE_UNWIND_REF:.github/workflows/ci.yml — cannot prove the grep bites"
+    printf '  SKIP: historical anchor %s not present in this repository — arm did not run.\n' "$PRE_UNWIND_REF"
+    printf '        This is NOT a pass. The hermetic arms above bind the property.\n'
 else
     if grep -qE "$BEADS_RE" "$pre_unwind_file"; then
         ok "NON-VACUITY (beads): the pre-unwind ci.yml ($PRE_UNWIND_REF) DID carry beads refs -> the grep bites"

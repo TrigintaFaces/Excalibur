@@ -16,7 +16,7 @@ pass=0; fail=0
 
 check() { # name expected_exit logfile [extra args...]
     local name="$1" expected="$2" logf="$3"; shift 3
-    "$GATE" "$logf" "$@" >/dev/null 2>&1
+    bash "$GATE" "$logf" "$@" >/dev/null 2>&1
     local rc=$?
     if [ "$rc" -eq "$expected" ]; then echo "  ok   $name (exit $rc)"; pass=$((pass + 1))
     else echo "  FAIL $name — expected $expected, got $rc"; fail=$((fail + 1)); fi

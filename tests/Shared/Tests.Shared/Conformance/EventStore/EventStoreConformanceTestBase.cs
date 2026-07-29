@@ -133,7 +133,7 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.Success.ShouldBeTrue("Append to new stream should succeed");
+		result.Success.ShouldBeTrue($"Append to new stream should succeed. Store reported: {result.ErrorMessage ?? "(no error message)"}");
 		result.NextExpectedVersion.ShouldBe(2); // 0, 1, 2 = 3 events, next expected is 2 (0-based)
 	}
 
@@ -153,7 +153,7 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.Success.ShouldBeTrue("Append with empty events should succeed (no-op)");
+		result.Success.ShouldBeTrue($"Append with empty events should succeed (no-op). Store reported: {result.ErrorMessage ?? "(no error message)"}");
 	}
 
 	[Fact]
@@ -172,7 +172,7 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.Success.ShouldBeTrue("Append single event should succeed");
+		result.Success.ShouldBeTrue($"Append single event should succeed. Store reported: {result.ErrorMessage ?? "(no error message)"}");
 		result.NextExpectedVersion.ShouldBe(0); // First event has version 0
 	}
 
@@ -242,7 +242,7 @@ public abstract class EventStoreConformanceTestBase : IAsyncLifetime
 			CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		result.Success.ShouldBeTrue("Append with correct expected version should succeed");
+		result.Success.ShouldBeTrue($"Append with correct expected version should succeed. Store reported: {result.ErrorMessage ?? "(no error message)"}");
 		result.NextExpectedVersion.ShouldBe(3); // 4 total events: 0, 1, 2, 3
 	}
 

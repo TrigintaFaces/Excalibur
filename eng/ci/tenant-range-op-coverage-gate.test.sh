@@ -16,7 +16,14 @@ GATE="$HERE/tenant-range-op-coverage-gate.sh"
 fail=0
 
 # 1) The gate's embedded self-test must pass (safety + liveness + scope arms).
-if ! "$GATE" --self-test >/dev/null 2>&1; then
+#
+# Invoked through `bash` rather than as an executable. The published mirror is produced by file copy,
+# which does not carry the executable bit -- every shell script there is committed mode 644 -- so a
+# direct invocation depends on a property this repository's own distribution does not preserve.
+# Running it through the interpreter removes that dependency. It also makes the failure honest: if the
+# self-test genuinely fails, that is what is reported, rather than a permission error wearing the same
+# message.
+if ! bash "$GATE" --self-test >/dev/null 2>&1; then
     echo "FAIL: embedded --self-test did not pass" >&2
     fail=1
 fi

@@ -92,7 +92,8 @@ internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOut
 		                   ORDER BY partition_key, sequence_number, occurred_on
 		                   LIMIT {batchSize}
 		                   FOR UPDATE SKIP LOCKED
-		                   )
+		                   ),
+		                   claimed AS (
 		                   UPDATE {outboxTableName}
 		                   SET dispatcher_id = @DispatcherId,
 		                   dispatcher_timeout = NOW() + (@ReservationTimeout || ' seconds')::interval
@@ -115,7 +116,16 @@ internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOut
 		                   occurred_on AS CreatedAt,
 		                   attempts AS Attempts,
 		                   dispatcher_id AS DispatcherId,
-		                   dispatcher_timeout AS DispatcherTimeout;
+		                   dispatcher_timeout AS DispatcherTimeout
+		                   )
+		                   -- The inner ORDER BY chooses WHICH rows are claimed; it does not decide the
+		                   -- order they come back in, because UPDATE ... RETURNING emits rows in whatever
+		                   -- order the executor produces. Without this outer sort the fenced claim handed
+		                   -- the dispatcher its batch unordered, which is the path that matters most: a
+		                   -- fenced claim runs in the multi-instance deployments partition ordering exists
+		                   -- for. Kept identical to the unfenced sibling so the two cannot drift.
+		                   SELECT * FROM claimed
+		                   ORDER BY PartitionKey, SequenceNumber, CreatedAt;
 		           """;
 
 		var parameters = new DynamicParameters();
