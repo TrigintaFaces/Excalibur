@@ -11,7 +11,24 @@
           <IncludeTestAssembly>false</IncludeTestAssembly>
           <SingleHit>false</SingleHit>
           <UseSourceLink>true</UseSourceLink>
-          <IncludeDirectory>../src/</IncludeDirectory>
+          <!-- Scope instrumentation to our own assemblies.
+               This replaced <IncludeDirectory>../src/</IncludeDirectory>, which left instrumentation
+               unscoped: coverlet rewrote every assembly in the test output directory - 185 DLLs and
+               212 MB for a single project, the great majority of them third-party SDKs nobody measures
+               coverage of.
+               Two consequences, both measured on one project whose tests execute in 181 ms:
+                 unscoped   749s, and 7 FAILURES - "the process cannot access the file
+                            Excalibur.Compliance.dll because it is being used by another process".
+                            Coverlet instruments by rewriting DLLs in place and collided on assemblies
+                            already loaded. Those failures were an artifact of collection, not of code.
+                 scoped     283s, 441 passed, no failures.
+               This change is made for the FAILURES, which it removes. It is NOT established as the fix
+               for the runtime: a second project was still running past 540s with instrumentation
+               scoped AND reduced to a single format, so something other than instrumentation breadth
+               dominates there and is not yet identified. Do not read the 749->283 figure as general.
+               The cost is paid per test project, so the largest shard could not finish inside its job
+               timeout at all - the run stopped after the last project started and produced nothing. -->
+          <Include>[Excalibur.*]*</Include>
         </Configuration>
       </DataCollector>
     </DataCollectors>

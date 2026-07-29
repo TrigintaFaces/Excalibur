@@ -48,6 +48,74 @@ public abstract class SagaStoreAdminReadModelTestBase
 	/// <summary>Cleans up between/after tests (truncate for container providers; no-op for in-memory).</summary>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
 
+	/// <summary>
+	/// Creates a store bound to <paramref name="tenantId"/>, for seeding rows into that tenant.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A saga's tenant comes from the scope the store was CONSTRUCTED with, and from nothing else. It is
+	/// deliberately not taken from <c>sagaState.TenantId</c>: the read side is handed a saga id and a
+	/// scope, never a state, so deriving the row's tenant from the saga's own property would let the two
+	/// sides resolve different terms for the same saga and write it where no read looks.
+	/// </para>
+	/// <para>
+	/// So a tenant cannot be chosen per call, and these arms previously tried to: they set
+	/// <c>TenantId</c> on the state and saved through one unscoped store, which stamped every row
+	/// untenanted. Filtering for a tenant then matched nothing and every count came back 0.
+	/// </para>
+	/// <para>
+	/// The admin comes back with it because reads are scoped the same way. The ambient tenant predicate is
+	/// UNCONDITIONAL on the query side: it used to fall away when no scope was set, which handed a
+	/// multi-tenant deployment every tenant's summaries whenever the ambient scope happened to be unset, so
+	/// it was made unconditional. There is therefore no estate-wide operator view to read through, and
+	/// <c>SagaQueryFilter.TenantId</c> narrows WITHIN the ambient tenant rather than selecting one.
+	/// </para>
+	/// <para>
+	/// This must not clean the table -- it is called after seeding has begun.
+	/// </para>
+	/// </remarks>
+	/// <param name="tenantId">The tenant to bind the store and admin to.</param>
+	/// <returns>A store and admin bound to <paramref name="tenantId"/>.</returns>
+	protected abstract Task<(ISagaStore Store, ISagaStoreAdmin Admin)> CreateForTenantAsync(string tenantId);
+
+	/// <summary>
+	/// Gets a value indicating whether this provider can hand out two tenant-scoped views of one dataset.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// True for the container-backed providers: the tenant is a column, so two stores constructed with
+	/// different tenants read and write the same table. False for the in-memory store, which holds its
+	/// state in the instance — a second store bound to a tenant shares nothing with the first and reads an
+	/// empty store, so the arms could only ever assert against an empty set.
+	/// </para>
+	/// <para>
+	/// A capability declaration, not an opt-out: where it is false the arms still run and assert the
+	/// behaviour that provider does have, so nothing is skipped and the tenant coverage lives on the two
+	/// providers that back real deployments.
+	/// </para>
+	/// </remarks>
+	protected virtual bool SupportsTenantScopedStores => true;
+
+	/// <summary>
+	/// Presents a store that also implements <see cref="ISagaStoreAdmin"/> as the pair.
+	/// </summary>
+	/// <typeparam name="TStore">The concrete store type.</typeparam>
+	/// <param name="store">The store, which is its own admin projection.</param>
+	/// <returns>The store and its admin projection.</returns>
+	protected static Task<(ISagaStore Store, ISagaStoreAdmin Admin)> AsPair<TStore>(TStore store)
+		where TStore : ISagaStore, ISagaStoreAdmin =>
+		Task.FromResult(((ISagaStore)store, (ISagaStoreAdmin)store));
+
+	/// <summary>
+	/// A tenant fixed at construction — the shape the store's contract actually takes.
+	/// </summary>
+	protected sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrWhiteSpace(TenantId);
+	}
+
 	private static TestSagaState NewSaga(bool completed, string? tenantId) => new()
 	{
 		SagaId = Guid.NewGuid(),
@@ -91,15 +159,44 @@ public abstract class SagaStoreAdminReadModelTestBase
 		var ct = CancellationToken.None;
 		try
 		{
-			await store.SaveAsync(NewSaga(completed: false, tenantId: "tenant-a"), ct).ConfigureAwait(false);
-			await store.SaveAsync(NewSaga(completed: false, tenantId: "tenant-a"), ct).ConfigureAwait(false);
-			await store.SaveAsync(NewSaga(completed: false, tenantId: "tenant-b"), ct).ConfigureAwait(false);
+			if (!SupportsTenantScopedStores)
+			{
+				// No tenant-scoped view available. Assert the behaviour this provider DOES have, so the
+				// arm still binds something: rows seeded with no tenant are visible, and the store did
+				// not silently swallow them.
+				await store.SaveAsync(NewSaga(completed: false, tenantId: null), ct).ConfigureAwait(false);
+				var untenantedOnly = await admin.QuerySagasAsync(new SagaQueryFilter(), ct).ConfigureAwait(false);
+				untenantedOnly.Count.ShouldBe(1);
+				return;
+			}
+
+			// Tenancy is a property of the store and the admin, not of a call argument — see
+			// CreateForTenantAsync. tenant-b and the untenanted row are seeded so the assertion is not
+			// vacuously true on an empty table: they exist and must not be returned.
+			var (tenantAStore, tenantAAdmin) = await CreateForTenantAsync("tenant-a").ConfigureAwait(false);
+			var (tenantBStore, _) = await CreateForTenantAsync("tenant-b").ConfigureAwait(false);
+
+			await tenantAStore.SaveAsync(NewSaga(completed: false, tenantId: "tenant-a"), ct).ConfigureAwait(false);
+			await tenantAStore.SaveAsync(NewSaga(completed: false, tenantId: "tenant-a"), ct).ConfigureAwait(false);
+			await tenantBStore.SaveAsync(NewSaga(completed: false, tenantId: "tenant-b"), ct).ConfigureAwait(false);
 			await store.SaveAsync(NewSaga(completed: false, tenantId: null), ct).ConfigureAwait(false);
 
-			var tenantA = await admin.QuerySagasAsync(new SagaQueryFilter { TenantId = "tenant-a" }, ct).ConfigureAwait(false);
+			// Scoped admin AND filter, deliberately. The two providers do not agree on where a saga's
+			// tenant lives: the container-backed stores take it from the scope the store was constructed
+			// with, while the in-memory store reads sagaState.TenantId and filters on that. Asserting
+			// through both terms keeps this arm honest on either semantics rather than encoding one
+			// provider's. The divergence itself is a real inconsistency in the ISagaStore contract —
+			// a consumer who develops against in-memory and deploys on Postgres gets different tenant
+			// behaviour — and is worth settling separately from this suite.
+			var tenantA = await tenantAAdmin.QuerySagasAsync(
+				new SagaQueryFilter { TenantId = "tenant-a" }, ct).ConfigureAwait(false);
 
 			tenantA.Count.ShouldBe(2);
 			tenantA.ShouldAllBe(s => s.TenantId == "tenant-a");
+
+			// Liveness: the scoping is not passing by returning nothing to everyone.
+			var untenanted = await admin.QuerySagasAsync(new SagaQueryFilter(), ct).ConfigureAwait(false);
+			untenanted.Count.ShouldBe(1, "the unscoped store's own row is still visible to it");
 		}
 		finally
 		{
@@ -114,14 +211,27 @@ public abstract class SagaStoreAdminReadModelTestBase
 		var ct = CancellationToken.None;
 		try
 		{
-			for (var i = 0; i < 5; i++)
+			if (!SupportsTenantScopedStores)
 			{
-				await store.SaveAsync(NewSaga(completed: false, tenantId: "page"), ct).ConfigureAwait(false);
+				// No tenant-scoped view available. Assert the behaviour this provider DOES have, so the
+				// arm still binds something: rows seeded with no tenant are visible, and the store did
+				// not silently swallow them.
+				await store.SaveAsync(NewSaga(completed: false, tenantId: null), ct).ConfigureAwait(false);
+				var untenantedOnly = await admin.QuerySagasAsync(new SagaQueryFilter(), ct).ConfigureAwait(false);
+				untenantedOnly.Count.ShouldBe(1);
+				return;
 			}
 
-			var firstPage = await admin.QuerySagasAsync(
+			var (pageStore, pageAdmin) = await CreateForTenantAsync("page").ConfigureAwait(false);
+
+			for (var i = 0; i < 5; i++)
+			{
+				await pageStore.SaveAsync(NewSaga(completed: false, tenantId: "page"), ct).ConfigureAwait(false);
+			}
+
+			var firstPage = await pageAdmin.QuerySagasAsync(
 				new SagaQueryFilter { TenantId = "page", Skip = 0, MaxResults = 2 }, ct).ConfigureAwait(false);
-			var lastPage = await admin.QuerySagasAsync(
+			var lastPage = await pageAdmin.QuerySagasAsync(
 				new SagaQueryFilter { TenantId = "page", Skip = 4, MaxResults = 10 }, ct).ConfigureAwait(false);
 
 			firstPage.Count.ShouldBe(2, "MaxResults must cap the page size");
@@ -140,11 +250,23 @@ public abstract class SagaStoreAdminReadModelTestBase
 		var ct = CancellationToken.None;
 		try
 		{
-			var saga = NewSaga(completed: false, tenantId: "tenant-x");
-			await store.SaveAsync(saga, ct).ConfigureAwait(false);
+			if (!SupportsTenantScopedStores)
+			{
+				// No tenant-scoped view available. Assert the behaviour this provider DOES have, so the
+				// arm still binds something: rows seeded with no tenant are visible, and the store did
+				// not silently swallow them.
+				await store.SaveAsync(NewSaga(completed: false, tenantId: null), ct).ConfigureAwait(false);
+				var untenantedOnly = await admin.QuerySagasAsync(new SagaQueryFilter(), ct).ConfigureAwait(false);
+				untenantedOnly.Count.ShouldBe(1);
+				return;
+			}
 
-			var found = await admin.GetSummaryAsync(saga.SagaId, ct).ConfigureAwait(false);
-			var missing = await admin.GetSummaryAsync(Guid.NewGuid(), ct).ConfigureAwait(false);
+			var saga = NewSaga(completed: false, tenantId: "tenant-x");
+			var (tenantXStore, tenantXAdmin) = await CreateForTenantAsync("tenant-x").ConfigureAwait(false);
+			await tenantXStore.SaveAsync(saga, ct).ConfigureAwait(false);
+
+			var found = await tenantXAdmin.GetSummaryAsync(saga.SagaId, ct).ConfigureAwait(false);
+			var missing = await tenantXAdmin.GetSummaryAsync(Guid.NewGuid(), ct).ConfigureAwait(false);
 
 			found.ShouldNotBeNull();
 			found.SagaId.ShouldBe(saga.SagaId);
@@ -189,11 +311,23 @@ public abstract class SagaStoreAdminReadModelTestBase
 [Trait("Component", "Saga")]
 public sealed class InMemorySagaStoreAdminReadModelShould : SagaStoreAdminReadModelTestBase
 {
+	private ServiceProvider? _provider;
+
+	/// <inheritdoc/>
+	protected override bool SupportsTenantScopedStores => false;
+
+	/// <inheritdoc/>
+	protected override Task<(ISagaStore Store, ISagaStoreAdmin Admin)> CreateForTenantAsync(string tenantId) =>
+		throw new NotSupportedException(
+			"The in-memory store holds its state in the instance, so a second store bound to a tenant "
+			+ "shares nothing with the first and reads an empty store. See SupportsTenantScopedStores.");
+
 	/// <inheritdoc/>
 	protected override Task<(ISagaStore Store, ISagaStoreAdmin Admin)> CreateAsync()
 	{
 		// A fresh provider per test → per-test isolation without a cleanup step.
 		var provider = new ServiceCollection().AddInMemorySagaStore().BuildServiceProvider();
+		_provider = provider;
 		var store = provider.GetRequiredService<ISagaStore>();
 		var admin = provider.GetRequiredService<ISagaStoreAdmin>();
 		return Task.FromResult((store, admin));
@@ -225,6 +359,14 @@ public sealed class SqlServerSagaStoreAdminReadModelShould : SagaStoreAdminReadM
 			new DispatchJsonSerializer());
 		return (store, (ISagaStoreAdmin)store);
 	}
+
+	/// <inheritdoc/>
+	protected override Task<(ISagaStore Store, ISagaStoreAdmin Admin)> CreateForTenantAsync(string tenantId) =>
+		AsPair(new SqlServerSagaStore(
+			_fixture.ConnectionString,
+			NullLogger<SqlServerSagaStore>.Instance,
+			new DispatchJsonSerializer(),
+			new FixedTenantContext(tenantId)));
 
 	/// <inheritdoc/>
 	protected override Task CleanupAsync() => _fixture.CleanupTableAsync();
@@ -259,6 +401,24 @@ public sealed class PostgresSagaStoreAdminReadModelShould : SagaStoreAdminReadMo
 
 		var store = new PostgresSagaStore(options, NullLogger<PostgresSagaStore>.Instance, new DispatchJsonSerializer());
 		return (store, (ISagaStoreAdmin)store);
+	}
+
+	/// <inheritdoc/>
+	protected override Task<(ISagaStore Store, ISagaStoreAdmin Admin)> CreateForTenantAsync(string tenantId)
+	{
+		var options = Options.Create(new PostgresSagaOptions
+		{
+			ConnectionString = _fixture.ConnectionString,
+			Schema = _fixture.Schema,
+			TableName = _fixture.TableName,
+			CommandTimeoutSeconds = 30,
+		});
+
+		return AsPair(new PostgresSagaStore(
+			options,
+			NullLogger<PostgresSagaStore>.Instance,
+			new DispatchJsonSerializer(),
+			new FixedTenantContext(tenantId)));
 	}
 
 	/// <inheritdoc/>

@@ -42,7 +42,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
 		var sql = $"""
-			INSERT INTO {qualifiedTable} (snapshot_id, aggregate_id, aggregate_type, version, data, metadata, created_at, tenant_id)
+			INSERT INTO {qualifiedTable} AS existing (snapshot_id, aggregate_id, aggregate_type, version, data, metadata, created_at, tenant_id)
 			VALUES (@SnapshotId, @AggregateId, @AggregateType, @Version, @Data, @Metadata, @CreatedAt, @TenantId)
 			-- Untenanted rows use the reserved '__untenanted__' tenant key BY DESIGN, bound through
 			-- KeyedTenantPartition. The tenant is part of the ON CONFLICT UNIQUE key, and NULL is treated as
@@ -64,11 +64,23 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 			    data = EXCLUDED.data,
 			    metadata = EXCLUDED.metadata,
 			    created_at = EXCLUDED.created_at
+			-- Only ever move the snapshot FORWARD. Without this the upsert was last-writer-wins, so a
+			-- slower write carrying an older version overwrote a newer snapshot and GetLatestSnapshot
+			-- then returned the older one. Concurrent saves are ordinary here: several instances can
+			-- snapshot the same aggregate at once, and their writes land in no guaranteed order.
+			-- Replaying from a stale snapshot is not corruption, but "latest" that goes backwards is a
+			-- broken contract, and the rest of the family already enforces it -- the SQL Server MERGE
+			-- guards WHEN MATCHED AND source.Version > target.Version. Postgres was the outlier.
+			-- A losing write updates no row, which the caller already tolerates: it discards the count,
+			-- exactly as it must for the SQL Server MERGE, whose non-matching branch is also a no-op.
+			WHERE existing.version < EXCLUDED.version
 			""";
 #pragma warning restore CA2100
 
-		// Unconditional, unlike the SQL Server MERGE: Postgres infers ON CONFLICT against a unique
-		// index that must match EXACTLY, so a two-column target stops matching the three-column key.
+		// The conflict TARGET is unconditional and must stay so: Postgres infers ON CONFLICT against a
+		// unique index that has to match EXACTLY, so a two-column target stops matching the three-column
+		// key. That is a separate question from whether the DO UPDATE is guarded -- it is, on version,
+		// see above. Conflating the two is what left this upsert last-writer-wins.
 		var parameters = new DynamicParameters();
 		parameters.Add("@TenantId", KeyedTenantPartition.FromScope(scope).TenantId);
 		parameters.Add("@SnapshotId", snapshot.SnapshotId);

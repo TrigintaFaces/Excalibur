@@ -364,7 +364,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IntegrationTestBas
 			        AggregateType NVARCHAR(500) NOT NULL,
 			        Version BIGINT NOT NULL,
 			        Data VARBINARY(MAX) NOT NULL,
-			        CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+			        CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
 			        Metadata VARBINARY(MAX) NULL,
 			        TenantId NVARCHAR(256) NOT NULL DEFAULT (''),
 			        CONSTRAINT PK_EventStoreSnapshots PRIMARY KEY (AggregateId, AggregateType, TenantId)

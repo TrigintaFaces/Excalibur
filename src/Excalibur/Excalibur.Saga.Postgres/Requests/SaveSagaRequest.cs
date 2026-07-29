@@ -39,12 +39,18 @@ public sealed class SaveSagaRequest<TSagaState>: DataRequestBase<IDbConnection, 
 	/// <param name="serializer">The JSON serializer for serializing saga state.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <param name="scope">
-	/// The tenant scope. When tenant-scoped it is the isolation authority: the saga row is stamped with this
-	/// tenant and the version-gated UPDATE additionally requires the persisted tenant to equal it, so a save
-	/// under one tenant can never overwrite another tenant's saga. When <see cref="TenantScope.None"/> the
-	/// saga's own tenant is persisted and no tenant is added to the match (byte-identical behavior). A
-	/// tenant-scoped scope cannot be constructed without a tenant, so a predicate-less save while tenancy is
-	/// active is unrepresentable.
+	/// The tenant scope, and the sole authority for the row's tenant. The saga row is stamped from this
+	/// scope and the version-gated UPDATE additionally requires the persisted tenant to equal it, so a save
+	/// under one tenant can never overwrite another tenant's saga. <see cref="TenantScope.None"/> stamps
+	/// the reserved untenanted partition, not an absent tenant, so the term is present either way and the
+	/// match predicate is unconditional. A tenant-scoped scope cannot be constructed without a tenant, so a
+	/// predicate-less save while tenancy is active is unrepresentable.
+	/// <para>
+	/// <c>sagaState.TenantId</c> does NOT influence where the row is stored, under any scope. It travels in
+	/// the serialized payload only. The read side is given a saga id and a scope — never a state — so
+	/// deriving the discriminator from the saga's own tenant would let the two sides resolve different
+	/// terms for the same saga and write it where no read looks.
+	/// </para>
 	/// </param>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
@@ -117,7 +123,12 @@ public sealed class SaveSagaRequest<TSagaState>: DataRequestBase<IDbConnection, 
  Parameters.Add("IsCompleted", sagaState.Completed);
  // Persist the explicit completion instant (UTC) into an indexed column so retention purge keys on
  // completed_at across every provider (SA w8aqq3 ruling), not a proxy column.
- Parameters.Add("CompletedAt", sagaState.CompletedAt);
+ // Normalised to UTC. Npgsql writes a DateTimeOffset to timestamptz ONLY when its offset is zero;
+		// any other offset is rejected outright rather than converted, so a saga completed at
+		// DateTimeOffset.Now on a host east or west of UTC could not be saved at all -- the write threw
+		// "Cannot write DateTimeOffset with Offset=..., only offset 0 (UTC) is supported". Converting
+		// preserves the exact instant and lets a caller supply one in any offset.
+		Parameters.Add("CompletedAt", sagaState.CompletedAt?.ToUniversalTime());
  // Ambient tenant is the isolation authority (SA 24815), resolved from the SCOPE ALONE and never from
  // sagaState.TenantId: LoadSagaRequest is given a saga_id, not a state, so the read side has only the
  // scope to resolve from. Deriving the row's discriminator from the saga's own tenant would let the two

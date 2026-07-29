@@ -1,1 +1,8 @@
 #nullable enable
+Excalibur.Outbox.Marten.MartenOutboxStore.Dispose() -> void
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions.ClaimTimeout.get -> System.TimeSpan
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions.ClaimTimeout.set -> void
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions.ClaimsSchemaName.get -> string!
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions.ClaimsSchemaName.set -> void
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions.ClaimsTableName.get -> string!
+Excalibur.Outbox.Marten.MartenOutboxStoreOptions.ClaimsTableName.set -> void

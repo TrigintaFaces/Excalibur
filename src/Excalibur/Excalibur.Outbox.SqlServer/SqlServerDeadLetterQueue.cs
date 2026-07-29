@@ -569,11 +569,38 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		=> conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : string.Empty;
 
 	/// <summary>
-	/// The tenant partition of the ambient caller, used to restrict every <see cref="IDeadLetterQueue"/>
-	/// operation. Resolved per call, never captured, so the singleton registration observes the tenant in
-	/// scope at the moment of the call rather than the one present when the instance was constructed.
+	/// Resolves the scope for a caller: a tenant's partition, or <see langword="null"/> for an operator.
 	/// </summary>
-	private KeyedTenantPartition AmbientScope() => KeyedTenantPartition.FromContext(_tenantContext);
+	/// <remarks>
+	/// <para>
+	/// Resolved per call, never captured, so the singleton registration observes the tenant in scope at
+	/// the moment of the call rather than the one present when the instance was constructed.
+	/// </para>
+	/// <para>
+	/// A <see langword="null"/> tenant context means no tenancy is registered at all, which is the
+	/// operator case this type is built for — it implements <see cref="IDeadLetterQueueAdmin"/>, whose
+	/// inspection, replay and purge are documented as estate-wide. Null is returned so those reads carry
+	/// no tenant predicate, which is what every path here already expects: each takes a nullable scope and
+	/// treats null as estate-wide.
+	/// </para>
+	/// <para>
+	/// It previously returned <c>KeyedTenantPartition.FromContext</c> directly, which never yields null —
+	/// an absent context maps to the untenanted PARTITION, a real term that matches only entries carrying
+	/// the sentinel. Every entry point passes this, so the operator path the surrounding design describes
+	/// could not be reached from anywhere: an operator inspecting or replaying another tenant's dead
+	/// letter got "not found", and the capability existed only in the documentation.
+	/// </para>
+	/// <para>
+	/// This does not widen a multi-tenant deployment. A host with tenancy registered resolves a real
+	/// tenant and stays scoped, and one whose context resolves nothing still fails closed rather than
+	/// emitting a predicate-less query. The only case that changes is a host with no tenant context, where
+	/// every entry is stamped with the untenanted sentinel anyway — so estate-wide and untenanted select
+	/// the same rows.
+	/// </para>
+	/// </remarks>
+	/// <returns>The caller's partition, or <see langword="null"/> for an estate-wide operator.</returns>
+	private KeyedTenantPartition? AmbientScope()
+		=> _tenantContext is null ? null : KeyedTenantPartition.FromContext(_tenantContext);
 
 	/// <summary>
 	/// Reads the row for <paramref name="entryId"/>, including its owning tenant. Selecting the tenant here

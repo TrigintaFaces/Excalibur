@@ -201,8 +201,16 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 
 		// Snapshot enumeration over the concurrent dictionary; the store owns no created/updated instant,
 		// so summaries carry lifecycle state + version only (age-based "stuck" is a separate seam).
+		//
+		// The ambient term is UNCONDITIONAL, matching PurgeCompletedBefore above and the SQL providers.
+		// It was absent, so this handed a multi-tenant host every tenant's summaries whenever the caller
+		// passed no TenantId filter -- and the filter is optional, so the default was the leak.
+		// SagaQueryFilter.TenantId narrows WITHIN the ambient tenant; it does not select one.
+		var scope = TenantScope.FromContext(_tenantContext);
+
 		var matches = _store.Values
 			.Where(s => (filter.IsCompleted is not { } wantCompleted || s.State.Completed == wantCompleted)
+				&& MatchesAmbientTenant(s.State, scope)
 				&& (filter.TenantId is null || string.Equals(s.State.TenantId, filter.TenantId, StringComparison.Ordinal)))
 			.OrderBy(static s => s.State.SagaId)
 			.Skip(Math.Max(0, filter.Skip))
@@ -218,7 +226,12 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		return _store.TryGetValue(sagaId, out var stored)
+		// Tenant-checked: a saga id alone must not reach across the boundary. Returning null for a saga
+		// that exists in another tenant is the same answer the SQL providers give, whose predicate simply
+		// does not match the row.
+		var scope = TenantScope.FromContext(_tenantContext);
+
+		return _store.TryGetValue(sagaId, out var stored) && MatchesAmbientTenant(stored.State, scope)
 			? new ValueTask<SagaInstanceSummary?>(ToSummary(stored))
 			: new ValueTask<SagaInstanceSummary?>((SagaInstanceSummary?)null);
 	}
@@ -228,10 +241,22 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
+		// Statistics diverge from the two summary reads DELIBERATELY, matching the SQL providers: a scoped
+		// caller counts only its own tenant, and an unscoped one still gets estate-wide totals, which is
+		// the operator diagnostic. Only the identifying data — saga ids, types, tenants — is closed off to
+		// an unscoped caller; bare counts are not. Scoping this would both break that diagnostic and put
+		// the in-memory store out of step with the providers it stands in for.
+		var scope = TenantScope.FromContext(_tenantContext);
+
 		var completed = 0;
 		var total = 0;
 		foreach (var stored in _store.Values)
 		{
+			if (scope.IsScoped && !MatchesAmbientTenant(stored.State, scope))
+			{
+				continue;
+			}
+
 			total++;
 			if (stored.State.Completed)
 			{
@@ -247,6 +272,23 @@ internal sealed class InMemorySagaStore : ISagaStore, ISagaStoreAdmin
 			CapturedAt = DateTimeOffset.UtcNow,
 		});
 	}
+
+	/// <summary>
+	/// Determines whether a saga belongs to the ambient tenant scope.
+	/// </summary>
+	/// <remarks>
+	/// The three-way split mirrors <see cref="PurgeCompletedBeforeAsync"/> and the SQL providers: a scoped
+	/// caller matches its own tenant; an unscoped one matches the sagas carrying no tenant at all, rather
+	/// than everything. "No tenant established" is a real scope here, not a wildcard — treating it as one
+	/// is what turned every unscoped admin read into a cross-tenant disclosure.
+	/// </remarks>
+	/// <param name="state">The stored saga state.</param>
+	/// <param name="scope">The ambient tenant scope.</param>
+	/// <returns><see langword="true"/> when the saga is visible under <paramref name="scope"/>.</returns>
+	private static bool MatchesAmbientTenant(SagaState state, TenantScope scope) =>
+		scope.IsScoped
+			? string.Equals(state.TenantId, scope.TenantId, StringComparison.Ordinal)
+			: string.IsNullOrEmpty(state.TenantId);
 
 	private static SagaInstanceSummary ToSummary(StoredSaga stored) => new()
 	{

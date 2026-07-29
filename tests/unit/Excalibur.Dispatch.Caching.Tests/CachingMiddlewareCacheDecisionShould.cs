@@ -12,6 +12,8 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Tests.Shared.Infrastructure;
+
 using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Caching.Tests;
@@ -150,13 +152,43 @@ public sealed class CachingMiddlewareCacheDecisionShould : IDisposable
 		calls.ShouldBe(2, "ICacheable<T>.ShouldCache=false must suppress caching on the interface path");
 	}
 
+	/// <summary>
+	/// Builds the middleware under test with a cache timeout that machine load cannot trip.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>CacheTimeout</c> defaults to 200ms, and the middleware treats exceeding it as a cache-backend
+	/// health signal: it abandons the cache and executes the handler directly (fail-open). That is the
+	/// right behaviour for a cache — but it makes these arms, which count handler executions, silently
+	/// depend on the machine finishing an in-memory cache round-trip inside 200ms.
+	/// </para>
+	/// <para>
+	/// They did, in isolation, and did not on a CI agent running dozens of assemblies at once. The
+	/// failure was worth reading rather than retrying: the count came back as THREE handler executions
+	/// from TWO requests, which is not a cache miss — a miss caps at one execution per request. It is the
+	/// timeout path. The first request runs the handler inside the cache factory, exceeds the budget,
+	/// falls open and runs it a second time, and caches nothing; the second request then misses and runs
+	/// it a third. Reading "3 from 2" as flakiness and re-running would have hidden a real, explainable
+	/// mechanism.
+	/// </para>
+	/// <para>
+	/// The timeout is raised rather than the assertion relaxed, because the assertion is the point: these
+	/// arms exist to prove a result is cached and the handler runs ONCE. Scaled, so it stays generous
+	/// wherever the suite runs.
+	/// </para>
+	/// </remarks>
+	/// <returns>The middleware under test.</returns>
 	private CachingMiddleware CreateMiddleware()
 		=> new(
 			_meterFactory,
 			_cache,
 			_keyBuilder,
 			_services,
-			MsOptions.Create(new CacheOptions { Enabled = true }),
+			MsOptions.Create(new CacheOptions
+			{
+				Enabled = true,
+				Behavior = { CacheTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(30)) },
+			}),
 			NullLogger<CachingMiddleware>.Instance);
 
 	private static IMessageContext NewContext()

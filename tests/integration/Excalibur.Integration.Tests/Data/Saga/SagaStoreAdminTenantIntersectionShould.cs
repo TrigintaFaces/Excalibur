@@ -89,13 +89,20 @@ public abstract class SagaStoreAdminTenantIntersectionTestBase
 
     private async Task SeedTwoTenantsAsync(CancellationToken ct)
     {
-        // Seed via an UNSCOPED store so each saga persists with its own state TenantId (the row discriminator),
-        // exactly as the sibling admin lock seeds cross-tenant data. Tenant A gets 2 rows (1 completed), tenant
-        // B gets 1 — so a leak returns a non-zero, distinguishable count.
-        var (seeder, _) = Create(tenantId: null);
-        await seeder.SaveAsync(NewSaga(completed: false, tenantId: TenantA), ct).ConfigureAwait(false);
-        await seeder.SaveAsync(NewSaga(completed: true, tenantId: TenantA), ct).ConfigureAwait(false);
-        await seeder.SaveAsync(NewSaga(completed: false, tenantId: TenantB), ct).ConfigureAwait(false);
+        // Seed through a store PER TENANT. The row's tenant comes from the scope the store was
+        // constructed with; sagaState.TenantId travels in the payload and does not place the row. This
+        // previously seeded through one unscoped store on the belief that the state's own TenantId was
+        // the discriminator — which the parameter documentation asserted and the code never did — so
+        // every row landed untenanted and each scoped reader saw nothing.
+        //
+        // Tenant A gets 2 rows (1 completed), tenant B gets 1, so a leak returns a non-zero and
+        // distinguishable count rather than merely a wrong one.
+        var (tenantAStore, _) = Create(TenantA);
+        var (tenantBStore, _) = Create(TenantB);
+
+        await tenantAStore.SaveAsync(NewSaga(completed: false, tenantId: TenantA), ct).ConfigureAwait(false);
+        await tenantAStore.SaveAsync(NewSaga(completed: true, tenantId: TenantA), ct).ConfigureAwait(false);
+        await tenantBStore.SaveAsync(NewSaga(completed: false, tenantId: TenantB), ct).ConfigureAwait(false);
     }
 
     [Fact]
@@ -167,11 +174,23 @@ public abstract class SagaStoreAdminTenantIntersectionTestBase
             scopedStats.TotalCount.ShouldBe(2, "a caller scoped to tenant A counts only tenant A's 2 sagas.");
             scopedStats.CompletedCount.ShouldBe(1, "tenant A has exactly 1 completed saga.");
 
-            // LIVENESS — an UNSCOPED operator still receives estate-wide statistics (all 3). Scoping this away
-            // would break the legitimate operator diagnostic rather than secure it.
+            // LIVENESS — an UNSCOPED operator still receives estate-wide statistics (all 3). Scoping this
+            // away would break the legitimate operator diagnostic rather than secure it.
+            //
+            // Statistics and summaries diverge here ON PURPOSE, and the two requests sit in one file
+            // saying opposite things: the summaries query makes the ambient term unconditional, because
+            // dropping it when no scope was set handed a multi-tenant deployment every tenant's saga ids
+            // and types; statistics keeps it conditional, because counts alone are the operator's
+            // estate-wide diagnostic. Only the identifying data is closed off.
+            //
+            // Worth settling rather than inheriting: the interface already carries an explicit
+            // PurgeAllTenantsCompletedBeforeAsync, so "estate-wide" is expressible as its own operation
+            // instead of being inferred from an unset scope — which is the shape that fails open when a
+            // host forgets to establish one. That is a contract decision, not a test fix.
             var (_, adminAll) = Create(tenantId: null);
             var estateStats = await adminAll.GetStatisticsAsync(ct).ConfigureAwait(false);
             estateStats.TotalCount.ShouldBe(3, "an unscoped operator still sees the estate-wide total (3 sagas).");
+            estateStats.CompletedCount.ShouldBe(1, "and the estate's single completed saga.");
         }
         finally
         {

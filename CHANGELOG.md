@@ -9,6 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The dead-letter queue's operator paths could not reach another tenant's entries.** The queue is an
+  operator surface whose inspection, replay and purge are documented as estate-wide, but the scope every
+  entry point resolved was never "no scope": an absent tenant context mapped to the untenanted
+  partition, which matches only entries carrying the sentinel. An operator inspecting or replaying a
+  tenant's dead letter got "not found". Estate-wide access now works as documented. This does not widen
+  a multi-tenant deployment -- a host with tenancy registered still resolves a real tenant and stays
+  scoped, and one whose context resolves nothing still fails closed; only a host with no tenant context
+  changes, and there every entry carries the untenanted sentinel anyway, so the same rows are selected.
+
+- **The SQL Server snapshot store could not read a table created by its own setup script.** The store
+  materialised `CreatedAt` as a `DateTime` while the shipped `002_CreateSnapshotSchema.sql` declares it
+  `DATETIMEOFFSET`, so no constructor matched the returned columns and every snapshot read failed
+  outright. Anyone who ran the documented setup hit this on their first read. The store now reads the
+  column as a `DateTimeOffset` and passes it through unchanged; previously it forced the value to UTC,
+  discarding the offset for any non-UTC writer.
+
+- **The Postgres snapshot store let an older snapshot overwrite a newer one.** Its upsert applied
+  unconditionally, so with several instances snapshotting the same aggregate the last write won
+  regardless of version and `GetLatestSnapshot` could go backwards. It now only ever moves a snapshot
+  forward, matching the SQL Server store.
+
+- **Concurrent snapshot saves failed on Oracle.** Two sessions could both take the MERGE's not-matched
+  branch and the second raised `ORA-00001`. The save now retries once, which is sufficient: the row
+  exists by then and the existing version guard decides the outcome.
+
+- **DynamoDB never created its tables.** Two exception types share the name `ResourceNotFoundException`
+  -- the AWS one and Excalibur's -- and the enclosing namespace wins over a `using`, so every `catch`
+  in the DynamoDB package bound to the wrong type and the AWS one passed straight through. It compiled,
+  so nothing reported it. `CreateTableIfNotExists` and `AutoCreateTable`, both defaulting to `true`,
+  silently did nothing, and every operation failed with "Cannot do operations on a non-existent table"
+  -- raised from inside the method whose job is to create that table. Affects the snapshot store,
+  projection store, and persistence provider.
+
+- **A saga completed at a non-UTC offset could not be saved on Postgres.** Npgsql accepts a
+  `DateTimeOffset` for `timestamptz` only at offset zero and rejects anything else, so the save threw.
+  The retention threshold had the same hole, so a sweep expressed in a local offset threw instead of
+  purging. Both now normalise to UTC, preserving the instant.
+
+- **The in-memory saga store disclosed other tenants' sagas.** `QuerySagas` applied only the *optional*
+  tenant filter and `GetSummary` applied none, so a multi-tenant host received every tenant's saga ids
+  and types whenever no filter was passed -- the default. Both are now scoped to the ambient tenant,
+  matching the SQL providers. Statistics remain estate-wide for an unscoped caller, which is the
+  intended operator diagnostic.
+
+- **Elasticsearch inbox cleanup deleted entries it should have kept.** It filtered on age alone, so it
+  removed `Failed` entries -- dropping the record of work still needing attention -- and `Pending`
+  ones, dropping the deduplication record so the message would be processed again on redelivery, which
+  is the one thing an inbox exists to prevent. It also keyed on `ReceivedAt` rather than `ProcessedAt`,
+  so a long-running or recently-retried entry was deleted purely for having arrived early. Cleanup now
+  removes only processed entries, past their processed time, as the SQL providers already did.
+
+### Added
+
+- **The Marten outbox now claims messages before dispatching them.** `GetUnsentMessagesAsync` was a
+  plain query with no claim, so two dispatchers polling together both sent every message: duplicate
+  delivery for as long as more than one instance ran, with nothing reporting it. Claims are taken
+  atomically and held for `MartenOutboxStoreOptions.ClaimTimeout` (default 5 minutes), after which a
+  crashed dispatcher's messages become available again; they are released as soon as a message is sent
+  or returned for retry. Claims live in a table this store creates (`ClaimsSchemaName` /
+  `ClaimsTableName`, default `public.excalibur_outbox_claims`) rather than in your Marten documents, so
+  your serializer configuration cannot affect them. **Set `ClaimTimeout` above your longest expected
+  send:** a shorter value lets a second dispatcher take a message the first is still working on.
+
 - **The documented SQL Server CDC idempotency schema was missing a column the filter writes, and its
   primary key was wrong.** The published `CREATE TABLE` for the processed-events table declared
   `TableName`, `Lsn`, `SeqVal` and `ProcessedAt`, keyed on the first three. The filter writes and

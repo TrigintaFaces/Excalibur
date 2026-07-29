@@ -43,10 +43,16 @@ public sealed class DynamoDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 	/// <inheritdoc/>
 	protected override bool SupportsOptimisticConcurrency => true;
 
-	// d0wpug: DynamoDbSagaStore does not implement ISagaStore.PurgeCompletedBeforeAsync — it hits the
-	// interface default that throws NotSupportedException (SA ruling). The base gate asserts that contract.
-	/// <inheritdoc/>
-	protected override bool SupportsCompletedPurge => false;
+	// Purge IS supported: DynamoDbSagaStore implements PurgeCompletedBeforeAsync rather than falling
+	// through to the interface default. This was declared unsupported back when it did fall through, and
+	// the declaration outlived the implementation -- so the suite asserted the store throws
+	// NotSupportedException while it was quietly purging correctly. The real retention arms were not
+	// running here at all; a purge that ignored the threshold or deleted a running saga would have gone
+	// unnoticed on this provider.
+	//
+	// It stayed hidden because the arms were failing anyway for an unrelated reason (auto-create was
+	// broken, so every operation hit a missing table), which masked the wrong-contract assertion behind
+	// the wrong-exception one.
 
 	/// <inheritdoc/>
 	protected override Task<ISagaStore> CreateStoreAsync()

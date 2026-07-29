@@ -53,9 +53,15 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 	[Fact]
 	public async Task ReEnterTheStoredTenant_WhenReplayedByAnOperatorOrAnotherTenant()
 	{
-		// SAFETY — replay provenance. Tenant A dead-letters a message; an OPERATOR (no tenant context) and then
-		// TENANT B replay it. Both must execute the handler under tenant A's context — the tenant STORED on the
-		// entry, never the ambient caller's. RED if replay re-enters the ambient context (cross-tenant injection).
+		// SAFETY — replay provenance, in two halves. Tenant A dead-letters a message; an OPERATOR (no
+		// tenant context) and then TENANT B attempt to replay it.
+		//
+		// The operator reaches it — inspection and replay are estate-wide on this admin surface — and must
+		// execute it under the tenant STORED on the entry, never the ambient caller's. RED if replay
+		// re-enters the ambient context (cross-tenant injection).
+		//
+		// Tenant B does not reach it at all: a tenant-scoped caller addresses only its own partition, so
+		// another tenant's entry resolves as not found. RED if B can replay A's dead letter.
 		await EnsureSchemaAsync().ConfigureAwait(false);
 
 		var observed = new List<string?>();
@@ -69,27 +75,45 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 			new OrderPayload("order-1"), DeadLetterReason.MaxRetriesExceeded, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Operator: no ambient tenant at all.
-		_ = await QueueFor(null, Handler).ReplayAsync(entryId, CancellationToken.None).ConfigureAwait(false);
+		// Operator: no ambient tenant at all. Reaches the entry — inspection and replay are estate-wide on
+		// this surface — and must run it under the tenant STORED on the entry, not under "no tenant".
+		var operatorReplayed = await QueueFor(null, Handler).ReplayAsync(entryId, CancellationToken.None)
+			.ConfigureAwait(false);
 
-		// A DIFFERENT tenant is ambient.
+		// A DIFFERENT tenant is ambient. It must not reach the entry AT ALL: a tenant-scoped caller
+		// addresses only its own partition, so tenant A's entry resolves as not found.
+		bool otherTenantReplayed;
 		using (TenantContextHolder.BeginScope(TenantB))
 		{
-			_ = await QueueFor(TenantB, Handler).ReplayAsync(entryId, CancellationToken.None).ConfigureAwait(false);
+			otherTenantReplayed = await QueueFor(TenantB, Handler).ReplayAsync(entryId, CancellationToken.None)
+				.ConfigureAwait(false);
 		}
 
-		// NON-VACUITY, and it is load-bearing: `ShouldAllBe` is vacuously TRUE on an empty list, so a replay
-		// path that silently never invoked the handler at all would satisfy the tenant assertion below while
-		// proving nothing. Both replays must actually have run. This arm carries the whole class's safety
-		// weight now that the scoping arm is parked, so the count is asserted FIRST and separately.
-		observed.Count.ShouldBe(2,
-			"both replays (operator and tenant-B) must actually invoke the handler — an empty observation list " +
-			"makes the tenant assertion below vacuously true. Observed " + observed.Count + " invocation(s).");
+		// NON-VACUITY, and it is load-bearing: `ShouldAllBe` is vacuously TRUE on an empty list, so a
+		// replay path that silently never invoked the handler would satisfy the tenant assertion below
+		// while proving nothing. The operator's replay must actually have run.
+		operatorReplayed.ShouldBeTrue("an operator replays across the estate; the entry must be reachable");
+		observed.Count.ShouldBe(1,
+			"exactly one replay executes: the operator's. Observed " + observed.Count + " invocation(s).");
 
+		// SAFETY 1 — replay re-enters the tenant STORED on the entry, never the caller's. Proven through
+		// the operator, who carries no tenant at all: if replay used the ambient context the handler would
+		// observe none, and if it used the caller's it would observe none here too. Only the stored tenant
+		// produces TenantA.
 		observed.ShouldAllBe(t => t == TenantA,
-			"replay must re-enter the tenant STORED on the entry (" + TenantA + "), never the ambient caller's — " +
-			"an operator or another tenant replaying a dead letter must not execute it under their own context. " +
-			"Observed: [" + string.Join(", ", observed.Select(t => t ?? "<none>")) + "]");
+			"replay must re-enter the tenant STORED on the entry (" + TenantA + "), never the ambient " +
+			"caller's. Observed: [" + string.Join(", ", observed.Select(t => t ?? "<none>")) + "]");
+
+		// SAFETY 2 — and the stronger half. Tenant B does not get to replay tenant A's dead letter under
+		// ANY context: it cannot address the entry, so the handler never runs for it.
+		//
+		// This arm previously expected B to replay it and merely land in A's context. That is a weaker
+		// contract than the one implemented, which keeps another tenant's entry unaddressable rather than
+		// executing it on their behalf, and it is the contract this surface documents: a tenant-scoped
+		// caller supplies its partition and an entry outside it resolves as not found.
+		otherTenantReplayed.ShouldBeFalse(
+			"tenant B must not replay tenant A's dead letter — a scoped caller cannot address another " +
+			"tenant's entry, so the replay reports not-found rather than executing it");
 	}
 
 	[Fact]
@@ -132,13 +156,24 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 	// on the interface. Until then arms 1-2 below lock the one property that IS documented: replay
 	// re-enters the STORED tenant, never the caller's.
 
+	/// <param name="tenantId">
+	/// The caller's tenant, or <see langword="null"/> for an operator with no tenant established.
+	/// </param>
+	/// <param name="replayHandler">The handler invoked on replay.</param>
+	/// <returns>A queue for that caller.</returns>
 	private SqlServerDeadLetterQueue QueueFor(string? tenantId, Func<object, Task>? replayHandler = null) =>
 		new(
 			() => new SqlConnection(_fixture.ConnectionString),
 			new SqlServerDeadLetterQueueOptions(),
 			NullLogger<SqlServerDeadLetterQueue>.Instance,
 			replayHandler,
-			new FixedTenantContext(tenantId));
+			// A NULL context for the operator, not a context that resolves null. The two are different
+			// states and only one of them is "no tenant": a null ITenantContext is the single-tenant /
+			// no-tenancy path, while a PRESENT context resolving nothing means tenancy is active and
+			// unresolved, which fails closed with TenantRequiredException rather than silently emitting a
+			// predicate-less query. Modelling the operator as the second threw before reaching the
+			// assertion — the operator replay this arm exists to cover never ran.
+			tenantId is null ? null : new FixedTenantContext(tenantId));
 
 	private async Task EnsureSchemaAsync()
 	{

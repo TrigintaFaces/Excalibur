@@ -274,12 +274,27 @@ public sealed class ComplianceEncryptionEndToEndShould : IAsyncLifetime, IDispos
 		var keyMaterial = RandomNumberGenerator.GetBytes(32);
 		_ = await _escrowService.BackupKeyAsync(keyId, keyMaterial, null, CancellationToken.None);
 
-		// Act - Generate tokens twice
-		var tokens1 = await _escrowService.GenerateRecoveryTokensAsync(keyId, custodianCount: 3, threshold: 2, null, CancellationToken.None);
-		var tokens2 = await _escrowService.GenerateRecoveryTokensAsync(keyId, custodianCount: 3, threshold: 2, null, CancellationToken.None);
+		// Act — the first custodian batch is issued, and a second is refused.
+		var tokens1 = await _escrowService.GenerateRecoveryTokensAsync(
+			keyId, custodianCount: 3, threshold: 2, null, CancellationToken.None);
 
-		// Assert - Both should succeed but with different token IDs
-		tokens1.Select(t => t.TokenId).ShouldNotBe(tokens2.Select(t => t.TokenId));
+		// LIVENESS — the refusal asserted below is not a service that issues nothing.
+		tokens1.Length.ShouldBe(3, "the first custodian batch is issued normally");
+
+		// SAFETY, and what this test is named for. A second batch would mint a fresh quorum alongside the
+		// first, so anyone able to call this API could recover the key without the consent of the
+		// custodians holding the original shares — the control the escrow exists to impose. Issuing
+		// another batch is a rotation and needs an existing quorum's consent, which this path does not
+		// carry.
+		//
+		// The body previously asserted the opposite of the method's own name — that both calls succeed
+		// with differing token ids — which was the behaviour before that control existed. The second call
+		// throws, so the assertion was never reached and the exception escaped as the test failure.
+		var second = await Should.ThrowAsync<KeyEscrowException>(
+			async () => await _escrowService.GenerateRecoveryTokensAsync(
+				keyId, custodianCount: 3, threshold: 2, null, CancellationToken.None));
+
+		second.KeyId.ShouldBe(keyId, "the refusal names the escrow it refused");
 	}
 
 	[Fact]

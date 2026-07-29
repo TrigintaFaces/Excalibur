@@ -465,19 +465,36 @@ public sealed partial class ElasticsearchInboxStore : IInboxStore, IProcessingTr
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
-		// Strictly older-than cutoff: only entries received before `olderThan` are deleted.
-		// An entry received exactly at `olderThan` is retained (EC-5). Previously this issued a
-		// MatchAll query that deleted every inbox document regardless of age (FR-4 data-loss bug).
+		// Strictly older-than cutoff: only entries PROCESSED before `olderThan` are deleted. An entry
+		// processed exactly at `olderThan` is retained (EC-5). Previously this issued a MatchAll query
+		// that deleted every inbox document regardless of age (FR-4 data-loss bug).
+		//
+		// Two further conditions, both load-bearing, both previously absent:
+		//
+		//   status = Processed  — retention removes entries whose work is DONE. Without it, cleanup also
+		//                         deleted Failed entries (dropping the record of work that still needs
+		//                         attention) and Pending ones (dropping the deduplication record, so the
+		//                         message would be processed a second time on redelivery — the one thing
+		//                         an inbox exists to prevent).
+		//   range on ProcessedAt — the age that matters is when the entry was completed, not when it
+		//                         arrived. Keying on ReceivedAt deletes a long-running or recently-retried
+		//                         entry purely for having arrived early.
+		//
+		// This is the predicate the SQL providers already use:
+		//   DELETE ... WHERE status = @ProcessedStatus AND processed_at < @CutoffDate
 		var cutoff = DateMath.Anchored(olderThan.UtcDateTime);
 
 		var response = await _client.DeleteByQueryAsync<ElasticsearchInboxDocument>(
 			d => d
 				.Indices(_options.IndexName)
 				.Query(q => q
-					.Range(r => r
-						.DateRange(dr => dr
-							.Field(f => f.ReceivedAt)
-							.Lt(cutoff)))),
+					.Bool(b => b
+						.Filter(
+							f => f.Term(t => t.Field(doc => doc.Status).Value((int)InboxStatus.Processed)),
+							f => f.Range(r => r
+								.DateRange(dr => dr
+									.Field(doc => doc.ProcessedAt)
+									.Lt(cutoff)))))),
 			cancellationToken).ConfigureAwait(false);
 
 		var deleted = (int)(response.Deleted ?? 0);

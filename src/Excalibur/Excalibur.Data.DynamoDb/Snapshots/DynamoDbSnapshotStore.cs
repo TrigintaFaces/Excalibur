@@ -525,7 +525,15 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		{
 			_ = await _client!.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 		}
-		catch (ResourceNotFoundException)
+		// FULLY QUALIFIED, and it must stay that way. Two types share this name here: the AWS one, and
+		// Excalibur.Data.ResourceNotFoundException. This file sits in Excalibur.Data.DynamoDb.Snapshots, so
+		// Excalibur.Data is an ENCLOSING NAMESPACE -- and enclosing-namespace lookup wins over a using
+		// directive. Written unqualified, this catch binds to Excalibur's exception, the AWS one passes
+		// straight through, and the table is never created. It still compiles, because both are exception
+		// types, so nothing reports it: CreateTableIfNotExists (default true) silently did nothing and
+		// every operation failed with "Cannot do operations on a non-existent table" thrown from inside
+		// the method whose entire job is to create that table.
+		catch (Amazon.DynamoDBv2.Model.ResourceNotFoundException)
 		{
 			var createRequest = new CreateTableRequest
 			{
@@ -586,7 +594,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 						.ConfigureAwait(false);
 					status = describeResponse.Table.TableStatus;
 				}
-				catch (ResourceNotFoundException)
+				catch (Amazon.DynamoDBv2.Model.ResourceNotFoundException)
 				{
 					// Not visible yet -- keep waiting rather than failing the create we just issued.
 					status = null;

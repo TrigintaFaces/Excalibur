@@ -74,16 +74,32 @@ public sealed class SqlServerSnapshotStoreContainerFixture : ContainerFixtureBas
 				JOIN sys.schemas s ON t.schema_id = s.schema_id
 				WHERE s.name = '{SchemaName}' AND t.name = '{TableName}')
 			BEGIN
+				-- Mirrors the shipped 002_CreateSnapshotSchema.sql, which is the source of truth for this
+				-- table. It is restated rather than executed only because that script hardcodes
+				-- dbo.EventStoreSnapshots while this fixture parameterises schema and table; every column,
+				-- type, collation and key below is otherwise identical, and it had drifted on four of them:
+				--
+				--   PRIMARY KEY   omitted AggregateType, so two aggregate TYPES sharing an id collided on
+				--                 one row. That is the defect Should_Isolate_Snapshots_By_Aggregate_Type
+				--                 exists to catch, and the fixture made it unreproducible -- the arm failed
+				--                 with a primary-key violation instead.
+				--   TenantId      lacked the binary collation. SQL Server's default is case-INSENSITIVE,
+				--                 under which 'Acme' and 'acme' are one tenant, so the tenant-isolation arms
+				--                 were running against a column that cannot express the boundary they
+				--                 assert. The shipped script calls this out as load-bearing.
+				--   CreatedAt     DATETIME2 rather than DATETIMEOFFSET: the offset is dropped on write, so
+				--                 no round-trip here could have caught an offset-handling defect.
+				--   AggregateType NVARCHAR(500) rather than 255.
 				CREATE TABLE [{SchemaName}].[{TableName}] (
 					SnapshotId NVARCHAR(255) NOT NULL,
 					AggregateId NVARCHAR(255) NOT NULL,
-					AggregateType NVARCHAR(500) NOT NULL,
+					AggregateType NVARCHAR(255) NOT NULL,
 					Version BIGINT NOT NULL,
 					Data VARBINARY(MAX) NOT NULL,
-					CreatedAt DATETIME2 NOT NULL,
 					Metadata VARBINARY(MAX) NULL,
-					TenantId NVARCHAR(256) NOT NULL DEFAULT (''),
-					CONSTRAINT PK_{TableName} PRIMARY KEY (AggregateId, TenantId)
+					CreatedAt DATETIMEOFFSET NOT NULL,
+					TenantId NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL,
+					CONSTRAINT PK_{TableName} PRIMARY KEY CLUSTERED (AggregateId, AggregateType, TenantId)
 				);
 			END
 			""";

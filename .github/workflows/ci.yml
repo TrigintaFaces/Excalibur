@@ -27,6 +27,18 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   COVERAGE_THRESHOLD: 65
+  # TestTimeouts.Scale() multiplies by this and defaults to 1.0 when unset, so an unset job runs every
+  # scaled deadline at its bare local value. This lives at WORKFLOW level, not on a job, because the
+  # same assembly runs in several: setting it only on `unit-tests` left the deterministic shard
+  # unscaled in unit-tests-windows, -windows-async-risk, -macos and -macos-async-risk, and the
+  # keyed-lock churn test duly timed out on the Windows agent at its unscaled 30s bound. Any job that
+  # runs tests inherits it here; there is no per-job copy to forget.
+  #
+  # 3 is chosen against measurement: that test drives 16 workers through 4,000 fully serialized
+  # acquisitions of one key, completes in 2-3s locally, and overran 30s on an agent running a dozen
+  # assemblies in parallel. A timeout only costs wall-clock once something has already gone wrong, so
+  # the wider margin trades nothing on the happy path.
+  TEST_TIMEOUT_MULTIPLIER: "3"
 
 jobs:
   # ── Package job (Ubuntu) -- NuGet packaging, deterministic validation ──
@@ -344,17 +356,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: smoke-tests
     timeout-minutes: 15
-    env:
-      # TestTimeouts.Scale() multiplies by this and defaults to 1.0 when it is unset -- which it was,
-      # everywhere. Every call to Scale in the suite was therefore the identity function, including the
-      # ones whose comments say they exist to absorb CI load. A helper that silently does nothing is
-      # worse than no helper: the deadlines it is supposed to relax read as already-generous.
-      #
-      # 3 is chosen against measurement, not taste. The keyed-lock churn test drives 16 workers through
-      # 4,000 fully serialized acquisitions of one key; it completes in 2-3s locally and timed out at a
-      # 30s deadline on an agent running a dozen assemblies in parallel. Timeouts only cost wall-clock
-      # when something has already gone wrong, so a wider margin here trades nothing on the happy path.
-      TEST_TIMEOUT_MULTIPLIER: "3"
+    # TEST_TIMEOUT_MULTIPLIER is inherited from the workflow env, deliberately: this job is not the
+    # only one that runs the deterministic shard, and a copy here is what let the others go unscaled.
     strategy:
       matrix:
         shard:

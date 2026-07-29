@@ -74,6 +74,17 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	protected abstract Task<ISnapshotStore> CreateSnapshotStoreAsync();
 
 	/// <summary>
+	/// Gets the largest snapshot payload the provider under test can store, in bytes.
+	/// </summary>
+	/// <remarks>
+	/// Defaults to 1 MB, which every relational and document provider here carries comfortably. A provider
+	/// with a hard platform ceiling below that overrides it: DynamoDB caps a single item at 400 KB, so a
+	/// hardcoded 1 MB arm could never pass there however the store was written. Declaring the limit keeps
+	/// the arm meaningful on that provider instead of permanently red.
+	/// </remarks>
+	protected virtual int MaxSnapshotPayloadBytes => 1_000_000;
+
+	/// <summary>
 	/// Creates the snapshot strategy to test with.
 	/// Return null to skip strategy-specific tests.
 	/// </summary>
@@ -558,9 +569,14 @@ public abstract class SnapshotConformanceTestBase : IAsyncLifetime
 	[Fact]
 	public virtual async Task Should_Handle_Large_Snapshot_Data()
 	{
-		// Arrange - 1MB payload
+		// MaxSnapshotPayloadBytes is a capability declaration, not an opt-out. The arm still stores and
+		// reads back the largest payload the provider supports, so it stays non-vacuous everywhere: a
+		// store that truncates, corrupts or silently drops a large payload fails it on every provider.
+		// Skipping the arm on a size-capped provider would leave its large-payload path untested;
+		// deleting it would lose the coverage on the providers that do carry a megabyte.
+		// Arrange - the largest payload this provider actually accepts.
 		var aggregateId = Guid.NewGuid().ToString();
-		var largeData = new byte[1_000_000];
+		var largeData = new byte[MaxSnapshotPayloadBytes];
 		new Random(42).NextBytes(largeData);
 
 		var snapshot = CreateTestSnapshot(aggregateId, "LargeAggregate", 1, largeData);

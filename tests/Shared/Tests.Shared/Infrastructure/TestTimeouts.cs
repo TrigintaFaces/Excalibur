@@ -73,10 +73,95 @@ public static class TestTimeouts
 	}
 
 	/// <summary>
-	/// Gets the timeout multiplier from the TEST_TIMEOUT_MULTIPLIER environment variable.
+	/// The multiplier applied on a CI agent when nothing sets one explicitly.
 	/// </summary>
-	private static double Multiplier =>
-		double.TryParse(Environment.GetEnvironmentVariable("TEST_TIMEOUT_MULTIPLIER"), out var m) ? m : 1.0;
+	/// <remarks>
+	/// Chosen against measurement rather than taste. The keyed-lock churn test drives 16 workers through
+	/// 4,000 fully serialized acquisitions of one key; it finishes in well under a second locally and
+	/// overran a 30-second deadline on an agent running a dozen assemblies in parallel. A timeout only
+	/// costs wall-clock once something has already gone wrong, so a wider margin trades nothing on the
+	/// happy path.
+	/// </remarks>
+	private const double DefaultCiMultiplier = 3.0;
+
+	/// <summary>
+	/// The resolved multiplier: an explicit <c>TEST_TIMEOUT_MULTIPLIER</c> if set and usable, otherwise
+	/// <see cref="DefaultCiMultiplier"/> on a CI agent and 1.0 on a developer machine.
+	/// </summary>
+	/// <remarks>
+	/// Resolved once. Nothing sets the variable at runtime, and a multiplier that could change mid-run
+	/// would make two deadlines in the same test disagree.
+	/// </remarks>
+	private static readonly double ResolvedMultiplier = ResolveMultiplier();
+
+	/// <summary>
+	/// Gets the timeout multiplier applied to every scaled deadline.
+	/// </summary>
+	private static double Multiplier => ResolvedMultiplier;
+
+	/// <summary>
+	/// Resolves the multiplier, defaulting to <see cref="DefaultCiMultiplier"/> when running on CI.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The CI default exists because the environment variable is the wrong place to hold this alone. It
+	/// previously had to be set per workflow, and was set in exactly one of the eight that run tests --
+	/// so every <c>Scale</c> call was the identity function everywhere else, including in the jobs whose
+	/// deadlines exist specifically to absorb CI load. Making the default correct means a workflow
+	/// cannot forget it, and a new workflow inherits the right behaviour without knowing this exists.
+	/// </para>
+	/// <para>
+	/// A developer machine stays at 1.0, so local runs keep tight deadlines and a genuine hang surfaces
+	/// quickly rather than after a tripled wait.
+	/// </para>
+	/// </remarks>
+	private static double ResolveMultiplier() =>
+		ResolveMultiplier(
+			Environment.GetEnvironmentVariable("TEST_TIMEOUT_MULTIPLIER"),
+			IsContinuousIntegration);
+
+	/// <summary>
+	/// Resolves the multiplier from its two inputs.
+	/// </summary>
+	/// <param name="rawOverride">The raw <c>TEST_TIMEOUT_MULTIPLIER</c> value, or <see langword="null"/>.</param>
+	/// <param name="isContinuousIntegration">Whether the run is on a CI agent.</param>
+	/// <returns>The multiplier to apply.</returns>
+	/// <remarks>
+	/// Kept as a pure function of its inputs, rather than reading the environment inline, so both
+	/// branches are reachable from a test. The version of this that read the environment directly could
+	/// not be tested at all, which is a large part of why it went a long time returning 1.0 everywhere
+	/// while appearing to do something.
+	/// </remarks>
+	internal static double ResolveMultiplier(string? rawOverride, bool isContinuousIntegration)
+	{
+		// Invariant culture: a machine with a comma decimal separator would otherwise fail to parse
+		// "1.5" and silently fall back, which is the same class of silent no-op this method exists to
+		// end. A non-positive value is rejected for the same reason -- 0 would collapse every deadline
+		// to zero and fail every timed test instantly, which reads as a code defect rather than config.
+		if (double.TryParse(rawOverride, System.Globalization.NumberStyles.Float,
+				System.Globalization.CultureInfo.InvariantCulture, out var explicitValue)
+			&& explicitValue > 0)
+		{
+			return explicitValue;
+		}
+
+		return isContinuousIntegration ? DefaultCiMultiplier : 1.0;
+	}
+
+	/// <summary>
+	/// Gets a value indicating whether the tests are running on a CI agent.
+	/// </summary>
+	/// <remarks>
+	/// <c>CI</c> is set by essentially every hosted CI provider; <c>GITHUB_ACTIONS</c> is checked as well
+	/// so detection does not rest on a single variable.
+	/// </remarks>
+	private static bool IsContinuousIntegration =>
+		IsTruthy(Environment.GetEnvironmentVariable("CI"))
+		|| IsTruthy(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+
+	private static bool IsTruthy(string? value) =>
+		!string.IsNullOrWhiteSpace(value)
+		&& (value.Equals("true", StringComparison.OrdinalIgnoreCase) || value.Equals("1", StringComparison.Ordinal));
 
 	/// <summary>
 	/// Creates a cancellation token source with the specified timeout.

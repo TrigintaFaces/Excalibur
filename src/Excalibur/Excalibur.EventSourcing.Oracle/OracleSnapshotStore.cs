@@ -118,9 +118,30 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 			await using var connection = _connectionFactory();
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-			_ = await connection.ResolveAsync(
-					new SaveSnapshotRequest(snapshot, TenantScope.FromContext(_tenantContext), cancellationToken, _schema, _table))
-				.ConfigureAwait(false);
+			var scope = TenantScope.FromContext(_tenantContext);
+
+			try
+			{
+				_ = await connection.ResolveAsync(
+						new SaveSnapshotRequest(snapshot, scope, cancellationToken, _schema, _table))
+					.ConfigureAwait(false);
+			}
+			catch (Exception ex) when (IsUniqueConstraintViolation(ex))
+			{
+				// MERGE is not immune to a unique-constraint violation. Two sessions saving the same
+				// aggregate concurrently can both evaluate NOT MATCHED before either commits, and both take
+				// the INSERT branch; the second gets ORA-00001. This is documented Oracle behaviour, not a
+				// defect in the statement, and it is ordinary here -- several instances may snapshot the
+				// same aggregate at once.
+				//
+				// Retrying once is sufficient and correct: the row now exists, so the retry takes the
+				// MATCHED branch, where the version guard decides whether this snapshot is newer. A losing
+				// retry updates nothing, which is the same outcome it would have had if the two saves had
+				// been serialised. A second violation cannot come from this race and is left to surface.
+				_ = await connection.ResolveAsync(
+						new SaveSnapshotRequest(snapshot, scope, cancellationToken, _schema, _table))
+					.ConfigureAwait(false);
+			}
 
 			_logger.LogDebug("Saved snapshot for {AggregateType}/{AggregateId} at version {Version}",
 				snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
@@ -219,5 +240,30 @@ public sealed class OracleSnapshotStore : ISnapshotStore
 	{
 		ArgumentNullException.ThrowIfNull(connectionString);
 		return () => new OracleConnection(connectionString);
+	}
+
+	/// <summary>
+	/// Determines whether an exception is an Oracle unique-constraint violation (ORA-00001).
+	/// </summary>
+	/// <remarks>
+	/// The exception arrives wrapped: the data-access layer surfaces provider errors as
+	/// <see cref="OperationFailedException"/>, so the chain is walked rather than the outermost type
+	/// inspected. Matching only ORA-00001 keeps this narrow -- any other Oracle error still propagates.
+	/// </remarks>
+	/// <param name="exception">The exception to inspect.</param>
+	/// <returns><see langword="true"/> when the chain contains ORA-00001.</returns>
+	private static bool IsUniqueConstraintViolation(Exception exception)
+	{
+		const int OracleUniqueConstraintViolated = 1;
+
+		for (var current = exception; current is not null; current = current.InnerException)
+		{
+			if (current is OracleException { Number: OracleUniqueConstraintViolated })
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

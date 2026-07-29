@@ -561,7 +561,7 @@ public sealed class DynamoDbProjectionStore<
 		{
 			await _client.DescribeTableAsync(_options.TableName, cancellationToken).ConfigureAwait(false);
 		}
-		catch (ResourceNotFoundException)
+		catch (Amazon.DynamoDBv2.Model.ResourceNotFoundException)
 		{
 			try
 			{

@@ -71,14 +71,12 @@ public sealed class PostgresOutboxStoreTimestampOffsetShould : IClassFixture<Pos
 	[Fact]
 	public async Task StageAMessageScheduledWithANonZeroOffsetInstant_PreservingTheInstant()
 	{
-		RequireNonZeroHostOffset();
-
 		var store = await CreateStoreAsync().ConfigureAwait(false);
 		const string messageId = "g3do61-stage-local-offset";
 
-		// DateTimeOffset.Now — the caller's local instant, carrying this host's non-zero offset. The pre-fix
-		// parameter hands it to Npgsql unchanged and Npgsql rejects it: the message never stages.
-		var scheduledAt = DateTimeOffset.Now;
+		// An instant carrying a non-zero offset. The pre-fix parameter hands it to Npgsql unchanged and
+		// Npgsql rejects it: the message never stages.
+		var scheduledAt = NonZeroOffsetInstant();
 
 		await store.StageMessageAsync(
 			new OutboundMessage
@@ -111,16 +109,14 @@ public sealed class PostgresOutboxStoreTimestampOffsetShould : IClassFixture<Pos
 	[Fact]
 	public async Task ScheduleABackoffWithANonZeroOffsetInstant_PreservingTheInstant()
 	{
-		RequireNonZeroHostOffset();
-
 		var store = await CreateStoreAsync().ConfigureAwait(false);
 		const string messageId = "g3do61-backoff-local-offset";
 		await store.StageMessageAsync(
 			new OutboundMessage { Id = messageId, MessageType = "T", Payload = [1], Destination = "dest" },
 			CancellationToken.None).ConfigureAwait(false);
 
-		// A retry scheduled in the caller's local offset — the ordinary shape of a backoff computed from Now.
-		var nextAttemptAt = DateTimeOffset.Now.AddMinutes(5);
+		// A retry scheduled in a non-zero offset — the ordinary shape of a backoff computed from local Now.
+		var nextAttemptAt = NonZeroOffsetInstant().AddMinutes(5);
 
 		await store.MarkFailedWithBackoffAsync(messageId, "transient error", 1, nextAttemptAt, CancellationToken.None)
 			.ConfigureAwait(false);
@@ -138,15 +134,22 @@ public sealed class PostgresOutboxStoreTimestampOffsetShould : IClassFixture<Pos
 	}
 
 	/// <summary>
-	/// Fails loudly when the host runs at UTC, where <c>DateTimeOffset.Now</c> carries offset zero and every
-	/// arm in this class would pass against the pre-fix code.
+	/// Produces the current instant carried in a deliberately non-zero offset.
 	/// </summary>
-	private static void RequireNonZeroHostOffset() =>
-		DateTimeOffset.Now.Offset.ShouldNotBe(
-			TimeSpan.Zero,
-			"this lock is VACUOUS on a UTC host: DateTimeOffset.Now would carry offset zero, which the pre-fix "
-			+ "parameter accepts. The offset is the entire variable under test — run this suite on a host with a "
-			+ "non-zero local offset, or the green means nothing.");
+	/// <remarks>
+	/// The offset is the entire variable under test, and it is constructed here rather than taken from
+	/// <c>DateTimeOffset.Now</c> so it does not depend on where the suite happens to run. Sourcing it from
+	/// the host made the arms vacuous on a UTC machine — the pre-fix parameter accepts offset zero — and
+	/// the class guarded that honestly by failing on such a host. That guard made the suite unrunnable on
+	/// CI, which runs UTC: the arms could only ever fail there, so the defect they cover was unprotected
+	/// in the one place it would have been caught.
+	/// <para>
+	/// <c>ToOffset</c> re-expresses the same instant in another offset, so the moment asserted on is
+	/// unchanged and only the offset — the thing under test — differs.
+	/// </para>
+	/// </remarks>
+	private static DateTimeOffset NonZeroOffsetInstant() =>
+		DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(-5));
 
 	private async Task<PostgresOutboxStore> CreateStoreAsync()
 	{

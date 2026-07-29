@@ -213,7 +213,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			return DeserializeDocument<TDocument>(response.Item);
 #pragma warning restore IL2026
 		}
-		catch (ResourceNotFoundException)
+		catch (Amazon.DynamoDBv2.Model.ResourceNotFoundException)
 		{
 			return null;
 		}

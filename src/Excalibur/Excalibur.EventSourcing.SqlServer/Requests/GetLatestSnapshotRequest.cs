@@ -97,7 +97,10 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 				AggregateType = result.AggregateType,
 				Version = result.Version,
 				Data = result.Data,
-				CreatedAt = new DateTimeOffset(DateTime.SpecifyKind(result.CreatedAt, DateTimeKind.Utc), TimeSpan.Zero),
+				// Read straight through. The column is DATETIMEOFFSET and carries its own offset, so
+				// reading it as DateTime and then asserting UTC discarded that offset and returned a
+				// different instant than was written for any non-UTC writer.
+				CreatedAt = result.CreatedAt,
 				Metadata = DeserializeMetadata(result.Metadata),
 				TenantId = result.TenantId,
 			};
@@ -177,7 +180,13 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		string AggregateType,
 		long Version,
 		byte[] Data,
-		DateTime CreatedAt,
+		// DateTimeOffset, matching the DATETIMEOFFSET column in the shipped 002_CreateSnapshotSchema.sql.
+		// Declared as DateTime, this record could not be materialised from a table created by that script
+		// at all -- Dapper found no constructor accepting the returned column types and the read failed
+		// outright. A consumer who ran the documented setup script hit that on their first snapshot read.
+		// It stayed invisible because the conformance fixture built its own table with DATETIME2, so the
+		// suite only ever exercised a schema no consumer has.
+		DateTimeOffset CreatedAt,
 		byte[]? Metadata,
 		string? TenantId);
 }

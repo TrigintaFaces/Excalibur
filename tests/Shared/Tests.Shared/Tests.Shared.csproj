@@ -13,6 +13,11 @@
     <AssemblyName>Tests.Shared</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <!-- TestTimeouts.ResolveMultiplier is internal and covered by a test in this assembly. Test access,
+         not a widened surface: Tests.Shared is test infrastructure and ships in no package. -->
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="Fixtures\servicebus-emulator-config.json" CopyToOutputDirectory="PreserveNewest" Link="Fixtures\servicebus-emulator-config.json" />
   </ItemGroup>
   <ItemGroup>

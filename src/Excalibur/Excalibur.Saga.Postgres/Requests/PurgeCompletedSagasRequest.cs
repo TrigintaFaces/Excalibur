@@ -70,7 +70,9 @@ internal sealed class PurgeCompletedSagasRequest : DataRequestBase<IDbConnection
 		// correctness must not be coupled to the "completed sagas never re-save" invariant via a proxy column.
 		var sql = $"DELETE FROM {options.QualifiedTableName} WHERE completed_at IS NOT NULL AND completed_at < @Threshold{tenantPredicate};";
 
-		Parameters.Add("Threshold", threshold);
+		// UTC for the same reason as the save path: Npgsql rejects a non-zero offset for timestamptz, so a
+		// retention sweep expressed in a local offset threw instead of purging.
+		Parameters.Add("Threshold", threshold.ToUniversalTime());
 		if (!allTenants)
 		{
 			// Bound on both the scoped and untenanted paths -- partition.TenantId is never null, so the

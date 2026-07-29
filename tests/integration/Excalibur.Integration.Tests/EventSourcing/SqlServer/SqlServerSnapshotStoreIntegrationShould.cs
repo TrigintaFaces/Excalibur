@@ -316,7 +316,7 @@ public sealed class SqlServerSnapshotStoreIntegrationShould : IAsyncLifetime
 				AggregateType NVARCHAR(255) NOT NULL,
 				Version BIGINT NOT NULL,
 				Data VARBINARY(MAX) NOT NULL,
-				CreatedAt DATETIME2 NOT NULL,
+				CreatedAt DATETIMEOFFSET NOT NULL,
 				Metadata VARBINARY(MAX) NULL,
 				TenantId NVARCHAR(256) NOT NULL DEFAULT (''),
 				PRIMARY KEY (AggregateId, AggregateType, TenantId)

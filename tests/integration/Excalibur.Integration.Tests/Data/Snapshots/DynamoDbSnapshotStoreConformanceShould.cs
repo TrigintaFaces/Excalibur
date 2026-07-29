@@ -48,6 +48,15 @@ public sealed class DynamoDbSnapshotStoreConformanceShould : SnapshotConformance
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// DynamoDB caps a single item at 400 KB, and that budget covers the keys, every attribute and the
+	/// encoding overhead of the payload -- not the raw bytes alone. 200 KB is a large payload that leaves
+	/// room for all of it, so the arm exercises the same behaviour it does elsewhere rather than sitting
+	/// permanently red against a platform limit no implementation can lift.
+	/// </remarks>
+	protected override int MaxSnapshotPayloadBytes => 200_000;
+
+	/// <inheritdoc/>
 	protected override Task<ISnapshotStore> CreateSnapshotStoreAsync()
 	{
 		_fixture.DockerAvailable.ShouldBeTrue(

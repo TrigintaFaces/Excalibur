@@ -27,4 +27,36 @@ public sealed class MartenOutboxStoreOptions
 	/// <value>The cleanup batch size. Must be greater than zero. Defaults to 500.</value>
 	[Range(1, int.MaxValue)]
 	public int CleanupBatchSize { get; set; } = 500;
+
+	/// <summary>
+	/// Gets or sets how long a dispatcher's claim on a message is honoured before another may take it.
+	/// </summary>
+	/// <remarks>
+	/// A dispatcher that crashes between claiming a message and marking it sent leaves the claim behind.
+	/// Once this elapses another dispatcher reclaims the message, so a crash costs a delay rather than a
+	/// permanently stranded message. Set it comfortably above the longest expected send: a value shorter
+	/// than that lets a second dispatcher take a message the first is still working on, which turns the
+	/// at-least-once delivery this store provides into duplicate delivery far more often than a crash would.
+	/// </remarks>
+	/// <value>The claim duration. Must be positive. Defaults to 5 minutes.</value>
+	public TimeSpan ClaimTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+	/// <summary>
+	/// Gets or sets the schema holding the claim table.
+	/// </summary>
+	/// <value>The schema name. Defaults to <c>public</c>.</value>
+	public string ClaimsSchemaName { get; set; } = "public";
+
+	/// <summary>
+	/// Gets or sets the name of the claim table.
+	/// </summary>
+	/// <remarks>
+	/// The claims live in a table this store owns rather than in the Marten document itself. Marten keeps
+	/// a document's fields inside a <c>jsonb</c> column whose property names come from the serializer the
+	/// CONSUMER configured on their own <c>IDocumentStore</c> — so SQL reaching into that document would
+	/// silently stop matching under a different casing convention. A table this store defines has columns
+	/// it controls, and the claim is expressible as a single atomic statement against them.
+	/// </remarks>
+	/// <value>The table name. Defaults to <c>excalibur_outbox_claims</c>.</value>
+	public string ClaimsTableName { get; set; } = "excalibur_outbox_claims";
 }
