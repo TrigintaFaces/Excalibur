@@ -62,7 +62,13 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 		Store = await CreateStoreAsync().ConfigureAwait(false);
 		Admin = (Store as IOutboxStoreAdmin)!;
 
-		await CleanupAsync().ConfigureAwait(false);
+		// ResetDataAsync, NOT CleanupAsync. The pre-test hook must clear residual DATA while leaving the
+		// store just created above fully usable. CleanupAsync is end-of-test TEARDOWN, and derivers whose
+		// teardown also disposes a client (Redis multiplexer, Marten IDocumentStore, CosmosClient) were
+		// having that client disposed here -- before the first assertion ran. Every arm in those classes
+		// then failed with ObjectDisposedException, and because the store is rebuilt per test (xUnit
+		// constructs a fresh instance per test) it failed on EVERY arm, not just the second onward.
+		await ResetDataAsync().ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -87,9 +93,23 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	protected abstract Task<IOutboxStore> CreateStoreAsync();
 
 	/// <summary>
-	/// Cleans up the IOutboxStore instance after each test.
+	/// Cleans up the IOutboxStore instance after each test. This is TEARDOWN: it may dispose clients and
+	/// connections the deriver opened, because nothing runs against the store afterwards.
 	/// </summary>
 	protected abstract Task CleanupAsync();
+
+	/// <summary>
+	/// Clears residual DATA before each test, leaving the freshly created store usable.
+	/// </summary>
+	/// <remarks>
+	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any deriver whose teardown only
+	/// deletes rows/keys/documents. A deriver whose <see cref="CleanupAsync"/> ALSO disposes a connection
+	/// or client MUST override this with the data-only half -- otherwise it disposes the store the test
+	/// is about to use. The split exists because "clean up after" and "reset before" are different
+	/// operations that were previously the same method.
+	/// </remarks>
+	/// <returns>A task that completes when residual data has been cleared.</returns>
+	protected virtual Task ResetDataAsync() => CleanupAsync();
 
 	/// <summary>
 	/// y1moc0 (GUIDE ruling 1) — whether the store-under-test RETAINS sent messages (sent-tracking) or is a

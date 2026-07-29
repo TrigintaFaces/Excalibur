@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Snapshots no longer leak or overwrite across tenants on SQL Server.** The SQL Server snapshot
+  registrations built the store without a tenant context. That parameter is optional and defaults to
+  none, so every tenant's snapshot was written under the framework's reserved untenanted marker: all
+  tenants shared a single row per aggregate id, and whichever tenant saved last silently overwrote the
+  others. Any multi-tenant host using the SQL Server event-sourcing registration was affected, and the
+  loss was silent — reads returned another tenant's state rather than failing. The registrations now
+  resolve the ambient tenant context. Single-tenant hosts are unaffected: with no tenant registered the
+  scope remains untenanted, which is the correct behaviour for them.
+
+- **The SQL Server outbox no longer reports completed messages as still sending.** Marking a message
+  sent left its lease columns populated, while the statistics query counts in-flight work as any leased
+  row without regard to status. Every message ever sent therefore stayed in that count permanently, so
+  the sending total grew without bound for the life of the table and never returned to zero. Sending now
+  releases the lease, and the count reflects work actually in flight.
+
+- **DynamoDB snapshot stores no longer fail on first use against a new table.** Table creation is
+  eventually consistent: for a short window after the table is created, describing it can still report
+  it as missing. That error escaped the very routine responsible for creating the table, surfacing as
+  "Cannot do operations on a non-existent table" on a cold start. The wait now treats a not-yet-visible
+  table as pending rather than as failure, and is bounded — previously a table that never became active
+  would wait forever holding the initialisation lock, hanging the caller instead of reporting an error.
+
 - **Saving an existing saga no longer fails on Oracle.** The version-gated upsert referenced `TenantId`
   in the `MERGE` `ON` clause and also assigned it in `WHEN MATCHED THEN UPDATE SET`. Oracle rejects that
   combination outright (`ORA-38104: Columns referenced in the ON Clause cannot be updated`), so every

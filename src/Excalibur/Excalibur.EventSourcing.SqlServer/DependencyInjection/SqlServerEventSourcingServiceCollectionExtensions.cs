@@ -154,7 +154,14 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 				connectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
 				schema,
-				table));
+				table,
+				// Resolve the ambient tenant context. Omitting it left the store's optional parameter at
+				// null, so TenantScope.FromContext(null) returned None and EVERY tenant's snapshot was
+				// written under the reserved untenanted sentinel -- one row per aggregate id shared across
+				// all tenants, so a later tenant's save silently overwrote an earlier tenant's snapshot.
+				// GetService, not GetRequiredService: single-tenant hosts register no ITenantContext and
+				// must keep working, and that case is the untenanted scope by design.
+				sp.GetService<ITenantContext>()));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
 
@@ -562,7 +569,10 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
 				schema,
-				table));
+				table,
+				// See the sibling registration above: omitting this collapsed every tenant onto the
+				// untenanted sentinel and allowed cross-tenant snapshot overwrites.
+				sp.GetService<ITenantContext>()));
 
 		RegisterSnapshotStoreTelemetryWrapper(services);
 

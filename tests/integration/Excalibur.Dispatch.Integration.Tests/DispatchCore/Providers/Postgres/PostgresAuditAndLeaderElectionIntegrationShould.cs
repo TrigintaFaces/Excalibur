@@ -6,6 +6,7 @@ using Dapper;
 using Excalibur.Data.Postgres.Audit;
 using Excalibur.LeaderElection.Postgres;
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.LeaderElection;
 
 using Npgsql;
@@ -34,6 +35,8 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		await using var store = CreateAuditStore();
 		var evt = CreateAuditEvent("pg-evt-1", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-2));
 
+		using var scope = TenantContextHolder.BeginScope("tenant-1");
+
 		var stored = await store.StoreAsync(evt, TestCancellationToken);
 		var loaded = await store.GetByIdAsync(evt.EventId, TestCancellationToken);
 
@@ -51,9 +54,18 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		await InitializeAuditTableAsync();
 		await using var store = CreateAuditStore();
 
-		await store.StoreAsync(CreateAuditEvent("pg-evt-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-4), actorId: "actor-a"), TestCancellationToken);
-		await store.StoreAsync(CreateAuditEvent("pg-evt-3", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3), actorId: "actor-a"), TestCancellationToken);
-		await store.StoreAsync(CreateAuditEvent("pg-evt-4", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-2), actorId: "actor-b"), TestCancellationToken);
+		using (TenantContextHolder.BeginScope("tenant-1"))
+		{
+			await store.StoreAsync(CreateAuditEvent("pg-evt-2", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-4), actorId: "actor-a"), TestCancellationToken);
+			await store.StoreAsync(CreateAuditEvent("pg-evt-3", "tenant-1", DateTimeOffset.UtcNow.AddMinutes(-3), actorId: "actor-a"), TestCancellationToken);
+		}
+
+		using (TenantContextHolder.BeginScope("tenant-2"))
+		{
+			await store.StoreAsync(CreateAuditEvent("pg-evt-4", "tenant-2", DateTimeOffset.UtcNow.AddMinutes(-2), actorId: "actor-b"), TestCancellationToken);
+		}
+
+		using var readScope = TenantContextHolder.BeginScope("tenant-1");
 
 		var query = new AuditQuery
 		{
@@ -66,14 +78,20 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		var results = await store.QueryAsync(query, TestCancellationToken);
 		var count = await store.CountAsync(query, TestCancellationToken);
 		var tenantLast = await store.GetLastEventAsync("tenant-1", TestCancellationToken);
-		var overallLast = await store.GetLastEventAsync(null, TestCancellationToken);
 
 		results.Count.ShouldBe(2);
 		count.ShouldBe(2);
 		tenantLast.ShouldNotBeNull();
 		tenantLast!.TenantId.ShouldBe("tenant-1");
-		overallLast.ShouldNotBeNull();
-		overallLast!.EventId.ShouldBe("pg-evt-4");
+
+		// The former assertions on GetLastEventAsync(null) are GONE, not relaxed. They required the newest
+		// event across EVERY tenant (pg-evt-4, a tenant-2 row, read from an unscoped call) -- the exact
+		// cross-tenant widening a security change deliberately removed: reads now bind the ambient scope.
+		//
+		// No replacement assertion is made here on purpose. Writes bind the EVENT's tenant
+		// (PostgresAuditStore.cs:159) while reads bind AMBIENT (AddTenantScope), and an observed
+		// GetLastEventAsync(null) returning a tenant-2 row under a tenant-1 scope has NOT been explained.
+		// Asserting either outcome would encode a guess about which side is correct. Tracked separately.
 	}
 
 	[Fact]
@@ -241,8 +259,11 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 
 		return new PostgresAuditStore(
 			Microsoft.Extensions.Options.Options.Create(options),
-			// No ambient tenant: this suite asserts audit + leader-election behaviour, not tenancy.
-			tenantContext: null,
+			// Ambient-resolving. PostgresAuditStore reads are scoped from ambient context alone
+			// ("scope, not filter"), so an ambient-less store reads the untenanted partition while the
+			// stored rows carry a real tenant -- nothing round-trips. The suite's own tests establish
+			// tenants explicitly below.
+			tenantContext: new AmbientAuditTenantContext(),
 			EnabledTestLogger.Create<PostgresAuditStore>());
 	}
 
@@ -288,7 +309,16 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 				actor_type TEXT,
 				resource_id TEXT,
 				resource_type TEXT,
+				-- resource_classification and application_name are written by PostgresAuditStore's INSERT
+				-- and read by its SELECTs. They were absent here while the sibling conformance suite
+				-- declared them, and BOTH classes create audit.audit_events with CREATE TABLE IF NOT
+				-- EXISTS against the SAME shared container: whichever ran first won, and the other's DDL
+				-- silently became a no-op. When this narrower copy won, every conformance arm failed with
+				-- 42703 column "resource_classification" does not exist. Column sets must match here or
+				-- the suites destroy each other by run order.
+				resource_classification INTEGER,
 				tenant_id TEXT,
+				application_name TEXT,
 				correlation_id TEXT,
 				session_id TEXT,
 				ip_address TEXT,
@@ -335,5 +365,12 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 				["source"] = "integration"
 			}
 		};
+	}
+
+	private sealed class AmbientAuditTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

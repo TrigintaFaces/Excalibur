@@ -123,7 +123,13 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		var duplicate = CreateTestMessage();
 		duplicate.Id = message.Id;
 
-		_ = await Assert.ThrowsAsync<Excalibur.Data.OperationFailedException>(async () =>
+		// InvalidOperationException is the staging contract for a duplicate id, not OperationFailedException.
+		// SqlServerOutboxStore catches the PK violation and rethrows InvalidOperationException with the
+		// provider exception as InnerException (SqlServerOutboxStore.cs:319), the cross-provider
+		// conformance arm asserts InvalidOperationException, and line 311 of THIS file already asserts it
+		// too. This assertion was the lone outlier -- it expected the wrapped inner type, so it failed with
+		// "Exception type was not an exact match" the moment the wrap was introduced.
+		_ = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
 			await outboxStore.StageMessageAsync(duplicate, CancellationToken.None));
 	}
 
@@ -376,6 +382,13 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		await outboxStore.StageMessageAsync(failed, CancellationToken.None);
 		await outboxStore.MarkFailedAsync(failed.Id, "transient failure", 1, CancellationToken.None);
 
+		// MarkFailed anchors a re-claim floor: NextAttemptAt moves into the future so a just-failed
+		// message is not re-claimed immediately. That floor is deliberate, so this arm ages the message
+		// past it rather than asserting the pre-floor behaviour. Without this the contrast below is not
+		// merely stale -- it inverts the test, because BOTH messages would be absent from the claim and
+		// the dead-letter assertion would pass for the wrong reason.
+		await ExpireReclaimFloorAsync(failed.Id);
+
 		// The retry-exhausted message reaches the terminal DeadLettered(5) status.
 		var deadLettered = CreateTestMessage();
 		await outboxStore.StageMessageAsync(deadLettered, CancellationToken.None);
@@ -461,6 +474,23 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		return new SqlServerOutboxStore(Options.Create(_options!), logger);
 	}
 
+	/// <summary>
+	/// Moves a message's re-claim floor into the past so it is eligible for the next claim.
+	/// </summary>
+	/// <param name="messageId">The message whose backoff should be treated as elapsed.</param>
+	/// <returns>A task that completes when the floor has been aged.</returns>
+	private async Task ExpireReclaimFloorAsync(string messageId)
+	{
+		await using var connection = new SqlConnection(_connectionString);
+		await connection.OpenAsync().ConfigureAwait(false);
+
+		await using var command = new SqlCommand(
+			"UPDATE dbo.OutboxMessages SET NextAttemptAt = DATEADD(minute, -5, SYSDATETIMEOFFSET()) WHERE Id = @Id",
+			connection);
+		_ = command.Parameters.AddWithValue("@Id", messageId);
+		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+	}
+
 	private async Task ClearAllMessagesAsync()
 	{
 		await using var connection = new SqlConnection(_connectionString);
@@ -503,6 +533,10 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 				GroupKey NVARCHAR(256) NULL,
 				SequenceNumber BIGINT NOT NULL DEFAULT 0,
 				NextAttemptAt DATETIMEOFFSET NULL,
+				-- Read and written by every claim/mark path in SqlServerOutboxStore. The fence TABLE was
+				-- already added below, but this COLUMN was missed, so the suite still failed with
+				-- Invalid column name 'FencingToken'. Both halves of fencing are required.
+				FencingToken BIGINT NULL,
 				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
 				INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 			)

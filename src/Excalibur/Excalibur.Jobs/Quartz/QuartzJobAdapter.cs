@@ -149,6 +149,18 @@ public sealed partial class QuartzJobAdapter(
 		return resolved;
 	}
 
+	// DISP003 is suppressed on the reflective lookups below rather than satisfied.
+	//
+	// Quartz identifies a job by a type NAME supplied in configuration, so resolving it is reflection
+	// by definition -- there is no compile-time symbol to bind. The analyzer asks for
+	// [RequiresUnreferencedCode]/[RequiresDynamicCode] on this method, which would propagate to its
+	// caller and out to the adapter's public surface; the project standard is that consumer-facing APIs
+	// never carry those attributes, so satisfying it here would annotate the public API to quiet a
+	// diagnostic about a private helper.
+	//
+	// The same lines already suppress IL2026 for the same reason. The residual risk is genuine and
+	// narrow: under native AOT a job type not otherwise referenced may fail to resolve, and the method
+	// returns null rather than throwing, so the caller reports an unresolvable job.
 	private static Type? ResolveJobTypeCore(string typeName)
 	{
 		var simpleTypeName = typeName;
@@ -167,9 +179,9 @@ public sealed partial class QuartzJobAdapter(
 		if (!string.IsNullOrWhiteSpace(assemblyName))
 		{
 			var assembly = FindLoadedAssembly(assemblyName) ?? TryLoadAssembly(assemblyName);
-#pragma warning disable IL2026 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, DISP003 // Quartz job types are named in configuration; see note above
 			var resolvedFromAssembly = assembly?.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, DISP003
 			if (resolvedFromAssembly is not null)
 			{
 				return resolvedFromAssembly;
@@ -181,12 +193,12 @@ public sealed partial class QuartzJobAdapter(
 			if (assembly.IsDynamic)
 			{
 				continue;
-#pragma warning disable IL2026 // Serialization/reflection inherently not AOT-safe
+#pragma warning disable IL2026, DISP003 // Quartz job types are named in configuration; see note above
 			}
 
 			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false)
 				?? assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
-#pragma warning restore IL2026
+#pragma warning restore IL2026, DISP003
 			if (resolved is not null)
 			{
 				return resolved;

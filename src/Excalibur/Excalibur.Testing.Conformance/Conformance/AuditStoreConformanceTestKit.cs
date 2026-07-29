@@ -5,6 +5,7 @@
 #pragma warning disable IDE0270 // Null check can be simplified
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Testing.Conformance;
 
@@ -54,6 +55,26 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	/// <returns>An IAuditStore implementation to test.</returns>
 	protected abstract IAuditStore CreateStore();
+
+	/// <summary>
+	/// Creates a store that resolves the AMBIENT tenant, for the arms that assert tenant-scoped reads.
+	/// </summary>
+	/// <remarks>
+	/// Most arms here deliberately exercise an ambient-less caller and assert the partition such a caller
+	/// resolves to, so their fixture supplies no <c>ITenantContext</c>. The tenant-scoped arms need the
+	/// opposite, and a store cannot be both: with no tenant context every read resolves the untenanted
+	/// sentinel, so a tenant-scoped assertion can never hold no matter what the arm does. Those two
+	/// requirements were previously asserted against ONE instance, which is why the tenant arm could not
+	/// pass under any fixture.
+	/// <para>
+	/// Defaults to <see cref="CreateStore"/> so providers that already resolve an ambient tenant need no
+	/// change. A provider whose <see cref="CreateStore"/> is deliberately ambient-less overrides this with
+	/// an ambient-resolving instance; until it does, the tenant arms are exercised against the same store
+	/// as before and behave exactly as they do today.
+	/// </para>
+	/// </remarks>
+	/// <returns>An <see cref="IAuditStore"/> that resolves the ambient tenant.</returns>
+	protected virtual IAuditStore CreateTenantAwareStore() => CreateStore();
 
 	/// <summary>
 	/// Optional cleanup after each test.
@@ -735,18 +756,35 @@ public abstract class AuditStoreConformanceTestKit
 	/// </summary>
 	public virtual async Task GetLastEventAsync_WithTenant_ShouldReturnLastForTenant()
 	{
-		var store = CreateStore();
+		// Tenant-aware store and an AMBIENT scope, because the stores resolve tenancy from ambient
+		// context alone and deliberately ignore the tenantId argument -- "scope, not filter", so that
+		// passing null cannot widen a read across every tenant. Against the ambient-less store the other
+		// arms use, this arm asserted something unreachable: no tenant resolves, so the read is scoped to
+		// the untenanted sentinel and never sees these events. The tenantId argument below is retained
+		// only because it is still on the interface; the scope is what does the work.
+		var store = CreateTenantAwareStore();
 		var tenantId = $"tenant-{GenerateEventId()}";
 
 		var evt1 = CreateAuditEvent(tenantId: tenantId);
 		var evt2 = CreateAuditEvent(tenantId: tenantId);
 		var otherTenantEvt = CreateAuditEvent(tenantId: "other-tenant");
 
-		_ = await store.StoreAsync(evt1, CancellationToken.None).ConfigureAwait(false);
-		_ = await store.StoreAsync(evt2, CancellationToken.None).ConfigureAwait(false);
-		_ = await store.StoreAsync(otherTenantEvt, CancellationToken.None).ConfigureAwait(false);
+		using (TenantContextHolder.BeginScope(tenantId))
+		{
+			_ = await store.StoreAsync(evt1, CancellationToken.None).ConfigureAwait(false);
+			_ = await store.StoreAsync(evt2, CancellationToken.None).ConfigureAwait(false);
+		}
 
-		var lastEvent = await store.GetLastEventAsync(tenantId, CancellationToken.None).ConfigureAwait(false);
+		using (TenantContextHolder.BeginScope("other-tenant"))
+		{
+			_ = await store.StoreAsync(otherTenantEvt, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		AuditEvent? lastEvent;
+		using (TenantContextHolder.BeginScope(tenantId))
+		{
+			lastEvent = await store.GetLastEventAsync(tenantId, CancellationToken.None).ConfigureAwait(false);
+		}
 
 		if (lastEvent is null)
 		{

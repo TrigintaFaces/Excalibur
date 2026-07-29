@@ -317,6 +317,9 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 				GroupKey NVARCHAR(256) NULL,
 				SequenceNumber BIGINT NOT NULL DEFAULT 0,
 				NextAttemptAt DATETIMEOFFSET NULL,
+				-- Read and written by every claim/mark path in SqlServerOutboxStore. Absent here, the
+				-- suite failed with: Invalid column name 'FencingToken'.
+				FencingToken BIGINT NULL,
 				INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
 				INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
 			)
@@ -348,5 +351,19 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 
 		await using var createTransports = new SqlCommand(createTransportsTableSql, connection);
 		_ = await createTransports.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+		// SqlServerOutboxStore joins dbo.OutboxFence on every claim to enforce the fencing high-water
+		// mark. Absent here, the suite failed with: Invalid object name 'dbo.OutboxFence'. Shape matches
+		// the shipped 001_CreateOutboxSchema.sql and SqlServerOutboxStoreContainerFixture.
+		const string createFenceTableSql = """
+			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OutboxFence' AND xtype='U')
+			CREATE TABLE [dbo].[OutboxFence] (
+				OutboxTable NVARCHAR(512) NOT NULL PRIMARY KEY,
+				HighWaterToken BIGINT NOT NULL
+			)
+			""";
+
+		await using var createFence = new SqlCommand(createFenceTableSql, connection);
+		_ = await createFence.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 }

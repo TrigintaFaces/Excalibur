@@ -5,6 +5,7 @@ using Dapper;
 
 using Excalibur.AuditLogging.Postgres;
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 using Excalibur.Testing.Conformance;
 
 using Npgsql;
@@ -41,6 +42,37 @@ public sealed class PostgresAuditStoreConformanceTests : AuditStoreConformanceTe
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     /// <inheritdoc />
+    /// <summary>
+    /// Ambient-resolving store for the tenant-scoped arms. CreateStore is deliberately ambient-less
+    /// (see its comment), and a store with no ITenantContext resolves the untenanted sentinel for every
+    /// read -- so a tenant-scoped assertion cannot hold against it. This override supplies a context
+    /// that reads TenantContextHolder, which is what the tenant arms establish.
+    /// </summary>
+    /// <returns>An audit store that resolves the ambient tenant.</returns>
+    protected override IAuditStore CreateTenantAwareStore()
+    {
+        var options = new PostgresAuditOptions
+        {
+            ConnectionString = _fixture.ConnectionString,
+            SchemaName = "audit",
+            TableName = "audit_events",
+            CommandTimeoutSeconds = 30
+        };
+
+        return new PostgresAuditStore(
+            Microsoft.Extensions.Options.Options.Create(options),
+            AuditIntegrityTestStrategy.Create(),
+            new AmbientAuditTenantContext(),
+            EnabledTestLogger.Create<PostgresAuditStore>());
+    }
+
+    private sealed class AmbientAuditTenantContext : ITenantContext
+    {
+        public string? TenantId => TenantContextHolder.Current;
+
+        public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
+    }
+
     protected override IAuditStore CreateStore()
     {
         var options = new PostgresAuditOptions

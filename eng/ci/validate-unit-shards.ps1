@@ -20,6 +20,19 @@ param(
   [string]$DeterministicSlnf = "eng/ci/shards/UnitTests-Deterministic.slnf",
   [string]$AsyncRiskSlnf = "eng/ci/shards/UnitTests-AsyncRisk.slnf",
   [string]$UnitTestsRoot = "tests/unit",
+  # Projects under tests/unit that declare NO tests and therefore cannot belong to a shard. Shard
+  # membership is an assertion that an assembly produces test results, so listing a project that
+  # declares none makes the aggregation gate demand results from something built to have none.
+  #
+  # DupFixtures supplies duplicate handler types to the MediatR compatibility suite, which pulls it
+  # in by project reference. Its own source calls it a marker to resolve the fixture assembly. It has
+  # zero test methods.
+  #
+  # Keep this list SHORT and justified. A real test project landing here would be silently exempt
+  # from shard coverage -- the exact hole this audit exists to close.
+  [string[]]$NonTestProjects = @(
+    "Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures"
+  ),
   [string]$OutDir = "UnitShardReport",
   [bool]$Enforce = $true
 )
@@ -30,7 +43,12 @@ $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
 $repoRoot = (Get-Location).Path
-$unitProjects = @(Get-ChildItem -Path $UnitTestsRoot -Recurse -Filter "*.csproj" -File)
+$unitProjects = @(Get-ChildItem -Path $UnitTestsRoot -Recurse -Filter "*.csproj" -File |
+  Where-Object { $NonTestProjects -notcontains [IO.Path]::GetFileNameWithoutExtension($_.Name) })
+
+foreach ($excluded in $NonTestProjects) {
+  Write-Host "Excluded from shard coverage (declares no tests): $excluded"
+}
 
 if ($unitProjects.Count -eq 0) {
   throw "No unit test projects found under '$UnitTestsRoot'."

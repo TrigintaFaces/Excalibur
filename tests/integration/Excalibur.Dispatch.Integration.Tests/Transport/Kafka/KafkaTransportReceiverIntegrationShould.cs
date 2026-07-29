@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
 using System.Text;
 
 using Confluent.Kafka;
@@ -393,8 +394,26 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		var loggerOfT = typeof(Logger<>).MakeGenericType(receiverType);
 		var logger = Activator.CreateInstance(loggerOfT, NullLoggerFactory.Instance)!;
 
+		// ctor.Invoke binds POSITIONALLY and does not apply C# optional-parameter defaults, so an
+		// argument must be supplied for every parameter or it throws TargetParameterCountException.
+		// KafkaTransportReceiver grew two optional parameters (maxPayloadBytes, decodeConfluentFraming)
+		// after this call site was written. Type.Missing tells the binder to use each declared default,
+		// so this stays correct if further optional parameters are added later.
 		var ctor = receiverType.GetConstructors()[0];
-		var instance = ctor.Invoke([consumer, topic, logger]);
+		var args = new object[ctor.GetParameters().Length];
+		args[0] = consumer;
+		args[1] = topic;
+		args[2] = logger;
+		for (var i = 3; i < args.Length; i++)
+		{
+			args[i] = Type.Missing;
+		}
+
+		var instance = ctor.Invoke(
+			BindingFlags.OptionalParamBinding | BindingFlags.Instance | BindingFlags.Public,
+			binder: null,
+			parameters: args,
+			culture: null);
 
 		return (ITransportReceiver)instance;
 	}

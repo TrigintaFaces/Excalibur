@@ -62,6 +62,12 @@ public sealed class MarkMessageSentRequest : DataRequestBase<IDbConnection, int>
 		var sql = $"""
 			UPDATE {tableName}
 			SET Status = 2, SentAt = @SentAt, LastError = NULL,
+				-- Release the lease on completion. A sent message is terminal and holds no lease, but
+				-- these columns were left populated, and GetStatistics counts "Sending" as
+				-- (LeasedAt IS NOT NULL) with no status predicate -- so every message ever sent stayed
+				-- in that count forever and SendingMessageCount grew without bound for the life of the
+				-- table, reporting long-completed messages as still in flight.
+				LeasedAt = NULL, LeasedBy = NULL,
 				FencingToken = CASE WHEN @FencingToken IS NULL THEN FencingToken ELSE @FencingToken END
 			WHERE Id = @MessageId
 				AND Status <> 2

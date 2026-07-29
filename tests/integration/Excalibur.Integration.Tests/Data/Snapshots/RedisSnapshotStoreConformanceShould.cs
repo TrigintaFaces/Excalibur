@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
+using Excalibur.Dispatch;
+
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Redis;
 
@@ -62,7 +64,10 @@ public sealed class RedisSnapshotStoreConformanceShould : SnapshotConformanceTes
 
 		var logger = NullLogger<RedisSnapshotStore>.Instance;
 
-		return new RedisSnapshotStore(_storeConnection, options, logger);
+		// Ambient context, not the default null: the tenant-isolation arms use
+		// TenantContextHolder.BeginScope, and FromContext(null) collapses every tenant to the
+		// untenanted sentinel so they overwrite each other's snapshots.
+		return new RedisSnapshotStore(_storeConnection, options, logger, new AmbientTenantContext());
 	}
 
 	/// <inheritdoc/>
@@ -75,5 +80,16 @@ public sealed class RedisSnapshotStoreConformanceShould : SnapshotConformanceTes
 		}
 
 		await _fixture.CleanupAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Reads the tenant established by <see cref="TenantContextHolder.BeginScope"/>. The production
+	/// equivalent is internal to Excalibur.Dispatch, so a directly-constructed store needs this here.
+	/// </summary>
+	private sealed class AmbientTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

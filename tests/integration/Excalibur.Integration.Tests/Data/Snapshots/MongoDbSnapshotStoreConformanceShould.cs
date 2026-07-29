@@ -5,6 +5,8 @@ using Excalibur.Data.MongoDB.Snapshots;
 
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
+using Excalibur.Dispatch;
+
 using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -61,12 +63,29 @@ public sealed class MongoDbSnapshotStoreConformanceShould : SnapshotConformanceT
 		// Options-only constructor: the store builds the provider's DEFAULT MongoClient (default
 		// serializer) from the connection string — the surface most consumers use.
 		return Task.FromResult<ISnapshotStore>(
-			new MongoDbSnapshotStore(options, NullLogger<MongoDbSnapshotStore>.Instance));
+			new MongoDbSnapshotStore(
+				options,
+				NullLogger<MongoDbSnapshotStore>.Instance,
+				// Ambient context, not the default null: the tenant-isolation arms establish tenants with
+				// TenantContextHolder.BeginScope, and FromContext(null) collapses all of them onto the
+				// untenanted sentinel so they overwrite one another's snapshots.
+				new AmbientTenantContext()));
 	}
 
 	/// <inheritdoc/>
 	protected override async Task DisposeSnapshotStoreAsync()
 	{
 		await _fixture.CleanupAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Reads the tenant established by <see cref="TenantContextHolder.BeginScope"/>. The production
+	/// equivalent is internal to Excalibur.Dispatch, so a directly-constructed store needs this here.
+	/// </summary>
+	private sealed class AmbientTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

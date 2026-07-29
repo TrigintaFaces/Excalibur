@@ -31,6 +31,14 @@ public sealed class CosmosDbTransactionalInboxExactlyOnceFixture : IAsyncLifetim
 	{
 		_container = new CosmosDbBuilder()
 			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest")
+			// The Linux emulator defaults to 25 partitions, which on a hosted CI runner is slow enough
+			// and memory-hungry enough that the gateway dies mid-handshake -- surfacing as
+			// HttpIOException "The response ended prematurely (ResponseEnded)" or an unmapped port 8081,
+			// i.e. every Cosmos arm failing at fixture init. One partition is sufficient for these
+			// suites (single logical container each) and cuts startup dramatically. Persistence off
+			// avoids the emulator's disk-backed init on an ephemeral runner.
+			.WithEnvironment("AZURE_COSMOS_EMULATOR_PARTITION_COUNT", "1")
+			.WithEnvironment("AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE", "false")
 			.WithName($"cosmosdb-txinbox-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();

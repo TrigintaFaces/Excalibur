@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
+using Excalibur.Dispatch;
+
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Postgres;
 
@@ -48,14 +50,15 @@ public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformance
 		_dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
 
 		// The canonical snapshot store lives in Excalibur.EventSourcing.Postgres (snapshots are an
-		// event-sourcing persistence concern). Single-tenant construction (no ambient tenant context)
-		// exercises the general ISnapshotStore contract.
+		// event-sourcing persistence concern). The tenant-isolation arms establish tenants via
+		// TenantContextHolder.BeginScope, which a null context cannot see: TenantScope.FromContext(null)
+		// is None, so every tenant wrote the untenanted sentinel and collided on one row per aggregate id.
 		var excaliburStore = new PostgresSnapshotStore(
 			_dataSource,
 			NullLogger<PostgresSnapshotStore>.Instance,
 			_fixture.SchemaName,
 			_fixture.TableName,
-			tenantContext: null);
+			tenantContext: new AmbientTenantContext());
 
 		// Adapt Excalibur.EventSourcing.ISnapshotStore to the conformance-kit ISnapshotStore.
 		return new SnapshotStoreAdapter(excaliburStore);
@@ -72,5 +75,16 @@ public sealed class PostgresSnapshotStoreConformanceShould : SnapshotConformance
 			await _dataSource.DisposeAsync().ConfigureAwait(false);
 			_dataSource = null;
 		}
+	}
+
+	/// <summary>
+	/// Reads the tenant established by <see cref="TenantContextHolder.BeginScope"/>. The production
+	/// equivalent is internal to Excalibur.Dispatch, so a directly-constructed store needs this here.
+	/// </summary>
+	private sealed class AmbientTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

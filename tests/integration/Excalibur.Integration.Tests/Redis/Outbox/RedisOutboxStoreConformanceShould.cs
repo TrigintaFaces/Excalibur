@@ -122,6 +122,29 @@ public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTe
 	}
 
 	/// <inheritdoc/>
+	/// <summary>
+	/// Pre-test reset: delete this suite's keys WITHOUT tearing down the multiplexer the store just
+	/// opened. <see cref="CleanupAsync"/> closes and disposes connections, which is correct as teardown
+	/// but fatal as setup -- running it before a test handed every arm a disposed multiplexer
+	/// (ObjectDisposedException from SE.Redis on the first store call).
+	/// </summary>
+	/// <returns>A task that completes when this suite's keys have been deleted.</returns>
+	protected override async Task ResetDataAsync()
+	{
+		if (_connection is null)
+		{
+			return;
+		}
+
+		var server = _connection.GetServer(_connection.GetEndPoints().First());
+		var database = _connection.GetDatabase();
+
+		await foreach (var key in server.KeysAsync(pattern: $"{_keyPrefix}*"))
+		{
+			_ = await database.KeyDeleteAsync(key).ConfigureAwait(false);
+		}
+	}
+
 	protected override async Task CleanupAsync()
 	{
 		// Clean up test keys

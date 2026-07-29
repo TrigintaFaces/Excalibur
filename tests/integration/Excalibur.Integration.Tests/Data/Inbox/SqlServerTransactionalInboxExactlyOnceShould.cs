@@ -45,6 +45,21 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 [Trait("Database", "SqlServer")]
 public sealed class SqlServerTransactionalInboxExactlyOnceShould : IAsyncLifetime
 {
+	/// <summary>The tenant this exactly-once suite processes every message under.</summary>
+	private const string ExactlyOnceTenantId = "tenant-exactly-once";
+
+	/// <summary>
+	/// A fixed, always-resolved <see cref="ITenantContext"/>. The production default reads the ambient
+	/// holder, but that implementation is internal to Excalibur.Dispatch, so a directly-constructed store
+	/// needs an explicit context supplied here.
+	/// </summary>
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => true;
+	}
+
 	// A small side table the handler writes to ENLISTED in the store's transaction, so the test can prove the
 	// handler's own data write commits/rolls back ATOMICALLY with the processed-mark (the headline atomicity proof).
 	private const string SideTable = "[dbo].[inbox_txn_side_effect]";
@@ -77,7 +92,16 @@ public sealed class SqlServerTransactionalInboxExactlyOnceShould : IAsyncLifetim
 			TableName = _fixture.TableName,
 		});
 
-		_store = new SqlServerInboxStore(options, NullLogger<SqlServerInboxStore>.Instance);
+		// The shared fixture creates the MULTI-TENANT inbox table -- PK (MessageId, HandlerType, TenantId)
+		// with TenantId NOT NULL. Constructed without an ITenantContext this store runs in single-tenant
+		// mode, whose schema contract demands PK (MessageId, HandlerType) and NO TenantId column, so it
+		// fail-closed on every arm with "Single-tenant inbox store: table ... must have a PRIMARY KEY on
+		// (MessageId, HandlerType) and no TenantId column". That guard is correct; the store's mode simply
+		// has to match the table it was pointed at.
+		_store = new SqlServerInboxStore(
+			options,
+			NullLogger<SqlServerInboxStore>.Instance,
+			new FixedTenantContext(ExactlyOnceTenantId));
 
 		await EnsureSideTableAsync().ConfigureAwait(false);
 	}

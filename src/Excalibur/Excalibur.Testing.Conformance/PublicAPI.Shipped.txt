@@ -238,6 +238,7 @@ virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CountAsync_By
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CountAsync_EmptyResult_ShouldReturnZero() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CountAsync_WithFilters_ShouldReturnCount() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CreateAuditEvent(string? eventId = null, Excalibur.Compliance.AuditEventType? eventType = null, string? actorId = null, string? tenantId = null, System.DateTimeOffset? timestamp = null) -> Excalibur.Compliance.AuditEvent!
+virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.CreateTenantAwareStore() -> Excalibur.Compliance.IAuditStore!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GenerateEventId() -> string!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetByIdAsync_ExistingEvent_ShouldReturnEvent() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.AuditStoreConformanceTestKit.GetByIdAsync_ForAnotherTenantsEvent_ShouldNotReturnIt() -> System.Threading.Tasks.Task!

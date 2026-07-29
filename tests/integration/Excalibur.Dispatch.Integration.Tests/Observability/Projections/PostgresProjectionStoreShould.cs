@@ -26,6 +26,21 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
 	private const string TableName = "test_order_projection";
+
+	/// <summary>The tenant every projection in this suite is written under and read back through.</summary>
+	private const string ProjectionTestTenantId = "tenant-projection-tests";
+
+	/// <summary>
+	/// A fixed, always-resolved <see cref="ITenantContext"/>. The production default reads the ambient
+	/// holder, but that implementation is internal to Excalibur.Dispatch, so a directly-constructed store
+	/// needs an explicit context supplied here.
+	/// </summary>
+	private sealed class FixedTenantContext(string tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => true;
+	}
 	private readonly PostgresFixture _fixture;
 	private readonly ILogger<PostgresProjectionStore<TestOrderProjection>> _logger;
 	private PostgresProjectionStore<TestOrderProjection> _store;
@@ -50,17 +65,28 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 
 		_ = await connection.ExecuteAsync($"""
 			CREATE TABLE IF NOT EXISTS "{TableName}" (
-				id VARCHAR(450) NOT NULL PRIMARY KEY,
+				id VARCHAR(450) NOT NULL,
+				tenant_id VARCHAR(255) NOT NULL,
 				data JSONB NOT NULL,
 				created_at TIMESTAMPTZ NOT NULL,
-				updated_at TIMESTAMPTZ NOT NULL
+				updated_at TIMESTAMPTZ NOT NULL,
+				-- Composite (id, tenant_id), NOT id alone. Two tenants may legitimately hold the same
+				-- projection id; keying on id alone would let one tenant's upsert overwrite another's row.
+				-- PostgresProjectionStore states this requirement directly at PostgresProjectionStore.cs:177.
+				PRIMARY KEY (id, tenant_id)
 			)
 			""");
 
+		// A tenant context is REQUIRED, not optional decoration. RequireTenant is enabled, so a store
+		// built without one resolves no tenant and every call fails closed with TenantRequiredException
+		// -- which is the store behaving CORRECTLY. The defect was this test asserting projection
+		// behaviour while supplying no tenant at all, so it never exercised a tenanted path.
 		_store = new PostgresProjectionStore<TestOrderProjection>(
 			_fixture.ConnectionString,
 			_logger,
-			TableName);
+			TableName,
+			jsonOptions: null,
+			tenantContext: new FixedTenantContext(ProjectionTestTenantId));
 	}
 
 	public async ValueTask DisposeAsync()

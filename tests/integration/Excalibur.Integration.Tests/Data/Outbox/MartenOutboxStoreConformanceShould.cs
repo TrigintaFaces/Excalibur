@@ -39,6 +39,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 public sealed class MartenOutboxStoreConformanceShould : OutboxStoreConformanceTestBase, IClassFixture<PostgresOutboxStoreContainerFixture>
 {
 	private readonly PostgresOutboxStoreContainerFixture _fixture;
+	private static IDocumentStore? SharedDocumentStore;
 	private IDocumentStore? _documentStore;
 
 	/// <summary>
@@ -76,7 +77,16 @@ public sealed class MartenOutboxStoreConformanceShould : OutboxStoreConformanceT
 
 		// Marten owns its own schema and self-creates the document storage; it does not depend on the
 		// Dapper-managed outbox tables the sibling Postgres deriver creates via EnsureInitializedAsync.
-		_documentStore = DocumentStore.For(opts =>
+		//
+		// IDocumentStore is an expensive, thread-safe SINGLETON and is built once for the whole run.
+		// DocumentStore.For builds an NpgsqlDataSource, and Npgsql pools that data source BY CONNECTION
+		// STRING -- so disposing the store after one test disposes the pool every LATER test in this
+		// collection still resolves, and they all fail with
+		//   ObjectDisposedException: Cannot access a disposed object (Npgsql.PoolingDataSource).
+		// Per-test isolation comes from DeleteAllDocumentsAsync in CleanupAsync, not from rebuilding
+		// the store. xUnit constructs a fresh test-class instance per test, so a per-instance store
+		// would rebuild-and-dispose on every single arm.
+		_documentStore = SharedDocumentStore ??= DocumentStore.For(opts =>
 		{
 			opts.Connection(_fixture.ConnectionString);
 			opts.AutoCreateSchemaObjects = global::JasperFx.AutoCreate.All;
@@ -94,9 +104,10 @@ public sealed class MartenOutboxStoreConformanceShould : OutboxStoreConformanceT
 	{
 		if (_documentStore is not null)
 		{
+			// Documents only. The store itself is the shared singleton above and is deliberately NOT
+			// disposed here -- disposing it releases the connection-string-pooled NpgsqlDataSource that
+			// every later arm in this collection still needs.
 			await _documentStore.Advanced.Clean.DeleteAllDocumentsAsync().ConfigureAwait(false);
-			await _documentStore.DisposeAsync().ConfigureAwait(false);
-			_documentStore = null;
 		}
 	}
 }

@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
+
+using Microsoft.Data.SqlClient;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -51,13 +54,34 @@ public sealed class SqlServerSnapshotStoreConformanceShould : SnapshotConformanc
 
 		var logger = NullLogger<SqlServerSnapshotStore>.Instance;
 
-		// Bind the default connection-string constructor (the surface most consumers use).
-		return new SqlServerSnapshotStore(_fixture.ConnectionString, logger);
+		// The tenant-isolation arms establish tenants with TenantContextHolder.BeginScope, so the store
+		// must be able to SEE that ambient tenant. The connection-string constructor takes no tenant
+		// context at all, leaving TenantScope.FromContext(null) == None: every tenant then wrote the
+		// reserved untenanted sentinel, all tenants collided on one row per aggregate id, and a later
+		// tenant's save silently overwrote an earlier tenant's snapshot. Binding the ambient context is
+		// what the shipped DI registrations now do too.
+		return new SqlServerSnapshotStore(
+			() => new SqlConnection(_fixture.ConnectionString),
+			logger,
+			"dbo",
+			"EventStoreSnapshots",
+			new AmbientTenantContext());
 	}
 
 	/// <inheritdoc/>
 	protected override async Task DisposeSnapshotStoreAsync()
 	{
 		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Reads the tenant established by <see cref="TenantContextHolder.BeginScope"/>. The production
+	/// equivalent is internal to Excalibur.Dispatch, so a directly-constructed store needs this here.
+	/// </summary>
+	private sealed class AmbientTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

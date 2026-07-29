@@ -553,16 +553,45 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				// between our DescribeTable and CreateTable. Benign — fall through to wait-for-active.
 			}
 
-			// Wait for table to be active
+			// Wait for the table to become ACTIVE.
+			//
+			// CreateTable is eventually consistent: for a window after it returns, DescribeTable can still
+			// report the table as missing and throw ResourceNotFoundException. That throw used to escape
+			// this catch block unhandled and surfaced to the caller as
+			//   ResourceNotFoundException: Cannot do operations on a non-existent table
+			// from inside the very method whose job is to create the table. Treat it as "not visible yet"
+			// and keep polling.
+			//
+			// The loop is also bounded now. It previously had no exit but ACTIVE, so a table that never
+			// activated would spin forever holding the init lock, turning a broken dependency into a hang
+			// rather than an error.
 			var describeRequest = new DescribeTableRequest { TableName = _options.TableName };
-			TableStatus status;
-			do
+			var deadline = DateTimeOffset.UtcNow.AddMinutes(2);
+			TableStatus? status = null;
+
+			while (status != TableStatus.ACTIVE)
 			{
+				if (DateTimeOffset.UtcNow > deadline)
+				{
+					throw new TimeoutException(
+						$"DynamoDB table '{_options.TableName}' did not reach ACTIVE within 2 minutes "
+						+ $"(last observed status: {status?.Value ?? "not yet visible"}).");
+				}
+
 				await Task.Delay(500, cancellationToken).ConfigureAwait(false);
-				var describeResponse = await _client!.DescribeTableAsync(describeRequest, cancellationToken)
-					.ConfigureAwait(false);
-				status = describeResponse.Table.TableStatus;
-			} while (status != TableStatus.ACTIVE);
+
+				try
+				{
+					var describeResponse = await _client!.DescribeTableAsync(describeRequest, cancellationToken)
+						.ConfigureAwait(false);
+					status = describeResponse.Table.TableStatus;
+				}
+				catch (ResourceNotFoundException)
+				{
+					// Not visible yet -- keep waiting rather than failing the create we just issued.
+					status = null;
+				}
+			}
 
 			// Enable TTL if configured
 			if (_options.DefaultTtlSeconds > 0)

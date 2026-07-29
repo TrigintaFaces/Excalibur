@@ -6,6 +6,8 @@ using Excalibur.Data.DynamoDb.Snapshots;
 
 using Excalibur.Dispatch.Tests.Conformance.Snapshot;
 
+using Excalibur.Dispatch;
+
 using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -66,7 +68,15 @@ public sealed class DynamoDbSnapshotStoreConformanceShould : SnapshotConformance
 		});
 
 		// Inject the fixture's default-configured client so reads/writes hit the LocalStack endpoint.
-		var store = new DynamoDbSnapshotStore(_fixture.Client, options, NullLogger<DynamoDbSnapshotStore>.Instance);
+		// Ambient context, not the default null: the tenant-isolation arms establish tenants with
+		// TenantContextHolder.BeginScope, and TenantScope.FromContext(null) collapses every tenant onto
+		// the reserved untenanted sentinel, so they share one row per aggregate id and overwrite each
+		// other. Same fix verified on SQL Server, Postgres, Redis and Mongo.
+		var store = new DynamoDbSnapshotStore(
+			_fixture.Client,
+			options,
+			NullLogger<DynamoDbSnapshotStore>.Instance,
+			new AmbientTenantContext());
 
 		return Task.FromResult<ISnapshotStore>(store);
 	}
@@ -76,5 +86,16 @@ public sealed class DynamoDbSnapshotStoreConformanceShould : SnapshotConformance
 	{
 		// Each test uses unique aggregate IDs; the fixture deletes the shared table on container dispose.
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Reads the tenant established by <see cref="TenantContextHolder.BeginScope"/>. The production
+	/// equivalent is internal to Excalibur.Dispatch, so a directly-constructed store needs this here.
+	/// </summary>
+	private sealed class AmbientTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

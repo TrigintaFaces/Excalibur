@@ -274,7 +274,11 @@ public static class EventSourcingBuilderSqlServerExtensions
 				factory,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
 				schema,
-				table);
+				table,
+				// Without this the store's optional tenant context stayed null, TenantScope.FromContext
+				// returned None, and all tenants shared one untenanted row per aggregate id -- a silent
+				// cross-tenant overwrite on the supported registration path.
+				sp.GetService<ITenantContext>());
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);
