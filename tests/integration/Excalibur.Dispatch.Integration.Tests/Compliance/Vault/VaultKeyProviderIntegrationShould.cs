@@ -444,15 +444,31 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 			(_fixture.InitializationError ?? "Vault container required."));
 
 		var keyId = $"reactivate-{Guid.NewGuid():N}";
+
+		// The key is created WITH a purpose because GetActiveKeyAsync resolves "the active key for a
+		// PURPOSE" — it does not ask "is this key id active" (that is GetKeyAsync). The two take the same
+		// shape, string + CancellationToken, so passing a keyId compiles and silently asks an unanswerable
+		// question: list active keys whose purpose equals this key's id, of which there are none. This arm
+		// did exactly that against a key created with a null purpose, so its null result was the API
+		// behaving correctly and the assertion could not have passed under any implementation.
+		var purpose = $"reactivate-purpose-{Guid.NewGuid():N}";
+
 		try
 		{
 			// Arrange — a real Transit key, suspended and confirmed unusable.
-			_ = await _provider!.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None);
+			_ = await _provider!.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, purpose, null, CancellationToken.None);
 			(await _provider.SuspendKeyAsync(keyId, "Security incident", CancellationToken.None)).ShouldBeTrue();
 
 			var suspended = await _provider.GetKeyAsync(keyId, CancellationToken.None);
 			_ = suspended.ShouldNotBeNull();
 			suspended!.Status.ShouldBe(KeyStatus.Suspended);
+
+			// SAFETY arm, and the non-vacuity proof for the liveness assertion below: while suspended the
+			// key must NOT be selectable for encryption. Without this, an implementation whose
+			// active-by-purpose resolution was permanently broken would still satisfy the reactivation
+			// assertion by returning the key at both points.
+			(await _provider.GetActiveKeyAsync(purpose, CancellationToken.None))
+				.ShouldBeNull("a suspended key must not be selectable as the active key for its purpose");
 
 			// Act — reactivate (RED without the durable-marker deletion; GREEN on the fix).
 			var reactivated = await _provider.ReactivateKeyAsync(keyId, CancellationToken.None);
@@ -464,9 +480,12 @@ public sealed class VaultKeyProviderIntegrationShould : IAsyncLifetime, IDisposa
 			afterByKey!.Status.ShouldBe(KeyStatus.Active,
 				"a reactivated key must surface as Active so the encryptor accepts it again");
 
-			var active = await _provider.GetActiveKeyAsync(keyId, CancellationToken.None);
+			// LIVENESS arm — reactivation must return the key to the active-selection path, not merely flip a
+			// status field. This is the security-relevant half: a key that reads Active but is never chosen
+			// for encryption is still effectively suspended.
+			var active = await _provider.GetActiveKeyAsync(purpose, CancellationToken.None);
 			_ = active.ShouldNotBeNull();
-			active!.KeyId.ShouldBe(keyId, "GetActiveKeyAsync must surface the reactivated key");
+			active!.KeyId.ShouldBe(keyId, "GetActiveKeyAsync must surface the reactivated key for its purpose");
 
 			// Assert (DURABILITY) — a brand-new provider instance with its OWN cache also sees Active, proving the
 			// durable KV suspension marker was truly removed in Vault (a cache-only flip would still read Suspended).

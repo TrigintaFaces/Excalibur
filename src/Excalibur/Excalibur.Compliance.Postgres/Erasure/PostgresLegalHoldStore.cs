@@ -65,23 +65,34 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+		try
 		{
-			hold.HoldId,
-			hold.DataSubjectIdHash,
-			IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
-			hold.TenantId,
-			Basis = (int)hold.Basis,
-			hold.CaseReference,
-			hold.Description,
-			hold.IsActive,
-			hold.ExpiresAt,
-			hold.CreatedBy,
-			hold.CreatedAt,
-			hold.ReleasedBy,
-			hold.ReleasedAt,
-			hold.ReleaseReason
-		}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+			{
+				hold.HoldId,
+				hold.DataSubjectIdHash,
+				IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
+				hold.TenantId,
+				Basis = (int)hold.Basis,
+				hold.CaseReference,
+				hold.Description,
+				hold.IsActive,
+				hold.ExpiresAt,
+				hold.CreatedBy,
+				hold.CreatedAt,
+				hold.ReleasedBy,
+				hold.ReleasedAt,
+				hold.ReleaseReason
+			}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		}
+		catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+		{
+			// Save-not-upsert, same as every other implementation: a re-used HoldId is a caller error and
+			// must surface as InvalidOperationException rather than a provider-specific exception. This path
+			// had NO conformance coverage — the kit is bound only by the SQL Server and in-memory stores —
+			// so the divergence was invisible rather than absent.
+			throw new InvalidOperationException($"Legal hold {hold.HoldId} already exists", ex);
+		}
 
 		LogSavedHold(hold.HoldId, hold.CaseReference);
 	}

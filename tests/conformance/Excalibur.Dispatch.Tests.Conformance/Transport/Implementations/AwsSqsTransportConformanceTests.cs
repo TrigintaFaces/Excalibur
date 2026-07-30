@@ -35,7 +35,7 @@ public sealed class AwsSqsTransportConformanceTests
 	{
 		// Start LocalStack container
 		_localStackContainer = new LocalStackBuilder()
-			.WithImage("localstack/localstack:3.8")
+			.WithImage("localstack/localstack:4")
 			.Build();
 
 		await _localStackContainer.StartAsync();

@@ -1,4 +1,5 @@
 {
   "version": 1,
+  "_comment": "Tests excluded from the CI filter by eng/ci/get-test-filter.ps1. An entry here means the test CANNOT RUN in this environment - it is NOT a parking space for failing tests. Note this mechanism lists tests BY NAME and the composed filter is passed as a single command argument, so it does not scale: ~70 entries produced a >10k-char filter that the argument parser rejected outright (MSB4177), selecting ZERO tests. For excluding a whole provider, prefer a trait clause in the workflow's base filter (see Database!=CosmosDb in ci.yml).",
   "tests": []
 }

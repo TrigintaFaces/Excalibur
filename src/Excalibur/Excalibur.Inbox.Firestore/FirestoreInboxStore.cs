@@ -272,17 +272,42 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 			["receivedAt"] = Timestamp.FromDateTimeOffset(now)
 		};
 
-		try
+		// Aborted ("Transaction lock timeout") is Firestore's documented RETRYABLE contention signal, and
+		// contention is the normal case on this path, not an edge case: this method exists to arbitrate
+		// concurrent redelivery of the SAME message, so racing writers target the SAME document by design.
+		// Previously only AlreadyExists was caught, so an Aborted escaped as a raw RpcException and the
+		// method threw instead of returning the true/false its contract promises — the caller saw a handler
+		// failure and the dedup outcome for that delivery was left ambiguous.
+		for (var attempt = 0; ; attempt++)
 		{
-			// CreateAsync fails if document already exists
-			_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
-			LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
-			return true;
-		}
-		catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
-		{
-			LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
-			return false;
+			try
+			{
+				// CreateAsync fails if document already exists
+				_ = await docRef.CreateAsync(data, cancellationToken).ConfigureAwait(false);
+				LogTryMarkProcessedSuccess(_logger, messageId, handlerType, null);
+				return true;
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+			{
+				// First-writer-wins resolved against us.
+				//
+				// AMBIGUITY, stated because it is not removable without a schema change: if a PRIOR attempt
+				// in this loop actually committed but its response was lost, the winner was us, and we still
+				// report false. Distinguishing the two needs a writer identity stamped on the document.
+				// False is the safe direction here — the framework's own caller
+				// (IdempotentHandlerMiddleware) invokes this AFTER the handler has already succeeded and
+				// discards the result, so a conservative "duplicate" cannot skip work; and for any consumer
+				// using the result as a claim, refusing a claim we may not hold is the fail-safe answer.
+				LogTryMarkProcessedDuplicate(_logger, messageId, handlerType, null);
+				return false;
+			}
+			catch (RpcException ex) when (ex.StatusCode == StatusCode.Aborted && attempt < ReleaseMaxRetries - 1)
+			{
+				// Transient same-document contention: back off and re-attempt. Bounded, so a genuinely stuck
+				// document still surfaces rather than spinning.
+				await Task.Delay(TimeSpan.FromMilliseconds(50 * (attempt + 1)), cancellationToken)
+					.ConfigureAwait(false);
+			}
 		}
 	}
 

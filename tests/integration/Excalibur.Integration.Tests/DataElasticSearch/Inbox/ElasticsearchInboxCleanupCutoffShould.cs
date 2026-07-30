@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch;
 using Excalibur.Inbox.ElasticSearch;
 
 using Microsoft.Extensions.Options;
@@ -61,25 +62,41 @@ public sealed class ElasticsearchInboxCleanupCutoffShould : ElasticsearchIntegra
 		remainingIds.ShouldContain("recent-2");
 	}
 
-	private static InboxTestDoc NewDoc(string messageId, DateTimeOffset receivedAt) => new()
+	/// <summary>
+	/// A PROCESSED inbox entry completed at <paramref name="processedAt"/> — the only shape retention
+	/// considers. Status must be Processed and ProcessedAt must be set, or cleanup correctly ignores the
+	/// document and this suite measures nothing.
+	/// </summary>
+	private static InboxTestDoc NewDoc(string messageId, DateTimeOffset processedAt) => new()
 	{
 		MessageId = messageId,
 		HandlerType = "TestHandler",
 		MessageType = "TestMessageType",
-		ReceivedAt = receivedAt,
-		Status = 0,
+		// Arrival precedes completion; kept distinct from ProcessedAt so a regression that keys retention
+		// on arrival again fails here instead of passing on coincidentally-equal timestamps.
+		ReceivedAt = processedAt.AddMinutes(-5),
+		ProcessedAt = processedAt,
+		Status = (int)InboxStatus.Processed,
 	};
 
 }
 
 // Field-name-matched mirror of the (internal) ElasticsearchInboxDocument fields the cleanup query reads.
-// The Elasticsearch client infers field names per property name consistently across types, so ReceivedAt
-// here maps to the same field the store's DateRange query targets.
+// The Elasticsearch client infers field names per property name consistently across types, so these map
+// to the same fields the store's query targets.
+//
+// ProcessedAt is part of that set: retention keys on WHEN THE ENTRY COMPLETED, not when it arrived.
+// The mirror omitted it while cleanup still keyed on ReceivedAt; cleanup was since corrected to
+// `Status = Processed AND ProcessedAt < cutoff` (the predicate the SQL providers use), because keying on
+// arrival deleted long-running and recently-retried entries, and running without the status filter also
+// deleted Pending entries — dropping the dedup record and letting a redelivered message be processed
+// twice, which is the one thing an inbox exists to prevent.
 internal sealed class InboxTestDoc
 {
 	public string MessageId { get; set; } = string.Empty;
 	public string HandlerType { get; set; } = string.Empty;
 	public string MessageType { get; set; } = string.Empty;
 	public DateTimeOffset ReceivedAt { get; set; }
+	public DateTimeOffset? ProcessedAt { get; set; }
 	public int Status { get; set; }
 }

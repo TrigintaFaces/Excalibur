@@ -42,7 +42,7 @@ public class LocalStackContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:3.8")
+			.WithImage("localstack/localstack:4")
 			.WithName($"localstack-compliance-test-{Guid.NewGuid():N}")
 			.WithEnvironment("SERVICES", "kms")
 			.WithEnvironment("EAGER_SERVICE_LOADING", "1")

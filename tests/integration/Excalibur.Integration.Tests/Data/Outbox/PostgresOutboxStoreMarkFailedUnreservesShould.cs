@@ -12,6 +12,8 @@ using FakeItEasy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Integration.Tests.Data.Outbox;
 
 /// <summary>
@@ -107,23 +109,15 @@ public sealed class PostgresOutboxStoreMarkFailedUnreservesShould : IClassFixtur
 	/// here. Polling reaches the state as soon as it is true instead of guessing a delay that is either
 	/// flaky or slow.
 	/// </remarks>
-	private static async Task<bool> WaitForReclaimAsync(IOutboxStore store, string messageId, TimeSpan within)
-	{
-		var deadline = DateTimeOffset.UtcNow + within;
-
-		while (DateTimeOffset.UtcNow < deadline)
-		{
-			var claim = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
-			if (claim.Any(m => m.Id == messageId))
+	private static async Task<bool> WaitForReclaimAsync(IOutboxStore store, string messageId, TimeSpan within) =>
+		await WaitHelpers.WaitUntilAsync(
+			async () =>
 			{
-				return true;
-			}
-
-			await Task.Delay(TimeSpan.FromMilliseconds(200), CancellationToken.None).ConfigureAwait(false);
-		}
-
-		return false;
-	}
+				var claim = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
+				return claim.Any(m => m.Id == messageId);
+			},
+			within,
+			TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
 
 	private static async Task StageAsync(IOutboxStore store, string messageId) =>
 		await store.StageMessageAsync(

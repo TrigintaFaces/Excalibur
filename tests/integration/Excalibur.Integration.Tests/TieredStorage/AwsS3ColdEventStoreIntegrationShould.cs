@@ -41,7 +41,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		try
 		{
 			_container = new LocalStackBuilder()
-				.WithImage("localstack/localstack:3.8")
+				.WithImage("localstack/localstack:4")
 				.Build();
 
 			using var startCts = new CancellationTokenSource(TimeSpan.FromMinutes(3));

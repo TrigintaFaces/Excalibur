@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Purpose-based key selection never worked in the Vault key provider.** `RotateKeyAsync` accepted a
+  `purpose` and did not persist it, key metadata hardcoded the purpose to null, and `ListKeysAsync` then
+  filtered on that field — so `GetActiveKeyAsync` with any non-null purpose could not return a key, for
+  any key, under any configuration. The feature was inert rather than unreliable, on a shipped compliance
+  provider. The purpose is now persisted alongside the key and read back into its metadata. Rotating with
+  a null purpose preserves an existing one rather than erasing it, so a caller that rotates without
+  restating the purpose does not silently drop it.
+
+- **The legal-hold stores leaked the raw database exception when a hold was placed twice.** `ILegalHoldStore`
+  requires `InvalidOperationException` for a duplicate, and both the SQL Server and PostgreSQL stores let
+  the provider's own exception escape instead — SQL Server errors 2627 and 2601, PostgreSQL SQLSTATE 23505.
+  A consumer writing `catch (InvalidOperationException)` therefore handled the duplicate correctly against
+  the in-memory store and **missed it entirely against a real database**, so a legal hold could fail to
+  register without the caller noticing. Both providers now translate it and preserve the original as
+  `InnerException`.
+
 - **The dead-letter queue's operator paths could not reach another tenant's entries.** The queue is an
   operator surface whose inspection, replay and purge are documented as estate-wide, but the scope every
   entry point resolved was never "no scope": an absent tenant context mapped to the untenanted

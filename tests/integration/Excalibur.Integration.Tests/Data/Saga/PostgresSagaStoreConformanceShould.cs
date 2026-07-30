@@ -122,17 +122,17 @@ public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 
 		await _sagaStore.SaveAsync(originalState, CancellationToken.None).ConfigureAwait(false);
 
-		// Act - Update the saga
-		var updatedState = new TestSagaState
-		{
-			SagaId = sagaId,
-			OrderId = "ORD-002",
-			CustomerName = "Jane Doe Updated",
-			TotalAmount = 75.00m,
-			Completed = false
-		};
+		// Act - Update the saga by MUTATING the saved instance, which carries the version the first save
+		// stamped. Fabricating a fresh TestSagaState here would submit version 0 against a row already at
+		// version 1 — the definition of a stale save, and the store is required to reject it
+		// (StaleSave_ThrowsConcurrencyException_NoLostUpdate asserts exactly that). The ConcurrencyException
+		// this used to throw was the optimistic-concurrency guard working, not a defect: an update must
+		// build on the state it read, which is also how a real caller uses the store.
+		originalState.OrderId = "ORD-002";
+		originalState.CustomerName = "Jane Doe Updated";
+		originalState.TotalAmount = 75.00m;
 
-		await _sagaStore.SaveAsync(updatedState, CancellationToken.None).ConfigureAwait(false);
+		await _sagaStore.SaveAsync(originalState, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		var loaded = await _sagaStore.LoadAsync<TestSagaState>(sagaId, CancellationToken.None).ConfigureAwait(false);

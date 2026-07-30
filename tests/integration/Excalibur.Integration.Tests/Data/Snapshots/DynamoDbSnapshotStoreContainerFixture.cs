@@ -56,7 +56,7 @@ public sealed class DynamoDbSnapshotStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:3.8")
+			.WithImage("localstack/localstack:4")
 			.WithName($"localstack-snapshot-dynamodb-{Guid.NewGuid():N}")
 			.WithEnvironment("SERVICES", "dynamodb")
 			.WithCleanUp(true)

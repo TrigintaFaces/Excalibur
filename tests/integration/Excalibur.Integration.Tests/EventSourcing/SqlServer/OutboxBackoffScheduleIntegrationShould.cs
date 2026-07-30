@@ -123,12 +123,18 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 	}
 
 	/// <summary>
-	/// Non-vacuity contrast for AC-R3.1 — a sibling marked <c>Failed</c> WITHOUT a backoff schedule is immediately
-	/// re-claimable, while the scheduled one is held. Both are status <c>Failed</c>, isolating <c>NextAttemptAt</c>
-	/// as the load-bearing discriminator (a vacuous gate that excluded all failed messages would fail this).
+	/// Non-vacuity contrast for AC-R3.1 — a sibling whose next attempt has ALREADY ELAPSED is re-claimable, while
+	/// the far-future scheduled one is held. Both are status <c>Failed</c>, isolating <c>NextAttemptAt</c> as the
+	/// load-bearing discriminator (a vacuous gate that excluded all failed messages would fail this).
+	/// <para>
+	/// The elapsed sibling is scheduled explicitly rather than left unscheduled. The plain <c>MarkFailedAsync</c>
+	/// path no longer leaves <c>NextAttemptAt</c> null: it stamps the R1 failure-backoff FLOOR
+	/// (<c>Processing.FailureBackoffFloorSeconds</c>, default 30s) so a plainly-failed message cannot hot-loop the
+	/// drain. Asserting immediate re-claim after a plain mark would therefore assert the PRE-R1 contract.
+	/// </para>
 	/// </summary>
 	[Fact]
-	public async Task StillReclaimAFailedMessageThatHasNoBackoffSchedule()
+	public async Task StillReclaimAFailedMessageWhoseNextAttemptHasElapsed()
 	{
 		if (!_dockerAvailable)
 		{
@@ -145,14 +151,15 @@ public sealed class OutboxBackoffScheduleIntegrationShould : IAsyncLifetime
 
 		var immediate = CreateTestMessage();
 		await store.StageMessageAsync(immediate, CancellationToken.None);
-		await store.MarkFailedAsync(immediate.Id, "plain failure", 1, CancellationToken.None);
+		await store.MarkFailedWithBackoffAsync(
+			immediate.Id, "elapsed failure", 1, DateTimeOffset.UtcNow.AddSeconds(-1), CancellationToken.None);
 
 		var claimable = (await store.GetUnsentMessagesAsync(50, CancellationToken.None))
 			.Select(m => m.Id)
 			.ToHashSet(StringComparer.Ordinal);
 
 		claimable.ShouldContain(
-			immediate.Id, "a Failed message without a backoff schedule (NextAttemptAt null) remains claimable");
+			immediate.Id, "a Failed message whose NextAttemptAt has already elapsed remains claimable");
 		claimable.ShouldNotContain(
 			scheduled.Id, "the only reason the scheduled message is excluded is its NextAttemptAt — not its status");
 	}

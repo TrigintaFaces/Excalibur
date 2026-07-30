@@ -151,8 +151,16 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 
 	/// <summary>
 	/// AC-R2.3 — partition ordering is restored when failed messages are re-claimed. The first claim leases the
-	/// batch; marking them <c>Failed</c> keeps them claimable (status 3); with the lease expired they are
-	/// re-claimed, and must come back in ascending <c>SequenceNumber</c>. RED pre-fix: no claim ordering.
+	/// batch; the messages are then failed with an ALREADY-ELAPSED next-attempt schedule; with the lease expired
+	/// they are re-claimed, and must come back in ascending <c>SequenceNumber</c>. RED pre-fix: no claim ordering.
+	/// <para>
+	/// The failure is recorded through <c>MarkFailedWithBackoffAsync</c> with an elapsed <c>nextAttemptAt</c>
+	/// rather than the plain <c>MarkFailedAsync</c>. The plain path applies the R1 failure-backoff FLOOR
+	/// (<c>Processing.FailureBackoffFloorSeconds</c>, default 30s), which is a SECOND re-claim gate independent
+	/// of the lease — so <c>leaseTimeoutSeconds: 0</c> alone does not make the rows re-claimable and this test
+	/// would observe an empty batch. Supplying an explicit elapsed schedule isolates the property under test
+	/// (claim ORDERING) from the backoff gate, and keeps the test deterministic with no wall-clock wait.
+	/// </para>
 	/// </summary>
 	[Fact]
 	public async Task RestorePartitionOrderingOnReclaimAfterFailure()
@@ -184,9 +192,11 @@ public sealed class OutboxOrderingPersistenceIntegrationShould : IAsyncLifetime
 			.Where(m => m.PartitionKey == partition)
 			.ToList();
 		firstClaim.Count.ShouldBe(3);
+		var elapsed = DateTimeOffset.UtcNow.AddSeconds(-1);
 		foreach (var id in staged)
 		{
-			await store.MarkFailedAsync(id, "simulated batch failure", 1, CancellationToken.None);
+			await store.MarkFailedWithBackoffAsync(
+				id, "simulated batch failure", 1, elapsed, CancellationToken.None);
 		}
 
 		// Re-claim: ordering must be restored (ascending sequence) for the failed partition.

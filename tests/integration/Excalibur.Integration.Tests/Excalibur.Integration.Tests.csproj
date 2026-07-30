@@ -71,6 +71,12 @@
       the suites built their own schema, nothing tested the one consumers actually run.
     -->
     <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Scripts\001_CreateEventStoreSchema.sql" Link="Schema\001_CreateEventStoreSchema.sql" />
+    <!--
+      Same rule for the SINGLE-TENANT inbox DDL. The turnkey-composition E2E needs the single-tenant
+      shape (PK (MessageId, HandlerType), no TenantId) while the shared inbox fixture is deliberately
+      multi-tenant, so the E2E provisions its own database — from the shipped script, not a copy.
+    -->
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Inbox.SqlServer\Scripts\001_CreateInboxSchema.sql" Link="Schema\001_CreateInboxSchema.sql" />
   </ItemGroup>
   <ItemGroup>
     <!-- Dispatch projects -->

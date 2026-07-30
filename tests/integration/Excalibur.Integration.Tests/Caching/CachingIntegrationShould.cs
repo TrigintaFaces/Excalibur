@@ -252,7 +252,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					opt.Behavior.DefaultExpiration = TimeSpan.FromMinutes(5);
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
@@ -312,7 +312,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.Enabled = true;
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
@@ -367,7 +367,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				})
 				.WithResultCachePolicy<CachingTestQuery, ConditionalCachePolicy>();
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
@@ -426,7 +426,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.UseDistributedCache = false;
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		// Ensure the local bus is registered
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
@@ -473,7 +473,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.Behavior.DefaultExpiration = TimeSpan.FromMilliseconds(300);
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
@@ -529,7 +529,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.UseDistributedCache = false;
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
@@ -564,10 +564,10 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<NullResultQuery, TestResult>, NullResultQueryHandler>();
-
 		_ = services.AddDispatch(dispatch =>
 		{
 			_ = dispatch.AddHandlersFromAssembly(typeof(CachingIntegrationShould).Assembly);
+
 			_ = dispatch.UseResilience()
 				.UseCaching()
 				.WithCachingOptions(static o =>
@@ -576,7 +576,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.UseDistributedCache = false;
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
@@ -586,10 +586,36 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var result1 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 		var result2 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
+		// A THIRD dispatch is the real proof. The subject of this test is "a null result is never cached",
+		// and a cache miss on every subsequent dispatch demonstrates that directly — an implementation that
+		// cached the null would serve a hit here.
+		var result3 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+
 		// Assert
 		result1.CacheHit.ShouldBeFalse();
 		result2.CacheHit.ShouldBeFalse();
-		NullResultQueryHandler.CallCount.ShouldBe(2);
+		result3.CacheHit.ShouldBeFalse("a null result must never be cached, no matter how many times it is requested");
+
+		// AT LEAST once per dispatch, not EXACTLY. The previous `ShouldBe(2)` was not a statement about
+		// caching at all — it asserted that nothing anywhere invokes the handler out of band, and that is
+		// false by design: HybridCache's stampede protection runs
+		// DefaultHybridCache.StampedeState.BackgroundFetchAsync, which calls the value factory (and so the
+		// handler) on a BACKGROUND task, independent of any awaited dispatch. Captured stack, from a
+		// reproduction:
+		//
+		//     DefaultHybridCache.StampedeState`2.BackgroundFetchAsync()
+		//       -> CachingMiddleware.HandleAttributeCacheableAsync
+		//         -> CreateAttributeCacheValueAsync -> HandlerInvoker -> NullResultQueryHandler
+		//
+		// Whether that background fetch lands before this assertion is a race, which is exactly why the
+		// count was observed as 2, 3 and 4 intermittently — including with the test running alone. Pinning
+		// an exact count here does not test caching; it tests scheduler timing, and fails ~1 run in 4.
+		//
+		// The lower bound still carries the load-bearing claim: the null result did NOT short-circuit
+		// dispatch, so the handler really was consulted for each call rather than served from cache.
+		NullResultQueryHandler.CallCount.ShouldBeGreaterThanOrEqualTo(
+			3,
+			"a non-cached result must reach the handler on every dispatch");
 	}
 
 	[Fact]
@@ -619,7 +645,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.Behavior.DefaultExpiration = TimeSpan.FromSeconds(1);
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
@@ -636,11 +662,23 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		foreach (var r in results)
 		{
-			r.Succeeded.ShouldBeTrue();
-			r.CacheHit.ShouldBe(results[0] != r || r.CacheHit);
+			// ErrorMessage is included because this assertion has failed intermittently ("False should be
+			// True") while discarding the one field that explains why.
+			r.Succeeded.ShouldBeTrue(
+				"a concurrent dispatch must not fail; ErrorMessage: " + (r.ErrorMessage ?? "(none)"));
 		}
 
-		CachingTestQueryHandler.CallCount.ShouldBe(1);
+		// Exactly one dispatch reaches the handler; the rest are collapsed by single-flight. Asserting the
+		// count is what actually tests stampede protection.
+		//
+		// The previous per-result cache assertion was `r.CacheHit.ShouldBe(results[0] != r || r.CacheHit)`,
+		// which compares a value against an expression containing that same value: for results[0] it reduces
+		// to `r.CacheHit == r.CacheHit`, true for either outcome, and for the others it demanded a cache hit
+		// that a collapsed follower does not necessarily report. It could not fail in the interesting
+		// direction, so it was removed rather than kept as decoration.
+		CachingTestQueryHandler.CallCount.ShouldBe(
+			1,
+			"5 concurrent dispatches of the same query must collapse to a single handler invocation");
 	}
 
 	[Fact]
@@ -656,7 +694,10 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Use ForwardingDistributedCache because HybridCache skips MemoryDistributedCache as L2
 		var distSvc = new ServiceCollection();
 		_ = distSvc.AddDistributedMemoryCache();
-		var distCache = distSvc.BuildServiceProvider().GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>();
+		// Held and disposed with the test: the cache instance must outlive resolution (it backs the
+		// ForwardingDistributedCache registered below) but must NOT outlive the test.
+		await using var distProvider = distSvc.BuildServiceProvider();
+		var distCache = distProvider.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>();
 		_ = services.AddSingleton<Microsoft.Extensions.Caching.Distributed.IDistributedCache>(new ForwardingDistributedCache(distCache));
 		_ = services.AddSingleton<DispatchJsonSerializer>();
 
@@ -675,7 +716,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 					o.UseDistributedCache = true;
 				});
 		});
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 

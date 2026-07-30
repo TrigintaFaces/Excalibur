@@ -17,7 +17,7 @@ public sealed class DynamoDbSagaStoreContainerFixture : IAsyncLifetime
 	public DynamoDbSagaStoreContainerFixture()
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:3.8")
+			.WithImage("localstack/localstack:4")
 			.WithName($"localstack-saga-dynamodb-{Guid.NewGuid():N}")
 			.WithEnvironment("SERVICES", "dynamodb")
 			.WithCleanUp(true)

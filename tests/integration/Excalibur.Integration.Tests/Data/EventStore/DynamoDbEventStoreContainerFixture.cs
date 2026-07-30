@@ -68,7 +68,7 @@ public sealed class DynamoDbEventStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new LocalStackBuilder()
-			.WithImage("localstack/localstack:3.8")
+			.WithImage("localstack/localstack:4")
 			.WithName($"localstack-eventstore-dynamodb-{Guid.NewGuid():N}")
 			.WithEnvironment("SERVICES", "dynamodb")
 			.WithCleanUp(true)

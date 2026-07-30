@@ -20,6 +20,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposable
 {
 	private readonly CosmosDbContainer _container;
+	private CosmosClient? _client;
 	private bool _disposed;
 
 	public CosmosDbSagaStoreContainerFixture()
@@ -42,8 +43,28 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 	/// <summary>Gets a value indicating whether the emulator started + the database was created.</summary>
 	public bool IsInitialized { get; private set; }
 
+	/// <summary>Diagnostic: the init failure reason when the emulator could not start.</summary>
+	/// <remarks>
+	/// Without this the init exception was discarded entirely, so a fixture that failed for one reason
+	/// (emulator absent, port unmapped, gateway died mid-handshake) was indistinguishable from any other.
+	/// Mirrors the transactional-inbox fixture, which already captured it.
+	/// </remarks>
+	public string? InitError { get; private set; }
+
 	/// <summary>Gets the emulator-configured Cosmos client (gateway mode, emulator cert).</summary>
-	public CosmosClient Client { get; private set; } = null!;
+	/// <remarks>
+	/// Throws rather than handing back an unusable client. Previously the partially-built client stayed
+	/// assigned after a failed init and was disposed on teardown, so consumers reached it and surfaced
+	/// <c>ObjectDisposedException: Accessing CosmosClient after it is disposed</c> — an error naming the
+	/// DISPOSAL and saying nothing about the emulator failure that actually happened. Every test after the
+	/// first then reported that instead of the real cause, which is what made a whole suite's failures
+	/// unreadable. Failing here names the real reason at the point of use.
+	/// </remarks>
+	public CosmosClient Client =>
+		_client ?? throw new InvalidOperationException(
+			"The Cosmos saga fixture is not initialized, so no client exists. This is not a client-lifetime "
+			+ "problem — the emulator never came up. Underlying initialization failure: "
+			+ (InitError ?? "(none recorded — InitializeAsync did not run)"));
 
 	/// <summary>Gets the emulator connection string (also fed to options to satisfy Validate()).</summary>
 	public string ConnectionString => _container.GetConnectionString();
@@ -62,7 +83,7 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			await _container.StartAsync().ConfigureAwait(false);
 
 			var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-			Client = new CosmosClientBuilder(_container.GetConnectionString())
+			var client = new CosmosClientBuilder(_container.GetConnectionString())
 				.WithConnectionModeGateway()
 				.WithRequestTimeout(TimeSpan.FromSeconds(120))
 				.WithThrottlingRetryOptions(TimeSpan.FromSeconds(30), 9)
@@ -71,14 +92,20 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 				.Build();
 
 			// The injected-client store path does NOT create the database — the fixture owns that.
-			_ = await Client.CreateDatabaseIfNotExistsAsync(DatabaseName).ConfigureAwait(false);
+			_ = await client.CreateDatabaseIfNotExistsAsync(DatabaseName).ConfigureAwait(false);
 
+			// Published ONLY once the database round-trip has succeeded. Assigning before this point is
+			// what let a client belonging to a failed init escape to consumers.
+			_client = client;
 			IsInitialized = true;
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
-			// Emulator may fail to start on constrained CI hosts.
+			// Emulator may fail to start on constrained CI hosts. Record the reason — discarding it is what
+			// made every downstream failure in this suite unreadable.
 			IsInitialized = false;
+			InitError = ex.ToString();
+			_client = null;
 		}
 	}
 
@@ -90,7 +117,11 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			return;
 		}
 
-		Client?.Dispose();
+		// Cleared as well as disposed: a disposed-but-reachable client is what turned an emulator outage
+		// into a suite full of ObjectDisposedException. After teardown, Client throws a message naming the
+		// real cause instead.
+		_client?.Dispose();
+		_client = null;
 		_disposed = true;
 	}
 

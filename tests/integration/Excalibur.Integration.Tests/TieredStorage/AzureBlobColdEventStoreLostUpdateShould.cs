@@ -39,11 +39,32 @@ public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 	private IColdEventStore? _store;
 	private bool _available;
 
+	/// <summary>Diagnostic: why initialization failed, so an unavailable emulator names its own reason.</summary>
+	/// <remarks>
+	/// Discarding this exception made the failure unclassifiable: "Azurite must be available" is the same
+	/// message whether the image could not be pulled, the container died during startup, or the storage
+	/// SDK rejected the connection — three problems with three different fixes.
+	/// </remarks>
+	private string? _initError;
+
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
-			_container = new AzuriteBuilder().WithImage("mcr.microsoft.com/azure-storage/azurite:latest").Build();
+			// --skipApiVersionCheck is REQUIRED, not a convenience. The Azure.Storage.Blobs SDK this repo
+			// references negotiates a service API version newer than any published Azurite image accepts,
+			// and Azurite rejects the whole request with HTTP 400 InvalidHeaderValue
+			// ("The API version <ver> is not supported by Azurite") before any blob operation runs. That is
+			// a client/emulator VERSION SKEW, not an outage: the container starts and answers, it just
+			// refuses the header. The flag is Azurite's own documented remedy, named in its error text.
+			//
+			// It relaxes only the version GATE, not blob semantics — ETag/If-Match conditional writes, the
+			// property this lock actually exercises, are still enforced by Azurite. Skipping the check is
+			// therefore sound here; skipping the TEST would not be.
+			_container = new AzuriteBuilder()
+				.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+				.WithCommand("--skipApiVersionCheck")
+				.Build();
 			await _container.StartAsync().ConfigureAwait(false);
 
 			var services = new ServiceCollection();
@@ -62,9 +83,10 @@ public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 			_store = _serviceProvider.GetRequiredService<IColdEventStore>();
 			_available = true;
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
 			_available = false;
+			_initError = ex.ToString();
 		}
 	}
 
@@ -109,7 +131,9 @@ public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 	[Fact]
 	public async Task Preserve_a_racing_writers_events_under_concurrent_same_aggregate_archive()
 	{
-		_available.ShouldBeTrue("Azurite must be available - real-infra lost-update lock is never skipped.");
+		_available.ShouldBeTrue(
+			"Azurite must be available - real-infra lost-update lock is never skipped. Initialization error: "
+			+ (_initError ?? "(none recorded — InitializeAsync did not run)"));
 
 		var aggregateId = $"agg-{Guid.NewGuid():N}";
 		var ct = CancellationToken.None;

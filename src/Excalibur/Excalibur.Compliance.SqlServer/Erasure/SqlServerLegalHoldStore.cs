@@ -27,6 +27,12 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 /// </remarks>
 public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHoldQueryStore
 {
+	/// <summary>SQL Server error 2627 — PRIMARY KEY / UNIQUE constraint violation.</summary>
+	private const int DuplicateKeyError = 2627;
+
+	/// <summary>SQL Server error 2601 — duplicate key row in a unique index.</summary>
+	private const int DuplicateUniqueIndexError = 2601;
+
 	private readonly SqlServerLegalHoldStoreOptions _options;
 	private readonly ILogger<SqlServerLegalHoldStore> _logger;
 	private volatile bool _initialized;
@@ -69,23 +75,36 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+		try
 		{
-			hold.HoldId,
-			hold.DataSubjectIdHash,
-			IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
-			hold.TenantId,
-			Basis = (int)hold.Basis,
-			hold.CaseReference,
-			hold.Description,
-			hold.IsActive,
-			hold.ExpiresAt,
-			hold.CreatedBy,
-			hold.CreatedAt,
-			hold.ReleasedBy,
-			hold.ReleasedAt,
-			hold.ReleaseReason
-		}, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			_ = await connection.ExecuteAsync(new CommandDefinition(sql, new
+			{
+				hold.HoldId,
+				hold.DataSubjectIdHash,
+				IdType = hold.IdType.HasValue ? (int?)hold.IdType.Value : null,
+				hold.TenantId,
+				Basis = (int)hold.Basis,
+				hold.CaseReference,
+				hold.Description,
+				hold.IsActive,
+				hold.ExpiresAt,
+				hold.CreatedBy,
+				hold.CreatedAt,
+				hold.ReleasedBy,
+				hold.ReleasedAt,
+				hold.ReleaseReason
+			}, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		}
+		catch (SqlException ex) when (ex.Number is DuplicateKeyError or DuplicateUniqueIndexError)
+		{
+			// The store contract is SAVE-NOT-UPSERT: a re-used HoldId is a caller error, and it surfaces as
+			// InvalidOperationException on every implementation. Leaking the provider's own exception would
+			// make the contract provider-specific — a consumer writing `catch (InvalidOperationException)`
+			// against the interface would catch it on the in-memory store and miss it here, and a legal hold
+			// silently failing to register is a compliance-relevant loss. Preserved as the inner exception so
+			// the provider detail is still diagnosable.
+			throw new InvalidOperationException($"Legal hold {hold.HoldId} already exists", ex);
+		}
 
 		LogSavedHold(hold.HoldId, hold.CaseReference);
 	}

@@ -109,7 +109,13 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 				return null;
 			}
 
-			var metadata = MapToKeyMetadata(keyId, keyInfo.Data);
+			// Purpose is resolved here too, so GetKeyAsync and the purpose-scoped resolution in
+			// ListKeysAsync/GetActiveKeyAsync describe the same key identically. Leaving it null here
+			// would let the two accessors disagree about the same key.
+			var metadata = MapToKeyMetadata(keyId, keyInfo.Data) with
+			{
+				Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+			};
 			CacheMetadata(cacheKey, metadata);
 
 			return await ApplySuspensionStatusAsync(keyId, metadata, cancellationToken).ConfigureAwait(false);
@@ -232,6 +238,12 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 						continue;
 					}
 
+					// Purpose lives in a KV sidecar, not on the Transit key, so it must be resolved before
+					// filtering. Previously MapToKeyMetadata hardcoded Purpose = null and this comparison
+					// therefore excluded EVERY key whenever a non-null purpose was requested, which made
+					// GetActiveKeyAsync(purpose) incapable of returning anything.
+					metadata = metadata with { Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false) };
+
 					if (purpose is not null && metadata.Purpose != purpose)
 					{
 						continue;
@@ -301,7 +313,15 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 					keyName,
 					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
-				var newMetadata = MapToKeyMetadata(keyId, rotatedKey.Data);
+				// Persist BEFORE invalidating, so the cache cannot be repopulated from a stale sidecar
+				// between the two. Rotation keeps the caller-supplied purpose; passing null leaves any
+				// previously recorded purpose untouched rather than erasing it.
+				await WriteKeyPurposeAsync(keyId, purpose, cancellationToken).ConfigureAwait(false);
+
+				var newMetadata = MapToKeyMetadata(keyId, rotatedKey.Data) with
+				{
+					Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+				};
 
 				InvalidateCache(keyId);
 
@@ -331,7 +351,14 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 					keyName,
 					_options.Keys.TransitMountPath).ConfigureAwait(false);
 
-				var newMetadata = MapToKeyMetadata(keyId, newKey.Data);
+				// Same on the create path: the purpose the caller supplied is recorded here or it is lost,
+				// since Vault Transit has nowhere to carry it.
+				await WriteKeyPurposeAsync(keyId, purpose, cancellationToken).ConfigureAwait(false);
+
+				var newMetadata = MapToKeyMetadata(keyId, newKey.Data) with
+				{
+					Purpose = await ReadKeyPurposeAsync(keyId, cancellationToken).ConfigureAwait(false),
+				};
 
 				LogCreatedKey(keyId);
 
@@ -690,9 +717,111 @@ public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDurableK
 		_cache.Remove(GetCacheKey(keyId));
 		_cache.Remove($"active:default");
 		_cache.Remove(GetSuspensionCacheKey(keyId));
+		_cache.Remove(GetPurposeCacheKey(keyId));
 	}
 
 	private string GetSuspensionMarkerPath(string keyId) => $"{_options.Suspension.Path}/{keyId}";
+
+	/// <summary>
+	/// Path of the per-key PURPOSE sidecar.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Vault Transit keys carry no user-defined metadata, so a purpose supplied to
+	/// <c>RotateKeyAsync</c> has nowhere to live on the key itself. It is kept in the same KV v2 mount
+	/// this provider already uses for suspension markers, one document per key.
+	/// </para>
+	/// <para>
+	/// Deliberately a SEPARATE path from the suspension marker rather than another field inside it.
+	/// <see cref="IsKeySuspendedAsync"/> treats "document exists" as "suspended", so writing purpose into
+	/// that same document would make every key with a purpose read as Suspended — a security-relevant
+	/// regression. Keeping them apart leaves the suspension predicate untouched.
+	/// </para>
+	/// <para>
+	/// The extra path segment also prevents collision: suspension reads <c>{Path}/{keyId}</c>, purpose reads
+	/// <c>{Path}/purpose/{keyId}</c>, so even a key literally named "purpose" addresses a folder rather than
+	/// the suspension document.
+	/// </para>
+	/// </remarks>
+	/// <param name="keyId">The key identifier.</param>
+	/// <returns>The KV path holding the key's purpose.</returns>
+	private string GetPurposeMarkerPath(string keyId) => $"{_options.Suspension.Path}/purpose/{keyId}";
+
+	private static string GetPurposeCacheKey(string keyId) => $"purpose:{keyId}";
+
+	/// <summary>
+	/// Persists a key's purpose so purpose-scoped resolution can find it later.
+	/// </summary>
+	/// <param name="keyId">The key identifier.</param>
+	/// <param name="purpose">The purpose to record. No-op when null or empty.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	private async Task WriteKeyPurposeAsync(string keyId, string? purpose, CancellationToken cancellationToken)
+	{
+		if (string.IsNullOrEmpty(purpose))
+		{
+			return;
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var marker = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["purpose"] = purpose,
+			["recordedAt"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+		};
+
+		_ = await _vaultClient.V1.Secrets.KeyValue.V2.WriteSecretAsync(
+			GetPurposeMarkerPath(keyId),
+			marker,
+			mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+		_ = _cache.Set(GetPurposeCacheKey(keyId), purpose, _options.MetadataCacheDuration);
+	}
+
+	/// <summary>
+	/// Reads a key's recorded purpose, or <see langword="null"/> when it has none.
+	/// </summary>
+	/// <param name="keyId">The key identifier.</param>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>The recorded purpose, or <see langword="null"/>.</returns>
+	private async Task<string?> ReadKeyPurposeAsync(string keyId, CancellationToken cancellationToken)
+	{
+		var cacheKey = GetPurposeCacheKey(keyId);
+		if (_cache.TryGetValue(cacheKey, out string? cachedPurpose))
+		{
+			return cachedPurpose;
+		}
+
+		// VaultSharp KV calls take no CancellationToken; observe it before the read, mirroring
+		// IsKeySuspendedAsync.
+		cancellationToken.ThrowIfCancellationRequested();
+
+		string? purpose = null;
+		try
+		{
+			var marker = await _vaultClient.V1.Secrets.KeyValue.V2.ReadSecretAsync(
+				GetPurposeMarkerPath(keyId),
+				mountPoint: _options.Suspension.MountPath).ConfigureAwait(false);
+
+			if (marker?.Data?.Data is { } data
+				&& data.TryGetValue("purpose", out var value))
+			{
+				purpose = value?.ToString();
+			}
+		}
+		catch (VaultSharp.Core.VaultApiException ex)
+			when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound && !IsMountMissing(ex))
+		{
+			// Absent marker on a mounted engine = the key simply has no purpose. A mount-missing 404 is
+			// excluded so it propagates, matching IsKeySuspendedAsync: purpose absence must never be
+			// silently manufactured from an unreachable mount, or a purpose-scoped lookup would quietly
+			// return nothing instead of failing.
+			purpose = null;
+		}
+
+		_ = _cache.Set(cacheKey, purpose, _options.MetadataCacheDuration);
+		return purpose;
+	}
 
 	private static string GetSuspensionCacheKey(string keyId) => $"suspended:{keyId}";
 

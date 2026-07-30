@@ -41,7 +41,22 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 [Trait("Database", "SqlServer")]
 public sealed class ExactlyOnceMessagingCompositionE2EShould : IAsyncLifetime
 {
+	/// <summary>
+	/// Dedicated database holding the SINGLE-TENANT inbox schema for this composition.
+	/// </summary>
+	/// <remarks>
+	/// The shared fixture's table is deliberately MULTI-TENANT (PK <c>(MessageId, HandlerType, TenantId)</c>
+	/// with <c>TenantId NOT NULL</c>) because the tenant-isolation locks need that shape. This E2E composes
+	/// the TURNKEY DEFAULT — <c>AddExactlyOnceMessaging</c> with no <c>AddMultiTenancy</c> — which resolves a
+	/// single-tenant store, so <c>InboxSchemaContract.Verify</c> correctly fail-fasts against the shared
+	/// table. Registering multi-tenancy to satisfy it would change WHAT IS UNDER TEST (the default
+	/// composition IS the subject). Both shapes ship under the same table name, so they are separated by
+	/// database rather than by renaming the table in a copied script.
+	/// </remarks>
+	private const string SingleTenantDatabaseName = "inbox_exactlyonce_e2e";
+
 	private readonly SqlServerInboxStoreContainerFixture _fixture;
+	private string _inboxConnectionString = string.Empty;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ExactlyOnceMessagingCompositionE2EShould"/> class.
@@ -59,13 +74,19 @@ public sealed class ExactlyOnceMessagingCompositionE2EShould : IAsyncLifetime
 			"SQL Server container must be available - real-infra E2E exactly-once lock is never skipped.");
 
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
-		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+
+		_inboxConnectionString = await ShippedInboxSchema.EnsureDatabaseAndSchemaAsync(
+			_fixture.ConnectionString, SingleTenantDatabaseName, CancellationToken.None).ConfigureAwait(false);
+		await ShippedInboxSchema.ResetAsync(_inboxConnectionString, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
 	public async ValueTask DisposeAsync()
 	{
-		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+		if (_inboxConnectionString.Length > 0)
+		{
+			await ShippedInboxSchema.ResetAsync(_inboxConnectionString, CancellationToken.None).ConfigureAwait(false);
+		}
 	}
 
 	[Fact]
@@ -148,9 +169,10 @@ public sealed class ExactlyOnceMessagingCompositionE2EShould : IAsyncLifetime
 		// the composition; only the inbox is resolved by this E2E).
 		_ = services.Configure<SqlServerInboxOptions>(options =>
 		{
-			options.ConnectionString = _fixture.ConnectionString;
-			options.SchemaName = _fixture.SchemaName;
-			options.TableName = _fixture.TableName;
+			// The dedicated single-tenant database; schema/table are the shipped script's own names.
+			options.ConnectionString = _inboxConnectionString;
+			options.SchemaName = "dbo";
+			options.TableName = "inbox_messages";
 		});
 		_ = services.Configure<SqlServerOutboxOptions>(options =>
 			options.ConnectionString = _fixture.ConnectionString);

@@ -74,6 +74,60 @@ public sealed class SqlServerAuditStoreConformanceTests : AuditStoreConformanceT
             EnabledTestLogger.Create<SqlServerAuditStore>());
     }
 
+    /// <summary>
+    /// An AMBIENT-RESOLVING instance of the same store, for the kit's tenant-scoped arms.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="CreateStore"/> is deliberately ambient-less, which is correct for every arm that
+    /// asserts the untenanted partition — but it makes the tenant-scoped arms UNSATISFIABLE rather than
+    /// failing: with no tenant context every read resolves the untenanted sentinel, so no behaviour of
+    /// the store could make them pass. The kit anticipates exactly this and provides this hook; not
+    /// overriding it is what left <c>GetLastEventAsync_WithTenant_ShouldReturnLastForTenant</c> red
+    /// against a store whose scoping is in fact correct.
+    /// </para>
+    /// <para>
+    /// The ambient context is a test-local double reading <see cref="TenantContextHolder"/> — the same
+    /// ambient the kit's arms set with <c>BeginScope</c>. The production <c>AmbientTenantContext</c> is
+    /// <see langword="internal"/> and stays that way: widening a production type's visibility to satisfy
+    /// a test is the wrong direction.
+    /// </para>
+    /// </remarks>
+    /// <returns>A store that resolves the ambient tenant.</returns>
+    protected override IAuditStore CreateTenantAwareStore()
+    {
+        var options = new SqlServerAuditOptions
+        {
+            ConnectionString = _fixture.ConnectionString,
+            SchemaName = "audit",
+            TableName = "AuditEvents",
+            CommandTimeoutSeconds = 30,
+            Retention = { CleanupBatchSize = 100 }
+        };
+
+        return new SqlServerAuditStore(
+            Microsoft.Extensions.Options.Options.Create(options),
+            Microsoft.Extensions.Options.Options.Create(new SqlServerAuditAnnotationStoreOptions
+            {
+                ConnectionString = _fixture.ConnectionString,
+                SchemaName = "audit",
+                TableName = "AuditAnnotations",
+            }),
+            AuditIntegrityTestStrategy.Create(),
+            tenantContext: new AmbientHolderTenantContext(),
+            EnabledTestLogger.Create<SqlServerAuditStore>());
+    }
+
+    /// <summary>
+    /// Resolves the tenant the kit's arms establish via <c>TenantContextHolder.BeginScope</c>.
+    /// </summary>
+    private sealed class AmbientHolderTenantContext : ITenantContext
+    {
+        public string? TenantId => TenantContextHolder.Current;
+
+        public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
+    }
+
     // ---- THE ARM THIS CLASS EXISTS FOR ---------------------------------------------------------
 
     /// <summary>

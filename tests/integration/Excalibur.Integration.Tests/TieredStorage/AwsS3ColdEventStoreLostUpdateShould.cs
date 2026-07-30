@@ -48,7 +48,15 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 	{
 		try
 		{
-			_container = new LocalStackBuilder().WithImage("localstack/localstack:3.8").Build();
+			// LocalStack 4+ is REQUIRED here, not a routine version bump. This lock's whole subject is S3
+			// conditional writes (IfMatch / IfNoneMatch), which AWS added to PutObject in Nov 2024 and
+			// LocalStack 3.8 does not implement: it ACCEPTS a PutObject carrying a deliberately wrong
+			// If-Match and returns 200, overwriting the object. Under 3.8 both racing writers therefore
+			// succeed, last-writer-wins silently drops the superset's tail, and this test reports a
+			// lost update that the production store does not actually have — the emulator cannot enforce
+			// the primitive under test. Verified on 4: wrong If-Match -> 412, If-None-Match:* on an
+			// existing key -> 412, object unchanged. Do not lower this pin.
+			_container = new LocalStackBuilder().WithImage("localstack/localstack:4").Build();
 			using var startCts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
 			await _container.StartAsync(startCts.Token).ConfigureAwait(false);
 
