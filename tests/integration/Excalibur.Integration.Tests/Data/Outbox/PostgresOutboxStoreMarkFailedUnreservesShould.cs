@@ -67,12 +67,18 @@ public sealed class PostgresOutboxStoreMarkFailedUnreservesShould : IClassFixtur
 		// Fail it (below the retry ceiling — stays a retryable failed message, not dead-lettered).
 		await store.MarkFailedAsync(messageId, "transient error", 1, CancellationToken.None).ConfigureAwait(false);
 
-		// Claim 3 — the fix cleared the lease, so the failed message is back in the pool and re-reservable.
-		// RED on the pre-fix impl: dispatcher_id stayed set (timeout not elapsed) → this claim excludes it.
-		var thirdClaim = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
-		thirdClaim.ShouldContain(m => m.Id == messageId,
-			"after MarkFailedAsync the message must be unreserved and immediately re-claimable for retry; "
-			+ "if it is still leased to the failed dispatcher, MarkFailed did not clear dispatcher_id (the S698 bug)");
+		// Claim 3 — the fix cleared the lease, so once the visibility floor elapses the failed message is
+		// back in the pool and re-reservable. Polled, not slept: the floor is stamped from the SERVER clock,
+		// so a fixed client-side delay would race it. The bound is generous relative to F (1s) and failing
+		// it means the row never returned to the pool at all.
+		//
+		// RED on the pre-fix impl: dispatcher_id stayed set, so the row is excluded by the reservation gate
+		// for the whole 5-minute ReservationTimeout and no amount of waiting inside this window recovers it.
+		var reclaimed = await WaitForReclaimAsync(store, messageId, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+		reclaimed.ShouldBeTrue(
+			"after MarkFailedAsync the message must be unreserved and re-claimable for retry once the failure "
+			+ "floor elapses; if it is still leased to the failed dispatcher, MarkFailed did not clear "
+			+ "dispatcher_id (the S698 bug)");
 	}
 
 	[Fact]
@@ -91,6 +97,32 @@ public sealed class PostgresOutboxStoreMarkFailedUnreservesShould : IClassFixtur
 
 		(await DispatcherIdAsync(messageId).ConfigureAwait(false))
 			.ShouldBeNull("MarkFailedAsync must clear dispatcher_id so the message returns to the pool");
+	}
+
+	/// <summary>
+	/// Polls the drain until <paramref name="messageId"/> is claimable, or the bound elapses.
+	/// </summary>
+	/// <remarks>
+	/// The failure floor is anchored to the database's clock, so the moment it lifts is not knowable from
+	/// here. Polling reaches the state as soon as it is true instead of guessing a delay that is either
+	/// flaky or slow.
+	/// </remarks>
+	private static async Task<bool> WaitForReclaimAsync(IOutboxStore store, string messageId, TimeSpan within)
+	{
+		var deadline = DateTimeOffset.UtcNow + within;
+
+		while (DateTimeOffset.UtcNow < deadline)
+		{
+			var claim = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
+			if (claim.Any(m => m.Id == messageId))
+			{
+				return true;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(200), CancellationToken.None).ConfigureAwait(false);
+		}
+
+		return false;
 	}
 
 	private static async Task StageAsync(IOutboxStore store, string messageId) =>
@@ -117,6 +149,12 @@ public sealed class PostgresOutboxStoreMarkFailedUnreservesShould : IClassFixtur
 			// only way the row becomes re-claimable is the fix clearing the lease on MarkFailed.
 			ReservationTimeout = 300,
 			MaxAttempts = 3,
+			// The failure-anchored visibility floor F, at its 1-second minimum. A failed message is
+			// deliberately NOT immediately re-claimable — MarkFailed stamps next_attempt_at = NOW() + F so
+			// the plain failure path cannot hot-loop the drain. This lock is about the LEASE being cleared,
+			// not about the floor being absent, so F is pinned to its smallest legal value and waited out
+			// rather than left at the 30-second default (which would exclude the re-claim below entirely).
+			FailureBackoffFloorSeconds = 1,
 		});
 
 		return new PostgresOutboxStore(db, options, NullLogger<PostgresOutboxStore>.Instance);

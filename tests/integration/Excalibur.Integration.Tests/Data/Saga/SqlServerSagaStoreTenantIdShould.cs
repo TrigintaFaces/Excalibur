@@ -3,6 +3,7 @@
 
 using Dapper;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.SqlServer;
 
@@ -59,10 +60,15 @@ public sealed class SqlServerSagaStoreTenantIdShould : IClassFixture<SqlServerSa
 
 		try
 		{
+			// The row's tenant term comes from the AMBIENT context alone, never from sagaState.TenantId
+			// (the MERGE's documented contract — the read side is given a saga id and a scope, never a
+			// state). A store built without a context stamps the reserved untenanted partition by design,
+			// so this lock MUST supply the ambient tenant to exercise the tenanted write at all.
 			var store = new SqlServerSagaStore(
 				_fixture.ConnectionString,
 				NullLogger<SqlServerSagaStore>.Instance,
-				new DispatchJsonSerializer());
+				new DispatchJsonSerializer(),
+				new FixedTenantContext(TenantId));
 
 			var sagaId = Guid.NewGuid();
 			var state = new TestSagaState { SagaId = sagaId, TenantId = TenantId };
@@ -88,5 +94,55 @@ public sealed class SqlServerSagaStoreTenantIdShould : IClassFixture<SqlServerSa
 		{
 			await _fixture.CleanupTableAsync().ConfigureAwait(false);
 		}
+	}
+
+	/// <summary>
+	/// Liveness counterpart: a save made with NO ambient tenant must land in the reserved untenanted
+	/// partition — never be silently stamped with the tenant carried in the saga's own payload. Without
+	/// this arm the lock above is passed by a store that simply copies <c>sagaState.TenantId</c> into the
+	/// column, which is precisely the cross-tenant write the ambient-scope contract exists to prevent.
+	/// </summary>
+	[Fact]
+	public async Task Stamp_the_untenanted_partition_when_no_ambient_tenant_is_present_even_if_the_state_carries_one()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"SQL Server container must be available — this real-infra saga TenantId lock is never skipped.");
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+
+		try
+		{
+			var store = new SqlServerSagaStore(
+				_fixture.ConnectionString,
+				NullLogger<SqlServerSagaStore>.Instance,
+				new DispatchJsonSerializer());
+
+			var sagaId = Guid.NewGuid();
+			var state = new TestSagaState { SagaId = sagaId, TenantId = TenantId };
+
+			await store.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
+
+			await using var connection = new SqlConnection(_fixture.ConnectionString);
+			await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+
+			var rowTenantId = await connection.QuerySingleAsync<string?>(
+				$"SELECT TenantId FROM [{_fixture.SchemaName}].[{_fixture.TableName}] WHERE SagaId = @id",
+				new { id = sagaId }).ConfigureAwait(false);
+
+			rowTenantId.ShouldNotBe(
+				TenantId,
+				"an unscoped save must NOT adopt the payload's tenant as the row key — the row key is the ambient scope alone");
+		}
+		finally
+		{
+			await _fixture.CleanupTableAsync().ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>A minimal ambient tenant context pinned to a single tenant id.</summary>
+	private sealed class FixedTenantContext(string? tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 	}
 }

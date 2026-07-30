@@ -400,7 +400,7 @@ jobs:
             -reports:"coverage/**/coverage.cobertura.xml" \
             -targetdir:"management/reports/CoverageReport" \
             -reporttypes:"Html;Cobertura;TextSummary;Badges" \
-            -assemblyfilters:"-*.Tests*;-*Benchmarks*;-*Examples*" \
+            -assemblyfilters:"-*.Tests*;-Tests.Shared;-*.Testing*;-*Benchmarks*;-*Examples*" \
             -classfilters:"-*.Migrations.*;-*.Generated.*" \
             -verbosity:Warning
 

@@ -3,6 +3,7 @@
 
 using Dapper;
 
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.Postgres;
 
@@ -40,6 +41,7 @@ public sealed class PostgresSagaStoreTenantIdShould : IAsyncLifetime
 	private const string TenantId = "tenant-952rbe";
 	private readonly PostgresSagaStoreContainerFixture _fixture;
 	private ISagaStore _store = null!;
+	private ISagaStore _untenantedStore = null!;
 
 	public PostgresSagaStoreTenantIdShould(PostgresSagaStoreContainerFixture fixture)
 	{
@@ -59,7 +61,21 @@ public sealed class PostgresSagaStoreTenantIdShould : IAsyncLifetime
 			CommandTimeoutSeconds = 30,
 		});
 
-		_store = new PostgresSagaStore(options, NullLogger<PostgresSagaStore>.Instance, new DispatchJsonSerializer());
+		// The row's tenant term is resolved from the AMBIENT context alone, never from sagaState.TenantId
+		// (SaveSagaRequest's documented contract: the read side is given a saga id and a scope, never a
+		// state, so deriving the row key from the saga's own tenant would write it where no read looks).
+		// A store built without a context therefore stamps the reserved untenanted partition by design —
+		// so this lock MUST supply the ambient tenant to exercise the tenanted write at all.
+		_store = new PostgresSagaStore(
+			options,
+			NullLogger<PostgresSagaStore>.Instance,
+			new DispatchJsonSerializer(),
+			new FixedTenantContext(TenantId));
+
+		_untenantedStore = new PostgresSagaStore(
+			options,
+			NullLogger<PostgresSagaStore>.Instance,
+			new DispatchJsonSerializer());
 	}
 
 	public async ValueTask DisposeAsync()
@@ -89,5 +105,39 @@ public sealed class PostgresSagaStoreTenantIdShould : IAsyncLifetime
 			new { id = sagaId }).ConfigureAwait(false);
 
 		rowTenantId.ShouldBe(TenantId, "the Postgres saga UPSERT must populate the queryable tenant_id column");
+	}
+
+	/// <summary>
+	/// Liveness counterpart: a save made with NO ambient tenant must land in the reserved untenanted
+	/// partition — never be silently stamped with the tenant carried in the saga's own payload. Without
+	/// this arm the lock above is passed by a store that simply copies <c>sagaState.TenantId</c> into the
+	/// column, which is precisely the cross-tenant write the ambient-scope contract exists to prevent.
+	/// </summary>
+	[Fact]
+	public async Task Stamp_the_untenanted_partition_when_no_ambient_tenant_is_present_even_if_the_state_carries_one()
+	{
+		var sagaId = Guid.NewGuid();
+		var state = new TestSagaState { SagaId = sagaId, TenantId = TenantId };
+
+		await _untenantedStore.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
+
+		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync(CancellationToken.None).ConfigureAwait(false);
+
+		var rowTenantId = await connection.QuerySingleAsync<string?>(
+			$"SELECT tenant_id FROM \"{_fixture.Schema}\".\"{_fixture.TableName}\" WHERE saga_id = @id",
+			new { id = sagaId }).ConfigureAwait(false);
+
+		rowTenantId.ShouldNotBe(
+			TenantId,
+			"an unscoped save must NOT adopt the payload's tenant as the row key — the row key is the ambient scope alone");
+	}
+
+	/// <summary>A minimal ambient tenant context pinned to a single tenant id.</summary>
+	private sealed class FixedTenantContext(string? tenantId) : ITenantContext
+	{
+		public string? TenantId { get; } = tenantId;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 	}
 }

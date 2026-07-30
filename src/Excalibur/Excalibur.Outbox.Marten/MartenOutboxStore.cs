@@ -167,9 +167,23 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		var document = await session.LoadAsync<MartenOutboxDocument>(messageId, cancellationToken).ConfigureAwait(false)
 			?? throw new InvalidOperationException($"Message with ID '{messageId}' not found.");
 
-		if (document.Status == OutboxStatus.Sent)
+		// The status read above cannot decide this. Every caller has its own session and a session applies
+		// no optimistic concurrency, so concurrent callers all observe a not-yet-sent message and all
+		// write it sent. The transition is arbitrated in the claim table instead, where exactly one caller
+		// can win it, and the loser is told the message was already settled rather than settling it again.
+		await using (var connection = await OpenClaimConnectionAsync(session, cancellationToken).ConfigureAwait(false))
 		{
-			throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent.");
+			var won = await MartenOutboxClaims.TrySettleAsync(
+				connection,
+				_options.ClaimsSchemaName,
+				_options.ClaimsTableName,
+				messageId,
+				cancellationToken).ConfigureAwait(false);
+
+			if (!won)
+			{
+				throw new InvalidOperationException($"Message with ID '{messageId}' is already marked as sent.");
+			}
 		}
 
 		document.Status = OutboxStatus.Sent;
@@ -179,11 +193,9 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		session.Update(document);
 		await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-		// The message is terminal, so its claim has nothing left to protect. Released after the state
-		// change, never before: releasing first would open a window in which another dispatcher could
-		// claim a message this one is still finishing.
-		await ReleaseClaimAsync(session, messageId, cancellationToken).ConfigureAwait(false);
-
+		// The claim row is deliberately NOT released here. It stays as the terminal tombstone that made
+		// this transition single-winner; releasing it would let the next caller settle the same message
+		// again. It is removed when the message itself is purged.
 		LogMessageSent(messageId);
 	}
 
@@ -302,6 +314,20 @@ public sealed partial class MartenOutboxStore : IOutboxStore, IOutboxStoreAdmin,
 		}
 
 		await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+		// Purging the messages is what bounds the claim table. A settled message keeps its claim row as
+		// the terminal tombstone that made its transition single-winner, so nothing else removes it: the
+		// row goes when the message goes, and skipping this would grow the table by one row per message
+		// ever sent.
+		await using (var connection = await OpenClaimConnectionAsync(session, cancellationToken).ConfigureAwait(false))
+		{
+			await MartenOutboxClaims.PurgeAsync(
+				connection,
+				_options.ClaimsSchemaName,
+				_options.ClaimsTableName,
+				ids,
+				cancellationToken).ConfigureAwait(false);
+		}
 
 		LogMessagesCleanedUp(ids.Count, olderThan);
 		return ids.Count;

@@ -35,6 +35,23 @@ namespace Excalibur.Outbox.Marten;
 internal static class MartenOutboxClaims
 {
 	/// <summary>
+	/// The reserved dispatcher identity marking a message that has reached a terminal state.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A settled message's claim row is kept as a tombstone under this identity rather than deleted, and
+	/// that tombstone is what makes the terminal transition single-winner. Deleting the row on settle
+	/// would re-open the race it exists to close: a second caller would find no row, insert one, and
+	/// settle the same message again.
+	/// </para>
+	/// <para>
+	/// Real dispatchers identify themselves with a GUID, so this value cannot collide with one: it
+	/// contains characters a GUID never does.
+	/// </para>
+	/// </remarks>
+	public const string TerminalDispatcherId = "__excalibur_settled__";
+
+	/// <summary>
 	/// Matches a bare SQL identifier: a letter or underscore, then letters, digits or underscores.
 	/// </summary>
 	private static readonly Regex SafeIdentifier = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
@@ -144,6 +161,115 @@ internal static class MartenOutboxClaims
 	}
 
 	/// <summary>
+	/// Arbitrates a message's terminal transition, and reports whether this caller is the one that won it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Marking a message sent cannot be a read-then-write against the Marten document. Every caller opens
+	/// its own session, and a session applies no optimistic concurrency, so ten callers all read a pending
+	/// message and all write it sent — the message is settled ten times over. Nor can this be fixed with
+	/// SQL against the document: its fields live in a <c>jsonb</c> column whose property names come from
+	/// the CONSUMER's serializer, and this store does not own the store it is handed, so it cannot enable
+	/// Marten's own concurrency either. The arbitration therefore lives in the claim table, whose columns
+	/// this store does control.
+	/// </para>
+	/// <para>
+	/// One statement decides it. PostgreSQL takes a row lock per key, so of any number of callers
+	/// presenting the same message exactly one writes the row: whoever arrives first either inserts it or
+	/// is routed to the update, whose <c>WHERE</c> holds only while the row is not already terminal. Every
+	/// later caller matches neither, so nothing is returned and it has lost. The winner is not decided by
+	/// reading state and acting on it — settling twice is not expressible.
+	/// </para>
+	/// </remarks>
+	/// <param name="connection">An open connection to the Marten database.</param>
+	/// <param name="schema">The claim table's schema.</param>
+	/// <param name="table">The claim table's name.</param>
+	/// <param name="messageId">The message being settled.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>
+	/// <see langword="true"/> when this caller won the transition and must apply it; <see langword="false"/>
+	/// when the message was already settled and this caller must not.
+	/// </returns>
+	public static async Task<bool> TrySettleAsync(
+		NpgsqlConnection connection,
+		string schema,
+		string table,
+		string messageId,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(connection);
+
+		var qualified = Qualify(schema, table);
+
+		// Claims a message that was never claimed (direct settle) and takes over one this dispatcher or
+		// another still holds -- a live claim is no defence against a double settle, so unlike ClaimAsync
+		// the takeover here is NOT gated on expiry. It is gated on the row not already being terminal,
+		// which is the property that must hold exactly once.
+#pragma warning disable CA2100 // Query built from validated identifiers, not from user input
+		await using var command = new NpgsqlCommand(
+			$"""
+			INSERT INTO {qualified} (message_id, dispatcher_id, claimed_at)
+			VALUES (@MessageId, @Terminal, @Now)
+			ON CONFLICT (message_id) DO UPDATE
+			    SET dispatcher_id = @Terminal,
+			        claimed_at    = @Now
+			    WHERE {qualified}.dispatcher_id <> @Terminal
+			RETURNING message_id;
+			""",
+			connection);
+#pragma warning restore CA2100
+
+		_ = command.Parameters.AddWithValue("MessageId", messageId);
+		_ = command.Parameters.AddWithValue("Terminal", TerminalDispatcherId);
+		_ = command.Parameters.AddWithValue("Now", DateTimeOffset.UtcNow);
+
+		var won = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+		return won is not null;
+	}
+
+	/// <summary>
+	/// Deletes the claim rows for messages that have been purged, tombstones included.
+	/// </summary>
+	/// <remarks>
+	/// The terminal tombstones written by <see cref="TrySettleAsync"/> are deliberately not released on
+	/// settle, so this is what bounds their growth: a message's claim row is removed when the message
+	/// itself is purged, and never before. Without it every message ever sent would leave a row behind
+	/// forever.
+	/// </remarks>
+	/// <param name="connection">An open connection to the Marten database.</param>
+	/// <param name="schema">The claim table's schema.</param>
+	/// <param name="table">The claim table's name.</param>
+	/// <param name="messageIds">The messages whose claim rows are removed.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	public static async Task PurgeAsync(
+		NpgsqlConnection connection,
+		string schema,
+		string table,
+		IReadOnlyCollection<string> messageIds,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(messageIds);
+
+		if (messageIds.Count == 0)
+		{
+			return;
+		}
+
+		var qualified = Qualify(schema, table);
+
+#pragma warning disable CA2100 // Query built from validated identifiers, not from user input
+		await using var command = new NpgsqlCommand(
+			$"DELETE FROM {qualified} WHERE message_id = ANY(@MessageIds);",
+			connection);
+#pragma warning restore CA2100
+
+		_ = command.Parameters.AddWithValue("MessageIds", messageIds.ToArray());
+
+		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
 	/// Releases a claim, so a message that comes back to the pool can be taken immediately.
 	/// </summary>
 	/// <remarks>
@@ -168,12 +294,16 @@ internal static class MartenOutboxClaims
 		var qualified = Qualify(schema, table);
 
 #pragma warning disable CA2100 // Query built from validated identifiers, not from user input
+		// A terminal tombstone is never released: it is the record that the message was already settled,
+		// and clearing it would let a later caller settle the same message a second time. Only a live
+		// dispatcher's claim returns to the pool.
 		await using var command = new NpgsqlCommand(
-			$"DELETE FROM {qualified} WHERE message_id = @MessageId;",
+			$"DELETE FROM {qualified} WHERE message_id = @MessageId AND dispatcher_id <> @Terminal;",
 			connection);
 #pragma warning restore CA2100
 
 		_ = command.Parameters.AddWithValue("MessageId", messageId);
+		_ = command.Parameters.AddWithValue("Terminal", TerminalDispatcherId);
 
 		_ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 	}
