@@ -7,6 +7,8 @@ using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 
+using Grpc.Core;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Testcontainers.PubSub;
@@ -39,6 +41,13 @@ public sealed class GooglePubSubPoisonPayloadSettlementIntegrationShould : IAsyn
 {
 	private const string ProjectId = "test-project";
 	private const int TinyMaxPayloadBytes = 8; // any real body exceeds this → forced poison path.
+	private const int MaxPulledMessages = 10;
+
+	// Per-pull deadline. Must be OURS: an unbounded pull on an empty subscription never returns.
+	private static readonly TimeSpan PullDeadline = TimeSpan.FromSeconds(2);
+
+	// How long a redelivery is given to reappear before the subscription is judged empty.
+	private static readonly TimeSpan RemainingCountWindow = TestTimeouts.Scale(TimeSpan.FromSeconds(6));
 
 	private PubSubContainer? _container;
 	private PublisherServiceApiClient? _publisherApi;
@@ -114,16 +123,63 @@ public sealed class GooglePubSubPoisonPayloadSettlementIntegrationShould : IAsyn
 		return subscription.ToString();
 	}
 
-	// Pulls (return-immediately) and Nacks anything seen, so counting never consumes the message under test.
+	// Counts what is still outstanding on the subscription, Nacking anything seen so counting never
+	// consumes the message under test.
+	//
+	// A Pull carries NO client-side deadline by default and ReturnImmediately is obsolete, so an empty
+	// subscription long-polls until the transport aborts the RPC — the "zero outstanding" case then
+	// surfaces as a cancelled RPC instead of the zero it is. The deadline must therefore be ours:
+	//   - each pull is bounded, and a pull that expires with nothing available counts as zero (safety);
+	//   - pulls are retried within a window, so a redelivery landing slightly after the Nack is still
+	//     observed rather than read as zero (liveness).
+	// Both arms of the settlement contract run through this one helper: the no-dead-letter case must
+	// reach zero, and the dead-letter case must still see its redelivered message.
 	private async Task<int> RemainingMessageCountAsync(string subscription)
 	{
-		var response = await _subscriberApi!.PullAsync(
-			new PullRequest { Subscription = subscription, MaxMessages = 10 }, CancellationToken.None).ConfigureAwait(false);
+		var outstanding = 0;
+
+		var observed = await WaitHelpers.WaitUntilAsync(
+			async _ => (outstanding = await PullAndReleaseAsync(subscription).ConfigureAwait(false)) > 0,
+			RemainingCountWindow,
+			WaitHelpers.DefaultPollInterval).ConfigureAwait(false);
+
+		// A false here means every bounded pull returned empty for the whole window — a real zero.
+		// It can never mean "an RPC failed": a pull that fails for any reason other than OUR OWN
+		// deadline propagates out of PullAndReleaseAsync and fails the test loudly.
+		return observed ? outstanding : 0;
+	}
+
+	// One bounded, non-destructive pull. Returns 0 ONLY when our own deadline expired with nothing
+	// available — never because the transport gave up.
+	private async Task<int> PullAndReleaseAsync(string subscription)
+	{
+		using var pullCts = new CancellationTokenSource(PullDeadline);
+
+		PullResponse response;
+
+		try
+		{
+			response = await _subscriberApi!.PullAsync(
+				new PullRequest { Subscription = subscription, MaxMessages = MaxPulledMessages },
+				pullCts.Token).ConfigureAwait(false);
+		}
+		catch (RpcException) when (pullCts.IsCancellationRequested)
+		{
+			// OUR deadline fired, so the subscription had nothing to give within the bound: zero.
+			//
+			// The discriminator is deliberately "did WE cancel it", NOT the gRPC status code. The
+			// original defect of this helper was a transport-initiated `Cancelled` (HTTP-2 CANCEL)
+			// raised with no external cancellation at all — so matching on `Cancelled` would map a
+			// broken transport onto the same zero as a healthy empty subscription, and the arm that
+			// asserts zero could no longer tell an earned pass from an infrastructure failure.
+			// Anything we did not cause propagates.
+			return 0;
+		}
 
 		if (response.ReceivedMessages.Count > 0)
 		{
 			// Release them back immediately (deadline 0) so the assertion is non-destructive.
-			await _subscriberApi.ModifyAckDeadlineAsync(
+			await _subscriberApi!.ModifyAckDeadlineAsync(
 				subscription, response.ReceivedMessages.Select(m => m.AckId), 0, CancellationToken.None).ConfigureAwait(false);
 		}
 

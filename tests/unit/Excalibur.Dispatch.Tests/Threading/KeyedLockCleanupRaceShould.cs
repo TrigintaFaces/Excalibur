@@ -30,15 +30,31 @@ namespace Excalibur.Dispatch.Tests.Threading;
 public sealed class KeyedLockCleanupRaceShould
 {
     // CI-scaled. This class drives 16 workers x 250 iterations against ONE key, so all 4,000
-    // acquisitions are fully serialized by design -- the contention IS the test. Wall-clock therefore
-    // tracks how much CPU the runner can spare, and a Windows CI agent running a dozen test assemblies
-    // in parallel has very little: measured 2-3s for the whole class locally against a 39s overrun in
-    // CI, where sibling assemblies were simultaneously taking 1-2 minutes each.
+    // acquisitions are fully serialized by design -- the contention IS the test.
     //
-    // The bound is a harness deadline, not an invariant. The properties this class actually guards --
-    // no waiter observes a disposal race, and never two holders of one key -- are asserted separately
-    // and did NOT fail; only the outer WaitAsync expired. Scaling keeps the assertions and stops the
-    // deadline reporting load as a defect.
+    // THE BOUND IS A HARNESS DEADLINE, NOT AN INVARIANT. The properties this class guards -- no
+    // waiter observes a disposal race, and never two holders of one key -- are asserted on their own
+    // and are now asserted EVEN WHEN THE DEADLINE EXPIRES, so a timeout can no longer erase the
+    // evidence of whether the lock actually held.
+    //
+    // WHY THE START GATE IS ASYNCHRONOUS, AND WHY IT MUST STAY THAT WAY.
+    // This test previously gated its workers on Barrier.SignalAndWait inside Task.Run. That shape
+    // requires all 16 workers to hold a thread-pool thread SIMULTANEOUSLY: a barrier cannot release
+    // until the last participant arrives, and each waiter blocks the thread it is on. On an agent
+    // whose pool is already occupied by sibling assemblies, the barrier cannot complete until the
+    // pool injects the missing threads, which it does at roughly one per second.
+    //
+    // Measured directly, isolating the gate with NO lock work at all -- 16 workers, same shape:
+    //     idle pool      ->      2 ms
+    //     occupied pool  -> 27,286 ms
+    // Same barrier, same worker count, 13,600x apart, entirely from pool occupancy. That is the
+    // whole deadline, spent before the first acquisition. It presents as a hang in KeyedLock and is
+    // nothing of the sort; the previous CI timeout was almost certainly this and the response then
+    // was to scale the bound, which treats the symptom.
+    //
+    // The async gate below preserves the property the barrier was there for -- every worker starts
+    // together, so the contention is real -- while occupying no threads to do it. Do not replace it
+    // with Barrier, ManualResetEventSlim.Wait, or any other blocking primitive.
     private static readonly TimeSpan Bound =
         global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
@@ -75,29 +91,42 @@ public sealed class KeyedLockCleanupRaceShould
         const int workers = 16;
         const int iterations = 250;
 
-        using var start = new Barrier(workers);
+        // The start gate is ASYNCHRONOUS, and that is load-bearing — see the note below.
+        var arrived = 0;
+        var allArrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var concurrentHolders = 0;
         var exclusivityViolations = 0;
+        var completedIterations = 0;
         var failures = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
 
         async Task Worker()
         {
-            start.SignalAndWait(Bound);
+            if (Interlocked.Increment(ref arrived) == workers)
+            {
+                _ = allArrived.TrySetResult();
+            }
+
+            // await, never block: a worker waiting here occupies no thread.
+            await allArrived.Task.WaitAsync(Bound).ConfigureAwait(false);
+
             for (var i = 0; i < iterations; i++)
             {
                 try
                 {
-                    using var handle = await keyedLock.AcquireAsync("hot", CancellationToken.None)
-                        .ConfigureAwait(false);
-
-                    // Inside the critical section there must be exactly one holder.
-                    var inside = Interlocked.Increment(ref concurrentHolders);
-                    if (inside != 1)
+                    using (await keyedLock.AcquireAsync("hot", CancellationToken.None).ConfigureAwait(false))
                     {
-                        _ = Interlocked.Increment(ref exclusivityViolations);
+                        // Inside the critical section there must be exactly one holder.
+                        var inside = Interlocked.Increment(ref concurrentHolders);
+                        if (inside != 1)
+                        {
+                            _ = Interlocked.Increment(ref exclusivityViolations);
+                        }
+
+                        _ = Interlocked.Decrement(ref concurrentHolders);
                     }
 
-                    _ = Interlocked.Decrement(ref concurrentHolders);
+                    _ = Interlocked.Increment(ref completedIterations);
                 }
                 catch (Exception ex)
                 {
@@ -107,11 +136,32 @@ public sealed class KeyedLockCleanupRaceShould
         }
 
         var tasks = Enumerable.Range(0, workers).Select(_ => Task.Run(Worker)).ToArray();
-        await Task.WhenAll(tasks).WaitAsync(Bound);
+
+        // A TIMEOUT MUST NOT DESTROY THE EVIDENCE. Previously the bound threw straight out of this
+        // method, so the two assertions below never ran and CI could not tell "the lock is broken"
+        // from "the agent was busy". Catch it, then assert the invariants anyway and report progress.
+        var timedOut = false;
+        try
+        {
+            await Task.WhenAll(tasks).WaitAsync(Bound);
+        }
+        catch (TimeoutException)
+        {
+            timedOut = true;
+        }
+
+        var progress = Volatile.Read(ref completedIterations);
 
         failures.ShouldBeEmpty(
             "no waiter may observe an ObjectDisposedException from the keyed-semaphore cleanup race");
         exclusivityViolations.ShouldBe(0, "at most one holder may exist per key at any instant");
+
+        // Only now, with the real invariants confirmed, report the deadline — and say how far it got,
+        // because "0 of 4000" (stuck) and "3900 of 4000" (merely slow) are different defects.
+        timedOut.ShouldBeFalse(
+            $"the churn did not finish within {Bound.TotalSeconds:F0}s: {progress} of {workers * iterations} " +
+            "iterations completed. Zero or near-zero progress indicates a genuine stall in KeyedLock; " +
+            "near-complete progress indicates the deadline is too tight for the agent, not a lock defect.");
     }
 
     /// <summary>

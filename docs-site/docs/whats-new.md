@@ -12,6 +12,76 @@ Track what's changed across Excalibur releases. For upgrade guidance, see [Versi
 
 Excalibur is in active pre-release development, targeting a first stable release of **10.0.0** (single-targeting `net10.0`). The framework is functionally complete with 112,000+ automated tests across 170 packages.
 
+## Known issues in this pre-release
+
+These are the defects we have identified and classified as affecting this release. **This list is not exhaustive, and we know it is not** — our classification does not yet cover our whole backlog, and unclassified items include ones we rate as high severity. Treat it as the set we have identified, not the set that exists, and weight your own validation accordingly for anything you depend on.
+
+We would rather say that plainly than let the list's completeness be assumed.
+
+### The bundled Cosmos DB emulator fixture cannot connect using its documented approach
+
+**What you see.** Calls made through a `CosmosClient` built against `CosmosDbContainerFixture` may never reach the emulator. Rather than failing quickly, requests repeat and hang.
+
+**Why.** Without `LimitToEndpoint`, the client contacts the emulator's advertised port (`127.0.0.1:8081`) instead of the mapped port it was given, and the connection is refused.
+
+**What you must do.** Set `LimitToEndpoint` on the client options:
+
+```csharp
+var options = new CosmosClientOptions
+{
+    LimitToEndpoint = true,
+    ConnectionMode = ConnectionMode.Gateway,
+};
+```
+
+Verified against the emulator using client options alone, with nothing taken from the fixture.
+
+**Correction to shipped documentation.** This fixture's XML documentation states that the obstacle is the emulator's self-signed certificate and directs you to bypass certificate validation. That is wrong. Following it does not make the connection work, because the fault is the address the client is sent to, not the certificate it is offered.
+
+### The bundled Cosmos DB emulator fixture pins an image that cannot create a database
+
+**What you see.** The emulator container starts and answers its readiness probe, so the fixture reports healthy — and then every attempt to create a database fails.
+
+**Why.** The fixture defaults to the `:latest` emulator image, which becomes ready but is not functional for database creation.
+
+**What you must do.** Override the image, and **pin it by digest, not by tag**:
+
+```csharp
+internal sealed class MyCosmosFixture : CosmosDbContainerFixture
+{
+    // Resolve the digest of an emulator image you have verified yourself, then pin it:
+    //   docker pull <image>:<tag>
+    //   docker inspect --format='{{index .RepoDigests 0}}' <image>:<tag>
+    protected override string Image =>
+        "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:<digest>";
+}
+```
+
+A tag is not a fixed target. The defect above exists because the fixture pins a tag whose contents changed underneath it; pinning a different tag reproduces the same exposure later. Verify an image works for your usage, then pin the digest you verified.
+
+This is a separate obstacle from the one above and needs its own action. Applying only one of the two leaves you unable to use the fixture.
+
+### Cosmos DB provider coverage is incomplete, and part of what does run does not pass
+
+**What you see.** Nothing directly — this concerns the evidence behind the Cosmos DB provider, not its behaviour.
+
+**What it means.** Two separate gaps, and the second is the one that is easy to miss:
+
+- Portions of our Cosmos DB integration coverage **do not run** in our environment, so the green result we publish for this release does not cover them.
+- Of the coverage that **does** run, some **does not pass**. We have not resolved those failures for this release.
+
+The Cosmos DB provider is therefore not simply under-tested — it is under-tested *and* has known failing coverage. Our conformance claims for other providers are unaffected.
+
+**What you must do.** Treat the Cosmos DB provider as less proven than the others in this release. If you depend on it, validate the operations you rely on against your own infrastructure before trusting them in production.
+
+### Unexplained not-found responses from the Cosmos DB snapshot store
+
+**What you see.** During our own testing against the emulator, some snapshot-store operations returned a not-found response for a database that should have existed.
+
+**What we know.** We have not determined the cause, and we have not established whether it originates in the provider or in our test setup. We are disclosing it without an explanation rather than waiting until we have one.
+
+**What you must do.** If you see not-found responses from the Cosmos DB snapshot store where the data should be present, do not treat the result as authoritative — the data may exist. Please report it; a report from a real workload would tell us something our own environment has not.
+
 ---
 
 ## July 2026 — Tenant-isolation hardening, default-on store durability & a host-less startup trigger

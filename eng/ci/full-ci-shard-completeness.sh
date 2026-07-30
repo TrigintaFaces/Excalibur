@@ -100,13 +100,85 @@ normalise_reported() {
       | sort -u
 }
 
+# ── ASSEMBLY-LEVEL COMPLETENESS (the same contract, one level down) ──────────────────────────────
+#
+# The shard arm above answers "did every shard run?". This arm answers "within a shard, did every
+# test assembly report?" — because a shard that reports `Failed: 0` while half its assemblies
+# never produced a line is the SAME defect, and the incident that produced the shard arm was
+# itself detected as "55 expected assemblies, 54 reported, Transport.Tests MISSING with ZERO
+# Failed! lines". A missing assembly is silence, not a pass.
+#
+# ONE CONTRACT, NOT TWO. This deliberately shares the three states, the REFUSE semantics and the
+# self-test harness above rather than forking a parallel gate with its own vocabulary.
+#
+# THE ORACLE IS THE .slnf PLUS THE PROJECT FILES — never a hand list, same rule as the shard arm.
+# Two traps, both real in this repo and both measured before this was written:
+#   1. The assembly name is NOT the .csproj filename. 91 of 94 test projects set <AssemblyName>
+#      explicitly. Reading the filename would produce a confident, wrong expected set.
+#   2. A .slnf contains projects that emit NO test line — support libraries (Tests.Shared,
+#      Excalibur.Dispatch.Testing) and the src projects under test. They are distinguished by an
+#      explicit <IsTestProject>false</IsTestProject>; projects under tests/ default to true via
+#      tests/Directory.Build.props, which also sets OutputType=Exe (xUnit v3 requires it).
+# Anything we cannot classify REFUSEs rather than being silently dropped.
+
+# Resolve a .csproj to the assembly name it will actually report under, or "" if it is not a test project.
+project_assembly_name() {
+  local proj="$1" is_test asm
+  [ -r "$proj" ] || return 2
+  is_test="$(grep -oE '<IsTestProject>[^<]*' "$proj" | head -1 | sed 's/.*>//' | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+  if [ "$is_test" = "false" ]; then return 1; fi
+  if [ -z "$is_test" ]; then
+    # No explicit setting: only projects under tests/ inherit IsTestProject=true.
+    case "$proj" in */tests/*|tests/*) ;; *) return 1 ;; esac
+  fi
+  asm="$(grep -oE '<AssemblyName>[^<]*' "$proj" | head -1 | sed 's/.*>//' | tr -d '[:space:]')"
+  [ -n "$asm" ] || asm="$(basename "$proj" .csproj)"
+  printf '%s\n' "$asm"
+  return 0
+}
+
+# Derive the expected assembly set for one shard from its .slnf.
+derive_expected_assemblies() {
+  local shard="$1" slnf proj rc
+  slnf="$REPO/eng/ci/shards/${shard}.slnf"
+  [ -r "$slnf" ] || { echo "REFUSE_REASON=cannot read shard filter $slnf"; return 2; }
+  local projects
+  projects="$(grep -oE '"[^"]+\.csproj"' "$slnf" | tr -d '"' | tr '\\' '/' | sort -u)"
+  [ -n "$projects" ] || { echo "REFUSE_REASON=no projects parsed from $slnf — an empty oracle passes vacuously"; return 2; }
+  : > "$TMP_EXPECTED"
+  local unreadable=""
+  for proj in $projects; do
+    rc=0; project_assembly_name "$REPO/$proj" >> "$TMP_EXPECTED" || rc=$?
+    [ "$rc" -eq 2 ] && unreadable="$unreadable $proj"
+  done
+  if [ -n "$unreadable" ]; then
+    echo "REFUSE_REASON=unreadable project file(s) referenced by $slnf:$unreadable — cannot determine whether they emit a test assembly"
+    return 2
+  fi
+  sort -u -o "$TMP_EXPECTED" "$TMP_EXPECTED"
+  [ -s "$TMP_EXPECTED" ] || { echo "REFUSE_REASON=expected assembly set for $shard is EMPTY after classification — a completeness check with an empty oracle passes vacuously"; return 2; }
+  return 0
+}
+
+# Extract the assemblies that ACTUALLY reported from a run log. dotnet test emits one terminal
+# line per assembly: "Passed!  - Failed: 0, ... - Excalibur.Dispatch.Tests.dll (net10.0)".
+# Keyed on that line specifically: an assembly that merely appears in build output has not reported.
+normalise_reported_assemblies() {
+  grep -oE '(Passed!|Failed!)[^-]*-[^-]*- +[A-Za-z0-9._-]+\.dll' \
+    | grep -oE '[A-Za-z0-9._-]+\.dll$' \
+    | sed 's/\.dll$//' \
+    | sort -u
+}
+
 usage() {
   cat <<EOF
 usage: $(basename "$0") --results <file>     compare reported shards against the workflows
        $(basename "$0") --shards "a b c"     compare an explicit list
        $(basename "$0") --expected           print the derived expected set and exit
+       $(basename "$0") --assemblies <shard>              print the shard's expected assembly set
+       $(basename "$0") --assembly-results <shard> <log>  compare a shard run log against it
        $(basename "$0") --self-test          prove this guard is non-vacuous
-exit: 0 PASS · 1 FAIL (missing shard) · 2 REFUSE (oracle undeterminable — NOT a pass)
+exit: 0 PASS · 1 FAIL (missing shard/assembly) · 2 REFUSE (oracle undeterminable — NOT a pass)
 EOF
 }
 
@@ -128,14 +200,14 @@ self_test() {
   printf '  oracle: %s\n\n' "$expected_all"
 
   # S1 LIVENESS — a complete set must PASS. Without this arm a guard that always fails looks fine.
-  rc=0; printf '%s\n' $expected_all | "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
+  rc=0; printf '%s\n' $expected_all | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 0 ]; then echo "  PASS  S1 LIVENESS complete shard set -> exit 0"
   else echo "  FAIL  S1 LIVENESS complete shard set -> exit $rc (expected 0)"; fails=$((fails+1)); fi
 
   # S2 SAFETY — drop IntegrationTests, the shard that was actually omitted in the incident this gate exists to prevent. MUST go red.
   local minus_one
   minus_one="$(printf '%s\n' $expected_all | grep -v '^IntegrationTests$')"
-  rc=0; printf '%s\n' "$minus_one" | "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
+  rc=0; printf '%s\n' "$minus_one" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then echo "  PASS  S2 SAFETY   IntegrationTests omitted -> exit 1 (the real-world omission is caught)"
   else echo "  FAIL  S2 SAFETY   IntegrationTests omitted -> exit $rc (expected 1)"; fails=$((fails+1)); fi
 
@@ -151,17 +223,17 @@ self_test() {
     fails=$((fails+1)); first="__none__"
   fi
   minus_first="$(printf '%s\n' $expected_all | tr ' ' '\n' | grep -v "^${first}$" | grep -v '^$')"
-  rc=0; printf '%s\n' "$minus_first" | "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
+  rc=0; printf '%s\n' "$minus_first" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then echo "  PASS  S2b SAFETY  '$first' omitted -> exit 1 (not special-cased to one shard)"
   else echo "  FAIL  S2b SAFETY  '$first' omitted -> exit $rc (expected 1)"; fails=$((fails+1)); fi
 
   # S3 REFUSE != PASS — an undeterminable oracle must REFUSE, never report a clean run.
-  rc=0; CI_YML_OVERRIDE=/nonexistent/ci.yml "$0" --results /dev/null >/dev/null 2>&1 || rc=$?
+  rc=0; CI_YML_OVERRIDE=/nonexistent/ci.yml bash "$0" --results /dev/null >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 2 ]; then echo "  PASS  S3 REFUSE   unreadable ci.yml -> exit 2, distinct from both PASS and FAIL"
   else echo "  FAIL  S3 REFUSE   unreadable ci.yml -> exit $rc (expected 2)"; fails=$((fails+1)); fi
 
   # S4 EMPTY-INPUT — zero shards reported is the "runner never ran" case; must FAIL, not pass.
-  rc=0; "$0" --results /dev/null >/dev/null 2>&1 || rc=$?
+  rc=0; bash "$0" --results /dev/null >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then echo "  PASS  S4 EMPTY    no shards reported -> exit 1 (an empty run is not a green run)"
   else echo "  FAIL  S4 EMPTY    no shards reported -> exit $rc (expected 1)"; fails=$((fails+1)); fi
 
@@ -169,22 +241,75 @@ self_test() {
   local table="| # | Shard | Passed | Failed |"$'\n'
   local s
   for s in $expected_all; do table="$table| 1 | $s | 10 | 0 |"$'\n'; done
-  rc=0; printf '%s' "$table" | "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
+  rc=0; printf '%s' "$table" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 0 ]; then echo "  PASS  S5 SHAPE    markdown summary-table rows parse -> exit 0"
   else echo "  FAIL  S5 SHAPE    markdown summary-table rows -> exit $rc (expected 0)"; fails=$((fails+1)); fi
 
-  printf '\n  %s\n\n' "$([ "$fails" -eq 0 ] && echo "6 passed, 0 failed" || echo "$fails failed")"
+  # ── assembly arm ───────────────────────────────────────────────────────────────────────────────
+  # Same three states, one level down. A6 is the liveness arm and it is the one that matters:
+  # without it, a gate that reported every assembly missing would pass every safety arm here.
+  local probe_shard="UnitTests-Core" asm_all
+  if ! out="$(derive_expected_assemblies "$probe_shard")"; then
+    printf '  REFUSE  A-arms cannot run: %s\n' "${out#REFUSE_REASON=}"
+    fails=$((fails+1))
+  else
+    asm_all="$(cat "$TMP_EXPECTED")"
+
+    # A6 LIVENESS — a log in which every expected assembly reported must PASS.
+    local full_log="" a
+    for a in $asm_all; do full_log="${full_log}Passed!  - Failed:     0, Passed:    10, Skipped:     0, Total:    10, Duration: 1 s - ${a}.dll (net10.0)"$'\n'; done
+    printf '%s' "$full_log" > "$TMP_REPORTED.log"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 0 ]; then echo "  PASS  A6 LIVENESS every expected assembly reported -> exit 0"
+    else echo "  FAIL  A6 LIVENESS every expected assembly reported -> exit $rc (expected 0)"; fails=$((fails+1)); fi
+
+    # A7 SAFETY — drop ONE assembly's line. This is the real-world shape: the shard still exits 0
+    # and still prints zero failures, and only this check can see the hole.
+    local dropped first_asm
+    first_asm="$(printf '%s\n' $asm_all | head -1)"
+    dropped="$(grep -v "\- ${first_asm}\.dll" "$TMP_REPORTED.log")"
+    printf '%s\n' "$dropped" > "$TMP_REPORTED.log2"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log2" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 1 ]; then echo "  PASS  A7 SAFETY   '$first_asm' silently absent -> exit 1"
+    else echo "  FAIL  A7 SAFETY   '$first_asm' silently absent -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+
+    # A8 SAFETY — a log with ZERO test lines (the shard never ran, or died before reporting) must
+    # FAIL. `Failed: 0` is trivially true of a run that produced nothing.
+    : > "$TMP_REPORTED.log3"
+    rc=0; bash "$0" --assembly-results "$probe_shard" "$TMP_REPORTED.log3" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 1 ]; then echo "  PASS  A8 EMPTY    no assembly reported -> exit 1 (an empty shard is not a green shard)"
+    else echo "  FAIL  A8 EMPTY    no assembly reported -> exit $rc (expected 1)"; fails=$((fails+1)); fi
+
+    # A9 REFUSE — an unknown shard has no derivable oracle. REFUSE, never PASS.
+    rc=0; bash "$0" --assembly-results "NoSuchShard-$$" "$TMP_REPORTED.log" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 2 ]; then echo "  PASS  A9 REFUSE   unknown shard -> exit 2, distinct from PASS and FAIL"
+    else echo "  FAIL  A9 REFUSE   unknown shard -> exit $rc (expected 2)"; fails=$((fails+1)); fi
+
+    # A10 ORACLE SHAPE — the expected set must EXCLUDE support libraries that emit no test line.
+    # If Tests.Shared ever enters the oracle, every run FAILs for a project that cannot report,
+    # and the gate gets disabled as noise. That is how a real gate dies.
+    if printf '%s\n' $asm_all | grep -qx "Tests.Shared"; then
+      echo "  FAIL  A10 ORACLE  Tests.Shared (IsTestProject=false) leaked into the expected set"; fails=$((fails+1))
+    else
+      echo "  PASS  A10 ORACLE  support libraries excluded from the expected set"
+    fi
+    rm -f "$TMP_REPORTED.log" "$TMP_REPORTED.log2" "$TMP_REPORTED.log3"
+  fi
+
+  printf '\n  %s\n\n' "$([ "$fails" -eq 0 ] && echo "11 passed, 0 failed" || echo "$fails failed")"
   [ "$fails" -eq 0 ] || return 1
   return 0
 }
 
-MODE=""; RESULTS=""; SHARDS=""
+MODE=""; RESULTS=""; SHARDS=""; SHARD=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --self-test) MODE=selftest ;;
     --expected)  MODE=expected ;;
     --results)   MODE=compare; RESULTS="${2:-}"; shift ;;
     --shards)    MODE=compare; SHARDS="${2:-}"; shift ;;
+    --assemblies)       MODE=asmexpected; SHARD="${2:-}"; shift ;;
+    --assembly-results) MODE=asmcompare;  SHARD="${2:-}"; RESULTS="${3:-}"; shift 2 ;;
     -h|--help)   usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -192,6 +317,37 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$MODE" ] || { usage >&2; exit 2; }
 [ "$MODE" = selftest ] && { self_test; exit $?; }
+
+# ── assembly-level modes ─────────────────────────────────────────────────────────────────────────
+if [ "$MODE" = asmexpected ] || [ "$MODE" = asmcompare ]; then
+  [ -n "$SHARD" ] || { echo "REFUSE: no shard named" >&2; usage >&2; exit 2; }
+  if ! REFUSE="$(derive_expected_assemblies "$SHARD")"; then
+    echo "REFUSE: ${REFUSE#REFUSE_REASON=}" >&2
+    echo "        Measured NOTHING. This is NOT a pass — do not report the shard as complete." >&2
+    exit 2
+  fi
+  [ "$MODE" = asmexpected ] && { cat "$TMP_EXPECTED"; exit 0; }
+
+  [ -n "$RESULTS" ] && [ -r "$RESULTS" ] || { echo "REFUSE: run log not readable: ${RESULTS:-<none>}" >&2; exit 2; }
+  normalise_reported_assemblies < "$RESULTS" > "$TMP_REPORTED"
+
+  A_MISSING="$(comm -23 "$TMP_EXPECTED" "$TMP_REPORTED")"
+  A_EXTRA="$(comm -13 "$TMP_EXPECTED" "$TMP_REPORTED")"
+  A_EXP="$(wc -l < "$TMP_EXPECTED" | tr -d ' ')"
+  A_REP="$(wc -l < "$TMP_REPORTED" | tr -d ' ')"
+
+  if [ -n "$A_MISSING" ]; then
+    echo "FAIL: shard '$SHARD' is INCOMPLETE — $A_REP of $A_EXP expected assemblies reported." >&2
+    echo "MISSING (in the .slnf, but produced NO Passed!/Failed! line — silence, not a pass):" >&2
+    printf '  - %s\n' $A_MISSING >&2
+    [ -n "$A_EXTRA" ] && { echo "also reported but not in the .slnf:" >&2; printf '  - %s\n' $A_EXTRA >&2; }
+    echo "Do NOT report this shard as green. A zero-failure line from a shard that lost an assembly is the defect." >&2
+    exit 1
+  fi
+  echo "PASS: all $A_EXP expected assemblies in '$SHARD' reported"
+  [ -n "$A_EXTRA" ] && echo "note: also reported, not in the .slnf: $(echo $A_EXTRA)"
+  exit 0
+fi
 
 if ! REFUSE="$(derive_expected)"; then
   echo "REFUSE: ${REFUSE#REFUSE_REASON=}" >&2

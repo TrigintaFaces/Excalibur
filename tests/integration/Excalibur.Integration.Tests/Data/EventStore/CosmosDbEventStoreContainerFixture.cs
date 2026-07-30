@@ -68,7 +68,9 @@ public sealed class CosmosDbEventStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new CosmosDbBuilder()
-			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview")
+			// Pinned by digest, not tag: a tag is mutable, so a later run can silently receive a different
+			// image than the one this suite's evidence was measured on. The digest cannot move.
+			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:a8b93e25520e999d867ed3949e7de7f4ff3ddab23ca95fa6f90230de5dd9729b")
 			// The Linux emulator defaults to 25 partitions, which on a hosted CI runner is slow enough
 			// and memory-hungry enough that the gateway dies mid-handshake -- surfacing as
 			// HttpIOException "The response ended prematurely (ResponseEnded)" or an unmapped port 8081,

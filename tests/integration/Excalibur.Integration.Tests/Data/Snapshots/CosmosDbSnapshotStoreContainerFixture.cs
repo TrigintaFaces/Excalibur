@@ -47,22 +47,7 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 	/// </summary>
 	public string ConnectionString => _container is null
 		? throw new InvalidOperationException("Container not initialized")
-		: BuildVNextConnectionString(_container);
-
-	/// <summary>
-	/// Builds an HTTP connection string for the vnext-preview emulator.
-	/// </summary>
-	/// <remarks>
-	/// Testcontainers' <c>GetConnectionString()</c> emits an <c>https://</c> endpoint, which the legacy
-	/// emulator served behind a self-signed certificate. vnext-preview serves plain HTTP on 8081, so the
-	/// https endpoint never completes a request and every call ends in a request timeout. The account key
-	/// is the emulator's well-known fixed key, not a secret.
-	/// </remarks>
-	/// <param name="container">The running emulator container.</param>
-	/// <returns>An HTTP Cosmos connection string for the mapped port.</returns>
-	private static string BuildVNextConnectionString(CosmosDbContainer container) =>
-		$"AccountEndpoint=http://{container.Hostname}:{container.GetMappedPublicPort(8081)}/;"
-		+ "AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"; // pragma: allowlist secret
+		: _container.GetConnectionString();
 
 	/// <summary>
 	/// Gets the emulator HttpClient (trusts the self-signed cert) for the store's options factory.
@@ -76,7 +61,9 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new CosmosDbBuilder()
-			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview")
+			// Pinned by digest, not tag: a tag is mutable, so a later run can silently receive a different
+			// image than the one this suite's evidence was measured on. The digest cannot move.
+			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:a8b93e25520e999d867ed3949e7de7f4ff3ddab23ca95fa6f90230de5dd9729b")
 			.WithName($"cosmosdb-snapshotstore-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();
@@ -84,14 +71,15 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 
 		var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-		// vnext-preview serves plain HTTP on 8081 and needs no self-signed-cert bypass, so the
-		// HttpClientFactory dance the old emulator required is gone. The previous :latest image died
+		// The vNext emulator serves plain HTTP on 8081 and needs no self-signed-cert bypass, so the
+		// HttpClientFactory dance the old emulator required is gone. The superseded image died
 		// during the gateway handshake on CI and locally ("The response ended prematurely"), taking
-		// every Cosmos arm down at fixture init; vnext-preview reports Gateway=OK and is ~1.5GB smaller.
-		_client = new CosmosClientBuilder(BuildVNextConnectionString(_container))
+		// every Cosmos arm down at fixture init; vNext reports Gateway=OK and is ~1.5GB smaller.
+		_client = new CosmosClientBuilder(_container.GetConnectionString())
 			.WithConnectionModeGateway()
 			.WithRequestTimeout(TimeSpan.FromSeconds(120))
 			.WithThrottlingRetryOptions(TimeSpan.FromSeconds(30), 9)
+			.WithHttpClientFactory(() => _container.HttpClient)
 			.WithSystemTextJsonSerializerOptions(json)
 			.Build();
 

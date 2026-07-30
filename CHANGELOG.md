@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Known Issues
+
+Defects identified and classified as affecting this pre-release. The full descriptions, with the action
+each one requires of you, are on the **Known issues in this pre-release** section of the What's New page;
+they are kept there rather than duplicated here so the two cannot drift apart.
+
+- **The bundled Cosmos DB emulator fixture cannot connect using its documented approach.** Its
+  documentation blames the emulator's self-signed certificate; the actual obstacle is that the client is
+  sent to the emulator's advertised port rather than the mapped one. Set
+  `CosmosClientOptions.LimitToEndpoint = true`.
+- **The same fixture pins an emulator image that becomes ready but cannot create a database.** Override
+  the image and pin it by digest rather than by tag. This is a second, separate action — fixing only one
+  of the two leaves the fixture unusable.
+- **Cosmos DB provider coverage is incomplete, and part of what does run does not pass.** Treat that
+  provider as less proven than the others in this release and validate the operations you depend on
+  against your own infrastructure.
+- **Unexplained not-found responses from the Cosmos DB snapshot store.** Cause not determined, and we
+  have not established whether it originates in the provider or in our own test setup. If you see one
+  where data should be present, do not treat it as authoritative, and please report it.
+
+This list reflects what we have classified, not everything that exists — see the What's New page for the
+limits of that claim.
+
 ### Fixed
 
 - **Purpose-based key selection never worked in the Vault key provider.** `RotateKeyAsync` accepted a
