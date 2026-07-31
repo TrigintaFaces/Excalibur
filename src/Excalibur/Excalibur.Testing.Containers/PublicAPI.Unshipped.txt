@@ -1,2 +1,1 @@
 #nullable enable
-Excalibur.Testing.Containers.CosmosDbContainerFixture.ResolvedImage.get -> string!

@@ -49,6 +49,16 @@ limits of that claim.
 
 ### Fixed
 
+- **The Cosmos DB client recipe we publish omitted the serializer, and following it produced a client
+  whose point-reads silently miss.** Both the emulator fixture's documentation and the
+  `Excalibur.Data.CosmosDb` README showed a `CosmosClientOptions` carrying only `LimitToEndpoint` and
+  `ConnectionMode`. The Cosmos SDK's default serializer emits PascalCase property names, so a client
+  built that way writes `Id` where Cosmos requires `id`, and a subsequent point-read by id finds
+  nothing — with no error to indicate why. Both recipes now configure camelCase property naming, using
+  the same shape our own stores use. **If you built a client from either recipe, add
+  `SerializerOptions` with `PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase`;** documents
+  already written by an unconfigured client carry PascalCase names and will not be found by an
+  id-based read.
 - **The bundled Cosmos DB emulator fixture defaulted to an image that could not create a database.** It
   pinned a floating `:latest` tag, which became ready, answered its readiness probe and then failed on
   first use — presenting as a timeout rather than as a broken image. It now defaults to a version-anchored

@@ -64,36 +64,113 @@ public sealed class CosmosSerializerNamingGuardTests
 
         Directory.Exists(srcRoot).ShouldBeTrue($"Expected source root at '{srcRoot}'.");
 
-        var clientBuildingFiles = Directory
+        var scanned = Directory
             .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsGeneratedArtifactPath(path))
-            .Select(path => (Path: path, Text: File.ReadAllText(path)))
-            .Where(f => f.Text.Contains("new CosmosClient(", StringComparison.Ordinal))
+            .Select(path => (Path: path, Surfaces: SplitSurfaces(File.ReadAllText(path))))
             .ToList();
 
-        // Non-vacuity floor: there are ~15 framework-built Cosmos clients across the persistence packages.
-        // A scan that finds far fewer means the filter or layout drifted and the guard would pass vacuously.
-        clientBuildingFiles.Count.ShouldBeGreaterThanOrEqualTo(
+        var codeClientFiles = scanned
+            .Where(f => BuildsClient(f.Surfaces.Code))
+            .ToList();
+
+        // Non-vacuity floor, CODE surface: ~15 framework-built Cosmos clients across the persistence
+        // packages. A scan finding far fewer means the filter or layout drifted and the guard would pass
+        // vacuously. Measured against the code surface deliberately — before the two-surface split this
+        // counted doc recipes too, which would mask real drift with prose.
+        codeClientFiles.Count.ShouldBeGreaterThanOrEqualTo(
             10,
-            "Expected to find the framework's Cosmos store files that build their own CosmosClient. " +
-            $"Found only {clientBuildingFiles.Count} — the scan filter or source layout likely drifted; " +
+            "Expected to find the framework's Cosmos store files that build their own CosmosClient in CODE. " +
+            $"Found only {codeClientFiles.Count} — the scan filter or source layout likely drifted; " +
             "this guard must not pass vacuously.");
 
-        var violations = clientBuildingFiles
-            .Where(f => !f.Text.Contains(StjForcingToken, StringComparison.Ordinal)
-                     && !f.Text.Contains(NewtonsoftNamingPolicyToken, StringComparison.Ordinal))
-            .Select(f => Path.GetFileName(f.Path))
-            .Where(name => !Allowlist.ContainsKey(name))
-            .OrderBy(name => name, StringComparer.Ordinal)
+        var violations = scanned
+            .SelectMany(f => new[]
+            {
+                Violation(f.Path, f.Surfaces.Code, "code"),
+                Violation(f.Path, f.Surfaces.Comments, "shipped doc recipe"),
+            })
+            .Where(v => v is not null)
+            .Select(v => v!)
+            .Where(v => !Allowlist.ContainsKey(v.Split(' ')[0]))
+            .OrderBy(v => v, StringComparer.Ordinal)
             .ToList();
 
         violations.ShouldBeEmpty(
-            "Every Cosmos store that builds its OWN CosmosClient MUST force deterministic property naming " +
-            $"(either '{StjForcingToken}' or '{NewtonsoftNamingPolicyToken}' with a CamelCase policy), or its " +
+            "Every Cosmos client the framework SHIPS — whether built in CODE or shown in a DOC RECIPE a " +
+            "consumer copies — MUST force deterministic property naming (either " +
+            $"'{StjForcingToken}' or '{NewtonsoftNamingPolicyToken}' with a CamelCase policy), or its " +
             "STJ-only documents will serialize PascalCase under the SDK-v3 default Newtonsoft serializer and " +
-            "break Cosmos's lowercase 'id' point-read (the i2eabb fault). Offending file(s): " +
+            "break Cosmos's lowercase 'id' point-read (the i2eabb fault). The two surfaces are checked " +
+            "INDEPENDENTLY: a token in prose does not discharge a code obligation, and a correctly " +
+            "configured code path does not excuse a recipe that teaches the defect. Offending surface(s): " +
             string.Join(", ", violations) +
-            ". Add the missing serializer configuration, or — if genuinely exempt — allowlist the file with a written reason.");
+            ". Add the missing serializer configuration to the named surface, or — if genuinely exempt — " +
+            "allowlist the file with a written reason.");
+    }
+
+    /// <summary>
+    /// Reports a violation for one surface of one file, or <see langword="null"/> when that surface is clean.
+    /// </summary>
+    /// <remarks>
+    /// A surface violates when it builds a client and does NOT itself carry a naming token. Evaluating each
+    /// surface against its OWN text is the whole point: the pre-S905 predicate scanned the undifferentiated
+    /// file, so a token anywhere discharged the obligation everywhere — which let a doc comment silence a
+    /// code-level defect, and would have let a correct code path silence a defective shipped recipe.
+    /// </remarks>
+    private static string? Violation(string path, string surfaceText, string surfaceName)
+    {
+        if (!BuildsClient(surfaceText))
+        {
+            return null;
+        }
+
+        var configured = surfaceText.Contains(StjForcingToken, StringComparison.Ordinal)
+                      || surfaceText.Contains(NewtonsoftNamingPolicyToken, StringComparison.Ordinal);
+
+        return configured ? null : $"{Path.GetFileName(path)} ({surfaceName})";
+    }
+
+    private static bool BuildsClient(string text) =>
+        text.Contains("new CosmosClient(", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Splits a source file into its CODE surface and its COMMENT surface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why two surfaces.</b> A shipped XML doc comment is a SECOND PRODUCT SURFACE: it compiles into the
+    /// package's <c>.xml</c>, surfaces in IntelliSense, and consumers copy its recipes verbatim. A recipe
+    /// that builds a <c>CosmosClient</c> without deterministic naming teaches the i2eabb defect just as
+    /// surely as code that does it — S905 shipped exactly that, in this repository, and this guard is what
+    /// caught it.
+    /// </para>
+    /// <para>
+    /// Line-based by design: whole-line <c>///</c>, <c>//</c>, and block-comment continuations form the
+    /// comment surface; everything else is code. A trailing comment on a code line stays with the code,
+    /// which is correct — the code on that line is still code.
+    /// </para>
+    /// </remarks>
+    /// <param name="text">Raw file contents.</param>
+    /// <returns>The code-only and comment-only projections of the file.</returns>
+    private static (string Code, string Comments) SplitSurfaces(string text)
+    {
+        var lines = text.Split('\n');
+
+        var commentLines = lines.Where(IsCommentLine);
+        var codeLines = lines.Where(line => !IsCommentLine(line));
+
+        return (string.Join('\n', codeLines), string.Join('\n', commentLines));
+
+        static bool IsCommentLine(string line)
+        {
+            var trimmed = line.TrimStart();
+
+            return trimmed.StartsWith("///", StringComparison.Ordinal)
+                || trimmed.StartsWith("//", StringComparison.Ordinal)
+                || trimmed.StartsWith("*", StringComparison.Ordinal)
+                || trimmed.StartsWith("/*", StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -118,13 +195,15 @@ public sealed class CosmosSerializerNamingGuardTests
                 $"Allowlisted file '{fileName}' should resolve to exactly one source file; found {matches.Count}. " +
                 "If it was renamed or removed, update or delete the allowlist entry.");
 
-            var text = File.ReadAllText(matches[0]);
+            // Evaluated per surface, matching the main scan: an allowlist entry stays justified only while
+            // SOME shipped surface of the file still builds a client and still lacks the naming token.
+            var (code, comments) = SplitSurfaces(File.ReadAllText(matches[0]));
 
-            text.Contains("new CosmosClient(", StringComparison.Ordinal).ShouldBeTrue(
+            (BuildsClient(code) || BuildsClient(comments)).ShouldBeTrue(
                 $"Allowlisted file '{fileName}' no longer builds a CosmosClient — remove the stale allowlist entry.");
 
-            var stillViolates = !text.Contains(StjForcingToken, StringComparison.Ordinal)
-                             && !text.Contains(NewtonsoftNamingPolicyToken, StringComparison.Ordinal);
+            var stillViolates = Violation(matches[0], code, "code") is not null
+                             || Violation(matches[0], comments, "shipped doc recipe") is not null;
 
             stillViolates.ShouldBeTrue(
                 $"Allowlisted file '{fileName}' now configures a deterministic serializer — the underlying issue " +

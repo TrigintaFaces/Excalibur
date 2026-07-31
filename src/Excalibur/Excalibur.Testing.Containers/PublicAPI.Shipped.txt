@@ -10,6 +10,7 @@ Excalibur.Testing.Containers.ContainerTimeouts
 Excalibur.Testing.Containers.CosmosDbContainerFixture
 Excalibur.Testing.Containers.CosmosDbContainerFixture.ConnectionString.get -> string!
 Excalibur.Testing.Containers.CosmosDbContainerFixture.CosmosDbContainerFixture() -> void
+Excalibur.Testing.Containers.CosmosDbContainerFixture.ResolvedImage.get -> string!
 Excalibur.Testing.Containers.DatabaseEngine
 Excalibur.Testing.Containers.DatabaseEngine.Postgres = 1 -> Excalibur.Testing.Containers.DatabaseEngine
 Excalibur.Testing.Containers.DatabaseEngine.SqlServer = 0 -> Excalibur.Testing.Containers.DatabaseEngine

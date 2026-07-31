@@ -79,6 +79,50 @@ public sealed class CosmosDbContainerFixtureShould
 	}
 
 	/// <summary>
+	/// A document written through the documented client must be retrievable by its lowercase <c>id</c>.
+	/// The SDK's default serializer emits PascalCase, so a client built without the serializer option
+	/// stores <c>Id</c> and this point-read returns NotFound for a document that is present.
+	/// </summary>
+	/// <remarks>
+	/// This asserts the EMITTED KEY rather than the presence of a setting. A test that checked
+	/// <c>SerializerOptions is not null</c> would pass against any naming policy, including the one that
+	/// causes the defect — the same vacuity that let a PascalCase checkpoint document ship once before.
+	/// RED when <see cref="DocumentedClientOptions"/> omits the serializer; GREEN with it.
+	/// </remarks>
+	[Fact]
+	public async Task StoreADocumentUnderTheLowercaseIdTheDocumentedRecipeImplies()
+	{
+		await using var fixture = new CosmosDbContainerFixture();
+
+		await fixture.InitializeAsync();
+		fixture.DockerAvailable.ShouldBeTrue(fixture.InitializationError);
+
+		using var client = new CosmosClient(fixture.ConnectionString, DocumentedClientOptions());
+
+		var database = await client
+			.CreateDatabaseIfNotExistsAsync($"naming-{Guid.NewGuid():N}")
+			.ConfigureAwait(false);
+		var container = await database.Database
+			.CreateContainerIfNotExistsAsync("items", "/id")
+			.ConfigureAwait(false);
+
+		var id = $"doc-{Guid.NewGuid():N}";
+		_ = await container.Container
+			.CreateItemAsync(new NamedDocument(id), new PartitionKey(id))
+			.ConfigureAwait(false);
+
+		// Point-read by the lowercase key. Under the SDK default (PascalCase) the stored key is "Id",
+		// the document is unreachable by this read, and the SDK throws NotFound.
+		var read = await container.Container
+			.ReadItemAsync<NamedDocument>(id, new PartitionKey(id))
+			.ConfigureAwait(false);
+
+		read.Resource.Id.ShouldBe(id);
+	}
+
+	private sealed record NamedDocument(string Id);
+
+	/// <summary>
 	/// Deriving to choose the image in code must keep working — it is a supported option, just not the one
 	/// AC-3 requires. Kept as its own arm so a regression in either path is attributable.
 	/// </summary>
@@ -97,15 +141,25 @@ public sealed class CosmosDbContainerFixtureShould
 	/// Builds a client using ONLY the steps the shipped documentation gives a consumer, then performs the
 	/// operation the documentation promises will work.
 	/// </summary>
-	private static async Task CreateDatabaseAsync(string connectionString)
-	{
-		var options = new CosmosClientOptions
+	/// <remarks>
+	/// The options here must stay identical to the recipe in the fixture's XML documentation and the
+	/// package README. If this method configures the client in a way the documentation does not, the lock
+	/// stops testing the consumer's path and can no longer detect a defect in the advice we ship.
+	/// </remarks>
+	private static CosmosClientOptions DocumentedClientOptions() =>
+		new()
 		{
 			LimitToEndpoint = true,
 			ConnectionMode = ConnectionMode.Gateway,
+			SerializerOptions = new CosmosSerializationOptions
+			{
+				PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
+			},
 		};
 
-		using var client = new CosmosClient(connectionString, options);
+	private static async Task CreateDatabaseAsync(string connectionString)
+	{
+		using var client = new CosmosClient(connectionString, DocumentedClientOptions());
 
 		var response = await client
 			.CreateDatabaseIfNotExistsAsync($"consumer-smoke-{Guid.NewGuid():N}")

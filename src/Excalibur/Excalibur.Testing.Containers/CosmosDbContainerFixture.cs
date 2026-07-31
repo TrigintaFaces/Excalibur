@@ -22,10 +22,19 @@ namespace Excalibur.Testing.Containers;
 /// {
 ///     LimitToEndpoint = true,
 ///     ConnectionMode = ConnectionMode.Gateway,
+///     SerializerOptions = new CosmosSerializationOptions
+///     {
+///         PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
+///     },
 /// };
 ///
 /// using var client = new CosmosClient(fixture.ConnectionString, options);
 /// </code>
+/// <para>
+/// <c>SerializerOptions</c> is not optional. The Cosmos SDK's default serializer emits PascalCase
+/// property names, so a client built without it writes <c>Id</c> where a later point-read looks for
+/// <c>id</c>, and the read misses a document that is present.
+/// </para>
 /// <para>
 /// That option was established by execution against the emulator, using client options alone and nothing
 /// taken from this fixture. It addresses the advertised-endpoint obstacle; an individual environment may

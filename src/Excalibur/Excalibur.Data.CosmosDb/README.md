@@ -243,9 +243,22 @@ advertises for itself, which is not the port the container was mapped to. Set `L
 client keeps using the endpoint it was given:
 
 ```csharp
-var options = new CosmosClientOptions { LimitToEndpoint = true, ConnectionMode = ConnectionMode.Gateway };
+var options = new CosmosClientOptions
+{
+    LimitToEndpoint = true,
+    ConnectionMode = ConnectionMode.Gateway,
+    SerializerOptions = new CosmosSerializationOptions
+    {
+        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase,
+    },
+};
+
 using var client = new CosmosClient(connectionString, options);
 ```
+
+`SerializerOptions` is not optional here. The Cosmos SDK's default serializer emits PascalCase property
+names, so a client built without it writes `Id` where a later point-read looks for `id`, and the read
+misses a document that is present. Every store in this package configures camelCase for that reason.
 
 The container fixtures used by this project's own test suite live in its source tree rather than in a
 published package. If you build from source, set `EXCALIBUR_COSMOS_EMULATOR_IMAGE` to run them against a different
