@@ -93,7 +93,19 @@ command -v docker >/dev/null 2>&1 || refuse "docker is not available on this run
 docker info >/dev/null 2>&1 || refuse "the docker daemon is not responding on this runner."
 
 echo "Starting Cosmos emulator ($NAME)..."
-if ! docker run -d --name "$NAME" -P "$IMAGE" >/dev/null 2>&1; then
+# Publish the two ports EXPLICITLY. `-P` publishes only ports the image DECLARES as exposed, and this
+# image declares none:
+#
+#   docker image inspect <this image> --format '{{json .Config.ExposedPorts}}'   ->  null
+#   CONTROL, postgres:16-alpine                                                 ->  {"5432/tcp":{}}
+#
+# So `-P` mapped ZERO ports, `docker port` returned nothing, and the gate refused with "exposed no
+# gateway port" -- a correct refusal reporting a real condition, caused by this flag rather than by
+# the runner. Naming both ports explicitly does not depend on image metadata at all.
+#
+# No host port is pinned: `-p <container-port>` assigns a random free host port, which is what the
+# fixtures do and what keeps concurrent emulators from colliding on a shared runner.
+if ! docker run -d --name "$NAME" -p 8081 -p 8080 "$IMAGE" >/dev/null 2>&1; then
     refuse "the Cosmos emulator container could not be started from the pinned image."
 fi
 
