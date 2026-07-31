@@ -233,7 +233,27 @@ For local development with Azure Cosmos DB Emulator:
 ```bash
 # Install and start Cosmos DB Emulator
 # Windows: Use the installer from Azure Portal
-# Docker: docker run -p 8081:8081 -p 10251-10255:10251-10255 mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
+# Docker: name a specific emulator version — an unversioned tag can resolve to a different image later:
+# docker run -p 8081:8081 -p 10251-10255:10251-10255 \
+#   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706
+```
+
+A client built from a container's connection string alone follows the account endpoint the emulator
+advertises for itself, which is not the port the container was mapped to. Set `LimitToEndpoint` so the
+client keeps using the endpoint it was given:
+
+```csharp
+var options = new CosmosClientOptions { LimitToEndpoint = true, ConnectionMode = ConnectionMode.Gateway };
+using var client = new CosmosClient(connectionString, options);
+```
+
+The container fixtures used by this project's own test suite live in its source tree rather than in a
+published package. If you build from source, set `EXCALIBUR_COSMOS_EMULATOR_IMAGE` to run them against a different
+emulator image — a newer release, or one built for an architecture the default does not serve — without
+deriving a type of your own:
+
+```bash
+export EXCALIBUR_COSMOS_EMULATOR_IMAGE=mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706
 ```
 
 ```csharp

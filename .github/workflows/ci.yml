@@ -638,6 +638,9 @@ jobs:
           if (Get-Command docker -ErrorAction SilentlyContinue) {
             docker --version
           }
+          # These are DIAGNOSTIC PRINTS, not probes. They report whether a variable is set; they do not
+          # test reachability and they cannot fail. Do not cite this step as a readiness check — the
+          # Cosmos readiness gate below is the step that can REFUSE.
           foreach ($name in @('AZURE_KEYVAULT_URI', 'COSMOS_EMULATOR_ENDPOINT')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
               Write-Host ("{0}: not set" -f $name)
@@ -646,6 +649,32 @@ jobs:
               Write-Host ("{0}: set" -f $name)
             }
           }
+
+      - name: Cosmos emulator infrastructure pre-check
+        shell: bash
+        run: |
+          set -uo pipefail
+          # SCOPE: this proves the RUNNER can host the emulator. It does NOT prove the fixtures can reach
+          # it -- they go through Testcontainers CosmosDbBuilder + CosmosClient and this step does not.
+          # Do not cite a green here as evidence the Cosmos tests can run.
+          #
+          # REFUSE, do not skip. If the runner cannot host the emulator at all, the shard must terminate with a
+          # status distinct from both pass and ordinary test failure — a silently-skipped emulator produces
+          # a green that means nothing, which is the defect this gate exists to prevent.
+          #
+          # Readiness is NOT sufficiency: an image can report ready and still be unable to create a
+          # database, and can advertise an endpoint the client cannot reach. So this step fetches the
+          # account document off the gateway rather than merely waiting for a port to answer.
+          #
+          # It does NOT create a database -- an earlier version of this comment said it did, which was
+          # false, and a comment overstating what a gate proves is the same defect as a gate that
+          # overstates a pass.
+          bash eng/ci/cosmos-readiness-gate.sh
+          GATE_EXIT=$?
+          if [ "$GATE_EXIT" -ne 0 ]; then
+            echo "::error::REFUSE — the runner could not host the Cosmos emulator (exit $GATE_EXIT). No Cosmos test was skipped and no pass is reported; the required infrastructure is missing."
+            exit "$GATE_EXIT"
+          fi
 
       - name: Verify XPlat coverage collector package
         shell: bash
@@ -660,22 +689,31 @@ jobs:
       - name: Compose integration test filter
         shell: pwsh
         run: |
-          # Database!=CosmosDb excludes the Cosmos provider wholesale: no Cosmos emulator is provisioned for
-          # this job, and the Linux emulator does not start reliably here even with the fixtures'
-          # PARTITION_COUNT=1 / persistence-off mitigations (CI: 'Connection refused 127.0.0.1:8081';
-          # developer host: 'The response ended prematurely'). Excluded on the TRAIT rather than by test name
-          # so a newly added Cosmos test inherits the exclusion instead of escaping a stale list — and because
-          # naming ~70 tests individually produced a >10k-character filter the argument parser rejected,
-          # selecting zero tests.
+          # The Cosmos provider is NOT excluded. A trait exclusion here meant no Cosmos test could reach a
+          # verdict, so this shard reported green while running zero of them — a check that passes by not
+          # measuring. Tenant isolation, cross-tenant dedup, optimistic concurrency, event-store conformance
+          # and change-feed durability are shipped guarantees and are verified by this shard, not assumed.
           #
-          # THIS HIDES REAL COVERAGE. Tenant isolation, cross-tenant dedup, optimistic concurrency,
-          # event-store conformance and change-feed durability are unverified for a SHIPPED provider while
-          # this clause is present. Remove it as soon as a Cosmos endpoint exists — the preflight step above
-          # already probes COSMOS_EMULATOR_ENDPOINT for exactly that purpose.
-          $baseFilter = '(Category=Integration|Category=EndToEnd)&Database!=CosmosDb'
+          # If the emulator cannot be provisioned, the correct behaviour is to REFUSE (see the Cosmos
+          # readiness gate below), never to filter the tests out and report a pass.
+          $baseFilter = '(Category=Integration|Category=EndToEnd)'
           $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
           "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Establish EXPECTED test population
+        shell: bash
+        run: |
+          set -uo pipefail
+          # EXPECTED is DERIVED here, never hard-coded. A frozen number is a constant that stops tracking
+          # the thing it claims to measure the moment a test is added, and it certifies the population it
+          # was written for rather than the one that exists.
+          bash eng/ci/cosmos-census.sh \
+            eng/ci/shards/IntegrationTests.slnf \
+            "${{ env.INTEGRATION_TEST_FILTER }}" \
+            "$GITHUB_ENV"
+          CENSUS_EXIT=$?
+          if [ "$CENSUS_EXIT" -ne 0 ]; then exit "$CENSUS_EXIT"; fi
 
       - name: Run Integration Tests
         id: run-integration
@@ -703,9 +741,29 @@ jobs:
       - name: Cleanup orphaned Docker containers
         if: always()
         run: |
-          # Kill any TestContainers that survived a test host crash
-          docker ps -q --filter "name=vault-compliance-test" | xargs -r docker rm -f 2>/dev/null || true
-          docker ps -q --filter "name=testcontainers" | xargs -r docker rm -f 2>/dev/null || true
+          # Kill any TestContainers that survived a test host crash.
+          #
+          # The previous two filters matched NONE of this shard's fixture container names, so the cleanup
+          # was a no-op for every emulator the shard actually starts. Names are assigned by the fixtures as
+          # `<service>-test-<guid>` (cosmosdb-eventstore-test-*, cosmosdb-saga-test-*, cosmosdb-snapshotstore
+          # -test-*, cosmosdb-telemetry-test-*, cosmosdb-txinbox-test-*, es-*, azurite-*, firestore-cdc-
+          # state-test-*), none of which contain the literal "testcontainers".
+          #
+          # A leaked emulator is not merely wasted memory: containers that are not reaped between test
+          # collections accumulate across the suite and can exhaust the runner even when peak concurrency
+          # is one or two. This runs `if: always()` precisely so a crashed host does not leave them behind.
+          for pattern in \
+            vault-compliance-test \
+            testcontainers \
+            cosmosdb- \
+            firestore-cdc-state-test \
+            azurite- \
+            es-
+          do
+            docker ps -aq --filter "name=${pattern}" | xargs -r docker rm -f 2>/dev/null || true
+          done
+          echo "Containers still running after cleanup:"
+          docker ps --format '{{.Names}}' || true
 
       - name: Verify integration test results
         if: always()
@@ -716,21 +774,90 @@ jobs:
             Write-Error "No TRX result files found -- test run may have failed to start"
             exit 1
           }
-          $totalFailed = 0
+          # `failed = 0` alone is satisfied by a run that executed almost nothing. A run that dies partway
+          # reports a positive count and a clean failure total -- measured: an aborted run printed
+          # "Failed: 0, Passed: 5, Total: 5" having executed 5 of 16 arms. So the expected set is the only
+          # anchor that catches a partial run, and both halves must hold in the SAME run.
+          #
+          # Compare `executed`, never `total`. `total` includes tests that were never run, so a comparison
+          # against it is satisfied by the exact aborted run this gate exists to catch.
+          #
+          # Do NOT read the `notExecuted` counter: it was measured reading 0 while 4 tests were NotExecuted
+          # in the same file. Skips are DETECTED as (total - executed), which is derived from the two
+          # counters measured trustworthy, and NAMED from the per-test rows -- a subtraction yields a count,
+          # and a count is not a claim anyone can check.
+          $totalFailed = 0; $totalExecuted = 0; $totalTests = 0
+          $skippedNames = New-Object System.Collections.Generic.List[string]
           foreach ($trx in $trxFiles) {
             [xml]$xml = Get-Content $trx.FullName
             $counters = $xml.TestRun.ResultSummary.Counters
             $failed = [int]$counters.failed
-            $passed = [int]$counters.passed
+            $executed = [int]$counters.executed
             $total = [int]$counters.total
-            Write-Host "$($trx.Name): passed=$passed failed=$failed total=$total"
-            $totalFailed += $failed
+            Write-Host "$($trx.Name): executed=$executed failed=$failed total=$total"
+            $totalFailed += $failed; $totalExecuted += $executed; $totalTests += $total
+            foreach ($r in $xml.TestRun.Results.UnitTestResult) {
+              if ($r.outcome -ne 'Passed' -and $r.outcome -ne 'Failed') { $skippedNames.Add($r.testName) }
+            }
+          }
+
+          $expected = [int]$env:COSMOS_EXPECTED
+          if ($expected -le 0) {
+            Write-Error "REFUSE -- EXPECTED was never established. A gate with no expected set cannot distinguish a complete run from an aborted one."
+            exit 3
+          }
+
+          # The allowlist validates its own contents, and a lapsed entry breaks the build rather than
+          # quietly continuing to suppress. Printed in full so the suppressions are seen at the one moment
+          # someone is reading this output.
+          $allow = Get-Content eng/ci/cosmos-skip-allowlist.json -Raw | ConvertFrom-Json
+          $today = (Get-Date).Date
+          $allowedClasses = @()
+          Write-Host "`n--- approved skip allowlist ---"
+          foreach ($e in $allow.entries) {
+            # 'issue' is deliberately NOT required here. This file is mirrored and world-visible, so it
+            # carries no internal tracker id: the tracking issue names the entry by its 'id', never the
+            # reverse. Internal artifacts may point at public ones; a public file citing an internal work
+            # item leaks it and is meaningless to the consumer who reads it.
+            foreach ($f in @('test','id','reason','evidence','owner','expires')) {
+              if ([string]::IsNullOrWhiteSpace($e.$f)) {
+                Write-Error "REFUSE -- allowlist entry '$($e.test)' is missing mandatory field '$f'."
+                exit 3
+              }
+            }
+            $days = ([datetime]$e.expires - $today).Days
+            Write-Host ("  {0}`n    id={1} owner={2} expires={3} ({4} days)" -f $e.test, $e.id, $e.owner, $e.expires, $days)
+            if ($days -lt 0) {
+              Write-Error "REFUSE -- allowlist entry '$($e.id)' EXPIRED on $($e.expires), owned by $($e.owner). Renew it with a NEW MEASUREMENT recorded in 'evidence', or remove the suppression. A fresh date alone is not a renewal."
+              exit 3
+            }
+            $allowedClasses += $e.test
+          }
+          Write-Host "--- end allowlist ---`n"
+
+          if ($skippedNames.Count -gt 0) {
+            Write-Host "Skipped tests, by name (a skip total is a number; a skip list is a claim you can check):"
+            $skippedNames | ForEach-Object { Write-Host "  $_" }
+            $unapproved = $skippedNames | Where-Object { $n = $_; -not ($allowedClasses | Where-Object { $n -like "$_*" }) }
+            if ($unapproved) {
+              Write-Error "REFUSE -- $($unapproved.Count) test(s) skipped without an approved allowlist entry. An unexplained skip is the defect; a named and approved one is a decision.`n$($unapproved -join "`n")"
+              exit 3
+            }
+          }
+
+          # Accounting: nothing VANISHED. This identity is necessary and NOT sufficient -- it is satisfied
+          # by 0 executed and everything skipped -- so the unapproved-skip refusal above is its liveness arm.
+          $accounted = $totalExecuted + $skippedNames.Count
+          Write-Host "executed=$totalExecuted + skipped=$($skippedNames.Count) = $accounted, EXPECTED=$expected"
+          if ($accounted -ne $expected) {
+            Write-Error "REFUSE -- $accounted tests accounted for against an EXPECTED set of $expected. A run that dies partway reports a clean failure total, so this discrepancy is the finding, not a rounding issue."
+            exit 3
           }
           if ($totalFailed -gt 0) {
             Write-Error "Integration tests had $totalFailed failure(s)"
             exit 1
           }
-          Write-Host "All integration tests passed (test host cleanup crash is non-fatal)"
+          Write-Host "Integration shard: executed $totalExecuted of $expected expected, $totalFailed failed."
 
       - name: Upload test results
         if: always()

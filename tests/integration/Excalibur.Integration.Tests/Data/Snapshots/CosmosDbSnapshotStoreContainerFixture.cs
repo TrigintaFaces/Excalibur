@@ -113,7 +113,15 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 	{
 		try
 		{
+			// CLEARED as well as disposed. A disposed-but-reachable client is what turns an emulator
+			// failure into a suite full of ObjectDisposedException: `CleanupDatabaseAsync` guards with
+			// `if (_client is null) return;`, which PASSES for a disposed instance and then uses it. The
+			// resulting error names the DISPOSAL and says nothing about the emulator failure that actually
+			// happened, so every test after the first reports the mask instead of the cause — which is
+			// what made this suite's failures unreadable. The sibling saga fixture already carries this
+			// fix and documents the same reasoning.
 			_client?.Dispose();
+			_client = null;
 
 			if (_container is not null)
 			{

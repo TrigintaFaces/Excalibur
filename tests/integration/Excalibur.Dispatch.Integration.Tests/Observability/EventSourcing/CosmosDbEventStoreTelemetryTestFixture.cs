@@ -257,7 +257,15 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 		}
 
 		_activityListener?.Dispose();
+
+		// CLEARED as well as disposed. `CreateEventStore` guards with `_cosmosClient == null`, which
+		// PASSES for a disposed-but-reachable instance and then hands that dead client to the store —
+		// so every test after the first reports an ObjectDisposedException naming the disposal instead
+		// of the emulator failure that actually happened, and the real cause becomes unreadable. The
+		// two sibling Cosmos fixtures already carry this fix for the same reason.
 		_cosmosClient?.Dispose();
+		_cosmosClient = null;
+
 		ClearRecordedActivities();
 
 		_disposed = true;

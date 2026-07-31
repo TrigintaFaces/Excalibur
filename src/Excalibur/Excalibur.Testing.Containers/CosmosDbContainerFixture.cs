@@ -11,11 +11,27 @@ namespace Excalibur.Testing.Containers;
 /// (event store, outbox fence, inbox) against a real emulator.
 /// </summary>
 /// <remarks>
-/// The Cosmos DB emulator serves over HTTPS with a self-signed certificate, so a consuming test MUST
-/// configure its <c>CosmosClient</c> to accept it — e.g. supply a <c>CosmosClientOptions.HttpClientFactory</c>
-/// (or <c>ConnectionMode.Gateway</c> with server-certificate validation bypassed) when connecting with
-/// <see cref="ConnectionString"/>. This fixture only owns the container lifecycle and connection string; the
-/// emulator can be slow to become ready, so keep test timeouts generous.
+/// <para>
+/// The emulator advertises its own account endpoint as <c>http://127.0.0.1:8081/</c>. A <c>CosmosClient</c>
+/// built from <see cref="ConnectionString"/> alone follows that advertised address for requests after the
+/// initial account read, so it never reaches the port this container was actually mapped to. Set
+/// <c>LimitToEndpoint</c> so the client keeps using the endpoint it was given:
+/// </para>
+/// <code>
+/// var options = new CosmosClientOptions
+/// {
+///     LimitToEndpoint = true,
+///     ConnectionMode = ConnectionMode.Gateway,
+/// };
+///
+/// using var client = new CosmosClient(fixture.ConnectionString, options);
+/// </code>
+/// <para>
+/// That option was established by execution against the emulator, using client options alone and nothing
+/// taken from this fixture. It addresses the advertised-endpoint obstacle; an individual environment may
+/// impose others beyond it. This fixture owns only the container lifecycle and the connection string, and
+/// the emulator can be slow to become ready — keep test timeouts generous.
+/// </para>
 /// </remarks>
 public class CosmosDbContainerFixture : ContainerFixtureBase
 {
@@ -29,8 +45,45 @@ public class CosmosDbContainerFixture : ContainerFixtureBase
 		_container?.GetConnectionString()
 		?? throw new InvalidOperationException("The Cosmos DB emulator container has not been initialized.");
 
-	/// <summary>Gets the Docker image used for the Cosmos DB emulator container.</summary>
-	protected virtual string Image => "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest";
+	private const string ImageEnvironmentVariable = "EXCALIBUR_COSMOS_EMULATOR_IMAGE";
+
+	private const string DefaultImage = "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-EN20260706";
+
+	/// <summary>
+	/// Gets the emulator image this fixture resolved, after applying any override. Read it to confirm which
+	/// image a run actually used — an image chosen by environment variable is otherwise invisible in both the
+	/// test code and its output.
+	/// </summary>
+	public string ResolvedImage => Image;
+
+	/// <summary>
+	/// Gets the Docker image used for the Cosmos DB emulator container. Set the
+	/// <c>EXCALIBUR_COSMOS_EMULATOR_IMAGE</c> environment variable to use a different image — for example on
+	/// an architecture the default does not serve, or to adopt a newer emulator on your own schedule.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Setting the environment variable requires no change to your test code and no type of your own. This
+	/// member remains overridable for a fixture that needs to choose its image in code, but a consumer is
+	/// never obliged to derive from this class merely to change the image it runs.
+	/// </para>
+	/// <para>
+	/// An override replaces this expression entirely, so a fixture that chooses its image in code takes
+	/// precedence and the environment variable is not consulted for it. Whichever wins,
+	/// <see cref="ResolvedImage"/> reports the image the run used.
+	/// </para>
+	/// <para>
+	/// The default names a specific published emulator version, matching the other fixtures in this package.
+	/// A versioned tag anchors the image while still allowing a consumer to receive upstream fixes for that
+	/// version. The failure this default exists to avoid came from an <i>unversioned</i> tag rather than from
+	/// tags in general: an unversioned tag can resolve to an entirely different image later, so a fixture
+	/// following one can keep reporting healthy while no longer being able to create a database.
+	/// </para>
+	/// </remarks>
+	protected virtual string Image =>
+		Environment.GetEnvironmentVariable(ImageEnvironmentVariable) is { Length: > 0 } configured
+			? configured
+			: DefaultImage;
 
 	/// <inheritdoc />
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)

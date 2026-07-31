@@ -1,0 +1,37 @@
+{
+  "$comment": [
+    "APPROVED, NAMED, EXPIRING suppressions for the integration shard.",
+    "",
+    "A test that appears here is still counted against the full EXPECTED population. It is not removed",
+    "from the denominator, because reducing the denominator by the tests you expect to skip encodes the",
+    "suppression into the success criterion: the gate then passes forever while those tests never run.",
+    "",
+    "Every suppression this project has found was justified when it was written, and every one survived",
+    "for the same structural reason -- doing nothing preserved it. So neglect must REMOVE a suppression,",
+    "not preserve it:",
+    "  * expires, id and owner are MANDATORY. An entry missing any of them fails the gate, so the",
+    "    list validates its own contents.",
+    "  * a PAST expiry is a REFUSE, not a warning. The suppression stops working and the build stops.",
+    "  * renewal requires FRESH EVIDENCE, not a fresh date. Bumping the date is the failure mode that",
+    "    would defeat the whole mechanism, because it makes an unreviewed entry LOOK reviewed. Record a",
+    "    new measurement in evidence: what was run, on what, and what it showed.",
+    "  * the list may only SHRINK. Growth is a reviewable diff with a named approver, never a runtime",
+    "    effect.",
+    "",
+    "The gate prints this file in full on every run, with days remaining. Suppressions become invisible",
+    "REFERENCE DIRECTION. This file is mirrored and world-visible, so it carries NO internal tracker id. The tracking issue names this entry by its 'id'; this entry never names the issue. Internal artifacts may point at public ones, never the reverse -- a public file that cites an internal work item leaks it and means nothing to the consumer reading it.",
+    "by going unread; this is the one moment someone is looking."
+  ],
+  "entries": [
+    {
+      "test": "Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing.CosmosDbEventStoreTelemetryShould",
+      "id": "cosmos-telemetry-linux-ci-selfskip",
+      "match": "class",
+      "count": 14,
+      "reason": "The class self-skips on any Linux CI runner (Assert.SkipWhen on isLinuxRunner && isCi). The guard's stated justification is 'unstable on Linux CI runners'.",
+      "evidence": "NOT YET MEASURED ON THE PLATFORM IT GUARDS. Every observation held is from a Windows developer box (RUNNER_OS unset, CI unset); the suite passes there 14/14 in 68-294ms. The instability claim has never been reproduced on a Linux CI runner, so this entry records an UNVERIFIED premise, deliberately, rather than presenting it as established.",
+      "owner": "TestsDeveloper",
+      "expires": "2026-09-15"
+    }
+  ]
+}

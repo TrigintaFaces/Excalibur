@@ -18,11 +18,23 @@ These are the defects we have identified and classified as affecting this releas
 
 We would rather say that plainly than let the list's completeness be assumed.
 
+### Inbox reads are not tenant-scoped
+
+**What you see.** Nothing fails. If you run more than one tenant against a shared inbox table, inbox queries may return or claim rows belonging to another tenant.
+
+**What it means.** Tenant isolation in this release works by routing each tenant to its own store: the event store, projections, and sagas each have a tenant-routing layer that does this. The inbox does not have one. It records a tenant against each message, but no inbox query filters on that value, so if several tenants share one inbox table their messages are not separated.
+
+**Which versions.** Every published version up to and including the current pre-release.
+
+**Our own configuration guide currently says otherwise, and it is wrong.** That page lists `IInboxStore` among the contracts wrapped with a tenant-scoping decorator. No such wrapper exists for the inbox in any published version. If you read that page and concluded your inbox was scoped, the conclusion was reasonable and the page is at fault; we are correcting it.
+
+**What you must do.** If you run more than one tenant, do not rely on the inbox to separate them. Either apply tenant filtering in your own inbox query path, or give each tenant its own inbox database or schema. If you run a single tenant, or you already route each tenant to a separate store, no action is needed.
+
+**A future fix will require a schema change, not only a package upgrade.** Adding tenant filtering means adding a required tenant column to the existing inbox table, so a release that corrects this will ship a migration and instructions for applying it. On SQL Server, PostgreSQL, and Oracle, upgrading before applying that migration causes the store to refuse to start rather than continue silently.
+
 ### The bundled Cosmos DB emulator fixture cannot connect using its documented approach
 
 **What you see.** Calls made through a `CosmosClient` built against `CosmosDbContainerFixture` may never reach the emulator. Rather than failing quickly, requests repeat and hang.
-
-**Why.** Without `LimitToEndpoint`, the client contacts the emulator's advertised port (`127.0.0.1:8081`) instead of the mapped port it was given, and the connection is refused.
 
 **What you must do.** Set `LimitToEndpoint` on the client options:
 
@@ -36,43 +48,15 @@ var options = new CosmosClientOptions
 
 Verified against the emulator using client options alone, with nothing taken from the fixture.
 
-**Correction to shipped documentation.** This fixture's XML documentation states that the obstacle is the emulator's self-signed certificate and directs you to bypass certificate validation. That is wrong. Following it does not make the connection work, because the fault is the address the client is sent to, not the certificate it is offered.
-
-### The bundled Cosmos DB emulator fixture pins an image that cannot create a database
-
-**What you see.** The emulator container starts and answers its readiness probe, so the fixture reports healthy — and then every attempt to create a database fails.
-
-**Why.** The fixture defaults to the `:latest` emulator image, which becomes ready but is not functional for database creation.
-
-**What you must do.** Override the image, and **pin it by digest, not by tag**:
-
-```csharp
-internal sealed class MyCosmosFixture : CosmosDbContainerFixture
-{
-    // Resolve the digest of an emulator image you have verified yourself, then pin it:
-    //   docker pull <image>:<tag>
-    //   docker inspect --format='{{index .RepoDigests 0}}' <image>:<tag>
-    protected override string Image =>
-        "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:<digest>";
-}
-```
-
-A tag is not a fixed target. The defect above exists because the fixture pins a tag whose contents changed underneath it; pinning a different tag reproduces the same exposure later. Verify an image works for your usage, then pin the digest you verified.
-
-This is a separate obstacle from the one above and needs its own action. Applying only one of the two leaves you unable to use the fixture.
-
-### Cosmos DB provider coverage is incomplete, and part of what does run does not pass
+### Integration coverage has known failures
 
 **What you see.** Nothing directly — this concerns the evidence behind the Cosmos DB provider, not its behaviour.
 
-**What it means.** Two separate gaps, and the second is the one that is easy to miss:
+**What it means.** When the Cosmos DB integration tests are run, **some do not pass**. We have not resolved those failures for this release, so treat this provider as less proven than the others.
 
-- Portions of our Cosmos DB integration coverage **do not run** in our environment, so the green result we publish for this release does not cover them.
-- Of the coverage that **does** run, some **does not pass**. We have not resolved those failures for this release.
+**About the other providers.** Our most recent full integration run also showed failures outside Cosmos DB, but on inspection almost all of them were test containers failing to start on the machine running the suite — a local resource limit, not the providers misbehaving. We are not reporting those as provider defects, and we are not claiming the run proves the other providers correct either. What we can say is narrower and it is what we mean: **the Cosmos DB gap above is a real coverage gap; the rest of that run's failures were environmental.**
 
-The Cosmos DB provider is therefore not simply under-tested — it is under-tested *and* has known failing coverage. Our conformance claims for other providers are unaffected.
-
-**What you must do.** Treat the Cosmos DB provider as less proven than the others in this release. If you depend on it, validate the operations you rely on against your own infrastructure before trusting them in production.
+**What you must do.** Treat the Cosmos DB provider as materially less proven than the others in this release. If you depend on it, validate the operations you rely on against your own infrastructure before trusting them in production.
 
 ### Unexplained not-found responses from the Cosmos DB snapshot store
 

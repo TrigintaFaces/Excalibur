@@ -17,12 +17,19 @@ they are kept there rather than duplicated here so the two cannot drift apart.
   documentation blames the emulator's self-signed certificate; the actual obstacle is that the client is
   sent to the emulator's advertised port rather than the mapped one. Set
   `CosmosClientOptions.LimitToEndpoint = true`.
-- **The same fixture pins an emulator image that becomes ready but cannot create a database.** Override
-  the image and pin it by digest rather than by tag. This is a second, separate action — fixing only one
-  of the two leaves the fixture unusable.
-- **Cosmos DB provider coverage is incomplete, and part of what does run does not pass.** Treat that
-  provider as less proven than the others in this release and validate the operations you depend on
-  against your own infrastructure.
+- ~~**The same fixture pins an emulator image that becomes ready but cannot create a database.**~~
+  **Resolved in this pre-release** — see *Fixed*. The fixture now defaults to a version-anchored image
+  that can create a database, and the image is overridable without deriving a type. The earlier advice to
+  *"pin it by digest"* is withdrawn: a digest is architecture-specific and would have broken arm64
+  consumers, which a tag does not.
+- **Integration coverage has known failures.** Cosmos DB integration tests are **no longer excluded from
+  CI** (see *Changed*), but that change is newer than any run we have published — **we have not yet
+  published a build in which they executed and passed.** Until we do, treat the Cosmos DB provider as
+  materially less proven than the others and validate the operations you depend on against your own
+  infrastructure. When those tests are run manually, some do not pass, and we have not resolved those
+  failures. A recent full run also showed failures outside Cosmos DB, but almost all were test containers
+  failing to start on the machine running the suite — a local resource limit rather than provider defects,
+  and we are not reporting them as such.
 - **Unexplained not-found responses from the Cosmos DB snapshot store.** Cause not determined, and we
   have not established whether it originates in the provider or in our own test setup. If you see one
   where data should be present, do not treat it as authoritative, and please report it.
@@ -30,8 +37,26 @@ they are kept there rather than duplicated here so the two cannot drift apart.
 This list reflects what we have classified, not everything that exists — see the What's New page for the
 limits of that claim.
 
+### Changed
+
+- **Cosmos DB integration tests are no longer excluded from CI.** The build previously filtered them out
+  entirely, so a green build said nothing whatever about that provider's integration behaviour. The filter
+  is removed, and an emulator readiness check now probes the data plane — creating a database rather than
+  trusting a readiness endpoint — and **refuses** when the emulator is not genuinely usable, instead of
+  quietly skipping. Any set of tests still skipped is enumerated in a reviewable allowlist rather than
+  disappearing into a filter expression. **This does not yet mean the provider is verified**: it means a
+  future green build will be evidence about it, where the previous one could not be. See *Known Issues*.
+
 ### Fixed
 
+- **The bundled Cosmos DB emulator fixture defaulted to an image that could not create a database.** It
+  pinned a floating `:latest` tag, which became ready, answered its readiness probe and then failed on
+  first use — presenting as a timeout rather than as a broken image. It now defaults to a version-anchored
+  image, and the version is stated in the fixture rather than implied.
+- **The Cosmos DB emulator image could not be changed without deriving a type.** Choosing a different
+  image required subclassing the fixture, which is not something a consumer of a testing package should
+  have to do. It is now overridable through public API and through an environment variable, with the
+  resolved image exposed so a test can assert which one it got.
 - **Purpose-based key selection never worked in the Vault key provider.** `RotateKeyAsync` accepted a
   `purpose` and did not persist it, key metadata hardcoded the purpose to null, and `ListKeysAsync` then
   filtered on that field — so `GetActiveKeyAsync` with any non-null purpose could not return a key, for
