@@ -122,6 +122,27 @@ jobs:
       - name: Build
         run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet
 
+      # This job is the ONLY place the Cosmos provider is exercised — ci.yml excludes it from the PR
+      # path, so a Cosmos regression is caught here or nowhere. The gate moved here with the tests.
+      #
+      # REFUSE, never skip: if the runner cannot host the emulator, this job must terminate with a
+      # status distinct from both pass and ordinary test failure. A silently-skipped emulator yields a
+      # green that means nothing, which is the defect this gate exists to prevent.
+      #
+      # SCOPE: this proves the RUNNER can host the emulator. It does NOT prove the fixtures can reach
+      # it — they go through Testcontainers CosmosDbBuilder + CosmosClient and this step does not. Do
+      # not cite a green here as evidence the Cosmos tests can run.
+      - name: Cosmos emulator infrastructure pre-check
+        shell: bash
+        run: |
+          set -uo pipefail
+          bash eng/ci/cosmos-readiness-gate.sh
+          GATE_EXIT=$?
+          if [ "$GATE_EXIT" -ne 0 ]; then
+            echo "::error::REFUSE — the runner could not host the Cosmos emulator (exit $GATE_EXIT). No Cosmos test was skipped and no pass is reported; the required infrastructure is missing."
+            exit "$GATE_EXIT"
+          fi
+
       - name: Run Integration Tests (-m:1)
         id: integration-tests
         continue-on-error: true
@@ -143,21 +164,44 @@ jobs:
         shell: pwsh
         run: |
           $trxFiles = Get-ChildItem -Path ./TestResults -Filter "*.trx" -Recurse
+
+          # REFUSE on nothing-measured. With no TRX the loop below never executes, $totalFailed stays 0,
+          # and the old code reported "All integration tests passed" — a green earned by measuring
+          # nothing. That matters more here than anywhere: this job is the only one that runs the Cosmos
+          # provider, so a refusing emulator produces zero results and would otherwise report success for
+          # the exact suite it failed to run.
+          if ($trxFiles.Count -eq 0) {
+            Write-Error "REFUSE: no TRX results found. Nothing was measured, so nothing passed."
+            exit 1
+          }
+
           $totalFailed = 0
+          $totalExecuted = 0
+          $totalTests = 0
           foreach ($trx in $trxFiles) {
             [xml]$xml = Get-Content $trx.FullName
             $counters = $xml.TestRun.ResultSummary.Counters
             $failed = [int]$counters.failed
             $passed = [int]$counters.passed
             $total = [int]$counters.total
-            Write-Host "$($trx.Name): passed=$passed failed=$failed total=$total"
+            $executed = [int]$counters.executed
+            Write-Host "$($trx.Name): passed=$passed failed=$failed executed=$executed total=$total"
             $totalFailed += $failed
+            $totalExecuted += $executed
+            $totalTests += $total
           }
+
+          # A TRX that exists but executed nothing is the same false green one layer in.
+          if ($totalExecuted -eq 0) {
+            Write-Error "REFUSE: $($trxFiles.Count) TRX file(s) present but 0 tests executed."
+            exit 1
+          }
+
           if ($totalFailed -gt 0) {
             Write-Error "Integration tests had $totalFailed failure(s)"
             exit 1
           }
-          Write-Host "All integration tests passed (test host may have crashed during cleanup -- this is non-fatal)"
+          Write-Host "All $totalExecuted executed integration tests passed (of $totalTests total; test host may have crashed during cleanup -- this is non-fatal)"
 
       - name: Upload test results
         if: always()

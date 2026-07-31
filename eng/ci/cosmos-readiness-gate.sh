@@ -83,7 +83,14 @@ fi
 # validate a different image than the one anyone measured.
 IMAGE="mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:a8b93e25520e999d867ed3949e7de7f4ff3ddab23ca95fa6f90230de5dd9729b"
 NAME="cosmosdb-readiness-gate-$$"
-READY_TIMEOUT="${COSMOS_READY_TIMEOUT:-300}"
+# 600s, matching CosmosDbSnapshotStoreContainerFixture's ContainerStartTimeout of 10 minutes.
+#
+# This was 300s, which made the GATE STRICTER THAN THE SUITE IT GATES: the fixtures were given ten
+# minutes to bring the same emulator up, and this refused it at five. A pre-flight check that gives
+# up sooner than the thing it is clearing the way for will block runs that would have succeeded, and
+# it reports that as an emulator problem. Whatever budget the fixtures use, this must not be less.
+# (The integration-tests job wall is 60 minutes, so 10 is comfortably inside it.)
+READY_TIMEOUT="${COSMOS_READY_TIMEOUT:-600}"
 
 refuse() { echo "::error::REFUSE — $*" >&2; cleanup; exit 3; }
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }

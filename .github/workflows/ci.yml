@@ -650,31 +650,9 @@ jobs:
             }
           }
 
-      - name: Cosmos emulator infrastructure pre-check
-        shell: bash
-        run: |
-          set -uo pipefail
-          # SCOPE: this proves the RUNNER can host the emulator. It does NOT prove the fixtures can reach
-          # it -- they go through Testcontainers CosmosDbBuilder + CosmosClient and this step does not.
-          # Do not cite a green here as evidence the Cosmos tests can run.
-          #
-          # REFUSE, do not skip. If the runner cannot host the emulator at all, the shard must terminate with a
-          # status distinct from both pass and ordinary test failure — a silently-skipped emulator produces
-          # a green that means nothing, which is the defect this gate exists to prevent.
-          #
-          # Readiness is NOT sufficiency: an image can report ready and still be unable to create a
-          # database, and can advertise an endpoint the client cannot reach. So this step fetches the
-          # account document off the gateway rather than merely waiting for a port to answer.
-          #
-          # It does NOT create a database -- an earlier version of this comment said it did, which was
-          # false, and a comment overstating what a gate proves is the same defect as a gate that
-          # overstates a pass.
-          bash eng/ci/cosmos-readiness-gate.sh
-          GATE_EXIT=$?
-          if [ "$GATE_EXIT" -ne 0 ]; then
-            echo "::error::REFUSE — the runner could not host the Cosmos emulator (exit $GATE_EXIT). No Cosmos test was skipped and no pass is reported; the required infrastructure is missing."
-            exit "$GATE_EXIT"
-          fi
+      # The Cosmos emulator readiness gate lived here. It moved to nightly.yml's integration-tests job,
+      # together with the Cosmos tests themselves — a shard that provisions an emulator none of its tests
+      # use spends ~10 minutes proving something it will not consume. Restore both together or neither.
 
       - name: Verify XPlat coverage collector package
         shell: bash
@@ -689,14 +667,25 @@ jobs:
       - name: Compose integration test filter
         shell: pwsh
         run: |
-          # The Cosmos provider is NOT excluded. A trait exclusion here meant no Cosmos test could reach a
-          # verdict, so this shard reported green while running zero of them — a check that passes by not
-          # measuring. Tenant isolation, cross-tenant dedup, optimistic concurrency, event-store conformance
-          # and change-feed durability are shipped guarantees and are verified by this shard, not assumed.
+          # COSMOS RUNS NIGHTLY, NOT PER-PR. Read this before restoring it here.
           #
-          # If the emulator cannot be provisioned, the correct behaviour is to REFUSE (see the Cosmos
-          # readiness gate below), never to filter the tests out and report a pass.
-          $baseFilter = '(Category=Integration|Category=EndToEnd)'
+          # This is NOT the exclusion that was removed from this file. That one filtered the Cosmos tests
+          # out of the only job that ran them, so they executed NOWHERE while this shard reported green —
+          # a check that passed by not measuring. This one moves them to a job that DOES run them: the
+          # nightly workflow's integration-tests job, which carries the same Category filter without this
+          # exclusion and now carries the emulator readiness gate as well.
+          #
+          # The difference is where the verdict lives, not whether there is one. Tenant isolation,
+          # cross-tenant dedup, optimistic concurrency, event-store conformance and change-feed durability
+          # are shipped guarantees; they are still verified, nightly, and a failure there is a real red.
+          #
+          # WHAT THIS COSTS, stated plainly: a Cosmos regression is caught within a day rather than on the
+          # PR that introduces it. That is a deliberate trade for a PR path that no longer depends on a
+          # ~10-minute emulator startup on a 2-core runner. It is not a claim that Cosmos is covered here.
+          #
+          # If you restore Cosmos to this shard, move the readiness gate back with it — the gate belongs
+          # wherever the tests are, and a shard that provisions an emulator it never uses is waste.
+          $baseFilter = '(Category=Integration|Category=EndToEnd)&Database!=CosmosDb'
           $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
           "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
