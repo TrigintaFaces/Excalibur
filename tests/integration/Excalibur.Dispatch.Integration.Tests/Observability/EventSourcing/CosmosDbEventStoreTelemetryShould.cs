@@ -20,6 +20,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 [Collection("EventStore Telemetry Tests")]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait("Component", "Platform")]
+[Trait("Infrastructure", "CosmosEmulator")]
 public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEventStoreTelemetryTestFixture>, IAsyncLifetime
 {
 	private readonly CosmosDbEventStoreTelemetryTestFixture _fixture;

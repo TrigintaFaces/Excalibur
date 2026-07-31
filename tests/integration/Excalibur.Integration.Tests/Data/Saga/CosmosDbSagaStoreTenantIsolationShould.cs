@@ -44,6 +44,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 public sealed class CosmosDbSagaStoreTenantIsolationShould : IClassFixture<CosmosDbSagaStoreContainerFixture>
 {

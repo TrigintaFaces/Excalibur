@@ -26,6 +26,7 @@ namespace Excalibur.Integration.Tests.Testing.Containers;
 /// package's published API surface.
 /// </remarks>
 [Trait("Category", "Integration")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 [Trait("Component", "Testing")]
 public sealed class CosmosDbContainerFixtureShould

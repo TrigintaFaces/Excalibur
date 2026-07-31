@@ -28,6 +28,7 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Saga")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 public sealed class CosmosDbSagaStoreConcurrencyConformanceShould : SagaStoreConformanceTestBase, IClassFixture<CosmosDbSagaStoreContainerFixture>
 {

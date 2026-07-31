@@ -685,7 +685,14 @@ jobs:
           #
           # If you restore Cosmos to this shard, move the readiness gate back with it — the gate belongs
           # wherever the tests are, and a shard that provisions an emulator it never uses is waste.
-          $baseFilter = '(Category=Integration|Category=EndToEnd)&Database!=CosmosDb'
+          #
+          # The filter keys on Infrastructure, NOT on Database. `Database=CosmosDb` says what a test is
+          # ABOUT; `Infrastructure=CosmosEmulator` says what it NEEDS. Twenty-two classes carry the
+          # Database trait and only nine start a container, so excluding by topic would have dropped
+          # thirteen tests that need no emulator and could have kept running here for free. The
+          # Infrastructure trait set is verified identical to the census's behaviour set — the classes
+          # that actually construct a Cosmos fixture.
+          $baseFilter = '(Category=Integration|Category=EndToEnd)&Infrastructure!=CosmosEmulator'
           $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
           "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
@@ -697,10 +704,15 @@ jobs:
           # EXPECTED is DERIVED here, never hard-coded. A frozen number is a constant that stops tracking
           # the thing it claims to measure the moment a test is added, and it certifies the population it
           # was written for rather than the one that exists.
+          # emulator-scope=out: this shard is declared emulator-free, so the census asserts the INVERSE
+          # — that no emulator-starting class is admitted here. It is not disabled; it now guards the
+          # failure that matters on this path, which is a Cosmos class drifting back onto the PR shard
+          # and quietly costing every run ten minutes of container startup.
           bash eng/ci/cosmos-census.sh \
             eng/ci/shards/IntegrationTests.slnf \
             "${{ env.INTEGRATION_TEST_FILTER }}" \
-            "$GITHUB_ENV"
+            "$GITHUB_ENV" \
+            out
           CENSUS_EXIT=$?
           if [ "$CENSUS_EXIT" -ne 0 ]; then exit "$CENSUS_EXIT"; fi
 

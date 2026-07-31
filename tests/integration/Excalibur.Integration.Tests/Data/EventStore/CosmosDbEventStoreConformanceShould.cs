@@ -28,6 +28,7 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 [Collection(CosmosDbEventStoreTestCollection.CollectionName)]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 public sealed class CosmosDbEventStoreConformanceShould : EventStoreConformanceTestBase, IClassFixture<CosmosDbEventStoreContainerFixture>
 {

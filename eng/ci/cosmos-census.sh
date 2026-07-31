@@ -19,6 +19,26 @@
 # healthy run. All matching below is case-insensitive.
 set -uo pipefail
 
+# census_disagreement <scope> <behaviour-classes> <admitted-classes>
+#
+# The single comparison both the production path and the self-test go through, so the arms bind the
+# code that ships rather than a copy of it. Echoes the offending class names; returns 0 when there IS
+# a disagreement (i.e. the caller must refuse) and 1 when the two censuses agree under that scope.
+#
+#   in   -> offenders are behaviour-MINUS-admitted   (starts a container, filter cannot select it)
+#   out  -> offenders are behaviour-INTERSECT-admitted (starts a container on an emulator-free path)
+census_disagreement() {
+    local scope="$1" behaviour="$2" admitted="$3" offenders
+    if [ "$scope" = "in" ]; then
+        offenders="$(comm -23 <(printf '%s\n' "$behaviour" | sort -u) <(printf '%s\n' "$admitted" | sort -u))"
+    else
+        offenders="$(comm -12 <(printf '%s\n' "$behaviour" | sort -u) <(printf '%s\n' "$admitted" | sort -u))"
+    fi
+    [ -n "${offenders//[[:space:]]/}" ] || return 1
+    printf '%s\n' "$offenders"
+    return 0
+}
+
 # --- self-test -------------------------------------------------------------------------------------
 # SAFETY arm: the census REFUSES when a Cosmos class is invisible to the filter.
 # LIVENESS arm: it PASSES a healthy tree. Without the second arm this gate is satisfied by refusing
@@ -61,6 +81,39 @@ EOF
         echo "  safety:   census reverted to the file-mention shape (measured: finds 1 of 9) — FAIL"; st_fail=1
     fi
 
+    # The four arms below drive census_disagreement() — the SAME function the production path calls.
+    # An earlier draft of these arms compared two local strings with `comm` and reported PASS: that
+    # proves `comm` works and says nothing about the branch that ships. A self-test that exercises a
+    # copy of the logic is the mutation proof that does not mutate.
+    #
+    # SAFETY (in): an emulator class the filter cannot see is detected.
+    census_disagreement in "PlantedEmulatorShould" "SomeOtherShould" >/dev/null \
+        && { echo "  safety:   scope=in detects an emulator class the filter cannot see — PASS"; } \
+        || { echo "  safety:   scope=in missed an invisible emulator class — FAIL"; st_fail=1; }
+
+    # LIVENESS (in): a fully-admitted set is accepted.
+    census_disagreement in "PlantedEmulatorShould" "PlantedEmulatorShould" >/dev/null \
+        && { echo "  liveness: scope=in rejected a fully-admitted set — FAIL"; st_fail=1; } \
+        || { echo "  liveness: scope=in accepts a fully-admitted set — PASS"; }
+
+    # SAFETY (out): an emulator class still admitted on an emulator-free path is detected. Without this
+    # the `out` branch could be a no-op, and a gate that never fires looks exactly like a clean repo.
+    census_disagreement out "PlantedEmulatorShould" "PlantedEmulatorShould" >/dev/null \
+        && { echo "  safety:   scope=out detects an emulator class still admitted — PASS"; } \
+        || { echo "  safety:   scope=out missed an admitted emulator class — FAIL"; st_fail=1; }
+
+    # LIVENESS (out): a genuinely emulator-free filter is accepted, or this refuses every PR run.
+    census_disagreement out "PlantedEmulatorShould" "SomeOtherShould" >/dev/null \
+        && { echo "  liveness: scope=out rejected a clean emulator-free filter — FAIL"; st_fail=1; } \
+        || { echo "  liveness: scope=out accepts an emulator-free filter — PASS"; }
+
+    # SAFETY: an unknown scope must REFUSE rather than silently defaulting to one of the two policies.
+    if bash "$0" x y z bogus-scope >/dev/null 2>&1; then
+        echo "  safety:   an unknown --emulator-scope was ACCEPTED — FAIL"; st_fail=1
+    else
+        echo "  safety:   an unknown emulator scope REFUSES, never defaults — PASS"
+    fi
+
     if [ "$st_fail" -eq 0 ]; then echo "SELF-TEST PASS (safety + liveness, non-vacuous)"; exit 0; fi
     echo "SELF-TEST FAIL"; exit 2
 fi
@@ -68,6 +121,22 @@ fi
 SLNF="${1:-eng/ci/shards/IntegrationTests.slnf}"
 FILTER="${2:-(Category=Integration|Category=EndToEnd)}"
 OUT="${3:-}"
+
+# EMULATOR_SCOPE — which way this census must assert, because the policy is now per-workflow.
+#
+#   in  (default)  every emulator-starting class MUST be admitted by the filter. A class that starts a
+#                  container but cannot be selected is the invisible-test defect.
+#   out            every emulator-starting class MUST NOT be admitted. This is the PR path, where the
+#                  Cosmos suite is deliberately absent and runs nightly instead.
+#
+# The gate is NOT switched off in the `out` case — it is INVERTED, so it still fires. Silencing it
+# would surrender the property in the direction that now matters: re-admitting a ten-minute emulator
+# to the PR path by accident. A policy gate must assert the policy, whichever policy is in force.
+EMULATOR_SCOPE="${4:-in}"
+case "$EMULATOR_SCOPE" in
+    in|out) ;;
+    *) echo "::error::REFUSE — unknown emulator scope '$EMULATOR_SCOPE' (expected 'in' or 'out')." >&2; exit 3 ;;
+esac
 
 fail() { echo "::error::REFUSE — $*" >&2; exit 3; }
 
@@ -140,11 +209,20 @@ echo "Cosmos classes by BEHAVIOUR        = $BEHAVIOUR_CLASSES"
 # the gate REFUSED a healthy tree -- reporting all 9 Cosmos classes as invisible when all 9 were present.
 # Measured, not theorised: this is what the first run of this script did.
 trait_simple="$(printf '%s\n' "$trait_classes" | sed 's/.*\.//' | sort -u)"
-missing="$(comm -23 <(printf '%s\n' "$behaviour_classes") <(printf '%s\n' "$trait_simple"))"
-if [ -n "${missing//[[:space:]]/}" ]; then
-    echo "::error::Cosmos classes that start an emulator but are NOT admitted by the filter:" >&2
-    printf '  %s\n' $missing >&2
-    fail "census disagreement — $(printf '%s\n' $missing | grep -c .) Cosmos class(es) are invisible to the test filter. Tag them, do not narrow this gate."
+
+if offenders="$(census_disagreement "$EMULATOR_SCOPE" "$behaviour_classes" "$trait_simple")"; then
+    n="$(printf '%s\n' "$offenders" | grep -c .)"
+    if [ "$EMULATOR_SCOPE" = "in" ]; then
+        echo "::error::Cosmos classes that start an emulator but are NOT admitted by the filter:" >&2
+        printf '  %s\n' $offenders >&2
+        fail "census disagreement — $n Cosmos class(es) are invisible to the test filter. Tag them, do not narrow this gate."
+    else
+        # The opposite failure, and just as quiet: a class drifts back onto the PR shard, the runner
+        # spends ten minutes on a container nobody asked for, and nothing says so because it passes.
+        echo "::error::Cosmos classes that start an emulator and ARE admitted on an emulator-free path:" >&2
+        printf '  %s\n' $offenders >&2
+        fail "census disagreement — $n emulator-starting class(es) are admitted on a path declared emulator-free. Tag them Infrastructure=CosmosEmulator so the filter can exclude them, or move them to the nightly job."
+    fi
 fi
 
 if [ -n "$OUT" ]; then

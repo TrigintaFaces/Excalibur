@@ -37,6 +37,7 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 [Collection(CosmosDbSnapshotStoreTestCollection.CollectionName)]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 public sealed class CosmosDbSnapshotStoreConformanceShould : SnapshotConformanceTestBase, IClassFixture<CosmosDbSnapshotStoreContainerFixture>
 {

@@ -31,6 +31,7 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 /// advertisement.
 /// </remarks>
 [Trait("Category", "Integration")]
+[Trait("Infrastructure", "CosmosEmulator")]
 [Trait("Database", "CosmosDb")]
 [Trait("Component", "Inbox")]
 public sealed class CosmosDbTransactionalInboxExactlyOnceShould
