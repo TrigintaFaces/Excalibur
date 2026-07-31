@@ -152,14 +152,22 @@ $distinctAssemblies = @($assemblies.Keys | Sort-Object)
 $distinctTestCount = 0
 $distinctFailedCount = 0
 $failedAssemblies = New-Object System.Collections.Generic.List[string]
+# assemblyKey -> the sorted names of the tests that failed in it, so the RED can name them.
+$failedTestsByAssembly = @{}
 
 foreach ($key in $distinctAssemblies) {
   $tests = $assemblies[$key].Tests
   $distinctTestCount += $tests.Count
-  $af = @($tests.GetEnumerator() | Where-Object { $_.Value }).Count
+  # Keep the NAMES, not just the count. This enumeration already has them; the previous form took
+  # .Count and discarded the keys, so a RED said "excalibur.dispatch.tests.dll (1 failed)" and left
+  # the reader to go hunting across 224 TRX files for which test it was. A gate that knows exactly
+  # what failed and reports only how many is withholding the one fact the failure exists to convey.
+  $failedNames = @($tests.GetEnumerator() | Where-Object { $_.Value } | ForEach-Object { $_.Key } | Sort-Object)
+  $af = $failedNames.Count
   if ($af -gt 0) {
     $distinctFailedCount += $af
     $failedAssemblies.Add("$key ($af failed)")
+    $failedTestsByAssembly[$key] = $failedNames
   }
 }
 
@@ -223,6 +231,12 @@ if ($distinctFailedCount -gt 0) {
   Write-Host ""
   Write-Host "RED: $distinctFailedCount distinct test failure(s) across $($failedAssemblies.Count) assembly(ies):"
   foreach ($f in $failedAssemblies) { Write-Host "  - $f" }
+  Write-Host ""
+  Write-Host "Failing tests:"
+  foreach ($key in ($failedTestsByAssembly.Keys | Sort-Object)) {
+    Write-Host "  $key"
+    foreach ($t in $failedTestsByAssembly[$key]) { Write-Host "    * $t" }
+  }
 }
 
 if ($red) {

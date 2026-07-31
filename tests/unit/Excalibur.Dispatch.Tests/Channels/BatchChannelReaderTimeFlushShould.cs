@@ -37,6 +37,18 @@ namespace Excalibur.Dispatch.Tests.Channels;
 /// project has <c>InternalsVisibleTo</c>.
 /// </para>
 /// </remarks>
+// Serialized deliberately. These arms turn on a 150 ms flush window, and the shard SHIPS
+// parallelizeTestCollections=true with maxParallelThreads=ProcessorCount (verified in
+// bin/Release/xunit.runner.json, which differs from the project's own source config). On a 2-4 core
+// CI runner, sibling collections holding pool threads on blocking waits can starve the timer
+// callback and its continuations — the failure mode observed here was a 30 s safety token firing at
+// 35 s, and that 5 s overshoot is itself the signature, because the safety net needs the same pool
+// it is protecting against. DisableParallelization on this collection is what keeps the window real.
+//
+// This is a MITIGATION, not a root-cause fix: it removes this class from contention rather than
+// removing the blocking waits that cause it. 39 classes in this shard use sub-second timeouts and
+// only a handful are serialized; that population is tracked separately.
+[Collection("Performance Tests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Channels")]
 [Trait("Feature", "Batching")]
