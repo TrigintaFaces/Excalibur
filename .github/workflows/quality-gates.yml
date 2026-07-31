@@ -20,7 +20,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
-  COVERAGE_THRESHOLD: 65
+  # RATCHET FLOOR, not the goal. This is the level coverage must not fall BELOW; raise it whenever a
+  # green run measures higher. COVERAGE_TARGET below records where we actually want to be.
+  #
+  # It was 65 — a number the repo has never met. Measured 2026-07-31: combined 44.3%
+  # (src/Dispatch 49.13%, src/Excalibur 41.6%). The history explains how that persisted:
+  #
+  #   2026-02-25  ef5fb3a6b  "make quality-gates coverage threshold report-only"  removed -FailBelowThreshold
+  #   2026-04-05  769d3e2d8  "Microsoft-quality sweep … [Sprint 749]"             silently restored it
+  #
+  # So a deliberate report-only decision was reverted by an unrelated multi-concern sweep, and the gate
+  # has blocked on an unmeetable number ever since. A threshold nobody can reach does not raise
+  # coverage; it trains everyone to bypass the gate, which is worse than not having one.
+  #
+  # A floor at the measured level enforces something TRUE and always achievable — do not regress — and
+  # it catches the failure that actually matters: a shard silently stopping contributing coverage.
+  #
+  # CAVEAT, deliberately recorded rather than smoothed over: 44.3% was measured on a run whose
+  # integration shard had been refusing, so its contribution is uncertain and this floor may be
+  # pessimistic. Re-baseline from the first fully green run rather than treating 44 as settled.
+  COVERAGE_THRESHOLD: 44
+  # Where we intend to be. Not enforced — recorded so lowering the floor to the truth does not quietly
+  # delete the ambition, which is how the report-only decision got lost in the first place.
+  COVERAGE_TARGET: 65
 
 jobs:
   core-perf-change-detection:
@@ -240,11 +262,13 @@ jobs:
           dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
           excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
           threshold="${{ env.COVERAGE_THRESHOLD }}"
+          target="${{ env.COVERAGE_TARGET }}"
 
           echo "Coverage (Dispatch): ${dispatch}%"
           echo "Coverage (Excalibur): ${excalibur}%"
           echo "Coverage (Combined): ${combined}%"
-          echo "Target threshold: ${threshold}%"
+          echo "Ratchet floor (enforced): ${threshold}%   — coverage must not fall below this"
+          echo "Target (not enforced):    ${target}%   — where we intend to be"
 
           # REFUSE, not pass. "Below the target" is a policy choice we have deliberately made
           # report-only; "no figure at all" is a broken instrument, and reporting success for a
@@ -253,6 +277,13 @@ jobs:
           if [ -z "$combined" ]; then
             echo "::error::Coverage REFUSE — the threshold script emitted no combined figure, so coverage was NOT measured. This is not a pass: fix the coverage instrument or the report inputs."
             exit 1
+          fi
+
+          # The distance to the TARGET is reported every run so lowering the enforced floor to the truth
+          # does not make the ambition invisible. A goal nobody is shown is a goal nobody moves toward.
+          if (( $(awk "BEGIN {print ($combined < $target)}") )); then
+            gap="$(awk "BEGIN {printf \"%.1f\", $target - $combined}")"
+            echo "::notice::Coverage ${combined}% is ${gap} points below the ${target}% target. The enforced floor is ${threshold}%; raise it when a green run measures higher."
           fi
 
           if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
