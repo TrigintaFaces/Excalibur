@@ -355,7 +355,16 @@ jobs:
     name: Unit Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     needs: smoke-tests
-    timeout-minutes: 15
+    # 20, not 15, so the RunConfiguration.TestSessionTimeout (900000 ms = 15 min, from the
+    # build-and-test action) can actually fire FIRST. At 15 they were equal, so the session timeout
+    # could never win the race: the runner killed the job at the wall, no TRX was written, and a
+    # wedged shard reported nothing about how far it got. A diagnostic bound that expires at the
+    # same instant as the thing it is meant to pre-empt is not a bound, it is decoration.
+    #
+    # The five minutes of headroom are for vstest to flush the TRX and the upload step to run.
+    # Keep this STRICTLY GREATER than the session timeout; raising one without the other
+    # re-creates the tie.
+    timeout-minutes: 20
     # TEST_TIMEOUT_MULTIPLIER is inherited from the workflow env, deliberately: this job is not the
     # only one that runs the deterministic shard, and a copy here is what let the others go unscaled.
     strategy:
@@ -405,7 +414,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: smoke-tests
     continue-on-error: ${{ github.event_name == 'pull_request' }}
-    timeout-minutes: 15
+    # 20 for the same reason as unit-tests above: the 15-minute session timeout must be able to fire
+    # before the job wall, or a wedged shard dies without writing a TRX. Keep strictly greater.
+    timeout-minutes: 20
     strategy:
       matrix:
         shard:
@@ -789,6 +800,8 @@ jobs:
           # and a count is not a claim anyone can check.
           $totalFailed = 0; $totalExecuted = 0; $totalTests = 0
           $skippedNames = New-Object System.Collections.Generic.List[string]
+          # Structurally-inapplicable skips: reported in full, never silent, but not allowlist-bearing.
+          $capabilitySkips = New-Object System.Collections.Generic.List[string]
           foreach ($trx in $trxFiles) {
             [xml]$xml = Get-Content $trx.FullName
             $counters = $xml.TestRun.ResultSummary.Counters
@@ -798,7 +811,31 @@ jobs:
             Write-Host "$($trx.Name): executed=$executed failed=$failed total=$total"
             $totalFailed += $failed; $totalExecuted += $executed; $totalTests += $total
             foreach ($r in $xml.TestRun.Results.UnitTestResult) {
-              if ($r.outcome -ne 'Passed' -and $r.outcome -ne 'Failed') { $skippedNames.Add($r.testName) }
+              if ($r.outcome -ne 'Passed' -and $r.outcome -ne 'Failed') {
+                # The TRX carries the skip REASON, and this used to discard it. Two unrelated things
+                # produce a skip and they need opposite treatment:
+                #
+                #   SUPPRESSION  the test SHOULD run and does not. Needs a named owner, evidence and an
+                #                expiry, because the cause is fixable. -> allowlist.
+                #   CAPABILITY   the test CANNOT apply: the provider does not implement the interface
+                #                under test. A fact about the type system, not a renewable decision.
+                #
+                # Filing the second in an expiring allowlist forces a permanent fact to be re-approved
+                # on a schedule with no new measurement to record -- the "a fresh date is not a
+                # renewal" failure that allowlist exists to prevent -- and buries the few real
+                # suppressions among dozens nobody can act on.
+                #
+                # The category is declared AT THE SKIP SITE via CapabilityNotApplicable() in the
+                # conformance base, which emits this marker. It is matched literally, never inferred
+                # from prose: a gate guessing intent from a message silently reclassifies a
+                # suppression the day someone rewords it.
+                $reason = "$($r.Output.ErrorInfo.Message)"
+                if ($reason -like '*[[]capability-not-applicable[]]*') {
+                  $capabilitySkips.Add("$($r.testName)  --  $reason")
+                } else {
+                  $skippedNames.Add($r.testName)
+                }
+              }
             }
           }
 
@@ -835,6 +872,15 @@ jobs:
             $allowedClasses += $e.test
           }
           Write-Host "--- end allowlist ---`n"
+
+          # Printed, always. Exempt from the allowlist is NOT exempt from being seen -- a category that
+          # stops being reported is a category that stops being questioned, and "no provider implements
+          # fencing any more" should be visible the run it becomes true.
+          if ($capabilitySkips.Count -gt 0) {
+            Write-Host "`nStructurally inapplicable ($($capabilitySkips.Count)) -- provider does not implement the interface under test. Not allowlist-bearing:"
+            $capabilitySkips | ForEach-Object { Write-Host "  $_" }
+            Write-Host ""
+          }
 
           if ($skippedNames.Count -gt 0) {
             Write-Host "Skipped tests, by name (a skip total is a number; a skip list is a claim you can check):"

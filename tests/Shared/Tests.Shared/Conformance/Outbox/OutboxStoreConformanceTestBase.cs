@@ -39,6 +39,40 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	protected IOutboxStore Store { get; private set; } = null!;
 
 	/// <summary>
+	/// Marker prefix declaring a skip as STRUCTURALLY INAPPLICABLE rather than suppressed.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// There are two unrelated reasons a conformance test does not run, and CI must not treat them
+	/// alike. A SUPPRESSION is a test that SHOULD run and does not — it needs a named owner, evidence
+	/// and an expiry, because the reason it is suppressed can be fixed. A CAPABILITY skip is a test
+	/// that CANNOT apply: the provider does not implement the interface the test exercises, which is a
+	/// fact about the type system, not a decision anyone can renew.
+	/// </para>
+	/// <para>
+	/// Filing the second kind in an expiring allowlist forces a permanent fact to be re-approved on a
+	/// schedule with no new measurement to record — which is precisely the "a fresh date is not a
+	/// renewal" failure that allowlist exists to prevent — and it buries the few real suppressions
+	/// among dozens of entries nobody can act on.
+	/// </para>
+	/// <para>
+	/// The category is declared HERE, by the author who knows the condition, and read downstream from
+	/// the TRX. It is deliberately not inferred by matching prose: a gate guessing at intent from a
+	/// message string is a gate that silently reclassifies a suppression the day someone rewords it.
+	/// </para>
+	/// </remarks>
+	protected const string CapabilitySkipMarker = "[capability-not-applicable]";
+
+	/// <summary>
+	/// Builds a skip reason for a capability the provider does not advertise.
+	/// </summary>
+	/// <param name="capability">The interface the test requires, e.g. <c>IFencedOutboxStore</c>.</param>
+	/// <param name="detail">What is therefore not applicable to this store.</param>
+	/// <returns>A marked reason string CI recognises as structurally inapplicable.</returns>
+	protected static string CapabilityNotApplicable(string capability, string detail) =>
+		$"{CapabilitySkipMarker} Provider does not advertise {capability} — {detail}";
+
+	/// <summary>
 	/// The admin interface for the outbox store under test.
 	/// </summary>
 	protected IOutboxStoreAdmin Admin { get; private set; } = null!;
@@ -1114,7 +1148,7 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	{
 		Assert.SkipWhen(
 			Store is not IFencedOutboxStore,
-			"Provider does not advertise IFencedOutboxStore — leadership fencing is not applicable to this store.");
+			CapabilityNotApplicable("IFencedOutboxStore", "leadership fencing is not applicable to this store."));
 
 		var fenced = (IFencedOutboxStore)Store;
 
@@ -1178,7 +1212,7 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	{
 		Assert.SkipWhen(
 			Store is not IFencedOutboxStore,
-			"Provider does not advertise IFencedOutboxStore — leadership fencing is not applicable to this store.");
+			CapabilityNotApplicable("IFencedOutboxStore", "leadership fencing is not applicable to this store."));
 
 		var fenced = (IFencedOutboxStore)Store;
 
@@ -1224,7 +1258,7 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 
 		Assert.SkipWhen(
 			Store is not IFencedOutboxStore,
-			"Provider does not advertise IFencedOutboxStore — leadership fencing is not applicable to this store.");
+			CapabilityNotApplicable("IFencedOutboxStore", "leadership fencing is not applicable to this store."));
 
 		var fenced = (IFencedOutboxStore)Store;
 
@@ -1265,7 +1299,7 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	{
 		Assert.SkipWhen(
 			Store is not IFencedOutboxStore,
-			"Provider does not advertise IFencedOutboxStore — leadership fencing is not applicable to this store.");
+			CapabilityNotApplicable("IFencedOutboxStore", "leadership fencing is not applicable to this store."));
 
 		var fenced = (IFencedOutboxStore)Store;
 
@@ -1320,7 +1354,7 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	{
 		Assert.SkipWhen(
 			Store is not IFencedOutboxStore,
-			"Provider does not advertise IFencedOutboxStore — leadership fencing is not applicable to this store.");
+			CapabilityNotApplicable("IFencedOutboxStore", "leadership fencing is not applicable to this store."));
 
 		var fenced = (IFencedOutboxStore)Store;
 
@@ -1765,7 +1799,7 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 
 			Assert.SkipWhen(
 				store is not IDeadLetterableOutboxStore,
-				"Store does not advertise IDeadLetterableOutboxStore — terminal dead-lettering is not applicable.");
+				CapabilityNotApplicable("IDeadLetterableOutboxStore", "terminal dead-lettering is not applicable."));
 			await ((IDeadLetterableOutboxStore)store!)
 				.MarkDeadLetteredAsync(msg.Id, "retries exhausted", CancellationToken.None).ConfigureAwait(false);
 
