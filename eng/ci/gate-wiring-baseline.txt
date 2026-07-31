@@ -21,6 +21,14 @@ tracked-artifact-gate.sh
 # explicit tracked debt until the map + floor are completed, then wired blocking and this line deleted.
 shipped-ddl-sweep.sh
 
+# committed deliberately as a MANUAL tool, not as an enforcement gate. Its own header says so at
+# line 5 ("STATUS: UNWIRED. NOTHING INVOKES THIS SCRIPT") and the integrator ruled it that way when
+# it landed: it is a diagnostic a human runs, and labelling it in place was chosen over wiring it so
+# that nobody reads its presence as enforcement. This line records that ruling where gate-wiring
+# reads it. DELETE this line if it is ever given a caller — and update the header block at the same
+# time, because a stale "UNWIRED" notice on a wired gate is the same lie in the other direction.
+assert-binary-matches-source.sh
+
 # --- beads/metrics + planning helpers invoked manually or only when their own file is staged ---
 # manual human-decision triage tool (emits a terminal disposition for a human to act on); it evaluates
 # nothing on src/ and its name is a forbidden workflow token, so it is structurally un-wireable as a

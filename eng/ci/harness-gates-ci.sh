@@ -117,7 +117,6 @@ for t in \
     "eng/ci/pre-commit-dispatch-gate.test.sh" \
     "eng/ci/shard-hang-timeout-gate.test.sh" \
     "eng/ci/full-ci-shard-completeness.sh --self-test" \
-    "eng/ci/full-ci-assembly-gate-wiring.test.sh" \
     "eng/ci/cosmos-fixture-pattern-gate.sh --self-test" \
     "eng/ci/cosmos-fixture-pattern-gate.sh" \
     "eng/ci/committed-sha-build-gate.test.sh" \

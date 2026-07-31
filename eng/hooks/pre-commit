@@ -53,19 +53,44 @@ fi
 #
 # Each runs only when its own subject is staged. A lock that fires on every commit is a lock that
 # gets bypassed; one that fires when you change the thing it guards is a lock that gets read.
-staged_paths="$(git diff --cached --name-only --diff-filter=ACM)"
+# ACMR, not ACM: R is RENAME, and relocating a guard is precisely the change that alters which
+# caller runs it — so it is the last change that should slip past its own lock. Demonstrated by
+# `git mv`-ing a lock between directories and watching ACM report an empty staged set while
+# `git status` showed the rename. For a rename, --name-only reports the NEW path, which is the
+# one the trigger needs to match.
+staged_paths="$(git diff --cached --name-only --diff-filter=ACMR)"
 # "<dir>:<guard>" — the guards do NOT all live in one directory. single-filing-path and
 # decomposition-coverage-gate enforce AGENT-PROCESS policy (which command files an issue; whether a
 # sprint decomposition still covers its spec), they are invoked only by this hook, and eng/** is
 # mirrored to a public repository — so they live in .claude/harness/ with the other bd/agent guards.
 # duplicate-xml-doc-tags is a product gate wired into CI and stays in eng/ci/.
+# Entry format: "<dir>:<guard>[:<extra subject paths, space-separated>]"
+#
+# The optional THIRD field exists because a lock whose only trigger is its own file fires when you
+# edit THE LOCK and never when you break THE THING IT GUARDS — which is the case it was written for.
+# full-ci-assembly-gate-wiring asserts that the full-suite runner still invokes the assembly gate, so
+# it has to fire when either of those two files changes, not merely when the lock itself is touched.
 for entry in ".claude/harness:single-filing-path" \
              "eng/ci:duplicate-xml-doc-tags" \
-             ".claude/harness:decomposition-coverage-gate"; do
+             ".claude/harness:decomposition-coverage-gate" \
+             ".claude/harness:full-ci-assembly-gate-wiring:.claude/skills/full-ci-run/SKILL.md eng/ci/full-ci-shard-completeness.sh"; do
     guard_dir="${entry%%:*}"
-    guard="${entry##*:}"
+    entry_rest="${entry#*:}"
+    guard="${entry_rest%%:*}"
+    # With no third field, entry_rest IS the guard name — so there are no extra subjects.
+    guard_subjects=""
+    [ "$entry_rest" != "$guard" ] && guard_subjects="${entry_rest#*:}"
+
+    trigger_hit=no
     case "$staged_paths" in
-        *"$guard_dir/$guard.sh"*|*"$guard_dir/$guard.test.sh"*)
+        *"$guard_dir/$guard.sh"*|*"$guard_dir/$guard.test.sh"*) trigger_hit=yes ;;
+    esac
+    for subject in $guard_subjects; do
+        case "$staged_paths" in *"$subject"*) trigger_hit=yes ;; esac
+    done
+
+    case "$trigger_hit" in
+        yes)
             echo -e "${CYAN}Staged $guard — proving its lock is non-vacuous...${NC}"
             # Three-state, matching the discipline this file already documents for the bd guards
             # below: a lock that FAILED TO RUN has not told us the lock is broken. Reporting
