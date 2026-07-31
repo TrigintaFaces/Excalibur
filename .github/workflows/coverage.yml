@@ -90,9 +90,14 @@ jobs:
           echo "Coverage (Combined): ${combined}%"
           echo "Target threshold: ${threshold}%"
 
+          # REFUSE, not pass. "Below the target" is a policy choice this job deliberately reports
+          # rather than enforces; "no figure at all" is a broken instrument, and a gate that
+          # reports success for a measurement that never happened is the one thing it must never
+          # do. Different states, different exits. (The identical block in quality-gates.yml
+          # carries the same contract — they are a pair and must not drift apart again.)
           if [ -z "$combined" ]; then
-            echo "::warning::Coverage threshold script did not emit combined coverage output."
-            exit 0
+            echo "::error::Coverage REFUSE — the threshold script emitted no combined figure, so coverage was NOT measured. This is not a pass: fix the coverage instrument or the report inputs."
+            exit 1
           fi
 
           if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then

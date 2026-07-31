@@ -112,7 +112,29 @@ fi
 # 8081 is the gateway / data plane; 8080 reports health. Poll health, then prove the data plane.
 health_port="$(docker port "$NAME" 8080/tcp 2>/dev/null | head -1 | sed 's/.*://')"
 gw_port="$(docker port "$NAME" 8081/tcp 2>/dev/null | head -1 | sed 's/.*://')"
-[ -n "${gw_port:-}" ] || refuse "the emulator exposed no gateway port; the container is running but unreachable."
+
+# An empty port has TWO causes and they need different fixes, so measure which one it is rather
+# than asserting. `docker port` returns nothing for a container that has EXITED, exactly as it
+# does for one that published no port -- so the previous message here ("the container is running
+# but unreachable") stated liveness this script had never checked, and named the wrong condition
+# whenever the emulator died on startup. Reproduced both ways against the pinned image:
+# a running container resolves 8081/tcp to a host port; a stopped one returns empty.
+if [ -z "${gw_port:-}" ]; then
+    # Strip line endings: a failed inspect emits a bare newline before erroring, which would
+    # otherwise land a line break in the middle of the refusal message.
+    state="$(docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$NAME" 2>/dev/null | tr -d '\r\n')"
+    [ -n "$state" ] || state='absent (container not found)'
+    echo "--- emulator container state: ${state}; last 40 log lines ---" >&2
+    docker logs --tail 40 "$NAME" 2>&1 >&2 || true
+    case "$state" in
+        running*)
+            refuse "the emulator is running but published no gateway port for 8081/tcp (state and logs above)."
+            ;;
+        *)
+            refuse "the emulator container is '${state}' — it did not stay up long enough to publish a gateway port (logs above)."
+            ;;
+    esac
+fi
 
 deadline=$(( $(date +%s) + READY_TIMEOUT ))
 ready=0

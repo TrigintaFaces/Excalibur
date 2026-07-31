@@ -57,9 +57,14 @@ check_fixture() {
 }
 
 self_test() {
-  local tmp fails=0 rc
+  local tmp fails=0 rc self
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
+  # Re-invoke through an explicit interpreter on an ABSOLUTE path. A bare "$0" depends on the
+  # execute bit surviving the checkout and on $0 still resolving from the current directory;
+  # when either fails the arms exit 126/127 and the whole self-test reports FAIL for a gate that
+  # is actually fine. Every gate whose self-test passes in CI uses this form.
+  self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
   printf '\ncosmos-fixture-pattern-gate — self-test\n\n'
 
   # L1 LIVENESS — a conforming fixture must PASS. Without this arm a gate that rejects everything
@@ -69,7 +74,7 @@ var _container = new CosmosDbBuilder().WithImage("x").Build();
 var cs = _container.GetConnectionString();
 builder.WithHttpClientFactory(() => _container.HttpClient);
 EOF
-  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp" "$0" >/dev/null 2>&1 || rc=$?
+  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp" bash "$self" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 0 ]; then echo "  PASS  L1 LIVENESS conforming fixture -> exit 0"
   else echo "  FAIL  L1 LIVENESS conforming fixture -> exit $rc (expected 0)"; fails=$((fails+1)); fi
 
@@ -78,7 +83,7 @@ EOF
 var _container = new CosmosDbBuilder().WithImage("x").Build();
 var cs = _container.GetConnectionString();
 EOF
-  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp" "$0" >/dev/null 2>&1 || rc=$?
+  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp" bash "$self" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then echo "  PASS  S1 SAFETY   missing WithHttpClientFactory -> exit 1"
   else echo "  FAIL  S1 SAFETY   missing WithHttpClientFactory -> exit $rc (expected 1)"; fails=$((fails+1)); fi
   rm -f "$tmp/BadNoFactory.cs"
@@ -89,13 +94,13 @@ var _container = new CosmosDbBuilder().WithImage("x").Build();
 var cs = $"AccountEndpoint=http://{host}:{port}/;AccountKey=k;";
 builder.WithHttpClientFactory(() => _container.HttpClient);
 EOF
-  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp" "$0" >/dev/null 2>&1 || rc=$?
+  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp" bash "$self" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then echo "  PASS  S2 SAFETY   hand-built connection string -> exit 1"
   else echo "  FAIL  S2 SAFETY   hand-built connection string -> exit $rc (expected 1)"; fails=$((fails+1)); fi
   rm -f "$tmp/BadHandBuilt.cs"
 
   # R1 REFUSE — no fixtures found means nothing was measured. Never a pass.
-  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp/empty" "$0" >/dev/null 2>&1 || rc=$?
+  rc=0; COSMOS_FIXTURE_SCAN_ROOT="$tmp/empty" bash "$self" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 2 ]; then echo "  PASS  R1 REFUSE   no fixtures found -> exit 2, distinct from PASS and FAIL"
   else echo "  FAIL  R1 REFUSE   no fixtures found -> exit $rc (expected 2)"; fails=$((fails+1)); fi
 

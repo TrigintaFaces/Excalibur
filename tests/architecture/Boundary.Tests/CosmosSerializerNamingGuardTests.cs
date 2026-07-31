@@ -166,9 +166,11 @@ public sealed class CosmosSerializerNamingGuardTests
         {
             var trimmed = line.TrimStart();
 
+            // The single-char overload is ordinal by definition, so it carries the same semantics
+            // as its string sibling without a StringComparison argument (CA1865).
             return trimmed.StartsWith("///", StringComparison.Ordinal)
                 || trimmed.StartsWith("//", StringComparison.Ordinal)
-                || trimmed.StartsWith("*", StringComparison.Ordinal)
+                || trimmed.StartsWith('*')
                 || trimmed.StartsWith("/*", StringComparison.Ordinal);
         }
     }

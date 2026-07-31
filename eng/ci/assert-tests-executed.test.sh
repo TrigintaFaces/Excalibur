@@ -43,22 +43,22 @@ No test matches the given testcase filter `Category=X` in ProjA.dll
 Summary Subtotal: 5 (unrelated line, no real executed Total)'
 
 # ── SAFETY arm: a zero-match run is REFUSED (non-zero exit) ──
-if printf '%s' "$zero_match_output" | "$gate" --filter "Typo_zzz" >/dev/null 2>&1; then
+if printf '%s' "$zero_match_output" | bash "$gate" --filter "Typo_zzz" >/dev/null 2>&1; then
     fail "a zero-match run was NOT refused (safety arm) — the false green passes"
 fi
 
 # ── SAFETY arm 2: 'Total: 0' is treated as zero-match, not a real run ──
-if printf '%s' "$total_zero_output" | "$gate" --filter "empty" >/dev/null 2>&1; then
+if printf '%s' "$total_zero_output" | bash "$gate" --filter "empty" >/dev/null 2>&1; then
     fail "a 'Total: 0' run was NOT refused — vacuous total read as a real run"
 fi
 
 # ── SAFETY arm 3: 'Subtotal: 5' does NOT false-pass a zero-match run (word-anchor, not substring) ──
-if printf '%s' "$subtotal_trap_output" | "$gate" --filter "Category=X" >/dev/null 2>&1; then
+if printf '%s' "$subtotal_trap_output" | bash "$gate" --filter "Category=X" >/dev/null 2>&1; then
     fail "a 'Subtotal: 5' zero-match run was NOT refused — 'Total' substring-matched instead of word-anchored"
 fi
 
 # ── LIVENESS arm: a run where tests executed is ALLOWED, even with a sibling zero-match ──
-if ! printf '%s' "$mixed_real_output" | "$gate" --filter "Category=X" >/dev/null 2>&1; then
+if ! printf '%s' "$mixed_real_output" | bash "$gate" --filter "Category=X" >/dev/null 2>&1; then
     fail "a real multi-project run WAS refused (liveness arm) — the per-project 'No test matches' line caused a false positive"
 fi
 
@@ -88,47 +88,47 @@ Passed!  - Failed: 0, Passed: 7, Skipped: 0, Total: 7, Duration: 30 ms - ProjB.d
 overrun_output='Passed!  - Failed: 0, Passed: 20, Skipped: 0, Total: 20, Duration: 90 ms - ProjA.dll'
 
 # ── SAFETY arm 4: the measured false green — aborted, 5 of 16 — is REFUSED ──
-if printf '%s' "$aborted_partial_output" | "$gate" --filter "Category=Integration" --expect 16 >/dev/null 2>&1; then
+if printf '%s' "$aborted_partial_output" | bash "$gate" --filter "Category=Integration" --expect 16 >/dev/null 2>&1; then
     fail "an ABORTED 5-of-16 run was NOT refused — the measured false green still passes"
 fi
 
 # ── SAFETY arm 5: the abort arm fires WITHOUT --expect, so legacy callers are covered too ──
-if printf '%s' "$aborted_partial_output" | "$gate" --filter "Category=Integration" >/dev/null 2>&1; then
+if printf '%s' "$aborted_partial_output" | bash "$gate" --filter "Category=Integration" >/dev/null 2>&1; then
     fail "an ABORTED run was NOT refused when --expect was omitted — legacy callers still inherit it"
 fi
 
 # ── SAFETY arm 6: a silent truncation (no abort marker) is caught by the count alone ──
-if printf '%s' "$truncated_no_marker_output" | "$gate" --filter "Category=Integration" --expect 16 >/dev/null 2>&1; then
+if printf '%s' "$truncated_no_marker_output" | bash "$gate" --filter "Category=Integration" --expect 16 >/dev/null 2>&1; then
     fail "a truncated 5-of-16 run with NO abort marker was NOT refused — --expect is not standing alone"
 fi
 
 # ── SAFETY arm 7: MORE tests than expected is a stale expectation, not a pass ──
-if printf '%s' "$overrun_output" | "$gate" --filter "Category=X" --expect 16 >/dev/null 2>&1; then
+if printf '%s' "$overrun_output" | bash "$gate" --filter "Category=X" --expect 16 >/dev/null 2>&1; then
     fail "a run executing MORE than --expect was NOT refused — the count check tolerates its own drift"
 fi
 
 # ── SAFETY arm 8: a malformed --expect REFUSES rather than degrading to the weaker >= 1 check ──
-if printf '%s' "$complete_split_output" | "$gate" --filter "Category=X" --expect "sixteen" >/dev/null 2>&1; then
+if printf '%s' "$complete_split_output" | bash "$gate" --filter "Category=X" --expect "sixteen" >/dev/null 2>&1; then
     fail "a malformed --expect was silently ignored — a typo would permanently weaken the gate"
 fi
 
 # ── LIVENESS arm 2: an exactly-matching run is ALLOWED, counted as the aggregate across projects ──
-if ! printf '%s' "$complete_split_output" | "$gate" --filter "Category=X" --expect 16 >/dev/null 2>&1; then
+if ! printf '%s' "$complete_split_output" | bash "$gate" --filter "Category=X" --expect 16 >/dev/null 2>&1; then
     fail "a complete 9+7=16 run WAS refused (liveness) — the count is not aggregating across projects"
 fi
 
 # ── LIVENESS arm 3: omitting --expect preserves the ORIGINAL >= 1 contract verbatim ──
 # Without this, the strengthening could silently break every existing caller and the suite would
 # still look green on the new arms alone.
-if ! printf '%s' "$truncated_no_marker_output" | "$gate" --filter "Category=X" >/dev/null 2>&1; then
+if ! printf '%s' "$truncated_no_marker_output" | bash "$gate" --filter "Category=X" >/dev/null 2>&1; then
     fail "a real run WAS refused when --expect was omitted — backward compatibility is broken"
 fi
 
 # ── The refuse code stays the documented 3 for the NEW refusal paths too ──
 set +e
-printf '%s' "$aborted_partial_output" | "$gate" --filter "X" --expect 16 >/dev/null 2>&1
+printf '%s' "$aborted_partial_output" | bash "$gate" --filter "X" --expect 16 >/dev/null 2>&1
 rc_abort=$?
-printf '%s' "$truncated_no_marker_output" | "$gate" --filter "X" --expect 16 >/dev/null 2>&1
+printf '%s' "$truncated_no_marker_output" | bash "$gate" --filter "X" --expect 16 >/dev/null 2>&1
 rc_count=$?
 set -e
 [ "$rc_abort" -eq 3 ] || fail "abort refuse exit code was ${rc_abort}, expected 3"
@@ -136,7 +136,7 @@ set -e
 
 # ── The exit code on refuse is the documented distinct code, not a generic 1 ──
 set +e
-printf '%s' "$zero_match_output" | "$gate" --filter "Typo_zzz" >/dev/null 2>&1
+printf '%s' "$zero_match_output" | bash "$gate" --filter "Typo_zzz" >/dev/null 2>&1
 rc=$?
 set -e
 [ "$rc" -eq 3 ] || fail "refuse exit code was ${rc}, expected the documented 3 (distinct from a test failure)"
