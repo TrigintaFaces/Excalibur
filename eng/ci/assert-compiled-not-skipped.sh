@@ -116,11 +116,18 @@ if [ "${evidence_lines:-0}" -eq 0 ]; then
     exit "$E_ENV"
 fi
 
-mapfile -t SKIPPED < <(printf '%s' "$CONTENT" | grep -oE "${SKIP_MARKER} [^ ]+" | sed -E "s/${SKIP_MARKER} //" | LC_ALL=C sort -u)
+# Portability: `mapfile` is bash 4+, and macOS ships bash 3.2 -- this gate died there with
+# "mapfile: command not found" and then "SKIPPED[@]: unbound variable", because bash 3.2 under
+# `set -u` treats an empty array as unset. Both are avoided by streaming the lines through a
+# plain `while read` instead of materialising an array. The loop body runs in the current shell
+# (redirect at `done`, not a pipe), so `unexpected` and `skip_count` survive it.
+skip_list="$(printf '%s' "$CONTENT" | grep -oE "${SKIP_MARKER} [^ ]+" | sed -E "s/${SKIP_MARKER} //" | LC_ALL=C sort -u)"
 
 unexpected=0
-for proj in "${SKIPPED[@]}"; do
+skip_count=0
+while IFS= read -r proj; do
     [ -n "$proj" ] || continue
+    skip_count=$((skip_count + 1))
     ok=0
     for e in ${EXPECTED+"${EXPECTED[@]}"}; do
         [ "$proj" = "$e" ] && ok=1 && break
@@ -136,12 +143,14 @@ for proj in "${SKIPPED[@]}"; do
         echo "    SKIPPED, NOT COMPILED: $proj" >&2
         unexpected=$((unexpected + 1))
     fi
-done
+done <<EOF
+$skip_list
+EOF
 
 if [ "$unexpected" -ne 0 ]; then
     echo "  Fix: pass -p:BuildExamplesAndTests=true, or declare the skip with --expect-skipped <name>." >&2
     exit "$E_SKIPPED"
 fi
 
-echo "[assert-compiled-not-skipped] PASS — no unexpected skips; the build covers what it claims (${#SKIPPED[@]} expected skip(s))."
+echo "[assert-compiled-not-skipped] PASS — no unexpected skips; the build covers what it claims ($skip_count expected skip(s))."
 exit "$E_OK"

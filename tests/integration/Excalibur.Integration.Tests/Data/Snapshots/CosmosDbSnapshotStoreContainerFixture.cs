@@ -148,7 +148,10 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 
 			try
 			{
-				await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
+				// This is the backoff INSIDE a poll loop, not a sync-wait before an assertion: the
+				// loop above polls the real condition (the data-plane call succeeding) and is
+				// bounded by the caller's token. The delay only paces retries between polls.
+				await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false); // delay-ok: poll-loop backoff, not a sync-wait
 			}
 			catch (OperationCanceledException)
 			{
