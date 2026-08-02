@@ -1464,9 +1464,14 @@ jobs:
           if [ ${#failures[@]} -gt 0 ]; then
             printf '  %s\n' "One or more release-blocking test suites failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
             echo "One or more release-blocking test suites failed." >> "$GITHUB_STEP_SUMMARY"
+            # ALSO to the log -- see the sibling aggregator below for why. A gate whose verdict
+            # exists only in the step summary reads, from the log, as an unexplained exit 1.
+            echo "::error::Release-blocking test suites not success: ${failures[*]}"
+            for f in "${failures[@]}"; do echo "  not success: $f" >&2; done
             exit 1
           fi
           echo "All release-blocking test suites passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "All release-blocking test suites passed: 4 required suites reported success."
 
   # ── Release-blocking CI governance ──
   release-blocking-ci:
@@ -1520,10 +1525,22 @@ jobs:
 
           if [ ${#failures[@]} -gt 0 ]; then
             printf '  %s\n' "Release-blocking CI policy failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
+            # ALSO to the log, not only to the step summary. This job runs in ~2 seconds and its
+            # entire output was 'exit 1': the gate knew which inputs were not success and told
+            # nobody who was reading the log. Anyone diagnosing from the log alone -- which is what
+            # gets pasted, quoted and searched -- saw a failure with no subject. Every other gate in
+            # this file already annotates with ::error::; these aggregators were the exception.
+            #
+            # The distinction between statuses is load-bearing and must survive into the message: a
+            # 'cancelled' input means a newer run superseded this one and nothing was proven, which
+            # is a different situation from 'failure' and calls for a different response.
+            echo "::error::Release-blocking CI policy failed: ${failures[*]}"
+            for f in "${failures[@]}"; do echo "  not success: $f" >&2; done
             exit 1
           fi
 
           echo "Release-blocking CI policy passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Release-blocking CI policy passed: all 7 required gates reported success."
 
   # ── Pack quality gate (report) ──
   pack-quality:
