@@ -242,7 +242,8 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 		Exception? current = ex;
 		while (current is not null)
 		{
-			if (current is TimeoutException || current is TaskCanceledException || IsDockerException(current))
+			if (current is TimeoutException || current is TaskCanceledException || IsDockerException(current)
+				|| IsServiceStillStartingException(current))
 			{
 				return true;
 			}
@@ -251,5 +252,35 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// True when the container is up but the service inside it has not finished starting, which the
+	/// backend reports as a 503 and explicitly invites the caller to retry.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the same condition as a data plane that lags its control plane: the daemon started the
+	/// container, the endpoint answers, and the engine behind it is not ready yet. It is emphatically
+	/// retriable -- the Cosmos emulator says so in the response body, <c>"pgcosmos extension is still
+	/// starting; retry request shortly"</c> -- but it arrives as a provider exception rather than a
+	/// Docker or timeout one, so the classifier above rejected it and the loop broke on the first
+	/// attempt while advertising three.
+	/// </para>
+	/// <para>
+	/// Matched on the message rather than the provider's exception type so that Tests.Shared does not
+	/// take a dependency on every backend SDK it may host a container for. The tokens are the status
+	/// itself and the backend's own retry invitation, both narrow enough not to catch a genuine
+	/// service fault: a backend that is broken rather than starting does not ask to be retried.
+	/// </para>
+	/// </remarks>
+	private static bool IsServiceStillStartingException(Exception ex)
+	{
+		var message = ex.Message;
+
+		return message.Contains("still starting", StringComparison.OrdinalIgnoreCase)
+			|| message.Contains("retry request shortly", StringComparison.OrdinalIgnoreCase)
+			|| (message.Contains("ServiceUnavailable", StringComparison.OrdinalIgnoreCase)
+				&& message.Contains("503", StringComparison.Ordinal));
 	}
 }

@@ -40,8 +40,19 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		try
 		{
+			// --skipApiVersionCheck is REQUIRED, not a convenience, and its absence is why this suite
+			// reported "Azure Blob is not available" while the container was up and serving the sibling
+			// lost-update suite. The Azure.Storage.Blobs SDK this repo references negotiates a service
+			// API version newer than any published Azurite image accepts, so Azurite rejects the request
+			// outright ("The API version 2026-02-06 is not supported") before any blob operation runs.
+			// That is client/emulator VERSION SKEW, not an outage: the container starts and answers, it
+			// just refuses the header. The flag is Azurite's own documented remedy, named in its error.
+			//
+			// It relaxes only the version GATE, not blob semantics -- conditional writes and ETag
+			// behaviour remain enforced -- so the arms below still test what they claim to test.
 			_container = new AzuriteBuilder()
 				.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+				.WithCommand("--skipApiVersionCheck")
 				.Build();
 
 			await _container.StartAsync().ConfigureAwait(false);

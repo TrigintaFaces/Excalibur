@@ -31,9 +31,19 @@ public class AzuriteContainerFixture : ContainerFixtureBase
 	/// <inheritdoc/>
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
+		// --skipApiVersionCheck is REQUIRED, not a convenience. The Azure.Storage.Blobs SDK this repo
+		// references negotiates a service API version newer than any published Azurite image accepts,
+		// so Azurite rejects the request outright ("The API version <ver> is not supported") before any
+		// blob operation runs. That is client/emulator VERSION SKEW, not an outage: the container
+		// starts, the port opens, and the wait strategy below is satisfied -- it just refuses the
+		// header on the first real call. The flag is Azurite's own documented remedy.
+		//
+		// It relaxes only the version GATE, not blob semantics, so conditional writes and ETag
+		// behaviour remain enforced.
 		_container = new AzuriteBuilder()
 			.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
 			.WithName($"azurite-compliance-test-{Guid.NewGuid():N}")
+			.WithCommand("--skipApiVersionCheck")
 			.WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(10000))
 			.Build();
 

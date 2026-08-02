@@ -201,17 +201,45 @@ jobs:
 
       - name: Run shard tests with coverage
         run: |
+          # --logger trx and --blame-crash are diagnostic, not decorative. This shard previously
+          # logged to console only and uploaded nothing but coverage, so a failure left no
+          # machine-readable record of WHICH test died: a run that ended after 54 minutes, well
+          # inside its 120-minute budget, could not be attributed to a test, a hang or a host
+          # crash. Every other test job in this repo writes a TRX; this one did not, and the
+          # skip-accounting gate that reads TRX had nothing to read.
+          #
+          # --blame-hang-timeout was already here and catches a HANG. It does not catch the test
+          # host EXITING -- an OOM, a stack overflow, a native crash in a provider SDK -- which
+          # produces exactly the signature seen: suites reporting clean, then silence.
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ matrix.shard.test_filter }}" -- \
             ${{ matrix.shard.filter }} \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
+            --blame-crash \
+            --logger "trx;LogFileName=coverage-shard-${{ matrix.shard.name }}.trx" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --settings tests/coverage.runsettings \
             --results-directory ./coverage \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      # if: always() is the load-bearing part. Without it this step is skipped on a failing run,
+      # so the artifacts existed only when nobody needed them -- diagnostics uploaded on success
+      # and withheld on failure is the exact inversion of what they are for. Kept separate from
+      # the coverage upload below so its if-no-files-found: error still guards the coverage file.
+      - name: Upload shard diagnostics (TRX, hang and crash reports)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-shard-diagnostics-${{ matrix.shard.name }}
+          path: |
+            ./coverage/**/*.trx
+            ./coverage/**/Sequence_*.xml
+            ./coverage/**/*.dmp
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload shard coverage artifact
         uses: actions/upload-artifact@v7
