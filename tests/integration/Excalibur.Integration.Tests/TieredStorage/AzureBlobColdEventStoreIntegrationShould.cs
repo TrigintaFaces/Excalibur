@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.EventSourcing;
@@ -30,6 +30,11 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	private ServiceProvider? _serviceProvider;
 	private IColdEventStore? _store;
 	private bool _available;
+	private Exception? _unavailableCause;
+
+	/// <summary>Appends the captured startup cause to a skip reason, so the log says WHY.</summary>
+	private string SkipReason(string reason) =>
+		_unavailableCause is null ? reason : reason + " Cause: " + _unavailableCause.GetType().Name + ": " + _unavailableCause.Message;
 
 	public async ValueTask InitializeAsync()
 	{
@@ -57,8 +62,12 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 			_store = _serviceProvider.GetRequiredService<IColdEventStore>();
 			_available = true;
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			// Preserve the cause. Reporting every startup failure as "infrastructure unavailable"
+			// makes a fixable fault -- an image pull, a port collision, a schema-init error --
+			// indistinguishable from an absent daemon, and undiagnosable from the CI log.
+			_unavailableCause = ex;
 			_available = false;
 		}
 	}
@@ -94,7 +103,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task WriteAndReadEvents()
 	{
-		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var events = CreateEvents("blob-agg-1", 1, 2, 3);
 		await _store!.WriteAsync(Tenant, "blob-agg-1", events, CancellationToken.None);
@@ -108,7 +117,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReadFromVersionFiltersCorrectly()
 	{
-		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		await _store!.WriteAsync(Tenant, "blob-agg-v", CreateEvents("blob-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
 
@@ -120,7 +129,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MergeNewEventsWithExisting()
 	{
-		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		await _store!.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 1, 2, 3), CancellationToken.None);
 		await _store.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 3, 4, 5), CancellationToken.None);
@@ -132,7 +141,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task HasArchivedReturnsTrueWhenPresent()
 	{
-		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		await _store!.WriteAsync(Tenant, "blob-agg-h", CreateEvents("blob-agg-h", 1), CancellationToken.None);
 		(await _store.HasArchivedEventsAsync(Tenant, "blob-agg-h", CancellationToken.None)).ShouldBeTrue();
@@ -141,14 +150,14 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
-		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 		(await _store!.HasArchivedEventsAsync(Tenant, "blob-nonexistent", CancellationToken.None)).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
-		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 		(await _store!.ReadAsync(Tenant, "blob-no-such", CancellationToken.None)).Count.ShouldBe(0);
 	}
 

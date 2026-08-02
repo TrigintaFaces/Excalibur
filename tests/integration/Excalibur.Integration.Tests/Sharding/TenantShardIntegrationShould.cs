@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
@@ -32,6 +32,11 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	private MsSqlContainer? _container;
 	private string? _baseConnectionString;
 	private bool _dockerAvailable;
+	private Exception? _unavailableCause;
+
+	/// <summary>Appends the captured startup cause to a skip reason, so the log says WHY.</summary>
+	private string SkipReason(string reason) =>
+		_unavailableCause is null ? reason : reason + " Cause: " + _unavailableCause.GetType().Name + ": " + _unavailableCause.Message;
 
 	public async ValueTask InitializeAsync()
 	{
@@ -51,8 +56,12 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 			await InitializeEventStoreSchemaAsync("ShardA").ConfigureAwait(false);
 			await InitializeEventStoreSchemaAsync("ShardB").ConfigureAwait(false);
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			// Preserve the cause. Reporting every startup failure as "infrastructure unavailable"
+			// makes a fixable fault -- an image pull, a port collision, a schema-init error --
+			// indistinguishable from an absent daemon, and undiagnosable from the CI log.
+			_unavailableCause = ex;
 			_dockerAvailable = false;
 		}
 	}
@@ -76,7 +85,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task IsolateEventsBetweenTenantShards()
 	{
-		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_dockerAvailable, SkipReason("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		// Arrange -- two SQL Server databases as two shards
 		var shardAConn = GetShardConnectionString("ShardA");
@@ -118,7 +127,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ResolverCachesStorePerShard()
 	{
-		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_dockerAvailable, SkipReason("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		// Arrange
 		var shardAConn = GetShardConnectionString("ShardA");
@@ -147,7 +156,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MultipleAppendsThenLoadReturnsAllEvents()
 	{
-		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_dockerAvailable, SkipReason("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		// Arrange
 		var shardAConn = GetShardConnectionString("ShardA");
@@ -174,7 +183,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public void ThrowForUnknownTenantWithNoDefault()
 	{
-		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_dockerAvailable, SkipReason("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var shardMap = new TestShardMap(new Dictionary<string, ShardInfo>
 		{

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.CodeAnalysis;
@@ -32,6 +32,11 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	private ServiceProvider? _serviceProvider;
 	private IProjectionStore<TestOpenSearchProjection>? _store;
 	private bool _available;
+	private Exception? _unavailableCause;
+
+	/// <summary>Appends the captured startup cause to a skip reason, so the log says WHY.</summary>
+	private string SkipReason(string reason) =>
+		_unavailableCause is null ? reason : reason + " Cause: " + _unavailableCause.GetType().Name + ": " + _unavailableCause.Message;
 
 	public async ValueTask InitializeAsync()
 	{
@@ -80,8 +85,12 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 				_available = false;
 			}
 		}
-		catch (Exception)
+		catch (Exception ex)
 		{
+			// Preserve the cause. Reporting every startup failure as "infrastructure unavailable"
+			// makes a fixable fault -- an image pull, a port collision, a schema-init error --
+			// indistinguishable from an absent daemon, and undiagnosable from the CI log.
+			_unavailableCause = ex;
 			_available = false;
 		}
 	}
@@ -117,7 +126,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task UpsertAndGetById()
 	{
-		Assert.Skip("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var projection = new TestOpenSearchProjection { Id = "proj-1", Name = "Test", Value = 42 };
 		await _store!.UpsertAsync("proj-1", projection, CancellationToken.None);
@@ -134,7 +143,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReturnNullForNonexistent()
 	{
-		Assert.Skip("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var result = await _store!.GetByIdAsync("nonexistent", CancellationToken.None);
 		result.ShouldBeNull();
@@ -143,7 +152,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task DeleteExistingProjection()
 	{
-		Assert.Skip("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		await _store!.UpsertAsync("proj-del", new TestOpenSearchProjection { Id = "proj-del", Name = "ToDelete" }, CancellationToken.None);
 		(await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
@@ -161,7 +170,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task CountDocuments()
 	{
-		Assert.Skip("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		await _store!.UpsertAsync("proj-c1", new TestOpenSearchProjection { Id = "proj-c1", Name = "A" }, CancellationToken.None);
 		await _store.UpsertAsync("proj-c2", new TestOpenSearchProjection { Id = "proj-c2", Name = "B" }, CancellationToken.None);
@@ -181,7 +190,7 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ApplyFiltersInQueryAndCount()
 	{
-		Assert.Skip("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] OpenSearch (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		// Unique status value so the filter targets exactly this test's docs, independent of any other
 		// documents the shared index/container may hold.

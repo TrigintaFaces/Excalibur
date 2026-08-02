@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 
+using Excalibur.Data;
 using Excalibur.Data.Firestore.Diagnostics;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
@@ -13,6 +14,8 @@ using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 
 using Google.Cloud.Firestore;
+
+using Grpc.Core;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -162,28 +165,42 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 
 		try
 		{
-			// Use RunTransactionAsync for atomic read-check-write to enforce version ordering
-			await _db!.RunTransactionAsync(async transaction =>
+			// Concurrent savers contend on ONE document, so Firestore aborts the losers with
+			// "Transaction lock timeout". That is contention, not a caller error, and it must not
+			// reach the caller as a raw Grpc.Core.RpcException: ISnapshotStore is a provider-neutral
+			// abstraction, and every other provider reports write contention as ConcurrencyException.
+			//
+			// Retrying is safe BECAUSE of the version guard below. A retry re-reads inside a fresh
+			// transaction, so a saver overtaken while it waited finds the higher version already
+			// stored and returns through the guard instead of writing. The operation is idempotent
+			// under retry, which is what makes the bounded spin correct rather than merely hopeful.
+			var attempt = 0;
+			while (true)
 			{
-				var existingDoc = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
-
-				if (existingDoc.Exists)
+				attempt++;
+				try
 				{
-					var existingVersion = existingDoc.GetValue<long>("version");
-					if (existingVersion >= snapshot.Version)
-					{
-						// Older or same version - skip silently (version guard)
-						result = WriteStoreTelemetry.Results.Conflict;
-						LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version, existingVersion);
-						return;
-					}
+					await SaveSnapshotTransactionAsync(docRef, snapshot, r => result = r, cancellationToken)
+						.ConfigureAwait(false);
+					break;
 				}
-
-#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
-				var docData = ToFirestoreDocument(snapshot);
-#pragma warning restore IL2026
-				transaction.Set(docRef, docData);
-			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+				catch (RpcException ex) when (IsWriteContention(ex) && attempt < MaxContendedWriteAttempts)
+				{
+					// Back off before re-entering the transaction; a tight respin just re-collides.
+					await Task.Delay(ContendedWriteBackoff * attempt, cancellationToken).ConfigureAwait(false); // delay-ok: contention backoff between transaction attempts, not a sync-wait
+				}
+				catch (RpcException ex) when (IsWriteContention(ex))
+				{
+					// Exhausted. Report it as contention, loudly and in the abstraction's own currency
+					// -- never a raw gRPC status, and never silence.
+					result = WriteStoreTelemetry.Results.Failure;
+					throw new ConcurrencyException(
+						nameof(FirestoreSnapshotStore),
+						documentId,
+						snapshot.Version,
+						await ReadCurrentVersionOrDefaultAsync(docRef, cancellationToken).ConfigureAwait(false));
+				}
+			}
 
 			LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 		}
@@ -200,6 +217,72 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 				"save",
 				result,
 				stopwatch.Elapsed);
+		}
+	}
+
+	/// <summary>Bounded spin for a contended snapshot write. A guard against livelock, not a writer budget.</summary>
+	private const int MaxContendedWriteAttempts = 8;
+
+	/// <summary>Base backoff between contended transaction attempts; multiplied by the attempt number.</summary>
+	private static readonly TimeSpan ContendedWriteBackoff = TimeSpan.FromMilliseconds(25);
+
+	/// <summary>
+	/// True when the status is Firestore reporting write contention rather than a caller error.
+	/// Aborted is the documented transaction-contention status and the one observed in practice
+	/// ("Transaction lock timeout"). Deliberately narrow: DeadlineExceeded is NOT treated as
+	/// contention, because it also covers a genuinely unreachable backend, and retrying that
+	/// would turn an infrastructure fault into a slow, silent one.
+	/// </summary>
+	private static bool IsWriteContention(RpcException ex) => ex.StatusCode is StatusCode.Aborted;
+
+	/// <summary>
+	/// Reads the currently stored snapshot version for diagnostics on the exhaustion path, returning -1
+	/// when the document cannot be read. Never throws: it runs only while reporting another failure and
+	/// must not replace that failure with its own.
+	/// </summary>
+	private static async Task<long> ReadCurrentVersionOrDefaultAsync(
+		DocumentReference docRef,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var doc = await docRef.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+			return doc.Exists ? doc.GetValue<long>("version") : -1;
+		}
+		catch (RpcException)
+		{
+			return -1;
+		}
+	}
+
+	private async Task SaveSnapshotTransactionAsync(
+		DocumentReference docRef,
+		ISnapshot snapshot,
+		Action<string> setResult,
+		CancellationToken cancellationToken)
+	{
+		{
+			await _db!.RunTransactionAsync(async transaction =>
+			{
+				var existingDoc = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
+
+				if (existingDoc.Exists)
+				{
+					var existingVersion = existingDoc.GetValue<long>("version");
+					if (existingVersion >= snapshot.Version)
+					{
+						// Older or same version - skip silently (version guard)
+						setResult(WriteStoreTelemetry.Results.Conflict);
+						LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version, existingVersion);
+						return;
+					}
+				}
+
+#pragma warning disable IL2026 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
+				var docData = ToFirestoreDocument(snapshot);
+#pragma warning restore IL2026
+				transaction.Set(docRef, docData);
+			}, cancellationToken: cancellationToken).ConfigureAwait(false);
 		}
 	}
 
