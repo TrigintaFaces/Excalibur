@@ -43,6 +43,12 @@ public static class DispatchServiceCollectionExtensions
 		Justification = "HandlerActivator and LocalMessageBus require dynamic code for typed invoker construction. In AOT scenarios, source-generated dispatchers bypass these code paths.")]
 	public static IServiceCollection AddDispatchPipeline(this IServiceCollection services)
 	{
+		// Registered here rather than left to the consumer because pipeline components resolve it —
+		// CircuitBreakerMiddleware times its open-duration deadline from it. `AddSystemTimeProvider` existed
+		// but had NO callers, so nothing put a TimeProvider in the container and any component depending on
+		// one would have failed to resolve. TryAdd, so a test or a consumer can substitute a fake clock.
+		RegisterTimeProvider(services);
+
 		services.TryAddSingleton<IMessageBusProvider, MessageBusProvider>();
 		services.TryAddSingleton<IMessageContextAccessor, MessageContextAccessor>();
 		services.TryAddSingleton<IMessageContextPool>(static sp => new MessageContextPool(sp));
@@ -120,6 +126,21 @@ public static class DispatchServiceCollectionExtensions
 		// configuration based on requirements
 		return services;
 	}
+
+	/// <summary>
+	/// Registers the system <see cref="TimeProvider"/> unless the consumer already supplied one.
+	/// </summary>
+	/// <remarks>
+	/// Pipeline components resolve <see cref="TimeProvider"/> from the container — CircuitBreakerMiddleware
+	/// times its open-duration deadline from it. A public <c>AddSystemTimeProvider</c> extension existed but
+	/// had NO callers, so nothing ever placed a TimeProvider in the container and any component taking one
+	/// would have failed to resolve. <c>TryAdd</c> keeps a consumer's or a test's fake clock winning.
+	/// Extracted to its own method so the registration does not push AddDispatchPipeline over its class-
+	/// coupling budget.
+	/// </remarks>
+	private static void RegisterTimeProvider(IServiceCollection services) =>
+		services.TryAddSingleton(static _ => TimeProvider.System);
+
 
 	/// <summary>
 	/// Registers dispatch handlers found in the provided assemblies and/or previously registered

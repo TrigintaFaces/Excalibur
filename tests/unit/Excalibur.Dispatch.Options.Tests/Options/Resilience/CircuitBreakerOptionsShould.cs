@@ -36,7 +36,6 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Assert
-		options.SuccessThreshold.ShouldBe(3);
 	}
 
 	[Fact]
@@ -66,7 +65,6 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Assert
-		options.MaxHalfOpenTests.ShouldBe(3);
 	}
 
 	[Fact]
@@ -129,10 +127,8 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.SuccessThreshold = 5;
 
 		// Assert
-		options.SuccessThreshold.ShouldBe(5);
 	}
 
 	[Fact]
@@ -142,10 +138,8 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.SuccessThreshold = 1;
 
 		// Assert
-		options.SuccessThreshold.ShouldBe(1);
 	}
 
 	[Fact]
@@ -207,10 +201,8 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.MaxHalfOpenTests = 10;
 
 		// Assert
-		options.MaxHalfOpenTests.ShouldBe(10);
 	}
 
 	[Fact]
@@ -220,10 +212,8 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions();
 
 		// Act
-		options.MaxHalfOpenTests = 1;
 
 		// Assert
-		options.MaxHalfOpenTests.ShouldBe(1);
 	}
 
 	[Fact]
@@ -268,19 +258,15 @@ public sealed class CircuitBreakerOptionsShould
 		var options = new CircuitBreakerOptions
 		{
 			FailureThreshold = 10,
-			SuccessThreshold = 5,
 			OpenDuration = TimeSpan.FromMinutes(1),
 			OperationTimeout = TimeSpan.FromSeconds(15),
-			MaxHalfOpenTests = 5,
 			CircuitKeySelector = selector,
 		};
 
 		// Assert
 		options.FailureThreshold.ShouldBe(10);
-		options.SuccessThreshold.ShouldBe(5);
 		options.OpenDuration.ShouldBe(TimeSpan.FromMinutes(1));
 		options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(15));
-		options.MaxHalfOpenTests.ShouldBe(5);
 		options.CircuitKeySelector.ShouldBe(selector);
 	}
 

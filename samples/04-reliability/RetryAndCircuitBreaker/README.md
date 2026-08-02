@@ -98,9 +98,10 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
     options.FailureThreshold = 3;                    // Open after 3 failures
-    options.SuccessThreshold = 2;                    // Close after 2 successes
     options.OpenDuration = TimeSpan.FromSeconds(10); // Cooldown period
     options.OperationTimeout = TimeSpan.FromSeconds(5);
+    // Half-open recovery is not configurable: ONE trial call is admitted and the
+    // circuit closes if it succeeds.
 });
 ```
 
@@ -184,10 +185,12 @@ Request 5 failed: BrokenCircuitException
 | Option | Default | Description |
 |--------|---------|-------------|
 | `FailureThreshold` | 5 | Consecutive failures to open circuit |
-| `SuccessThreshold` | 3 | Successes needed to close from half-open |
 | `OpenDuration` | 30 seconds | Time circuit stays open |
 | `OperationTimeout` | 5 seconds | Timeout for each operation |
-| `MaxHalfOpenTests` | 3 | Max concurrent tests in half-open |
+
+Half-open recovery is not configurable. The circuit admits **one** trial call while half-open and
+closes if it succeeds. Several concurrent trial calls would re-create the surge the breaker exists
+to prevent, and requiring a run of successes delays recovery without making it safer.
 
 ### Bulkhead Options
 

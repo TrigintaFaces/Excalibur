@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Net;
+
 using Testcontainers.CosmosDb;
 
 namespace Excalibur.Testing.Containers;
@@ -99,6 +101,105 @@ public class CosmosDbContainerFixture : ContainerFixtureBase
 	{
 		_container = new CosmosDbBuilder().WithImage(Image).Build();
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
+		await WaitForDataPlaneAsync(_container, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Waits until the emulator will actually serve a request, not merely until its container is running.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Container-ready and data-plane-ready are different states.</b> <c>StartAsync</c> returns once the
+	/// Testcontainers wait strategy is satisfied — the container is up and the gateway answers. The emulator
+	/// then continues initialising internally, and until it finishes it rejects requests with
+	/// <c>503 Service Unavailable</c>. Without this wait the fixture hands back a
+	/// <see cref="ConnectionString"/> for an emulator that is not yet usable, so the FIRST call a consumer
+	/// makes is the one that fails — and it surfaces as a database-client error rather than as a fixture
+	/// problem, which sends them looking for a bug in their own code.
+	/// </para>
+	/// <para>
+	/// <b>The probe is deliberately transport-level.</b> It reuses the container's own
+	/// <see cref="HttpClient"/> rather than a database client, so this package does not acquire a database
+	/// SDK dependency that every consumer would then carry for a readiness check. A non-503 response of any
+	/// kind proves the data plane is answering; the probe deliberately does not care what that response says.
+	/// </para>
+	/// <para>
+	/// <b>Only 503 and transport faults are retried.</b> Anything else is returned immediately, so a genuine
+	/// misconfiguration fails fast with its own error instead of being masked for the whole timeout and then
+	/// reported as a readiness timeout.
+	/// </para>
+	/// </remarks>
+	private static async Task WaitForDataPlaneAsync(CosmosDbContainer container, CancellationToken cancellationToken)
+	{
+		var pollInterval = TimeSpan.FromSeconds(2);
+
+		// NOT disposed: the HttpClient belongs to the container, which hands the same instance to callers.
+		// Disposing it here would leave every later consumer of the fixture with a dead client.
+		var probe = container.HttpClient;
+
+		// An ABSOLUTE uri, because the container's client carries no BaseAddress — a relative uri throws
+		// "either the request URI must be an absolute URI or BaseAddress must be set" and the readiness
+		// wait would fail the fixture it exists to protect. The endpoint is taken from the connection
+		// string rather than rebuilt from host and port so it always matches what the consumer is handed.
+		var endpoint = ExtractAccountEndpoint(container.GetConnectionString());
+
+		while (!cancellationToken.IsCancellationRequested)
+		{
+			try
+			{
+				using var response = await probe.GetAsync(endpoint, cancellationToken)
+					.ConfigureAwait(false);
+
+				if (response.StatusCode != HttpStatusCode.ServiceUnavailable)
+				{
+					return;
+				}
+			}
+			catch (HttpRequestException)
+			{
+				// The listener can accept the port before it will serve on it; keep waiting.
+			}
+
+			try
+			{
+				await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				break;
+			}
+		}
+
+		throw new InvalidOperationException(
+			"The Cosmos DB emulator container started but its data plane never began serving requests within "
+			+ "the fixture's startup budget: it kept returning 503 Service Unavailable. The container itself is "
+			+ "healthy, so this is the emulator's own initialisation exceeding the budget rather than a Docker "
+			+ "failure. Raise the startup timeout, or give the container more memory.");
+	}
+
+	/// <summary>
+	/// Reads the account endpoint out of an emulator connection string.
+	/// </summary>
+	/// <remarks>
+	/// Falls back to the whole connection string only if the expected key is absent, so a future change to
+	/// the emulator's connection-string format degrades to a failed probe rather than to a silently skipped
+	/// readiness wait — a wait that quietly stops waiting is worse than one that fails loudly.
+	/// </remarks>
+	private static Uri ExtractAccountEndpoint(string connectionString)
+	{
+		foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries))
+		{
+			var trimmed = part.Trim();
+			if (trimmed.StartsWith("AccountEndpoint=", StringComparison.OrdinalIgnoreCase)
+				&& Uri.TryCreate(trimmed["AccountEndpoint=".Length..], UriKind.Absolute, out var endpoint))
+			{
+				return endpoint;
+			}
+		}
+
+		throw new InvalidOperationException(
+			"Could not read AccountEndpoint from the Cosmos DB emulator connection string, so the fixture "
+			+ "cannot probe the emulator for readiness.");
 	}
 
 	/// <inheritdoc />

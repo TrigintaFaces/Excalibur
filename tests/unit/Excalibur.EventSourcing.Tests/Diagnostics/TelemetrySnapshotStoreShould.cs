@@ -3,6 +3,7 @@
 
 #pragma warning disable CA2012 // Use ValueTasks correctly — FakeItEasy .Returns() stores ValueTask
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -26,8 +27,13 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 	private readonly ActivitySource _activitySource;
 	private readonly TelemetrySnapshotStore _sut;
 	private readonly MeterListener _meterListener;
-	private readonly List<(string Name, long Value, KeyValuePair<string, object?>[] Tags)> _counterRecordings = [];
-	private readonly List<(string Name, double Value, KeyValuePair<string, object?>[] Tags)> _histogramRecordings = [];
+	// ConcurrentBag, not List: a MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT.
+	// List<T>.Add resizes with a Count-then-Array.Copy that a concurrent append invalidates, surfacing as
+	// "Destination array was not long enough". Because InstrumentPublished filters by meter NAME, which every
+	// instance of a decorator shares, the corrupting thread is often a DIFFERENT test class in the same
+	// assembly — so the failure gets reported against that sibling and reproduces only in a full shard run.
+	private readonly ConcurrentBag<(string Name, long Value, KeyValuePair<string, object?>[] Tags)> _counterRecordings = [];
+	private readonly ConcurrentBag<(string Name, double Value, KeyValuePair<string, object?>[] Tags)> _histogramRecordings = [];
 	private readonly ActivityListener _activityListener;
 	private readonly List<Activity> _capturedActivities = [];
 

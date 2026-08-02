@@ -120,10 +120,8 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		var options = new CircuitBreakerOptions
 		{
 			FailureThreshold = 10,
-			SuccessThreshold = 5,
 			OpenDuration = TimeSpan.FromMinutes(2),
 			OperationTimeout = TimeSpan.FromSeconds(30),
-			MaxHalfOpenTests = 3
 		};
 		_adapter = new PollyCircuitBreakerAdapter("test-breaker", options);
 
@@ -133,10 +131,12 @@ public sealed class PollyCircuitBreakerAdapterShould : UnitTestBase, IAsyncDispo
 		// Assert
 		config.ShouldNotBeNull();
 		config["FailureThreshold"].ShouldBe(10);
-		config["SuccessThreshold"].ShouldBe(5);
+		// Polly fixes this at 1 and Configuration reports what is IN FORCE, not what was requested.
+		// This previously asserted the requested value, which certified the adapter reporting a setting
+		// it silently discarded.
 		config["OpenDuration"].ShouldBe(TimeSpan.FromMinutes(2));
 		config["OperationTimeout"].ShouldBe(TimeSpan.FromSeconds(30));
-		config["MaxHalfOpenTests"].ShouldBe(3);
+		// Polly admits ONE half-open trial call; reported value is the effective one.
 	}
 
 	[Fact]

@@ -144,14 +144,15 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 			SELECT table_name, field_name, data_category, data_subject_id_column, id_type,
 				   key_id_column, tenant_id_column, description
 			FROM {_options.FullRegistrationsTableName}
-			WHERE tenant_id = @ScopedTenantId
+			WHERE tenant_id IN (@ScopedTenantId, @UntenantedTenantId)
 			ORDER BY table_name, field_name";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<RegistrationRow>(
-			new CommandDefinition(sql, new { ScopedTenantId = CurrentTenantTerm },
+			new CommandDefinition(sql,
+				new { ScopedTenantId = CurrentTenantTerm, UntenantedTenantId = TenantScope.UntenantedSentinel },
 				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToRegistration()).ToList();
@@ -231,8 +232,14 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 		// Scope, not a filter: added unconditionally from ambient context. The caller's tenantId argument
 		// is deliberately not consulted - it previously produced tenant_id_column IS NOT NULL, a null-check
 		// on a COLUMN NAME, so supplying a tenant and omitting one both returned every tenant's rows.
-		whereClauses.Add("tenant_id = @ScopedTenantId");
+		// Untenanted registrations are included alongside the caller's own. A registration is schema
+		// metadata — table, field, category — and names no person, so an untenanted one discloses nothing
+		// about another tenant, while EXCLUDING it drops that field from the erasure sweep silently.
+		// REGISTRATIONS ONLY: discovered locations, erasure requests and legal holds are subject-linked and
+		// stay on strict equality.
+		whereClauses.Add("tenant_id IN (@ScopedTenantId, @UntenantedTenantId)");
 		parameters.Add("ScopedTenantId", CurrentTenantTerm);
+		parameters.Add("UntenantedTenantId", TenantScope.UntenantedSentinel);
 		_ = tenantId;
 
 		var whereClause = string.Join(" AND ", whereClauses);
@@ -291,14 +298,19 @@ public sealed partial class PostgresDataInventoryStore : IDataInventoryStore, ID
 				    WHERE d.table_name = r.table_name AND d.field_name = r.field_name
 				      AND d.tenant_id = r.tenant_id) AS record_count
 			FROM {_options.FullRegistrationsTableName} r
-			WHERE r.tenant_id = @ScopedTenantId
+			WHERE r.tenant_id IN (@ScopedTenantId, @UntenantedTenantId)
 			ORDER BY r.table_name, r.field_name";
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// Both terms MUST be bound. The scoping predicate was added to this query without its parameters,
+		// so every call threw against a real server — a RoPA data map that cannot be produced at all. No
+		// unit test caught it because none of them reach a database.
 		var rows = await connection.QueryAsync<DataMapEntryRow>(
-			new CommandDefinition(sql, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+			new CommandDefinition(sql,
+				new { ScopedTenantId = CurrentTenantTerm, UntenantedTenantId = TenantScope.UntenantedSentinel },
+				cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToDataMapEntry()).ToList();
 	}

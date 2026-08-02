@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Net;
 using System.Text.Json;
 
 using Microsoft.Azure.Cosmos;
@@ -84,13 +85,116 @@ public sealed class CosmosDbSnapshotStoreContainerFixture : ContainerFixtureBase
 			.Build();
 
 		// The store's connection-string path does NOT create the database — the fixture owns that.
-		_ = await _client.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: cancellationToken)
-			.ConfigureAwait(false);
+		// Routed through the readiness wait because the FIRST data-plane call is the one that races
+		// the emulator's extension startup; see WaitForDataPlaneReadyAsync.
+		await WaitForDataPlaneReadyAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Creates the fixture-owned database, waiting out the emulator's data-plane startup.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>THE RACE.</b> <c>StartAsync</c> returns when the Testcontainers wait strategy is satisfied —
+	/// the container is up and the gateway answers. The vNext emulator's data plane is served by a
+	/// <c>pgcosmos</c> extension that is still initialising at that moment, so the first request is
+	/// rejected with <c>503 ServiceUnavailable</c> and the reason string
+	/// <c>"pgcosmos extension is still starting; retry request shortly"</c>. Container-ready and
+	/// data-plane-ready are two different states and only the first one is waited on.
+	/// </para>
+	/// <para>
+	/// <b>WHY THE EXISTING RETRIES DID NOT COVER IT.</b> <see cref="ContainerFixtureBase" />'s retry
+	/// loop only re-attempts exceptions its classifier calls retriable — timeouts, cancellations and
+	/// Docker faults. A <see cref="CosmosException" /> is none of those, so the fixture broke out on
+	/// the first failure. The client's own <c>WithThrottlingRetryOptions</c> does not help either: it
+	/// governs <c>429</c> throttling, not <c>503</c>. And restarting the container would be the wrong
+	/// remedy regardless — the container is healthy, only the extension inside it is not yet up.
+	/// </para>
+	/// <para>
+	/// <b>THE RETRY PREDICATE IS DELIBERATELY NARROW.</b> Only <c>503</c> is retried. A malformed
+	/// connection string, a bad endpoint or an auth fault therefore fails on the first attempt with
+	/// its own error instead of being masked for the whole timeout and then reported as a readiness
+	/// timeout. Retrying everything would turn a five-second configuration bug into a two-minute
+	/// mystery.
+	/// </para>
+	/// <para>
+	/// <b>THE CAUSE IS PRESERVED.</b> On exhaustion this throws with the last <see cref="CosmosException" />
+	/// as the inner exception. A readiness wait that reports only "timed out" would reproduce the
+	/// original defect one layer up — the failure that started this was undiagnosable precisely
+	/// because the real exception had been swallowed.
+	/// </para>
+	/// </remarks>
+	private async Task WaitForDataPlaneReadyAsync(CancellationToken cancellationToken)
+	{
+		// Bounded by the caller's token, which ContainerFixtureBase already scopes to
+		// ContainerStartTimeout — so this cannot outlive the fixture's own startup budget.
+		var pollInterval = TimeSpan.FromSeconds(2);
+		var attempts = 0;
+		CosmosException? lastTransient = null;
+
+		while (!cancellationToken.IsCancellationRequested)
+		{
+			attempts++;
+			try
+			{
+				_ = await _client!.CreateDatabaseIfNotExistsAsync(DatabaseName, cancellationToken: cancellationToken)
+					.ConfigureAwait(false);
+				return;
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.ServiceUnavailable)
+			{
+				lastTransient = ex;
+			}
+
+			try
+			{
+				await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				break;
+			}
+		}
+
+		throw new InvalidOperationException(
+			$"CosmosDB emulator data plane was not ready after {attempts} attempt(s): the emulator kept "
+			+ "returning 503 ServiceUnavailable. The container started, so this is the emulator's internal "
+			+ "startup exceeding the fixture's budget, not a Docker failure. See the inner exception.",
+			lastTransient);
 	}
 
 	/// <summary>
 	/// Deletes the per-run database (and its containers) to isolate this fixture's data.
 	/// </summary>
+	/// <summary>
+	/// Deletes the snapshot CONTAINER, leaving the fixture-owned database intact.
+	/// </summary>
+	/// <remarks>
+	/// Per-test teardown previously called <see cref="CleanupDatabaseAsync" />, which deletes the DATABASE —
+	/// but the database and container are fixture-owned and created once for the whole class. The first
+	/// test's teardown therefore destroyed the database out from under every test that followed, and all of
+	/// them failed with "Database not found" rather than anything to do with snapshots. A per-test cleanup
+	/// must only remove what that test created. The store recreates this container on next use because it is
+	/// configured with CreateContainerIfNotExists.
+	/// </remarks>
+	public async Task CleanupContainerAsync()
+	{
+		if (_client is null)
+		{
+			return;
+		}
+
+		try
+		{
+			_ = await _client.GetDatabase(DatabaseName).GetContainer(ContainerName).DeleteContainerAsync()
+				.ConfigureAwait(false);
+		}
+		catch (CosmosException)
+		{
+			// Best effort — already gone, or the emulator is shutting down.
+		}
+	}
+
 	public async Task CleanupDatabaseAsync()
 	{
 		if (_client is null)

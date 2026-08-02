@@ -93,12 +93,14 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 	}
 
 	[Fact]
-	public async Task HandleTimeoutGracefullyWithRetries()
+	public async Task SurfaceTimeoutAsSearchExceptionRatherThanRawCancellation()
 	{
-		// Arrange - use very short timeout to trigger timeout exceptions
+		// Arrange - an already-elapsed timeout budget. Using zero (rather than racing a ~1ms timer against a
+		// real search) makes this deterministic: the timeout token is cancelled before the operation starts,
+		// so the outcome does not depend on machine speed or OS timer resolution.
 		var settings = CreateResilienceSettings(
 			retryMaxAttempts: 2,
-			searchTimeoutSeconds: 0.001); // Very short timeout
+			searchTimeoutSeconds: 0);
 
 		var retryPolicy = new ElasticsearchRetryPolicy(settings);
 		var circuitBreaker = new ElasticsearchCircuitBreaker(
@@ -121,8 +123,50 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 			Size = 1000, // Large result set to increase processing time
 		};
 
-		// Act & Assert - operation should eventually fail after retries
-		_ = await Should.ThrowAsync<ElasticsearchSearchException>(() => resilientClient.SearchAsync<TestDocument>(searchRequest, CancellationToken.None))
+		// Act & Assert - a timeout the caller did not request must surface as the operation's domain exception,
+		// carrying a TimeoutException, so callers can tell "it timed out" from "I cancelled it".
+		var thrown = await Should
+			.ThrowAsync<ElasticsearchSearchException>(() => resilientClient.SearchAsync<TestDocument>(searchRequest, CancellationToken.None))
+			.ConfigureAwait(false);
+
+		_ = thrown.InnerException.ShouldBeOfType<TimeoutException>();
+	}
+
+	/// <summary>
+	/// Liveness counterpart to <see cref="SurfaceTimeoutAsSearchExceptionRatherThanRawCancellation" />. Without this
+	/// arm, a client that wrapped *every* cancellation - including the caller's own - would still pass. Caller
+	/// cancellation must propagate unchanged rather than being reported as a timeout.
+	/// </summary>
+	[Fact]
+	public async Task PropagateCallerCancellationInsteadOfReportingItAsATimeout()
+	{
+		// Arrange - a generous timeout, so the only cancellation in play is the caller's own.
+		var settings = CreateResilienceSettings(retryMaxAttempts: 2, searchTimeoutSeconds: 30);
+
+		var retryPolicy = new ElasticsearchRetryPolicy(settings);
+		var circuitBreaker = new ElasticsearchCircuitBreaker(
+			settings,
+			A.Fake<ILogger<ElasticsearchCircuitBreaker>>());
+
+		using var resilientClient = new ResilientElasticsearchClient(
+			_client,
+			retryPolicy,
+			circuitBreaker,
+			settings,
+			_logger);
+
+		const string indexName = "test-resilience-caller-cancel";
+		await CreateTestIndex(indexName).ConfigureAwait(false);
+
+		var searchRequest = new SearchRequest(Indices.Parse(indexName)) { Query = new MatchAllQuery() };
+
+		using var callerCancellation = new CancellationTokenSource();
+		await callerCancellation.CancelAsync().ConfigureAwait(false);
+
+		// Act & Assert - the caller's cancellation is honored verbatim, NOT translated into a search failure.
+		_ = await Should
+			.ThrowAsync<OperationCanceledException>(
+				() => resilientClient.SearchAsync<TestDocument>(searchRequest, callerCancellation.Token))
 			.ConfigureAwait(false);
 	}
 

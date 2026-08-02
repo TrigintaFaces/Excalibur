@@ -330,7 +330,7 @@ jobs:
       - name: Restore and build
         run: |
           dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
-          dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore --verbosity quiet
+          dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       - name: Run deterministic unit and DI tests
         run: |
@@ -399,7 +399,7 @@ jobs:
       - name: Restore and build
         run: |
           dotnet restore tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --verbosity quiet
-          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore --verbosity quiet
+          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       - name: Run transport conformance suite
         run: |
@@ -506,14 +506,14 @@ jobs:
         run: |
           if [ -d "tests/architecture/Boundary.Tests" ]; then
             dotnet restore tests/architecture/Boundary.Tests/Boundary.Tests.csproj --verbosity quiet
-            dotnet build tests/architecture/Boundary.Tests/Boundary.Tests.csproj --configuration Release --no-restore --verbosity quiet
+            dotnet build tests/architecture/Boundary.Tests/Boundary.Tests.csproj --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
           fi
 
       - name: Run architecture tests
         run: |
           if [ -d "tests/ArchitectureTests" ]; then
             dotnet restore tests/ArchitectureTests --verbosity quiet
-            dotnet build tests/ArchitectureTests --configuration Release --no-restore --verbosity quiet
+            dotnet build tests/ArchitectureTests --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
             dotnet test tests/ArchitectureTests --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet"
           else
             echo "Architecture test project not found, skipping..."

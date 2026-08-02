@@ -23,14 +23,21 @@ namespace Excalibur.Data.ElasticSearch.Resilience;
 /// <param name="circuitBreaker"> The circuit breaker for preventing cascading failures. </param>
 /// <param name="options"> The resilience configuration options. </param>
 /// <param name="logger"> The logger for diagnostic information. </param>
+/// <param name="timeProvider">
+/// The time provider used to schedule operation timeouts. Defaults to <see cref="TimeProvider.System" />. Supplying a
+/// controllable provider allows timeout behavior to be exercised deterministically instead of racing the wall clock.
+/// </param>
 /// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
-public sealed class ResilientElasticsearchClient(
+internal sealed class ResilientElasticsearchClient(
 	ElasticsearchClient client,
 	IElasticsearchRetryPolicy retryPolicy,
 	IElasticsearchCircuitBreaker circuitBreaker,
 	IOptions<ElasticsearchConfigurationOptions> options,
-	ILogger<ResilientElasticsearchClient> logger) : IResilientElasticsearchClient, IDisposable
+	ILogger<ResilientElasticsearchClient> logger,
+	TimeProvider? timeProvider = null) : IResilientElasticsearchClient, IDisposable
 {
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+
 	private readonly ElasticsearchClient _client = client ?? throw new ArgumentNullException(nameof(client));
 	private readonly IElasticsearchRetryPolicy _retryPolicy = retryPolicy ?? throw new ArgumentNullException(nameof(retryPolicy));
 
@@ -58,7 +65,7 @@ public sealed class ResilientElasticsearchClient(
 			return await _client.SearchAsync<TDocument>(request, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -66,7 +73,8 @@ public sealed class ResilientElasticsearchClient(
 			operationType: "Search",
 			createException: (ex, attempts) => new ElasticsearchSearchException(
 				"unknown", typeof(TDocument), $"Search operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -81,7 +89,7 @@ public sealed class ResilientElasticsearchClient(
 			return await _client.IndexAsync(request, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.IndexTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.IndexTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -89,7 +97,8 @@ public sealed class ResilientElasticsearchClient(
 			operationType: "Index",
 			createException: (ex, attempts) => new ElasticsearchIndexingException(
 				"unknown", typeof(TDocument), $"Index operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -104,7 +113,7 @@ public sealed class ResilientElasticsearchClient(
 			return await _client.UpdateAsync(request, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.IndexTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.IndexTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -115,7 +124,8 @@ public sealed class ResilientElasticsearchClient(
 				typeof(TDocument),
 				$"Update operation failed after {attempts} attempts: {ex.Message}",
 				ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -130,7 +140,7 @@ public sealed class ResilientElasticsearchClient(
 			return await _client.DeleteAsync(request, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.DeleteTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.DeleteTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -141,7 +151,8 @@ public sealed class ResilientElasticsearchClient(
 				documentType: null,
 				$"Delete operation failed after {attempts} attempts: {ex.Message}",
 				ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -156,7 +167,7 @@ public sealed class ResilientElasticsearchClient(
 			return await _client.BulkAsync(request, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.BulkTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.BulkTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -164,7 +175,8 @@ public sealed class ResilientElasticsearchClient(
 			operationType: "Bulk",
 			createException: (ex, attempts) => new ElasticsearchIndexingException(
 				"unknown", typeof(object), $"Bulk operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -179,7 +191,7 @@ public sealed class ResilientElasticsearchClient(
 			return await _client.GetAsync<TDocument>(request, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -190,7 +202,8 @@ public sealed class ResilientElasticsearchClient(
 				typeof(TDocument),
 				$"Get operation failed after {attempts} attempts: {ex.Message}",
 				ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -249,13 +262,35 @@ public sealed class ResilientElasticsearchClient(
 		};
 
 	/// <summary>
+	/// Builds the exception reported when the operation's own timeout budget elapses, as opposed to the caller
+	/// cancelling. The <see cref="TimeoutException" /> is carried as the inner exception so callers can
+	/// distinguish "it timed out" from "it failed", mirroring how <c>HttpClient</c> reports its own timeout.
+	/// </summary>
+	private static Exception CreateTimeoutException(
+		Func<Exception, int, Exception> createException,
+		string operationType,
+		int attempts,
+		Exception? inner = null)
+	{
+		var timeoutException = inner is null
+			? new TimeoutException($"{operationType} operation timed out after {attempts} attempt(s).")
+			: new TimeoutException($"{operationType} operation timed out after {attempts} attempt(s).", inner);
+
+		return createException(timeoutException, attempts);
+	}
+
+	/// <summary>
 	/// Executes an operation with full resilience patterns including retry and circuit breaker.
 	/// </summary>
 	/// <typeparam name="TResponse"> The type of response expected from the operation. </typeparam>
 	/// <param name="operation"> The operation to execute. </param>
 	/// <param name="operationType"> The type of operation for logging and monitoring. </param>
 	/// <param name="createException"> Function to create an appropriate exception when all retries are exhausted. </param>
-	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <param name="cancellationToken"> The combined token linking caller cancellation and the operation timeout. </param>
+	/// <param name="callerToken">
+	/// The caller-supplied token, used to distinguish caller cancellation (propagated unchanged) from the operation
+	/// timeout elapsing (surfaced as a <see cref="TimeoutException" /> wrapped in the operation's domain exception).
+	/// </param>
 	/// <returns> The response from the successful operation. </returns>
 	/// <exception cref="Exception"> Thrown when the operation fails after all resilience mechanisms are exhausted. </exception>
 	/// <exception cref="InvalidOperationException"></exception>
@@ -263,7 +298,8 @@ public sealed class ResilientElasticsearchClient(
 		Func<Task<TResponse>> operation,
 		string operationType,
 		Func<Exception, int, Exception> createException,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		CancellationToken callerToken)
 		where TResponse : TransportResponse
 	{
 		// Check circuit breaker state first
@@ -279,6 +315,18 @@ public sealed class ResilientElasticsearchClient(
 		while (attempts < _settings.Retry.MaxAttempts + 1) // +1 for initial attempt
 		{
 			attempts++;
+
+			// The Elasticsearch client does not reliably surface a cancelled token as an
+			// OperationCanceledException - it can return an *invalid response* instead. Inspect the tokens
+			// directly so cancellation and timeout are attributed correctly rather than being reported as a
+			// generic "returned invalid response" failure. Caller cancellation is checked first: it is the
+			// caller's explicit intent and is never reported as a timeout.
+			callerToken.ThrowIfCancellationRequested();
+
+			if (cancellationToken.IsCancellationRequested)
+			{
+				throw CreateTimeoutException(createException, operationType, attempts);
+			}
 
 			try
 			{
@@ -350,11 +398,38 @@ public sealed class ResilientElasticsearchClient(
 					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
 			{
-				_logger.LogInformation("{OperationType} operation was cancelled", operationType);
+				// The CALLER asked to stop. Honor it verbatim: cancellation is not a failure, so it is
+				// neither recorded against the circuit breaker nor wrapped in a domain exception.
+				_logger.LogInformation("{OperationType} operation was cancelled by the caller", operationType);
 				throw;
 			}
+			catch (OperationCanceledException ex)
+			{
+				// The caller did NOT cancel, so this is our own configured timeout elapsing. Surface it as a
+				// timeout — distinct from caller cancellation, the same distinction HttpClient draws — rather
+				// than rethrowing an OperationCanceledException the caller cannot attribute. The elapsed budget
+				// covers every attempt, so retrying here would have no time left to succeed.
+				_logger.LogWarning(ex, "{OperationType} operation timed out on attempt {Attempt}", operationType, attempts);
+
+				if (_settings.CircuitBreaker.Enabled)
+				{
+					await _circuitBreaker.RecordFailureAsync().ConfigureAwait(false);
+				}
+
+				throw CreateTimeoutException(createException, operationType, attempts, ex);
+			}
+		}
+
+		// A timeout may have elapsed part-way through the final attempt, in which case the client can report it
+		// as an ordinary invalid response. Re-check before reporting so the caller still sees a timeout rather
+		// than a misleading generic failure. Caller cancellation again takes precedence.
+		callerToken.ThrowIfCancellationRequested();
+
+		if (cancellationToken.IsCancellationRequested)
+		{
+			throw CreateTimeoutException(createException, operationType, attempts);
 		}
 
 		// All retries exhausted - log the failure

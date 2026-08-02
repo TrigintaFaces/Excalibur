@@ -109,6 +109,8 @@ for t in \
     "eng/ci/tenant-range-op-coverage-gate.test.sh" \
     "eng/ci/real-infra-tenant-gate.test.sh" \
     "eng/ci/orphaned-constant-gate.test.sh" \
+    "eng/ci/inbox-decorator-seam-gate.sh --self-test" \
+    "eng/ci/inbox-decorator-seam-gate.test.sh" \
     "eng/ci/package-metadata-gate.test.sh" \
     "eng/ci/orphan-test-project-gate.test.sh" \
     "eng/ci/lockfile-drift-gate.test.sh" \
@@ -119,6 +121,10 @@ for t in \
     "eng/ci/full-ci-shard-completeness.sh --self-test" \
     "eng/ci/cosmos-fixture-pattern-gate.sh --self-test" \
     "eng/ci/cosmos-fixture-pattern-gate.sh" \
+    "eng/ci/integration-serial-runner-gate.sh --self-test" \
+    "eng/ci/integration-serial-runner-gate.sh" \
+    "eng/ci/unconditional-skip-ratchet.sh --self-test" \
+    "eng/ci/unconditional-skip-ratchet.sh" \
     "eng/ci/committed-sha-build-gate.test.sh" \
     "eng/ci/aot-publish-validation-exit.test.sh" \
     "eng/ci/assert-compiled-not-skipped.test.sh" \

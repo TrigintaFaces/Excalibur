@@ -123,8 +123,17 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 		const int maxAttempts = 3;
 		Exception? lastException = null;
 
+		// The ACTUAL number of attempts made, which is not always maxAttempts: a non-retriable
+		// exception breaks out of the loop immediately. Reporting the constant instead of this
+		// counter tells the reader the fixture tried three times when it may have tried once, and
+		// sends them looking for a flaky container when the real cause was a hard failure on the
+		// first call. Measured case: a CosmosDB 503 is not classified retriable, so the loop broke
+		// after attempt 1 while the message claimed 3.
+		var attemptsMade = 0;
+
 		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
+			attemptsMade = attempt;
 			try
 			{
 				using var cts = new CancellationTokenSource(ContainerStartTimeout);
@@ -154,7 +163,7 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			// Throw so the collection/class fixture fails clearly instead of producing
 			// hundreds of cryptic "Could not find resource" errors from individual tests.
 			throw new InvalidOperationException(
-				$"Container startup failed after {maxAttempts} attempts: {InitializationError}",
+				$"Container startup failed after {attemptsMade} attempt(s) (max {maxAttempts}): {InitializationError}",
 				lastException);
 		}
 

@@ -39,6 +39,22 @@ limits of that claim.
 
 ### Changed
 
+- **`CircuitBreakerPattern` and `CircuitBreakerFactory` have been removed.** Nothing registered them: the
+  only dependency-injection registration of `ICircuitBreakerFactory` was Polly's, so no application could
+  resolve this breaker even deliberately. Its one remaining effect was harmful — being named as a concrete,
+  non-virtual return type is what prevented the Polly breaker from running at all (see *Fixed*). The
+  circuit-breaker contract (`ICircuitBreakerFactory`, `IResiliencePattern`) still ships in the core package;
+  the implementation ships in `Excalibur.Dispatch.Resilience.Polly`, matching how the platform separates an
+  abstractions package from its implementation. If you referenced either type directly, depend on
+  `IResiliencePattern` and add the Polly package.
+
+- **`CircuitBreakerMiddleware` now takes a `TimeProvider`.** It timed its open-duration deadline — the one
+  that decides when a half-open probe is admitted — from `DateTimeOffset.UtcNow`, so that recovery path
+  could only be exercised by sleeping in real time. It now reads an injected `TimeProvider`, and
+  `AddDispatchPipeline` registers the system provider with `TryAdd` so your own clock still wins. You only
+  need to change something if you construct the middleware yourself; resolving it from the container
+  continues to work unchanged.
+
 - **Cosmos DB integration tests are no longer excluded from CI.** The build previously filtered them out
   entirely, so a green build said nothing whatever about that provider's integration behaviour. The filter
   is removed, and an emulator readiness check now probes the data plane — creating a database rather than
@@ -48,6 +64,50 @@ limits of that claim.
   future green build will be evidence about it, where the previous one could not be. See *Known Issues*.
 
 ### Fixed
+
+- **Enabling encryption or telemetry on a document-store inbox silently weakened its delivery guarantee.**
+  The inbox pipeline reserves its strongest path — the handler and the processed-mark committing together
+  inside one provider-native transaction — for stores that advertise it, and it looks for that capability on
+  the outermost store it is given. The encrypting and telemetry decorators did not carry the capability
+  forward, so a decorated Cosmos DB or MongoDB inbox was no longer recognised and quietly fell back to
+  at-least-once redelivery. Nothing failed and nothing was logged; the only symptom was a handler running
+  more than once for a message you expected to be processed exactly once. Both decorators now forward the
+  capability and report it based on what the store underneath them actually supports, so wrapping a store no
+  longer changes its guarantee. A store that deliberately declines the atomic contract — such as a Cosmos DB
+  container configured without the shared partition key its transactional batch requires — is still reported
+  honestly rather than re-advertised as atomic. If you enabled inbox encryption or telemetry on a document
+  store, your handlers were running under at-least-once delivery and needed to be idempotent; after this
+  release they run under the guarantee the store advertises.
+
+- **Disposing one Cosmos-backed store could break Cosmos access for the whole application.** The Cosmos
+  snapshot store and saga store disposed their `CosmosClient` unconditionally, including when the client
+  had been injected — and an injected client is normally a singleton shared by every consumer. Disposing
+  a single store therefore left later operations elsewhere throwing `ObjectDisposedException: Accessing
+  CosmosClient after it is disposed`, an error that pointed at the disposal rather than at whatever code
+  happened to run next. Each store now disposes the client only when it constructed it, matching the
+  ownership rule the MongoDB, DynamoDB and AWS stores already follow. If you inject a shared
+  `CosmosClient`, you no longer need to keep every store alive for the process lifetime to avoid this.
+
+- **Concurrent appends to DIFFERENT Firestore aggregates could fail each other with a transaction lock
+  timeout.** The event store's optimistic-concurrency check ran as a transactional *query*, filtered on
+  stream and ordered by version. A transactional query in Firestore locks the index range it scans, not
+  merely the documents it returns, so appends to unrelated streams took overlapping range locks and
+  aborted one another — aggregates that share no stream, and cannot genuinely contend, were contending.
+  The check now uses point reads against the deterministic document ids, which lock exactly the documents
+  named: the slot after the expected version must be empty, and the expected version itself must exist.
+  If you saw sporadic concurrency failures under parallel writes to distinct aggregates, that is this.
+
+- **The Polly circuit breaker never executed. If you registered it, you still got the built-in breaker.**
+  `ICircuitBreakerFactory.GetOrCreate` declared a concrete return type, and that class declares no virtual
+  members — so the Polly implementation could not override anything and instead re-declared every member
+  with `new`. `new` hides rather than overrides and binds by the *static* type, so every caller, holding the
+  declared concrete type, reached the built-in breaker's code. The Polly package was referenced, registered,
+  constructed, and inert. The same wrapper also replaced your `CircuitBreakerOptions` with defaults on the
+  way through, so any thresholds you configured were discarded. `GetOrCreate` now returns the
+  `IResiliencePattern` abstraction that both breakers already implemented, and the Polly factory returns its
+  adapter directly. **This is a breaking signature change**: if you assign the result to a variable typed as
+  the concrete breaker, change it to `IResiliencePattern` (or `var`). If you selected Polly for its
+  behaviour — its half-open probing and its metrics — you were not getting it before and are now.
 
 - **The Cosmos DB client recipe we publish omitted the serializer, and following it produced a client
   whose point-reads silently miss.** Both the emulator fixture's documentation and the

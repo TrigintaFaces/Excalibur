@@ -88,7 +88,20 @@ public sealed class MongoDbCdcRestartRedeliveryIntegrationShould : IntegrationTe
 			BatchSize = 1,
 			// Filter to inserts — a realistic config that also yields a non-null change-stream pipeline.
 			// (The no-filter default currently NREs in the provider — tracked as bd-6idsbx.)
-			ChangeStream = new MongoDbChangeStreamOptions { OperationTypes = ["insert"], FullDocument = true },
+			//
+			// MaxAwaitTime bounds how long a single batch waits for data, and the processor allows a batch
+			// twice that long. The 5s default therefore costs 10s per missed watch window, which the retry
+			// loops below can multiply past this test's own budget (the failure mode was the test's
+			// cancellation token firing mid-poll, not a redelivery defect). 1s is ample for an insert against
+			// a local container while keeping a full sweep of retries well inside the budget. This bounds the
+			// cost of a miss; it does not weaken any assertion, and the loops still converge on a capture
+			// rather than depending on a fixed sleep.
+			ChangeStream = new MongoDbChangeStreamOptions
+			{
+				OperationTypes = ["insert"],
+				FullDocument = true,
+				MaxAwaitTime = TimeSpan.FromSeconds(1),
+			},
 		});
 
 		try
@@ -128,7 +141,13 @@ public sealed class MongoDbCdcRestartRedeliveryIntegrationShould : IntegrationTe
 		}
 		finally
 		{
-			await client.DropDatabaseAsync(databaseName, TestCancellationToken);
+			// Cleanup deliberately does NOT use TestCancellationToken. That token is the test's own budget,
+			// and when a slow run exhausts it the token is ALREADY cancelled by the time this block runs —
+			// so the drop threw OperationCanceledException, the test reported a failure that looked like the
+			// data-loss assertion above (it had already passed), and the database was left behind. A cleanup
+			// path must not be cancellable by the thing it is cleaning up after.
+			using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+			await client.DropDatabaseAsync(databaseName, cleanupCts.Token);
 		}
 	}
 

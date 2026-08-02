@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Compliance;
+using Excalibur.Dispatch;
 using Excalibur.Compliance.Erasure;
 
 using Excalibur.Testing.Conformance;
@@ -40,7 +41,37 @@ namespace Excalibur.Tests.Testing.Conformance;
 public sealed class InMemoryDataInventoryStoreConformanceTests : DataInventoryStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override IDataInventoryStore CreateStore() => new InMemoryDataInventoryStore();
+	protected override IDataInventoryStore CreateStore() =>
+		new InMemoryDataInventoryStore(new AmbientHolderTenantContext());
+
+	/// <inheritdoc />
+	protected override IDisposable EnterTenant(string tenantId) =>
+		TenantContextHolder.BeginScope(tenantId);
+
+	/// <summary>
+	/// Reads the ambient tenant from <see cref="TenantContextHolder"/>, so that the scope entered by
+	/// <see cref="EnterTenant"/> is the scope the store under test observes.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Implements <see cref="ITenantContext"/> directly rather than deriving from a framework base:
+	/// a fixture that inherits the member under test re-verifies the base rather than the contract.
+	/// Test-local, and widens no production visibility to reach it.
+	/// </para>
+	/// <para>
+	/// Outside any scope this resolves the reserved untenanted sentinel rather than <see langword="null"/>.
+	/// That is not a convenience: <see cref="TenantScope.FromContext"/> is deliberately fail-closed, so a
+	/// context that is present but resolves nothing means "multi-tenancy active, tenant unresolved" and
+	/// throws rather than emit a predicate-less query. The arms of this kit that are not about tenancy run
+	/// with no scope entered, and they are untenanted callers — not unresolved ones.
+	/// </para>
+	/// </remarks>
+	private sealed class AmbientHolderTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current ?? TenantScope.UntenantedSentinel;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
+	}
 
 	#region Registration Save Tests
 

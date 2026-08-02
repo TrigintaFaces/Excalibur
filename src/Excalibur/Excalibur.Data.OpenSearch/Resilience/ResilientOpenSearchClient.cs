@@ -21,14 +21,21 @@ namespace Excalibur.Data.OpenSearch.Resilience;
 /// <param name="circuitBreaker"> The circuit breaker for preventing cascading failures. </param>
 /// <param name="options"> The resilience configuration options. </param>
 /// <param name="logger"> The logger for diagnostic information. </param>
+/// <param name="timeProvider">
+/// The time provider used to schedule operation timeouts. Defaults to <see cref="TimeProvider.System" />. Supplying a
+/// controllable provider allows timeout behavior to be exercised deterministically instead of racing the wall clock.
+/// </param>
 /// <exception cref="ArgumentNullException"> Thrown when any required parameter is null. </exception>
 internal sealed class ResilientOpenSearchClient(
 	OpenSearchClient client,
 	IOpenSearchRetryPolicy retryPolicy,
 	IOpenSearchCircuitBreaker circuitBreaker,
 	IOptions<OpenSearchConfigurationOptions> options,
-	ILogger<ResilientOpenSearchClient> logger) : IResilientOpenSearchClient, IResilientOpenSearchClientDiagnostics, IDisposable
+	ILogger<ResilientOpenSearchClient> logger,
+	TimeProvider? timeProvider = null) : IResilientOpenSearchClient, IResilientOpenSearchClientDiagnostics, IDisposable
 {
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+
 	private readonly OpenSearchClient _client = client ?? throw new ArgumentNullException(nameof(client));
 	private readonly IOpenSearchRetryPolicy _retryPolicy = retryPolicy ?? throw new ArgumentNullException(nameof(retryPolicy));
 
@@ -57,7 +64,7 @@ internal sealed class ResilientOpenSearchClient(
 			return await _client.SearchAsync(selector, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -65,7 +72,8 @@ internal sealed class ResilientOpenSearchClient(
 			operationType: "Search",
 			createException: (ex, attempts) => new InvalidOperationException(
 				$"Search operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -82,7 +90,7 @@ internal sealed class ResilientOpenSearchClient(
 			return await _client.IndexAsync(document, selector, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.IndexTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.IndexTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -90,7 +98,8 @@ internal sealed class ResilientOpenSearchClient(
 			operationType: "Index",
 			createException: (ex, attempts) => new InvalidOperationException(
 				$"Index operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -107,7 +116,7 @@ internal sealed class ResilientOpenSearchClient(
 			return await _client.DeleteAsync(id, selector, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.DeleteTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.DeleteTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -115,7 +124,8 @@ internal sealed class ResilientOpenSearchClient(
 			operationType: "Delete",
 			createException: (ex, attempts) => new InvalidOperationException(
 				$"Delete operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -130,7 +140,7 @@ internal sealed class ResilientOpenSearchClient(
 			return await _client.BulkAsync(selector, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.BulkTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.BulkTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -138,7 +148,8 @@ internal sealed class ResilientOpenSearchClient(
 			operationType: "Bulk",
 			createException: (ex, attempts) => new InvalidOperationException(
 				$"Bulk operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -155,7 +166,7 @@ internal sealed class ResilientOpenSearchClient(
 			return await _client.GetAsync(id, selector, cancellationToken).ConfigureAwait(false);
 		}
 
-		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout);
+		using var timeout = new CancellationTokenSource(_settings.Timeouts.SearchTimeout, _timeProvider);
 		using var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
 
 		return await ExecuteWithResilienceAsync(
@@ -163,7 +174,8 @@ internal sealed class ResilientOpenSearchClient(
 			operationType: "Get",
 			createException: (ex, attempts) => new InvalidOperationException(
 				$"Get operation failed after {attempts} attempts: {ex.Message}", ex),
-			cancellationToken: combinedToken.Token).ConfigureAwait(false);
+			cancellationToken: combinedToken.Token,
+			callerToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -228,6 +240,25 @@ internal sealed class ResilientOpenSearchClient(
 			_ => false,
 		};
 
+
+	/// <summary>
+	/// Builds the exception reported when the operation's own timeout budget elapses, as opposed to the caller
+	/// cancelling. The <see cref="TimeoutException" /> is carried as the inner exception so callers can
+	/// distinguish "it timed out" from "it failed", mirroring how <c>HttpClient</c> reports its own timeout.
+	/// </summary>
+	private static Exception CreateTimeoutException(
+		Func<Exception, int, Exception> createException,
+		string operationType,
+		int attempts,
+		Exception? inner = null)
+	{
+		var timeoutException = inner is null
+			? new TimeoutException($"{operationType} operation timed out after {attempts} attempt(s).")
+			: new TimeoutException($"{operationType} operation timed out after {attempts} attempt(s).", inner);
+
+		return createException(timeoutException, attempts);
+	}
+
 	/// <summary>
 	/// Executes an operation with full resilience patterns including retry and circuit breaker.
 	/// </summary>
@@ -236,6 +267,10 @@ internal sealed class ResilientOpenSearchClient(
 	/// <param name="operationType"> The type of operation for logging and monitoring. </param>
 	/// <param name="createException"> Function to create an appropriate exception when all retries are exhausted. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
+	/// <param name="callerToken">
+	/// The caller-supplied token, used to distinguish caller cancellation (propagated unchanged) from the operation
+	/// timeout elapsing (surfaced as a <see cref="TimeoutException" /> wrapped in the operation's domain exception).
+	/// </param>
 	/// <returns> The response from the successful operation. </returns>
 	/// <exception cref="Exception"> Thrown when the operation fails after all resilience mechanisms are exhausted. </exception>
 	/// <exception cref="InvalidOperationException">Thrown when the circuit breaker is open.</exception>
@@ -243,7 +278,8 @@ internal sealed class ResilientOpenSearchClient(
 		Func<Task<TResponse>> operation,
 		string operationType,
 		Func<Exception, int, Exception> createException,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		CancellationToken callerToken)
 		where TResponse : IResponse
 	{
 		// Check circuit breaker state first
@@ -259,6 +295,16 @@ internal sealed class ResilientOpenSearchClient(
 		while (attempts < _settings.Retry.MaxAttempts + 1) // +1 for initial attempt
 		{
 			attempts++;
+
+			// The client does not reliably surface a cancelled token as an OperationCanceledException - it can
+			// return an *invalid response* instead. Inspect the tokens directly so cancellation and timeout are
+			// attributed correctly rather than reported as a generic failure. Caller cancellation wins.
+			callerToken.ThrowIfCancellationRequested();
+
+			if (cancellationToken.IsCancellationRequested)
+			{
+				throw CreateTimeoutException(createException, operationType, attempts);
+			}
 
 			try
 			{
@@ -325,10 +371,26 @@ internal sealed class ResilientOpenSearchClient(
 					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
 			{
-				_logger.LogInformation("{OperationType} operation was cancelled", operationType);
+				// The CALLER asked to stop: propagate verbatim, not recorded as a failure.
+				_logger.LogInformation("{OperationType} operation was cancelled by the caller", operationType);
 				throw;
+			}
+			catch (OperationCanceledException ex)
+			{
+				// Caller did not cancel, so our own timeout elapsed. Surface it as a timeout - distinct from
+				// caller cancellation - rather than an OperationCanceledException the caller cannot attribute.
+				// see CreateTimeoutException
+
+				if (_settings.CircuitBreaker.Enabled)
+				{
+					await _circuitBreaker.RecordFailureAsync().ConfigureAwait(false);
+				}
+
+				_logger.LogWarning(ex, "{OperationType} operation timed out on attempt {Attempt}", operationType, attempts);
+
+				throw CreateTimeoutException(createException, operationType, attempts, ex);
 			}
 		}
 

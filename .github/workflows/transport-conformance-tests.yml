@@ -62,7 +62,7 @@ jobs:
 
       - name: Build conformance tests
         run: |
-          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
+          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj -p:BuildExamplesAndTests=true \
             --configuration Release \
             --no-restore \
             --verbosity normal

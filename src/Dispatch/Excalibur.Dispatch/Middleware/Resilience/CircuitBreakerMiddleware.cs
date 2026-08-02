@@ -23,9 +23,13 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// <remarks> Initializes a new instance of the <see cref="CircuitBreakerMiddleware" /> class. </remarks>
 /// <param name="options"> The circuit breaker options. </param>
 /// <param name="sanitizer"> The telemetry sanitizer for PII protection. </param>
+/// <param name="timeProvider">
+/// The time source used for the open-duration deadline that gates the half-open probe. Supply a fake
+/// provider to step across that deadline in a test instead of sleeping.
+/// </param>
 /// <param name="logger"> The logger. </param>
 [AppliesTo(MessageKinds.All)]
-public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOptions> options, ITelemetrySanitizer sanitizer, ILogger<CircuitBreakerMiddleware> logger)
+public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOptions> options, ITelemetrySanitizer sanitizer, TimeProvider timeProvider, ILogger<CircuitBreakerMiddleware> logger)
 	: IDispatchMiddleware
 {
 	private static readonly ActivitySource ActivitySource = new(DispatchTelemetryConstants.ActivitySources.CircuitBreakerMiddleware, "1.0.0");
@@ -45,6 +49,7 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 
 	private readonly CircuitBreakerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 	private readonly ITelemetrySanitizer _sanitizer = sanitizer ?? throw new ArgumentNullException(nameof(sanitizer));
+	private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 	private readonly ILogger<CircuitBreakerMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	private const int MaxCircuitStates = 1024;
@@ -81,11 +86,11 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 		else if (_circuitStates.Count >= MaxCircuitStates)
 		{
 			// Cache is full, create a transient state (not cached)
-			state = new CircuitBreakerState(_options);
+			state = new CircuitBreakerState(_options, _timeProvider);
 		}
 		else
 		{
-			state = _circuitStates.GetOrAdd(circuitKey, (_, options) => new CircuitBreakerState(options), _options);
+			state = _circuitStates.GetOrAdd(circuitKey, (_, s) => new CircuitBreakerState(s.options, s.time), (options: _options, time: _timeProvider));
 		}
 
 		_ = (activity?.SetTag("circuit.key", circuitKey));
@@ -185,7 +190,8 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 		}
 	}
 
-	private static DateTimeOffset CreateTimestamp() => DateTimeOffset.UtcNow;
+	// Was DateTimeOffset.UtcNow. See CircuitBreakerState.CreateTimestamp for why this matters here.
+	private DateTimeOffset CreateTimestamp() => _timeProvider.GetUtcNow();
 
 	/// <summary>
 	/// Emits the circuit-breaker transition counter (FR-D1, p9w9vk) when the state actually changed, tagged

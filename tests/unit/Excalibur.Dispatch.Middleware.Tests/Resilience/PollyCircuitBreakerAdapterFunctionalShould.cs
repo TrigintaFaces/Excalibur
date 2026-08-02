@@ -32,10 +32,8 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 		options ??= new CircuitBreakerOptions
 		{
 			FailureThreshold = 3,
-			SuccessThreshold = 2,
 			OpenDuration = TimeSpan.FromSeconds(1),
 			OperationTimeout = TimeSpan.FromSeconds(5),
-			MaxHalfOpenTests = 2,
 		};
 
 		_sut = new PollyCircuitBreakerAdapter("test-cb", options);
@@ -67,8 +65,9 @@ public sealed class PollyCircuitBreakerAdapterFunctionalShould : IAsyncDisposabl
 		var config = adapter.Configuration;
 		config.ShouldContainKey(nameof(CircuitBreakerOptions.FailureThreshold));
 		config[nameof(CircuitBreakerOptions.FailureThreshold)].ShouldBe(3);
-		config.ShouldContainKey(nameof(CircuitBreakerOptions.SuccessThreshold));
-		config[nameof(CircuitBreakerOptions.SuccessThreshold)].ShouldBe(2);
+		// Polly fixes this at 1 and Configuration reports what is IN FORCE, not what was requested.
+		// This previously asserted the requested value, which certified the adapter reporting a setting
+		// it silently discarded.
 	}
 
 	[Fact]

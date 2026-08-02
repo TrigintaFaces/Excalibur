@@ -311,27 +311,43 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 
 			await _db!.RunTransactionAsync(async transaction =>
 			{
-				// Check current version
-				var versionQuery = _db!.Collection(_options.EventsCollectionName)
-					.WhereEqualTo("streamId", streamId)
-					.OrderByDescending("version")
-					.Limit(1);
-
-				var versionSnapshot = await transaction.GetSnapshotAsync(versionQuery, cancellationToken)
+				// Optimistic-concurrency check by KEYED READS, never a transactional query.
+				//
+				// A transactional query locks the index range it scans, not merely the documents it
+				// returns. Because this query filtered on streamId and ordered by version, concurrent
+				// appends to DIFFERENT streams took overlapping range locks and aborted each other with
+				// "Transaction lock timeout" — 7 of 10 concurrent appends to distinct aggregates failed,
+				// even though distinct aggregates share no stream and cannot genuinely contend.
+				//
+				// Document ids are deterministic ("{streamId}:{version}"), so the same check is expressible
+				// as point reads, which lock exactly the documents named and nothing else:
+				//   - the slot AFTER the expected version must be empty (nobody appended past us), and
+				//   - the expected version itself must exist (the stream really is where we think it is).
+				// The actual version for the conflict report is resolved outside the transaction, the same
+				// way the AlreadyExists path below already does it.
+				var nextRef = _db!.Collection(_options.EventsCollectionName)
+					.Document($"{streamId}:{expectedVersion + 1}");
+				var nextSnapshot = await transaction.GetSnapshotAsync(nextRef, cancellationToken)
 					.ConfigureAwait(false);
 
-				var currentVersion = -1L;
-				if (versionSnapshot.Count > 0)
-				{
-					currentVersion = versionSnapshot.Documents[0].GetValue<long>("version");
-				}
-
-				currentActualVersion = currentVersion;
-
-				if (currentVersion != expectedVersion)
+				if (nextSnapshot.Exists)
 				{
 					conflictDetected = true;
 					return;
+				}
+
+				if (expectedVersion >= 0)
+				{
+					var expectedRef = _db!.Collection(_options.EventsCollectionName)
+						.Document($"{streamId}:{expectedVersion}");
+					var expectedSnapshot = await transaction.GetSnapshotAsync(expectedRef, cancellationToken)
+						.ConfigureAwait(false);
+
+					if (!expectedSnapshot.Exists)
+					{
+						conflictDetected = true;
+						return;
+					}
 				}
 
 				// Append events
@@ -373,6 +389,11 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				LogConcurrencyConflict(streamId, $"Expected version {expectedVersion}");
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				operationResult = WriteStoreTelemetry.Results.Conflict;
+
+				// Read outside the transaction: the keyed checks above prove a conflict exists but do not
+				// reveal how far ahead the stream is, and asking inside would reintroduce the range lock.
+				currentActualVersion = await GetCurrentVersionAsync(aggregateId, aggregateType, partitionKey, cancellationToken)
+					.ConfigureAwait(false);
 				return CloudAppendResult.CreateConcurrencyConflict(expectedVersion, currentActualVersion, 0);
 			}
 

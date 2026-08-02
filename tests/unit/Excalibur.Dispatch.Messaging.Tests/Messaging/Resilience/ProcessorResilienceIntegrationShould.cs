@@ -315,7 +315,6 @@ public sealed class ProcessorResilienceIntegrationShould
 		{
 			FailureThreshold = 5, // Higher threshold to allow recovery before circuit opens
 			OpenDuration = TimeSpan.FromMilliseconds(100),
-			SuccessThreshold = 2
 		};
 		var registry = new TransportCircuitBreakerRegistry(cbOptions, NullLoggerFactory.Instance);
 		var deliveryOptions = new DeliveryGuaranteeOptions

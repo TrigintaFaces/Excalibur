@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Testcontainers.Azurite;
 
+using Xunit;
+
 namespace Excalibur.Integration.Tests.TieredStorage;
 
 /// <summary>
@@ -92,7 +94,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task WriteAndReadEvents()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		var events = CreateEvents("blob-agg-1", 1, 2, 3);
 		await _store!.WriteAsync(Tenant, "blob-agg-1", events, CancellationToken.None);
@@ -106,7 +108,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReadFromVersionFiltersCorrectly()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		await _store!.WriteAsync(Tenant, "blob-agg-v", CreateEvents("blob-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
 
@@ -118,7 +120,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MergeNewEventsWithExisting()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		await _store!.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 1, 2, 3), CancellationToken.None);
 		await _store.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 3, 4, 5), CancellationToken.None);
@@ -130,7 +132,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task HasArchivedReturnsTrueWhenPresent()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		await _store!.WriteAsync(Tenant, "blob-agg-h", CreateEvents("blob-agg-h", 1), CancellationToken.None);
 		(await _store.HasArchivedEventsAsync(Tenant, "blob-agg-h", CancellationToken.None)).ShouldBeTrue();
@@ -139,14 +141,14 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 		(await _store!.HasArchivedEventsAsync(Tenant, "blob-nonexistent", CancellationToken.None)).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 		(await _store!.ReadAsync(Tenant, "blob-no-such", CancellationToken.None)).Count.ShouldBe(0);
 	}
 

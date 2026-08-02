@@ -48,6 +48,17 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	private Container? _container;
 	private volatile bool _initialized;
 
+	/// <summary>Whether this instance CREATED the client and may therefore dispose it.</summary>
+	/// <remarks>
+	/// A type disposes what it creates and never what it is handed. An injected client is owned by the
+	/// composition root — in DI normally a singleton shared by the whole application — so disposing it here
+	/// terminates Cosmos access for every other consumer the moment the first store is disposed. That is
+	/// exactly what happened: one disposed store left every later operation throwing
+	/// <c>ObjectDisposedException: Accessing CosmosClient after it is disposed</c>, an error naming this
+	/// disposal rather than anything the caller did.
+	/// </remarks>
+	private bool _ownsClient;
+
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -114,6 +125,9 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		ArgumentNullException.ThrowIfNull(serializer);
 
 		_client = client;
+
+		// Injected: the caller owns this client's lifetime; this store must not dispose it.
+		_ownsClient = false;
 		_options = options.Value;
 		_options.Validate();
 		_logger = logger;
@@ -441,6 +455,9 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			{
 				var clientOptions = CreateClientOptions();
 				_client = CreateClient(clientOptions);
+
+				// Created here, so this store owns it and disposes it.
+				_ownsClient = true;
 			}
 
 			var database = _client.GetDatabase(_options.DatabaseName);
@@ -527,7 +544,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+		DisposeClientIfOwned();
 		_initLock.Dispose();
 	}
 
@@ -540,7 +557,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+		DisposeClientIfOwned();
 		_initLock.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
@@ -577,4 +594,13 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 	[LoggerMessage(DataCosmosDbEventId.SagaStatePurged, LogLevel.Information, "Purged {Count} completed sagas older than {Threshold}")]
 	private partial void LogSagasPurged(int count, DateTimeOffset threshold);
+
+	/// <summary>Disposes the Cosmos client only when this instance created it.</summary>
+	private void DisposeClientIfOwned()
+	{
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+	}
 }

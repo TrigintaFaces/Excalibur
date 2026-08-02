@@ -17,10 +17,19 @@ on:
         required: true
         type: string
       coverage-threshold:
-        description: 'Minimum coverage percentage'
+        description: 'Aspirational coverage target, reported as a gap. NOT enforced -- see coverage-floor.'
         required: false
         type: string
         default: '65'
+      coverage-floor:
+        description: >-
+          Enforced ratchet floor: the level a green run already clears, so a breach is a REGRESSION
+          rather than an unmet stretch goal. Below this the job fails. Raise it only when a green
+          run has sustained the higher figure; it must never be lowered to make a red run pass.
+          Mirrors COVERAGE_THRESHOLD in quality-gates.yml, which enforces the same floor on the push path.
+        required: false
+        type: string
+        default: '44'
       pr-base-sha:
         description: 'Base SHA for PR coverage diff (empty if not a PR)'
         required: false
@@ -42,6 +51,7 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+  COVERAGE_FLOOR: ${{ inputs.coverage-floor }}
 
 jobs:
   coverage-enforce:
@@ -77,33 +87,49 @@ jobs:
           ./eng/ci/coverage-threshold.ps1 `
             -CoverageRoot "cov" `
             -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
-      - name: Coverage threshold status (report-only)
+      - name: Enforce coverage floor, report against target
         shell: bash
         run: |
           combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
           dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
           excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
-          threshold="${{ env.COVERAGE_THRESHOLD }}"
+          target="${{ env.COVERAGE_THRESHOLD }}"
+          floor="${{ env.COVERAGE_FLOOR }}"
 
           echo "Coverage (Dispatch): ${dispatch}%"
           echo "Coverage (Excalibur): ${excalibur}%"
           echo "Coverage (Combined): ${combined}%"
-          echo "Target threshold: ${threshold}%"
+          echo "Enforced floor: ${floor}%   Target: ${target}%"
 
-          # REFUSE, not pass. "Below the target" is a policy choice this job deliberately reports
-          # rather than enforces; "no figure at all" is a broken instrument, and a gate that
-          # reports success for a measurement that never happened is the one thing it must never
-          # do. Different states, different exits. (The identical block in quality-gates.yml
-          # carries the same contract — they are a pair and must not drift apart again.)
+          # THREE states, three exits.
+          #
+          # This job is named "Coverage Gate Enforcement" and reachable ONLY from ci.yml, which is
+          # the path every change actually takes. It previously enforced nothing: below-target
+          # emitted a ::warning:: and the job went green, so the name promised a gate that did not
+          # exist. A gate that cannot fail is a success signal with no mechanism behind it.
+          #
+          # It now enforces the RATCHET FLOOR (the level a green run already clears, so this can
+          # only catch a REGRESSION) and reports the gap to the aspirational TARGET separately.
+          # Floor and target are different questions and must not share one number: enforcing the
+          # target would fail every run today, and reporting the floor would enforce nothing.
+          #
+          # No figure at all is neither -- it is a broken instrument, and reporting success for a
+          # measurement that never happened is the one thing a gate must never do.
+          # (quality-gates.yml carries the same contract on the push path. They are a pair.)
           if [ -z "$combined" ]; then
             echo "::error::Coverage REFUSE — the threshold script emitted no combined figure, so coverage was NOT measured. This is not a pass: fix the coverage instrument or the report inputs."
             exit 1
           fi
 
-          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
-            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
+          if (( $(awk "BEGIN {print ($combined < $floor)}") )); then
+            echo "::error::Coverage REGRESSED below the enforced floor: combined ${combined}% < ${floor}%. The floor is the level a green run already clears, so this is a drop, not a stretch goal."
+            exit 1
+          fi
+
+          if (( $(awk "BEGIN {print ($combined < $target)}") )); then
+            echo "::warning::Coverage ${combined}% clears the enforced floor (${floor}%) but is below the target (${target}%). Gap: $(awk "BEGIN {printf \"%.1f\", $target - $combined}") points."
           else
-            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
+            echo "✅ Coverage target met: ${combined}% >= ${target}%."
           fi
 
   coverage-diff:
@@ -178,7 +204,7 @@ jobs:
         working-directory: base
         run: |
           dotnet restore "$BASE_UNIT_TESTS_SLNF"
-          dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore
+          dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore -p:BuildExamplesAndTests=true
       - name: Mark base build status
         shell: bash
         run: |

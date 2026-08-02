@@ -187,45 +187,235 @@ public sealed class InMemoryDataInventoryStoreShould
 		result[0].IdType.ShouldBe(DataSubjectIdType.Email);
 	}
 
-	[Fact]
-	public async Task FindRegistrationsForDataSubjectAsync_FiltersByTenantId()
+	// TENANT ISOLATION -- the arms below replace two tests that certified the defect as correct
+	// behaviour. Both prior fixtures assigned a tenant VALUE ("tenant-1") to TenantIdColumn, which holds a
+	// column NAME ("TenantId"). The store compared that field to the caller's tenant value, so the fixture
+	// and the implementation shared one category error and agreed with each other: "tenant-1" == "tenant-1"
+	// passed, and the suite reported a working filter over a predicate that cannot filter. A fixture that
+	// encodes the implementation's misconception is not a weak lock, it is an inverted one -- it fails when
+	// the code is corrected. TenantIdColumn now carries a column name in every fixture, and the tenant value
+	// travels in TenantId, matching the shape the SQL providers already store and read.
+
+	// The scope is AMBIENT, so the fixture has to move it. The store resolves its tenant per call from
+	// ITenantContext and deliberately ignores the tenantId argument on the read: a caller must not be able
+	// to widen a read by omitting a tenant, nor redirect one by naming another tenant. A fixture that
+	// passed the argument instead would drive a parameter the store discards and prove nothing -- so
+	// MovableTenantContext is what stands in for two different callers, and every arm below writes under
+	// one scope and reads under another.
+	//
+	// It implements ITenantContext directly, deriving from no first-party base: a fake that inherits its
+	// members from production code re-tests that base rather than the contract, and would keep passing for
+	// an implementation that reads the ambient tenant wrongly.
+	private sealed class MovableTenantContext : ITenantContext
 	{
-		// Arrange
-		await _sut.SaveRegistrationAsync(
-			CreateRegistration("Users", "Email") with { TenantIdColumn = "tenant-1" },
-			CancellationToken.None).ConfigureAwait(false);
-		await _sut.SaveRegistrationAsync(
-			CreateRegistration("Customers", "Email") with { TenantIdColumn = "tenant-2" },
-			CancellationToken.None).ConfigureAwait(false);
+		public string? TenantId { get; set; }
 
-		// Act
-		var result = await _sut.FindRegistrationsForDataSubjectAsync(
-			"test@example.com",
-			DataSubjectIdType.Email,
-			tenantId: "tenant-1",
-			cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-		// Assert
-		result.Count.ShouldBe(1);
+		public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 	}
 
 	[Fact]
-	public async Task FindRegistrationsForDataSubjectAsync_IncludesRegistrationsWithNullTenantColumn()
+	public async Task FindRegistrationsForDataSubjectAsync_NotDiscloseAnotherTenantsRegistration()
 	{
-		// Arrange
-		await _sut.SaveRegistrationAsync(
-			CreateRegistration("Users", "Email") with { TenantIdColumn = null },
+		// SAFETY. Tenant-b writes under its own scope; tenant-a then reads under its own. The question is
+		// the property -- "can tenant-a's read observe tenant-b's row?" -- never the mechanism that answers
+		// it, because a lock written from an assumed mechanism is how the previous one went blind.
+		var tenant = new MovableTenantContext();
+		var store = new InMemoryDataInventoryStore(tenant);
+
+		tenant.TenantId = "tenant-b";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("TenantBTable", "Email") with { TenantIdColumn = "TenantId" },
 			CancellationToken.None).ConfigureAwait(false);
 
-		// Act
-		var result = await _sut.FindRegistrationsForDataSubjectAsync(
+		tenant.TenantId = "tenant-a";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("TenantATable", "Email") with { TenantIdColumn = "TenantId" },
+			CancellationToken.None).ConfigureAwait(false);
+
+		var result = await store.FindRegistrationsForDataSubjectAsync(
 			"test@example.com",
 			DataSubjectIdType.Email,
-			tenantId: "any-tenant",
+			tenantId: null,
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
-		// Assert
-		result.Count.ShouldBe(1);
+		// Identity is asserted on the registration's OWN identity (table name), never on TenantIdColumn --
+		// that field holds the NAME of a column, and a fixture keying off it tests a naming coincidence.
+		result.ShouldNotContain(
+			r => r.TableName == "TenantBTable",
+			"a read scoped to tenant-a disclosed tenant-b's registration");
+	}
+
+	[Fact]
+	public async Task FindRegistrationsForDataSubjectAsync_StillReturnTheCallersOwnRegistration()
+	{
+		// LIVENESS. Paired with the arm above on purpose: "discloses nothing" is satisfied completely by a
+		// store that returns nothing to anybody, and inaction is the cheapest way to look safe. This arm is
+		// the one that fails if a fix over-corrects into a filter that excludes everything.
+		var tenant = new MovableTenantContext();
+		var store = new InMemoryDataInventoryStore(tenant);
+
+		tenant.TenantId = "tenant-b";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("TenantBTable", "Email") with { TenantIdColumn = "TenantId" },
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-a";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("TenantATable", "Email") with { TenantIdColumn = "TenantId" },
+			CancellationToken.None).ConfigureAwait(false);
+
+		var result = await store.FindRegistrationsForDataSubjectAsync(
+			"test@example.com",
+			DataSubjectIdType.Email,
+			tenantId: null,
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		result.ShouldContain(
+			r => r.TableName == "TenantATable",
+			"the scoped read dropped the caller's own registration");
+	}
+
+	[Fact]
+	public async Task FindRegistrationsForDataSubjectAsync_IgnoreACallerSuppliedTenantArgument()
+	{
+		// SAFETY, authorisation. The read takes a tenantId parameter that the store must NOT honour: if it
+		// did, any caller could name another tenant and read it, which is the hole the shipped SQL providers
+		// close by binding ambient scope and discarding the argument. Naming tenant-b while scoped to
+		// tenant-a must return tenant-a's view -- the parameter is inert, not a selector.
+		var tenant = new MovableTenantContext();
+		var store = new InMemoryDataInventoryStore(tenant);
+
+		tenant.TenantId = "tenant-b";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("TenantBTable", "Email") with { TenantIdColumn = "TenantId" },
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-a";
+		var result = await store.FindRegistrationsForDataSubjectAsync(
+			"test@example.com",
+			DataSubjectIdType.Email,
+			tenantId: "tenant-b",
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		result.ShouldNotContain(
+			r => r.TableName == "TenantBTable",
+			"naming another tenant in the tenantId argument redirected the read into that tenant's data");
+	}
+
+	[Fact]
+	public async Task SaveRegistrationAsync_NotLetOneTenantOverwriteAnothersRegistration()
+	{
+		// SAFETY, write side. The read predicate is only half the boundary: if the registration key is
+		// (table, field) with no tenant term, two tenants registering the same table and field are one
+		// entry and the second save silently destroys the first. A store can scope its reads perfectly and
+		// still lose a tenant's data on write, so the disclosure arm above cannot detect this -- nothing
+		// throws, and the loss is visible only to the tenant whose row is already gone.
+		var tenant = new MovableTenantContext();
+		var store = new InMemoryDataInventoryStore(tenant);
+
+		tenant.TenantId = "tenant-a";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("Users", "Email") with
+			{
+				TenantIdColumn = "TenantId",
+				Description = "belongs to tenant-a"
+			},
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-b";
+		await store.SaveRegistrationAsync(
+			CreateRegistration("Users", "Email") with
+			{
+				TenantIdColumn = "TenantId",
+				Description = "belongs to tenant-b"
+			},
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-a";
+		var result = await store.FindRegistrationsForDataSubjectAsync(
+			"test@example.com",
+			DataSubjectIdType.Email,
+			tenantId: null,
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		result.ShouldContain(
+			r => r.Description == "belongs to tenant-a",
+			"tenant-b's save on the same table and field overwrote tenant-a's registration");
+	}
+
+	[Fact]
+	public async Task GetDiscoveredLocationsAsync_NotReturnAnUntenantedLocationToATenantedScope()
+	{
+		// SAFETY. A discovered LOCATION is not a registration: it records that a named data subject's data
+		// was found somewhere, so it identifies a PERSON and binds strict tenant equality. The untenanted
+		// partition is a scope like any other, not a shared one -- a location written with no tenant must
+		// not surface inside a tenant's view. This is the arm that separates the two semantics; a fix that
+		// widened locations the way registrations are widened would pass every other arm in this file.
+		var tenant = new MovableTenantContext();
+		var store = new InMemoryDataInventoryStore(tenant);
+
+		// The reserved sentinel, NOT null. A present context resolving null means "multi-tenancy is active
+		// but no tenant was resolved", which fails closed by design; the sentinel is the storage encoding
+		// for a row that genuinely belongs to no tenant, and is the only way to reach that partition.
+		tenant.TenantId = TenantScope.UntenantedSentinel;
+		await store.RecordDiscoveredLocationAsync(
+			new DataLocation
+			{
+				TableName = "UntenantedTable",
+				FieldName = "Email",
+				DataCategory = "ContactInfo",
+				RecordId = "record-1",
+				KeyId = "key-1"
+			},
+			"subject-1",
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-a";
+		var result = await store.GetDiscoveredLocationsAsync(
+			"subject-1",
+			CancellationToken.None).ConfigureAwait(false);
+
+		result.ShouldNotContain(
+			l => l.TableName == "UntenantedTable",
+			"a discovered location written under the untenanted partition surfaced in a tenant's scope");
+	}
+
+	[Fact]
+	public async Task FindRegistrationsForDataSubjectAsync_StillReturnAnUntenantedRegistrationToATenantedScope()
+	{
+		// LIVENESS, and the arm most likely to be "corrected" into a bug by someone tightening isolation.
+		//
+		// A registration carries no person identifier -- it describes SCHEMA SHAPE, which table and column
+		// hold personal data. An untenanted one therefore describes a location that applies estate-wide, and
+		// dropping it from a scoped read does not protect anyone: it silently shortens the subject-access
+		// response, so a data subject is told about fewer places their data lives than actually hold it.
+		// Under-reporting is the failure that matters here, and no exception is thrown when it happens.
+		//
+		// This is deliberately NOT the rule for records that identify a PERSON -- erasure requests and legal
+		// holds are subject-linked and bind strict tenant equality, where a broader read IS a disclosure.
+		// Same predicate shape, opposite correct answer, decided by what the row is about.
+		var tenant = new MovableTenantContext();
+		var store = new InMemoryDataInventoryStore(tenant);
+
+		// The reserved sentinel, NOT null. A present context resolving null means "multi-tenancy is active
+		// but no tenant was resolved", which fails closed by design; the sentinel is the storage encoding
+		// for a row that genuinely belongs to no tenant, and is the only way to reach that partition.
+		tenant.TenantId = TenantScope.UntenantedSentinel;
+		await store.SaveRegistrationAsync(
+			CreateRegistration("EstateWideTable", "Email") with { TenantIdColumn = "TenantId" },
+			CancellationToken.None).ConfigureAwait(false);
+
+		tenant.TenantId = "tenant-a";
+		var result = await store.FindRegistrationsForDataSubjectAsync(
+			"test@example.com",
+			DataSubjectIdType.Email,
+			tenantId: null,
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		result.ShouldContain(
+			r => r.TableName == "EstateWideTable",
+			"an untenanted registration was dropped from a tenant-scoped read, silently shortening the "
+			+ "subject-access response");
 	}
 
 	#endregion

@@ -50,6 +50,7 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
         return new CircuitBreakerMiddleware(
             Microsoft.Extensions.Options.Options.Create(options),
             Sanitizer,
+            TimeProvider.System,
             logger ?? new ListLogger<CircuitBreakerMiddleware>());
     }
 
@@ -57,7 +58,6 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
         new()
         {
             FailureThreshold = failureThreshold,
-            SuccessThreshold = successThreshold,
             OpenDuration = openDuration ?? TimeSpan.FromSeconds(60),
             CircuitKeySelector = _ => key,
         };
@@ -134,7 +134,7 @@ public sealed class CircuitBreakerMiddlewareMetricsShould
     {
         const string key = "acd4-recovery";
         using var metrics = new MetricCollector(MeterName);
-        // OpenDuration zero → the next invoke after Open transitions to HalfOpen; SuccessThreshold 1 → one success closes.
+        // OpenDuration zero → the next invoke after Open transitions to HalfOpen; one success closes (Polly semantics; the threshold option was removed).
         var sut = CreateSut(Options(key, failureThreshold: 1, successThreshold: 1, openDuration: TimeSpan.Zero));
 
         await DriveFailureAsync(sut);   // Closed→Open

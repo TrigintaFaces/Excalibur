@@ -76,7 +76,15 @@ public sealed class CosmosDbSnapshotStoreConformanceShould : SnapshotConformance
 			ContainerThroughput = 400,
 		});
 
-		var store = new CosmosDbSnapshotStore(options, NullLogger<CosmosDbSnapshotStore>.Instance);
+		// The tenant context is REQUIRED, not optional decoration. The conformance kit deliberately uses one
+		// store and varies the AMBIENT scope (TenantContextHolder.BeginScope), mirroring production, where the
+		// store is a singleton that resolves the tenant per call. Constructing it without a context left
+		// TenantScope.FromContext(null) == None on every call, so both tenants collapsed onto ONE document id
+		// and tenant B read tenant A's snapshot. This mirrors the production AmbientTenantContext.
+		var store = new CosmosDbSnapshotStore(
+			options,
+			NullLogger<CosmosDbSnapshotStore>.Instance,
+			new AmbientConformanceTenantContext());
 
 		// Eagerly create the container so a wiring fault fails fast rather than on first operation.
 		await store.InitializeAsync(CancellationToken.None).ConfigureAwait(false);
@@ -87,6 +95,17 @@ public sealed class CosmosDbSnapshotStoreConformanceShould : SnapshotConformance
 	/// <inheritdoc/>
 	protected override async Task DisposeSnapshotStoreAsync()
 	{
-		await _fixture.CleanupDatabaseAsync().ConfigureAwait(false);
+		// Container, NOT database: the database is fixture-owned and shared by every test in this class.
+		// Deleting it here meant the first test's teardown left the other sixteen failing with
+		// "Database not found" — a failure that named nothing to do with snapshots.
+		await _fixture.CleanupContainerAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>Reads the ambient tenant the conformance kit sets, exactly as production's context does.</summary>
+	private sealed class AmbientConformanceTenantContext : ITenantContext
+	{
+		public string? TenantId => TenantContextHolder.Current;
+
+		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
 	}
 }

@@ -1,0 +1,7 @@
+1 Shared/Tests.Shared/Conformance/Outbox/OutboxStoreConformanceTestBase.cs
+1 conformance/Excalibur.Dispatch.Tests.Conformance/Snapshot/SnapshotConformanceTestBase.cs
+15 conformance/Excalibur.Dispatch.Tests.Conformance/Transport/TransportConformanceTestBase.cs
+5 integration/Excalibur.Integration.Tests/OpenSearch/OpenSearchProjectionStoreIntegrationShould.cs
+4 integration/Excalibur.Integration.Tests/Sharding/TenantShardIntegrationShould.cs
+6 integration/Excalibur.Integration.Tests/TieredStorage/AwsS3ColdEventStoreIntegrationShould.cs
+6 integration/Excalibur.Integration.Tests/TieredStorage/AzureBlobColdEventStoreIntegrationShould.cs

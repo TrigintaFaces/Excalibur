@@ -127,7 +127,8 @@ internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICir
 			{
 				_successfulProbes++;
 
-				if (_successfulProbes >= _options.SuccessThreshold)
+				// One successful probe closes the circuit, matching Polly.
+				if (_successfulProbes >= 1)
 				{
 					TransitionTo(CircuitState.Closed);
 				}

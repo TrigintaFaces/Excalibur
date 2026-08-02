@@ -66,7 +66,7 @@ jobs:
         run: dotnet restore ${{ matrix.shard.filter }} --verbosity quiet
 
       - name: Build
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet
+        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       - name: Run Unit Tests
         run: |
@@ -120,7 +120,7 @@ jobs:
         run: dotnet restore eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       - name: Build
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet
+        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       # This job is the ONLY place the Cosmos provider is exercised — ci.yml excludes it from the PR
       # path, so a Cosmos regression is caught here or nowhere. The gate moved here with the tests.

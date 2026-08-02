@@ -26,12 +26,6 @@ public sealed class CircuitBreakerOptionsValidator : IValidateOptions<CircuitBre
 			failures.Add($"{nameof(CircuitBreakerOptions.FailureThreshold)} must be >= 1 (was {options.FailureThreshold}).");
 		}
 
-		// SuccessThreshold must be positive
-		if (options.SuccessThreshold < 1)
-		{
-			failures.Add($"{nameof(CircuitBreakerOptions.SuccessThreshold)} must be >= 1 (was {options.SuccessThreshold}).");
-		}
-
 		// OpenDuration must be positive
 		if (options.OpenDuration <= TimeSpan.Zero)
 		{
@@ -44,26 +38,12 @@ public sealed class CircuitBreakerOptionsValidator : IValidateOptions<CircuitBre
 			failures.Add($"{nameof(CircuitBreakerOptions.OperationTimeout)} must be positive (was {options.OperationTimeout}).");
 		}
 
-		// MaxHalfOpenTests must be positive
-		if (options.MaxHalfOpenTests < 1)
-		{
-			failures.Add($"{nameof(CircuitBreakerOptions.MaxHalfOpenTests)} must be >= 1 (was {options.MaxHalfOpenTests}).");
-		}
-
 		// Cross-property: OperationTimeout should not exceed OpenDuration (operations would always timeout during probe)
 		if (options.OperationTimeout >= options.OpenDuration)
 		{
 			failures.Add(
 				$"{nameof(CircuitBreakerOptions.OperationTimeout)} ({options.OperationTimeout}) should be less than " +
 				$"{nameof(CircuitBreakerOptions.OpenDuration)} ({options.OpenDuration}).");
-		}
-
-		// Cross-property: SuccessThreshold should not exceed MaxHalfOpenTests
-		if (options.SuccessThreshold > options.MaxHalfOpenTests)
-		{
-			failures.Add(
-				$"{nameof(CircuitBreakerOptions.SuccessThreshold)} ({options.SuccessThreshold}) must not exceed " +
-				$"{nameof(CircuitBreakerOptions.MaxHalfOpenTests)} ({options.MaxHalfOpenTests}).");
 		}
 
 		return failures.Count > 0

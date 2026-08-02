@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Middleware.Resilience;
 /// atomic via lock. This matches the behavior of Polly and Resilience4j
 /// circuit breakers.
 /// </remarks>
-internal sealed class CircuitBreakerState(CircuitBreakerOptions options)
+internal sealed class CircuitBreakerState(CircuitBreakerOptions options, TimeProvider timeProvider)
 {
 	private readonly Lock _lock = new();
 	private int _failureCount;
@@ -35,7 +35,8 @@ internal sealed class CircuitBreakerState(CircuitBreakerOptions options)
 			_successCount++;
 			_failureCount = 0; // Reset failure count on success
 
-			if (State == CircuitState.HalfOpen && _successCount >= options.SuccessThreshold)
+			// One success closes the circuit, matching Polly; the configurable threshold was removed.
+			if (State == CircuitState.HalfOpen && _successCount >= 1)
 			{
 				State = CircuitState.Closed;
 				_successCount = 0;
@@ -72,5 +73,15 @@ internal sealed class CircuitBreakerState(CircuitBreakerOptions options)
 		}
 	}
 
-	private static DateTimeOffset CreateTimestamp() => DateTimeOffset.UtcNow;
+	/// <summary>
+	/// Reads the current time from the injected <see cref="TimeProvider"/>.
+	/// </summary>
+	/// <remarks>
+	/// This was <c>DateTimeOffset.UtcNow</c>. The open-duration deadline is the one piece of state that
+	/// decides when a half-open probe is allowed, so hard-coding the system clock made the only interesting
+	/// transition in this breaker reachable in a test solely by sleeping in real time — which is why the
+	/// recovery path had no deterministic coverage. <see cref="TimeProvider"/> is the platform's answer and
+	/// lets a fake clock step across the deadline instantly.
+	/// </remarks>
+	private DateTimeOffset CreateTimestamp() => timeProvider.GetUtcNow();
 }

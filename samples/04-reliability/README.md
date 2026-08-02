@@ -150,7 +150,6 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
     options.FailureThreshold = 3;
-    options.SuccessThreshold = 2;
     options.OpenDuration = TimeSpan.FromSeconds(10);
 });
 ```

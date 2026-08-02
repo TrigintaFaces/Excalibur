@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -22,8 +23,13 @@ public sealed class TelemetryTransportReceiverShould : IDisposable
 	private readonly Meter _meter = new("Excalibur.Dispatch.Transport.ReceiverTest", "1.0.0");
 	private readonly ActivitySource _activitySource = new("Excalibur.Dispatch.Transport.ReceiverTest");
 	private readonly MeterListener _meterListener;
-	private readonly List<(string Name, long Value)> _recordedCounters = [];
-	private readonly List<(string Name, double Value)> _recordedHistograms = [];
+	// ConcurrentBag, not List: a MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT.
+	// List<T>.Add resizes with a Count-then-Array.Copy that a concurrent append invalidates, surfacing as
+	// "Destination array was not long enough". Because InstrumentPublished filters by meter NAME, which every
+	// instance of a decorator shares, the corrupting thread is often a DIFFERENT test class in the same
+	// assembly — so the failure gets reported against that sibling and reproduces only in a full shard run.
+	private readonly ConcurrentBag<(string Name, long Value)> _recordedCounters = [];
+	private readonly ConcurrentBag<(string Name, double Value)> _recordedHistograms = [];
 	private bool _disposed;
 
 	public TelemetryTransportReceiverShould()

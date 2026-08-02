@@ -87,7 +87,35 @@ runs:
 
     - name: Build
       shell: bash
-      run: dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet
+      # -p:BuildExamplesAndTests=true is REQUIRED, and its absence is silent.
+      #
+      # Directory.Build.targets sets SkipProjectBuild on any project whose path contains \tests\,
+      # \examples\ or \benchmarks\ unless this property is true, and then does
+      # <Compile Remove="**\*.cs" />. The project does not fail and does not warn: it removes its own
+      # source and succeeds. Measured on Windows, both arms, one variable:
+      #
+      #   without the property : "Skipping compile for Excalibur.Data.Tests
+      #                           (examples/tests/benchmarks disabled)"   ->  Build succeeded.
+      #   with the property    : (compiles)                               ->  Build succeeded.
+      #
+      # Identical exit code, identical summary. The ONLY distinguishing evidence is a High-importance
+      # log line that --verbosity quiet discards -- so the console output of a build that compiled
+      # nothing is indistinguishable from one that compiled everything. `dotnet test --no-build` then
+      # runs whatever assembly is present, which on a clean runner is an assembly with no tests in it.
+      #
+      # The path condition uses BACKSLASHES, so it matches on Windows runners and not on Linux or
+      # macOS. That is why this could be wrong for a long time while most of the matrix stayed green.
+      #
+      # The sibling setup-dotnet-build action already did all of this. This one did none of it.
+      run: |
+        dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
+          -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log
+
+    - name: Assert the build actually compiled the test projects
+      shell: bash
+      # The console cannot answer this, so the assertion reads the normal-verbosity file log. Without
+      # it the property above could be dropped again and nothing would go red.
+      run: bash eng/ci/assert-compiled-not-skipped.sh build-verbosity-normal.log
 
     - name: Compose test filter
       if: inputs.quarantine-mode != 'None'

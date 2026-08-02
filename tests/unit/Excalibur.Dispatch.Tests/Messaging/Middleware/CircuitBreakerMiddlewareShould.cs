@@ -33,6 +33,7 @@ public sealed class CircuitBreakerMiddlewareShould
         return new CircuitBreakerMiddleware(
             Microsoft.Extensions.Options.Options.Create(opts),
             Sanitizer,
+            TimeProvider.System,
             NullLogger<CircuitBreakerMiddleware>.Instance);
     }
 

@@ -46,6 +46,13 @@ internal sealed class PulsarTransportBuilder : IPulsarTransportBuilder
 	}
 
 	/// <inheritdoc />
+	public IPulsarTransportBuilder SubscriptionInitialPosition(PulsarSubscriptionInitialPosition initialPosition)
+	{
+		Options.SubscriptionInitialPosition = initialPosition;
+		return this;
+	}
+
+	/// <inheritdoc />
 	public IPulsarTransportBuilder ConfigureReceive(Action<PulsarReceiveTuningOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);

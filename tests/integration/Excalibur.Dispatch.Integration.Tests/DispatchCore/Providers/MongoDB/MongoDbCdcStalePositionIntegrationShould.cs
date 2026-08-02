@@ -135,8 +135,10 @@ public sealed class MongoDbCdcStalePositionIntegrationShould : IntegrationTestBa
 		MongoDbStalePositionReasonCodes.FromErrorCode(133).ShouldBe(MongoDbStalePositionReasonCodes.ShardMigration);
 		MongoDbStalePositionReasonCodes.FromErrorCode(999).ShouldBe(MongoDbStalePositionReasonCodes.Unknown);
 
-		// Cleanup
-		await database.DropCollectionAsync("cdc_test_collection", TestCancellationToken);
+		// Cleanup, on its own budget: the test's token may already be cancelled by the time cleanup runs,
+		// which turns a slow test into a cleanup failure AND leaves the collection behind.
+		using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+		await database.DropCollectionAsync("cdc_test_collection", cleanupCts.Token);
 	}
 
 	/// <summary>

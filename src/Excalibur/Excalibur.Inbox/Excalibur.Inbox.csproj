@@ -26,5 +26,8 @@
     <InternalsVisibleTo Include="Excalibur.Inbox.Postgres" />
     <InternalsVisibleTo Include="Excalibur.Inbox.Oracle" />
     <InternalsVisibleTo Include="Excalibur.Inbox.Oracle.Tests" />
+    <!-- Real-infrastructure lock for the internal telemetry decorator's scoped-transactional forward: the
+         atomic guarantee through a DECORATED store can only be proven against a live provider transaction. -->
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
   </ItemGroup>
 </Project>

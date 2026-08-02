@@ -231,7 +231,7 @@ Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Unsubscribe(Excal
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.GetAllMetrics() -> System.Collections.Generic.Dictionary<string!, Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics!>!
-Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.GetOrCreate(string! name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions? options = null) -> Excalibur.Dispatch.CloudNative.CircuitBreakerPattern!
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.GetOrCreate(string! name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions? options = null) -> Excalibur.Dispatch.CloudNative.IResiliencePattern!
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.PollyCircuitBreakerFactory(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions? defaultOptions = null, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory!>? logger = null) -> void
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.Remove(string! name) -> bool
 Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter

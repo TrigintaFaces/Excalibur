@@ -67,10 +67,8 @@ public partial class PollyCircuitBreakerAdapter : IResiliencePattern, IPatternOb
 	public IReadOnlyDictionary<string, object> Configuration => new Dictionary<string, object>(StringComparer.Ordinal)
 	{
 		[nameof(_options.FailureThreshold)] = _options.FailureThreshold,
-		[nameof(_options.SuccessThreshold)] = _options.SuccessThreshold,
 		[nameof(_options.OpenDuration)] = _options.OpenDuration,
 		[nameof(_options.OperationTimeout)] = _options.OperationTimeout,
-		[nameof(_options.MaxHalfOpenTests)] = _options.MaxHalfOpenTests,
 	};
 
 	/// <inheritdoc />

@@ -14,6 +14,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Testcontainers.MsSql;
 
+using Xunit;
+
 namespace Excalibur.Integration.Tests.Sharding;
 
 /// <summary>
@@ -74,7 +76,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task IsolateEventsBetweenTenantShards()
 	{
-		if (!_dockerAvailable) return;
+		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		// Arrange -- two SQL Server databases as two shards
 		var shardAConn = GetShardConnectionString("ShardA");
@@ -116,7 +118,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ResolverCachesStorePerShard()
 	{
-		if (!_dockerAvailable) return;
+		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		// Arrange
 		var shardAConn = GetShardConnectionString("ShardA");
@@ -145,7 +147,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MultipleAppendsThenLoadReturnsAllEvents()
 	{
-		if (!_dockerAvailable) return;
+		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		// Arrange
 		var shardAConn = GetShardConnectionString("ShardA");
@@ -172,7 +174,7 @@ public sealed class TenantShardIntegrationShould : IAsyncLifetime
 	[Fact]
 	public void ThrowForUnknownTenantWithNoDefault()
 	{
-		if (!_dockerAvailable) return;
+		Assert.Skip("[infrastructure-unavailable] the shard databases (Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		var shardMap = new TestShardMap(new Dictionary<string, ShardInfo>
 		{

@@ -81,10 +81,13 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
 	options.FailureThreshold = 3; // Open after 3 failures
-	options.SuccessThreshold = 2; // Close after 2 successes
 	options.OpenDuration = TimeSpan.FromSeconds(10); // Stay open for 10 seconds
 	options.OperationTimeout = TimeSpan.FromSeconds(5); // Timeout operations at 5 seconds
-	options.MaxHalfOpenTests = 2; // Allow 2 test requests in half-open
+
+	// There is no "close after N successes" or "N concurrent half-open tests" setting. The circuit
+	// admits ONE trial call while half-open and closes if it succeeds. That is deliberate: several
+	// concurrent trial calls re-create the surge the breaker exists to prevent, and waiting for a
+	// run of successes delays recovery without making it safer.
 });
 
 // Timeout manager for slow operations
@@ -262,10 +265,11 @@ logger.LogInformation("Circuit Breaker Options:");
 logger.LogInformation("  | Option              | Default     | Description                      |");
 logger.LogInformation("  |---------------------|-------------|----------------------------------|");
 logger.LogInformation("  | FailureThreshold    | 5           | Failures to open circuit         |");
-logger.LogInformation("  | SuccessThreshold    | 3           | Successes to close circuit       |");
 logger.LogInformation("  | OpenDuration        | 30 seconds  | Time circuit stays open          |");
 logger.LogInformation("  | OperationTimeout    | 5 seconds   | Timeout for each operation       |");
-logger.LogInformation("  | MaxHalfOpenTests    | 3           | Max concurrent half-open tests   |");
+logger.LogInformation("");
+logger.LogInformation("Half-open recovery is not configurable: ONE trial call is admitted, and the");
+logger.LogInformation("circuit closes if it succeeds.");
 
 // ============================================================
 // Best Practices

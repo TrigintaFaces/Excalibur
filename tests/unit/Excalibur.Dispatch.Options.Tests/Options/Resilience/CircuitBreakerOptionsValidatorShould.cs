@@ -63,19 +63,6 @@ public sealed class CircuitBreakerOptionsValidatorShould
 		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.FailureThreshold));
 	}
 
-	[Fact]
-	public void FailWhenSuccessThresholdIsZero()
-	{
-		// Arrange
-		var options = new CircuitBreakerOptions { SuccessThreshold = 0 };
-
-		// Act
-		var result = _validator.Validate(null, options);
-
-		// Assert
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.SuccessThreshold));
-	}
 
 	[Fact]
 	public void FailWhenOpenDurationIsZero()
@@ -119,19 +106,6 @@ public sealed class CircuitBreakerOptionsValidatorShould
 		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.OperationTimeout));
 	}
 
-	[Fact]
-	public void FailWhenMaxHalfOpenTestsIsZero()
-	{
-		// Arrange
-		var options = new CircuitBreakerOptions { MaxHalfOpenTests = 0 };
-
-		// Act
-		var result = _validator.Validate(null, options);
-
-		// Assert
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.MaxHalfOpenTests));
-	}
 
 	[Fact]
 	public void FailWhenOperationTimeoutExceedsOpenDuration()
@@ -171,24 +145,6 @@ public sealed class CircuitBreakerOptionsValidatorShould
 		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.OpenDuration));
 	}
 
-	[Fact]
-	public void FailWhenSuccessThresholdExceedsMaxHalfOpenTests()
-	{
-		// Arrange
-		var options = new CircuitBreakerOptions
-		{
-			SuccessThreshold = 10,
-			MaxHalfOpenTests = 3,
-		};
-
-		// Act
-		var result = _validator.Validate(null, options);
-
-		// Assert
-		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.SuccessThreshold));
-		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.MaxHalfOpenTests));
-	}
 
 	[Fact]
 	public void SucceedWhenSuccessThresholdEqualsMaxHalfOpenTests()
@@ -196,8 +152,6 @@ public sealed class CircuitBreakerOptionsValidatorShould
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
-			SuccessThreshold = 3,
-			MaxHalfOpenTests = 3,
 		};
 
 		// Act
@@ -214,10 +168,8 @@ public sealed class CircuitBreakerOptionsValidatorShould
 		var options = new CircuitBreakerOptions
 		{
 			FailureThreshold = 0,
-			SuccessThreshold = 0,
 			OpenDuration = TimeSpan.Zero,
 			OperationTimeout = TimeSpan.Zero,
-			MaxHalfOpenTests = 0,
 		};
 
 		// Act
@@ -226,9 +178,7 @@ public sealed class CircuitBreakerOptionsValidatorShould
 		// Assert
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.FailureThreshold));
-		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.SuccessThreshold));
 		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.OpenDuration));
 		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.OperationTimeout));
-		result.FailureMessage.ShouldContain(nameof(CircuitBreakerOptions.MaxHalfOpenTests));
 	}
 }

@@ -1151,7 +1151,7 @@ jobs:
 
       - name: Build
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'

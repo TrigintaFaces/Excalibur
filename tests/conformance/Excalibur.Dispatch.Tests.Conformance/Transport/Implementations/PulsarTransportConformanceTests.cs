@@ -66,7 +66,19 @@ public sealed class PulsarTransportConformanceTests
 				.ServiceUrl(_fixture.ServiceUrl)
 				.Topic(_topic)
 				.SubscriptionName(_subscription)
-				.SubscriptionType(global::Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.Shared))
+				.SubscriptionType(global::Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionType.Shared)
+				// Earliest, because these tests publish before reading and the subscription is
+				// established ASYNCHRONOUSLY. With the production default of Latest, everything sent
+				// during that window falls before the subscription's start point and is never
+				// delivered -- Should_Handle_Concurrent_Messages received 0 of 100 and burned its
+				// whole receive window waiting for messages that could not arrive.
+				//
+				// The topic and subscription are per-run and unique, so "replay from the beginning"
+				// is exactly the messages this test published and nothing else. This removes the race
+				// rather than timing around it: no wall-clock margin makes an unsubscribed consumer
+				// receive a message published before it existed.
+				.SubscriptionInitialPosition(
+					global::Excalibur.Dispatch.Transport.Pulsar.PulsarSubscriptionInitialPosition.Earliest))
 			.BuildServiceProvider();
 	}
 
@@ -78,8 +90,15 @@ public sealed class PulsarTransportConformanceTests
 
 	protected override Task<PulsarChannelReceiver> CreateReceiverAsync()
 	{
-		// Resolving the receiver creates + subscribes the DotPulsar consumer now, BEFORE any test sends,
-		// so the subscription exists when messages are published (round-trip is deterministic).
+		// Resolving the receiver CONSTRUCTS the DotPulsar consumer eagerly. It does NOT establish the
+		// subscription: CreateConsumer returns immediately and the broker-side subscription is created
+		// asynchronously afterwards.
+		//
+		// The previous version of this comment claimed resolution "creates + subscribes ... so the
+		// subscription exists when messages are published." The construction half is true; the
+		// subscription half is not, and that sentence is why a deterministic race read as a flake for
+		// as long as it did. Determinism comes from SubscriptionInitialPosition.Earliest above, which
+		// makes the start point independent of when the subscription lands -- not from resolving early.
 		var receiver = Provider().GetRequiredKeyedService<ITransportReceiver>(TransportName);
 		return Task.FromResult(new PulsarChannelReceiver(receiver));
 	}

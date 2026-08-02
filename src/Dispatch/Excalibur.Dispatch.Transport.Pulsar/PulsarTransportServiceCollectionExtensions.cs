@@ -83,6 +83,7 @@ public static class PulsarTransportServiceCollectionExtensions
 				options.Topic = configured.Topic;
 				options.SubscriptionName = configured.SubscriptionName;
 				options.SubscriptionType = configured.SubscriptionType;
+				options.SubscriptionInitialPosition = configured.SubscriptionInitialPosition;
 				options.Receive = configured.Receive;
 			})
 			.ValidateOnStart();
@@ -127,9 +128,15 @@ public static class PulsarTransportServiceCollectionExtensions
 		{
 			var options = sp.GetRequiredService<IOptionsMonitor<PulsarOptions>>().Get(name);
 			var client = sp.GetRequiredKeyedService<IPulsarClient>(name);
+			// InitialPosition is set EXPLICITLY, at the value already in force. The client defaults it
+			// to Latest whether or not we say so, and an inherited default is one nobody chose and
+			// nobody can find: a reader asking "where does a new subscriber start?" had to know
+			// DotPulsar's defaults to answer it. The Kafka transport already answers that question in
+			// its own options, so this is consistency, not a behaviour change.
 			var consumerOptions = new ConsumerOptions<byte[]>(options.SubscriptionName, options.Topic, Schema.ByteArray)
 			{
 				SubscriptionType = MapSubscriptionType(options.SubscriptionType),
+				InitialPosition = MapInitialPosition(options.SubscriptionInitialPosition),
 			};
 			var consumer = client.CreateConsumer(consumerOptions);
 			var logger = sp.GetRequiredService<ILogger<PulsarTransportReceiver>>();
@@ -159,6 +166,15 @@ public static class PulsarTransportServiceCollectionExtensions
 		PulsarSubscriptionType.Failover => SubscriptionType.Failover,
 		PulsarSubscriptionType.KeyShared => SubscriptionType.KeyShared,
 		_ => SubscriptionType.Shared,
+	};
+
+	// The fall-through is Latest deliberately, matching both the client's default and the Kafka
+	// transport's offset-reset default. An unrecognised value must not silently become Earliest: that
+	// would turn a typo into a full replay of a topic's retained history on the next new subscription.
+	private static SubscriptionInitialPosition MapInitialPosition(PulsarSubscriptionInitialPosition position) => position switch
+	{
+		PulsarSubscriptionInitialPosition.Earliest => SubscriptionInitialPosition.Earliest,
+		_ => SubscriptionInitialPosition.Latest,
 	};
 
 	/// <summary>

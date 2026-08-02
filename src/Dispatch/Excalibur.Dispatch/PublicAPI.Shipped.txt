@@ -316,26 +316,9 @@ Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics.SuccessfulRequests.get -> l
 Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics.SuccessfulRequests.set -> void
 Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics.TotalRequests.get -> long
 Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics.TotalRequests.set -> void
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.CircuitBreakerPattern(string! name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.Configuration.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Func<System.Threading.Tasks.Task<T>!>! fallback, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.ExecuteAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.GetCircuitBreakerMetrics() -> Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.GetMetrics() -> Excalibur.Dispatch.CloudNative.PatternMetrics!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.HealthStatus.get -> Excalibur.Dispatch.CloudNative.PatternHealthStatus
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.InitializeAsync(System.Collections.Generic.IReadOnlyDictionary<string!, object!>! configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.Name.get -> string!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.Reset() -> void
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.State.get -> Excalibur.Dispatch.Resilience.CircuitState
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.Subscribe(Excalibur.Dispatch.CloudNative.IPatternObserver! observer) -> void
-Excalibur.Dispatch.CloudNative.CircuitBreakerPattern.Unsubscribe(Excalibur.Dispatch.CloudNative.IPatternObserver! observer) -> void
 Excalibur.Dispatch.CloudNative.ICircuitBreakerFactory
 Excalibur.Dispatch.CloudNative.ICircuitBreakerFactory.GetAllMetrics() -> System.Collections.Generic.Dictionary<string!, Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics!>!
-Excalibur.Dispatch.CloudNative.ICircuitBreakerFactory.GetOrCreate(string! name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions? options = null) -> Excalibur.Dispatch.CloudNative.CircuitBreakerPattern!
+Excalibur.Dispatch.CloudNative.ICircuitBreakerFactory.GetOrCreate(string! name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions? options = null) -> Excalibur.Dispatch.CloudNative.IResiliencePattern!
 Excalibur.Dispatch.CloudNative.ICircuitBreakerFactory.Remove(string! name) -> bool
 Excalibur.Dispatch.CloudNative.ICloudNativePattern
 Excalibur.Dispatch.CloudNative.ICloudNativePattern.Configuration.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
@@ -2086,7 +2069,7 @@ Excalibur.Dispatch.Middleware.PooledDispatchMiddleware.PooledDispatchMiddleware(
 Excalibur.Dispatch.Middleware.Resilience.BypassRateLimitingAttribute
 Excalibur.Dispatch.Middleware.Resilience.BypassRateLimitingAttribute.BypassRateLimitingAttribute() -> void
 Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware
-Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware.CircuitBreakerMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions!>! options, Excalibur.Dispatch.Telemetry.ITelemetrySanitizer! sanitizer, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware!>! logger) -> void
+Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware.CircuitBreakerMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions!>! options, Excalibur.Dispatch.Telemetry.ITelemetrySanitizer! sanitizer, System.TimeProvider! timeProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware!>! logger) -> void
 Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Dispatch.Middleware.Resilience.CircuitBreakerPipelineExtensions
@@ -3229,14 +3212,10 @@ Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.CircuitKeySelector.g
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.CircuitKeySelector.set -> void
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.FailureThreshold.get -> int
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.FailureThreshold.set -> void
-Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.MaxHalfOpenTests.get -> int
-Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.MaxHalfOpenTests.set -> void
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.OpenDuration.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.OpenDuration.set -> void
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.OperationTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.OperationTimeout.set -> void
-Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.SuccessThreshold.get -> int
-Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions.SuccessThreshold.set -> void
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptionsValidator
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptionsValidator.CircuitBreakerOptionsValidator() -> void
 Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptionsValidator.Validate(string? name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!

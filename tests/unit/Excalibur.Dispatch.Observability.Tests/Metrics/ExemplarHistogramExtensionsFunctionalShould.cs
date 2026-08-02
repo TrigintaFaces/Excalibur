@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -19,7 +20,12 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	private readonly string _meterName;
 	private readonly Meter _meter;
 	private readonly MeterListener _listener;
-	private readonly List<(string Name, object Value, KeyValuePair<string, object?>[] Tags)> _measurements = [];
+	// ConcurrentBag, not List: a MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT.
+	// List<T>.Add resizes with a Count-then-Array.Copy that a concurrent append invalidates, surfacing as
+	// "Destination array was not long enough". Because InstrumentPublished filters by meter NAME, which every
+	// instance of a decorator shares, the corrupting thread is often a DIFFERENT test class in the same
+	// assembly — so the failure gets reported against that sibling and reproduces only in a full shard run.
+	private readonly ConcurrentBag<(string Name, object Value, KeyValuePair<string, object?>[] Tags)> _measurements = [];
 
 	public ExemplarHistogramExtensionsFunctionalShould()
 	{

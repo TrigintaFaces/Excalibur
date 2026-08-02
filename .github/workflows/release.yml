@@ -152,7 +152,7 @@ jobs:
           # MinVer auto-detects version from git tags; override ensures correctness for workflow_dispatch.
           dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal \
             -p:MinVerVersionOverride="$VERSION"
-          dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
+          dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal -p:BuildExamplesAndTests=true
 
       - name: Validate governance release invariants
         shell: pwsh
@@ -317,7 +317,7 @@ jobs:
         run: dotnet restore eng/ci/shards/ReleaseBlocking.slnf
 
       - name: Build release-blocking shard
-        run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
+        run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal -p:BuildExamplesAndTests=true
 
       - name: Package build output
         shell: bash

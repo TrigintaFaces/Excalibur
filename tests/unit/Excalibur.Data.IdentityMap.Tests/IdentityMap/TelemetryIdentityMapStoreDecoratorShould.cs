@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+
 using System.Diagnostics.Metrics;
 
 using Excalibur.Data.IdentityMap.Diagnostics;
@@ -14,8 +16,22 @@ public sealed class TelemetryIdentityMapStoreDecoratorShould : IDisposable
 	private readonly IIdentityMapStore _inner;
 	private readonly TelemetryIdentityMapStoreDecorator _sut;
 	private readonly MeterListener _listener;
-	private readonly List<(string Name, long Value)> _counterRecords = [];
-	private readonly List<(string Name, double Value)> _histogramRecords = [];
+	// ConcurrentBag, not List. A MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT,
+	// so these are appended concurrently and List<T> corrupts under it — its resize does a
+	// Count-then-Array.Copy that another thread invalidates mid-flight, surfacing as
+	// "Destination array was not long enough" from deep inside List<T>.AddWithResize.
+	//
+	// The corruption did not appear in THIS class's tests. InstrumentPublished filters by meter NAME, which
+	// every instance of the decorator shares, so this listener also receives measurements from other test
+	// classes in the assembly. A sibling class driving 100 concurrent operations
+	// (InMemoryIdentityMapStoreShould.HandleConcurrentBindAndResolve) was the thread that corrupted this
+	// list, and that sibling is where the failure was reported — which is why it reproduced only in a full
+	// shard run and passed in isolation.
+	//
+	// Every assertion below is ShouldContain(predicate), so unordered storage and foreign measurements are
+	// both harmless here; thread-safety is the property that was actually missing.
+	private readonly ConcurrentBag<(string Name, long Value)> _counterRecords = [];
+	private readonly ConcurrentBag<(string Name, double Value)> _histogramRecords = [];
 
 	public TelemetryIdentityMapStoreDecoratorShould()
 	{

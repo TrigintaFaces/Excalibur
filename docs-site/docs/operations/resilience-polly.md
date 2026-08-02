@@ -80,7 +80,6 @@ services.AddPollyResilience(configuration);
 services.AddPollyCircuitBreaker("orders-cb", options =>
 {
     options.FailureThreshold = 5;
-    options.SuccessThreshold = 3;
     options.OpenDuration = TimeSpan.FromSeconds(60);
     options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
@@ -214,10 +213,16 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddPollyCircuitBreaker("payment-service", options =>
 {
     options.FailureThreshold = 5;
-    options.SuccessThreshold = 3;
     options.OpenDuration = TimeSpan.FromSeconds(60);
     options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
+```
+
+The named circuit breaker admits **one** trial call while half-open and closes if it succeeds. That
+is not configurable, and it is a different type from `DistributedCircuitBreakerOptions` below, which
+*does* expose `SuccessThresholdToClose` because it implements consecutive-success closing itself.
+
+```csharp
 ```
 
 ### Distributed Circuit Breaker

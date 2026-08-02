@@ -75,8 +75,13 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
 
-  <!-- Copy xunit.runner.json to enable parallel execution -->
-  <ItemGroup>
+  <!-- Copy the shared xunit.runner.json (parallel execution) ONLY when a project does not supply
+       its own. A project-local xunit.runner.json is authoritative: integration suites ship a serial
+       config (parallelizeTestCollections=false, maxParallelThreads=1) because they start real
+       containers, and starting them concurrently exhausts host memory (containers killed with
+       SIGABRT/SIGKILL). Without this condition both files copy to the same output path and the
+       shared parallel config can win, silently defeating the serial policy. -->
+  <ItemGroup Condition="!Exists('$(MSBuildProjectDirectory)/xunit.runner.json')">
     <None Include="$(MSBuildThisFileDirectory)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" Link="xunit.runner.json" />
   </ItemGroup>
 

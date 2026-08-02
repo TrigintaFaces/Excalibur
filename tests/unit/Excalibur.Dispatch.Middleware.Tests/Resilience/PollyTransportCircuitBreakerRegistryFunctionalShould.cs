@@ -21,7 +21,6 @@ public sealed class PollyTransportCircuitBreakerRegistryFunctionalShould : IDisp
 		var options = new CircuitBreakerOptions
 		{
 			FailureThreshold = 3,
-			SuccessThreshold = 2,
 			OpenDuration = TimeSpan.FromSeconds(5),
 		};
 		_sut = new PollyTransportCircuitBreakerRegistry(options, null);

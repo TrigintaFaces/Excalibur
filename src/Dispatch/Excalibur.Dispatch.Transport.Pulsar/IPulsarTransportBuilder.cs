@@ -37,6 +37,14 @@ public interface IPulsarTransportBuilder
 	IPulsarTransportBuilder SubscriptionType(PulsarSubscriptionType subscriptionType);
 
 	/// <summary>
+	/// Sets where a NEW subscription starts reading. Ignored by a subscription that already exists,
+	/// which resumes from its own cursor.
+	/// </summary>
+	/// <param name="initialPosition">The initial read position for a new subscription.</param>
+	/// <returns>The builder for chaining.</returns>
+	IPulsarTransportBuilder SubscriptionInitialPosition(PulsarSubscriptionInitialPosition initialPosition);
+
+	/// <summary>
 	/// Configures receive-side tuning (batch size and payload limits).
 	/// </summary>
 	/// <param name="configure">The tuning configuration action.</param>

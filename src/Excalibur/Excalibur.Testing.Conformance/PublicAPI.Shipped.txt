@@ -183,6 +183,7 @@ abstract Excalibur.Testing.Conformance.ControlValidationServiceConformanceTestKi
 abstract Excalibur.Testing.Conformance.ControlValidatorConformanceTestKit.CreateValidator() -> Excalibur.Compliance.IControlValidator!
 abstract Excalibur.Testing.Conformance.CronJobStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.ICronJobStore!
 abstract Excalibur.Testing.Conformance.DataInventoryStoreConformanceTestKit.CreateStore() -> Excalibur.Compliance.IDataInventoryStore!
+abstract Excalibur.Testing.Conformance.DataInventoryStoreConformanceTestKit.EnterTenant(string! tenantId) -> System.IDisposable?
 abstract Excalibur.Testing.Conformance.DbConformanceTestKit.CreateDb() -> (Excalibur.Data.IDb! Db, System.Data.IDbConnection! Underlying)
 abstract Excalibur.Testing.Conformance.DeadLetterStoreConformanceTestKit.CreateStore(Excalibur.Dispatch.ITenantContext? ambientTenant) -> Excalibur.Dispatch.ErrorHandling.IDeadLetterStore!
 abstract Excalibur.Testing.Conformance.DeduplicatorConformanceTestKit.CreateDeduplicator() -> Excalibur.Dispatch.IInMemoryDeduplicator!

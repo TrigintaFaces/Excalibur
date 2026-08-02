@@ -43,6 +43,21 @@ public sealed class PulsarOptions
 	public PulsarSubscriptionType SubscriptionType { get; set; } = PulsarSubscriptionType.Shared;
 
 	/// <summary>
+	/// Gets or sets where a NEW subscription starts reading. Defaults to
+	/// <see cref="PulsarSubscriptionInitialPosition.Latest" />, which is the value already in force —
+	/// this makes it stated rather than inherited from the client.
+	/// </summary>
+	/// <remarks>
+	/// Ignored by a subscription that already exists: it resumes from its own cursor. The Kafka
+	/// transport expresses the same choice through its offset-reset option; declaring it here means a
+	/// reader can answer "where does a new subscriber begin?" from our options rather than from a
+	/// third-party library's defaults.
+	/// </remarks>
+	/// <value>The initial read position for a new subscription.</value>
+	public PulsarSubscriptionInitialPosition SubscriptionInitialPosition { get; set; } =
+		PulsarSubscriptionInitialPosition.Latest;
+
+	/// <summary>
 	/// Gets or sets the receive tuning options for batching and payload limits.
 	/// </summary>
 	/// <value>The receive tuning options.</value>

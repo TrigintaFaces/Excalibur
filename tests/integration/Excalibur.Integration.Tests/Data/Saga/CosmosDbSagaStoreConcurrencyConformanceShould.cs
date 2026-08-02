@@ -43,10 +43,13 @@ public sealed class CosmosDbSagaStoreConcurrencyConformanceShould : SagaStoreCon
 	/// <inheritdoc/>
 	protected override bool SupportsOptimisticConcurrency => true;
 
-	// d0wpug: CosmosDbSagaStore does not implement ISagaStore.PurgeCompletedBeforeAsync — it hits the
-	// interface default that throws NotSupportedException (SA ruling). The base gate asserts that contract.
+	// CosmosDbSagaStore DOES implement ISagaStore.PurgeCompletedBeforeAsync (retention purge, bd-qt5kh7,
+	// commit 82ce60c05). This flag said false and the suite therefore asserted that the call THROWS
+	// NotSupportedException — the opposite of shipped behaviour. It went unnoticed because every test in
+	// this class was failing with ObjectDisposedException from a store that disposed its injected client,
+	// so the stale assertion never got the chance to fail on its own terms.
 	/// <inheritdoc/>
-	protected override bool SupportsCompletedPurge => false;
+	protected override bool SupportsCompletedPurge => true;
 
 	/// <inheritdoc/>
 	protected override Task<ISagaStore> CreateStoreAsync()

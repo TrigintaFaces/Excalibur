@@ -27,7 +27,7 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 	private readonly ILogger<PollyCircuitBreakerFactory> _logger = logger ?? NullLogger<PollyCircuitBreakerFactory>.Instance;
 
 	/// <inheritdoc />
-	public CircuitBreakerPattern GetOrCreate(string name, CircuitBreakerOptions? options = null)
+	public IResiliencePattern GetOrCreate(string name, CircuitBreakerOptions? options = null)
 	{
 		ArgumentNullException.ThrowIfNull(name);
 
@@ -47,8 +47,13 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 			},
 			(options: effectiveOptions, logger: _logger, factory: this));
 
-		// Return a wrapper that implements CircuitBreakerPattern interface
-		return new PollyCircuitBreakerWrapper(adapter);
+		// The adapter IS an IResiliencePattern, so it is returned directly. It was previously wrapped in a
+		// PollyCircuitBreakerWrapper whose 11 members all delegated here — a wrapper that existed only
+		// because this method named a concrete class it had to inherit. Since that class has no virtual
+		// members, every delegating member had to be `new`, which hides rather than overrides: callers held
+		// CircuitBreakerPattern, so they reached the BESPOKE breaker's code and Polly never ran. The wrapper
+		// also passed `new CircuitBreakerOptions()` to the base, discarding the caller's configuration.
+		return adapter;
 	}
 
 	/// <inheritdoc />

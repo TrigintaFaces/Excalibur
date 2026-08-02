@@ -17,40 +17,10 @@ using MsOptions = Microsoft.Extensions.Options.Options;
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience.Conformance;
 
 // ---------------------------------------------------------------------------
-// 1. CircuitBreakerPattern — native hand-rolled state machine
+// The hand-rolled CircuitBreakerPattern that used to be conformance-suite #1 has been DELETED.
+// It had no production consumer: nothing registered its factory, so the only breaker any
+// consumer could resolve was Polly's. The suites below remain the parity contract.
 // ---------------------------------------------------------------------------
-
-/// <summary>
-/// Conformance suite for <see cref="CircuitBreakerPattern"/> (bd-ccyett).
-/// Inherits all behavioral assertions from <see cref="CircuitBreakerConformanceBase"/>.
-/// </summary>
-[Trait(TraitNames.Category, TestCategories.Unit)]
-[Trait(TraitNames.Component, TestComponents.Resilience)]
-public sealed class CircuitBreakerPatternConformanceShould : CircuitBreakerConformanceBase
-{
-	/// <inheritdoc/>
-	private protected override ICircuitBreakerTestSut CreateSut(
-		int failureThreshold,
-		TimeSpan openDuration,
-		int successThreshold)
-	{
-		var options = new CircuitBreakerOptions
-		{
-			FailureThreshold = failureThreshold,
-			OpenDuration = openDuration,
-			SuccessThreshold = successThreshold,
-			// Keep timeout generous so it never fires during state-transition tests.
-			OperationTimeout = TimeSpan.FromSeconds(30),
-		};
-
-		var pattern = new CircuitBreakerPattern(
-			"conformance-cbp",
-			options,
-			NullLogger.Instance);
-
-		return new ResiliencePatternSut(pattern, nameof(CircuitBreakerPattern));
-	}
-}
 
 // ---------------------------------------------------------------------------
 // 2. PollyCircuitBreakerAdapter — Polly v8 ratio-based state machine
@@ -86,9 +56,7 @@ public sealed class PollyCircuitBreakerAdapterConformanceShould : CircuitBreaker
 		{
 			FailureThreshold = effectiveThreshold,
 			OpenDuration = openDuration,
-			SuccessThreshold = successThreshold,
 			OperationTimeout = TimeSpan.FromSeconds(30),
-			MaxHalfOpenTests = 1,
 		};
 
 		var adapter = new PollyCircuitBreakerAdapter(

@@ -3,6 +3,7 @@
 
 using System.Net;
 
+using Excalibur.Data;
 using Excalibur.Data.CosmosDb.Diagnostics;
 using Excalibur.Data.Observability;
 using Excalibur.Dispatch.Diagnostics;
@@ -34,11 +35,36 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 {
 	private readonly CosmosDbSnapshotStoreOptions _options;
 	private readonly ILogger<CosmosDbSnapshotStore> _logger;
+	/// <summary>Spin guard on the ETag conflict loop: the point at which contention is treated as a fault.</summary>
+	/// <remarks>
+	/// This is NOT a writer budget and must not be tuned against an expected number of concurrent writers.
+	/// Correctness does not depend on its value: each pass re-reads and re-applies the version guard, and
+	/// snapshot versions only increase, so every pass either stores this snapshot or observes a newer one
+	/// and skips. The loop therefore makes progress regardless of how many writers contend.
+	///
+	/// The bound exists only to stop an unbounded spin against a pathologically contended partition, and
+	/// reaching it is a fault rather than an expected outcome — see the throw at the end of
+	/// <see cref="ReplaceWithVersionGuardAsync"/>. Sizing it from a writer count would make a correctness
+	/// claim the loop does not need and cannot honour, since the real writer count is unbounded.
+	/// </remarks>
+	private const int MaxConcurrentWriteAttempts = 16;
+
 	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
 	private bool _initialized;
+	/// <summary>Whether this instance CREATED the client and may therefore dispose it.</summary>
+	/// <remarks>
+	/// A type disposes what it creates and never what it is handed. An injected client is owned by the
+	/// composition root — in DI normally a singleton shared by the whole application — so disposing it here
+	/// terminates Cosmos access for every other consumer the moment the first store is disposed. That is
+	/// exactly what happened: one disposed store left every later operation throwing
+	/// <c>ObjectDisposedException: Accessing CosmosClient after it is disposed</c>, an error naming this
+	/// disposal rather than anything the caller did.
+	/// </remarks>
+	private bool _ownsClient;
+
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -85,6 +111,9 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 			var clientOptions = CreateClientOptions();
 			_client = CreateClient(clientOptions);
+
+				// Created here, so this store owns it and disposes it.
+				_ownsClient = true;
 
 			var database = _client.GetDatabase(_options.DatabaseName);
 
@@ -249,18 +278,12 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				}
 
 				// Our version is newer, replace with ETag
-				_ = await _container!.ReplaceItemAsync(
-					document,
-					document.Id,
-					partitionKey,
-					new ItemRequestOptions
-					{
-						IfMatchEtag = conflictReadResponse.ETag,
-						EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite
-					},
-					cancellationToken).ConfigureAwait(false);
-
-				LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
+				// Bounded retry rather than a bare replace. This call sits INSIDE a catch block, so a 412 thrown
+				// here cannot be caught by the sibling catch clauses of the enclosing try — it escapes the
+				// method as a raw Cosmos exception. That is the concurrent-writes path: every writer finds no
+				// document, all race to create, the losers land here, and then race again on replace.
+				await ReplaceWithVersionGuardAsync(document, partitionKey, snapshot, cancellationToken)
+					.ConfigureAwait(false);
 			}
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
@@ -456,7 +479,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+		DisposeClientIfOwned();
 		_initLock.Dispose();
 	}
 
@@ -469,7 +492,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 		}
 
 		_disposed = true;
-		_client?.Dispose();
+		DisposeClientIfOwned();
 		_initLock.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
@@ -551,4 +574,105 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	[LoggerMessage(LogLevel.Warning,
 		"Cosmos DB transient error during {Operation} for {AggregateType}/{AggregateId}")]
 	private partial void LogTransientError(string operation, string aggregateType, string aggregateId, Exception ex);
+
+	/// <summary>Disposes the Cosmos client only when this instance created it.</summary>
+	private void DisposeClientIfOwned()
+	{
+		if (_ownsClient)
+		{
+			_client?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Replaces the snapshot document under ETag concurrency, re-reading and re-applying the version guard
+	/// when a competing writer wins the race.
+	/// </summary>
+	/// <remarks>
+	/// Each pass either skips (a competitor stored a version at least as new as ours, so our write is
+	/// redundant) or replaces against the current ETag. Snapshot versions only increase, so the loop makes
+	/// progress; the attempt bound only stops a pathologically contended store from spinning.
+	/// </remarks>
+	private async Task ReplaceWithVersionGuardAsync(
+		CosmosDbSnapshotDocument document,
+		PartitionKey partitionKey,
+		ISnapshot snapshot,
+		CancellationToken cancellationToken)
+	{
+		for (var attempt = 0; attempt < MaxConcurrentWriteAttempts; attempt++)
+		{
+			var latest = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
+				document.Id,
+				partitionKey,
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			if (latest.Resource.Version >= snapshot.Version)
+			{
+				LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
+				return;
+			}
+
+			try
+			{
+				_ = await _container!.ReplaceItemAsync(
+					document,
+					document.Id,
+					partitionKey,
+					new ItemRequestOptions
+					{
+						IfMatchEtag = latest.ETag,
+						EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite
+					},
+					cancellationToken).ConfigureAwait(false);
+
+				LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
+				return;
+			}
+			catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+			{
+				// Lost the race again; re-read and re-evaluate on the next pass.
+			}
+		}
+
+		// Exhaustion is a FAULT, not a skip. Falling out of this loop silently would drop the snapshot and
+		// tell no one: the caller would observe a successful SaveSnapshotAsync while nothing was written.
+		// That is strictly worse than the raw 412 this loop replaced, because a thrown 412 at least reached
+		// the caller. The version guard above is the ONLY legitimate way to leave without writing, and it
+		// logs and returns explicitly. Anything reaching here has spun MaxConcurrentWriteAttempts times
+		// without either winning the ETag race or being overtaken, which the loop's own invariant says
+		// should not happen — so it is reported, never swallowed.
+		var latestVersion = await ReadCurrentVersionOrDefaultAsync(document.Id, partitionKey, cancellationToken)
+			.ConfigureAwait(false);
+
+		throw new ConcurrencyException(
+			nameof(CosmosDbSnapshotDocument),
+			document.Id,
+			snapshot.Version,
+			latestVersion);
+	}
+
+	/// <summary>
+	/// Reads the currently stored snapshot version for diagnostics on the exhaustion path, returning -1 when
+	/// the document cannot be read. Never throws: it runs only while reporting another failure, and must not
+	/// replace that failure with its own.
+	/// </summary>
+	private async Task<long> ReadCurrentVersionOrDefaultAsync(
+		string documentId,
+		PartitionKey partitionKey,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			var latest = await _container!.ReadItemAsync<CosmosDbSnapshotDocument>(
+				documentId,
+				partitionKey,
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+
+			return latest.Resource.Version;
+		}
+		catch (CosmosException)
+		{
+			return -1;
+		}
+	}
 }

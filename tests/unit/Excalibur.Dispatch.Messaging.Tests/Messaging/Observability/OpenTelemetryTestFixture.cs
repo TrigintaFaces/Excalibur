@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Observability;
@@ -45,9 +46,14 @@ public sealed class OpenTelemetryTestFixture : IDisposable
 	private readonly ActivityListener _activityListener;
 	private readonly MeterListener _meterListener;
 	private readonly List<Activity> _recordedActivities = [];
-	private readonly List<Measurement<long>> _recordedLongMetrics = [];
-	private readonly List<Measurement<double>> _recordedDoubleMetrics = [];
-	private readonly List<Measurement<int>> _recordedIntMetrics = [];
+	// ConcurrentBag, not List: a MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT.
+	// List<T>.Add resizes with a Count-then-Array.Copy that a concurrent append invalidates, surfacing as
+	// "Destination array was not long enough". Because InstrumentPublished filters by meter NAME, which every
+	// instance of a decorator shares, the corrupting thread is often a DIFFERENT test class in the same
+	// assembly — so the failure gets reported against that sibling and reproduces only in a full shard run.
+	private readonly ConcurrentBag<Measurement<long>> _recordedLongMetrics = [];
+	private readonly ConcurrentBag<Measurement<double>> _recordedDoubleMetrics = [];
+	private readonly ConcurrentBag<Measurement<int>> _recordedIntMetrics = [];
 
 	// Track fixture creation time to filter out activities from other tests
 	private readonly DateTimeOffset _creationTime = DateTimeOffset.UtcNow;

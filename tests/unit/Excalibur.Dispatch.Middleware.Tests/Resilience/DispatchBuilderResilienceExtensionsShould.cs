@@ -239,7 +239,6 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 			{
 				FailureThreshold = 20,
 				OpenDuration = TimeSpan.FromMinutes(5),
-				SuccessThreshold = 10,
 			};
 		});
 

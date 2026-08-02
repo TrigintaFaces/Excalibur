@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Testcontainers.LocalStack;
 
+using Xunit;
+
 namespace Excalibur.Integration.Tests.TieredStorage;
 
 /// <summary>
@@ -96,7 +98,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task WriteAndReadEvents()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		var ct = CreateTestTimeout();
 		var events = CreateEvents("s3-agg-1", 1, 2, 3);
@@ -110,7 +112,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task ReadFromVersionFiltersCorrectly()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		var ct = CreateTestTimeout();
 		await _store!.WriteAsync(Tenant, "s3-agg-v", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), ct);
@@ -123,7 +125,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task MergeNewEventsWithExisting()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		var ct = CreateTestTimeout();
 		await _store!.WriteAsync(Tenant, "s3-agg-m", CreateEvents("s3-agg-m", 1, 2, 3), ct);
@@ -136,7 +138,7 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task HasArchivedReturnsTrueWhenPresent()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 
 		var ct = CreateTestTimeout();
 		await _store!.WriteAsync(Tenant, "s3-agg-h", CreateEvents("s3-agg-h", 1), ct);
@@ -146,14 +148,14 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 		(await _store!.HasArchivedEventsAsync(Tenant, "s3-nonexistent", CreateTestTimeout())).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
-		if (!_available) return;
+		Assert.Skip("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing.");
 		(await _store!.ReadAsync(Tenant, "s3-no-such", CreateTestTimeout())).Count.ShouldBe(0);
 	}
 

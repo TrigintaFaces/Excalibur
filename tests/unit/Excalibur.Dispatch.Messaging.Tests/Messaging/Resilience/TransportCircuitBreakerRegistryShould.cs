@@ -252,7 +252,6 @@ public sealed class TransportCircuitBreakerRegistryShould
 		{
 			FailureThreshold = 1,
 			OpenDuration = TimeSpan.FromMilliseconds(50),
-			SuccessThreshold = 1,
 		};
 		var registry = new TransportCircuitBreakerRegistry(options);
 

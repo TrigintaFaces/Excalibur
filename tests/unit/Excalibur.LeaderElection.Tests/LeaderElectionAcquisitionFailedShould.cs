@@ -3,6 +3,7 @@
 
 #pragma warning disable CA2213 // Disposable fields should be disposed -- FakeItEasy fakes do not require disposal
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -229,7 +230,12 @@ public sealed class LeaderElectionAcquisitionFailedShould : UnitTestBase
 
 		public ActivitySource ActivitySource { get; }
 
-		public List<(string Name, long Value, KeyValuePair<string, object?>[] Tags)> CounterRecordings { get; } = [];
+		// ConcurrentBag, not List: a MeterListener callback runs on WHATEVER THREAD RECORDS THE MEASUREMENT.
+	// List<T>.Add resizes with a Count-then-Array.Copy that a concurrent append invalidates, surfacing as
+	// "Destination array was not long enough". Because InstrumentPublished filters by meter NAME, which every
+	// instance of a decorator shares, the corrupting thread is often a DIFFERENT test class in the same
+	// assembly — so the failure gets reported against that sibling and reproduces only in a full shard run.
+	public ConcurrentBag<(string Name, long Value, KeyValuePair<string, object?>[] Tags)> CounterRecordings { get; } = [];
 
 		public void Dispose()
 		{

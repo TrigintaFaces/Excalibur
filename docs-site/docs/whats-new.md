@@ -66,6 +66,62 @@ Verified against the emulator using client options alone, with nothing taken fro
 
 **What you must do.** If you see not-found responses from the Cosmos DB snapshot store where the data should be present, do not treat the result as authoritative — the data may exist. Please report it; a report from a real workload would tell us something our own environment has not.
 
+### Erasure and legal-hold reads are not tenant-scoped
+
+**What you see.** Nothing fails. If you run more than one tenant against shared erasure-request or legal-hold tables, a read can return records belonging to another tenant.
+
+**What it means.** The erasure-request and legal-hold stores do not implement tenant scoping. A caller that omits the tenant argument, or that supplies another tenant's identifier, can read records outside its own tenant. The tenant value is recorded against each row; the read path does not reliably constrain queries to it.
+
+**One consequence is narrower than it sounds, and one is wider.** Where a legal hold is *applied*, omitting the tenant argument makes the check return more holds rather than fewer — so a hold is over-applied rather than missed, and erasure is blocked rather than wrongly permitted. That direction is recoverable. The disclosure risk is not: the records returned carry another tenant's data, including case references.
+
+**Which versions.** Every published version up to and including the current pre-release.
+
+**We are not giving you a site count, deliberately.** Our own count of affected call sites moved five times while we investigated, and every revision was upward. A number in this document would be frozen at publication while the truth was not, and it would have understated the exposure. The boundary above is what we can state and stand behind: **these subsystems do not implement tenant scoping.** That is true regardless of how many call sites it turns out to be.
+
+**What you must do.** If you operate erasure or legal hold multi-tenant, do not rely on the store layer for isolation in this release. Apply tenant filtering in your own query path, or give each tenant its own database or schema. If you run a single tenant, no action is needed.
+
+### The Record-of-Processing-Activities data map has no executing test coverage
+
+**What you see.** Nothing that distinguishes it from covered code — which is the point of disclosing it.
+
+**What it means.** The data-map query path in the SQL Server and PostgreSQL compliance providers is not exercised by any executing test in this release. Tests for it exist, but they substitute the query store, so no query is ever executed against a database.
+
+**How we found out, because it is the honest answer.** A defect on this path made every call to it fail unconditionally, and it still passed our full unit suite, our harness checks, and review. A method that could not succeed under any input survived all of that. That tells you nothing about the defect and a great deal about the coverage: the only way it survives is if nothing exercises the path.
+
+**Fixing that defect does not close this gap, so the disclosure stands after the fix.** Repairing the query makes it work; it does not create the test that would have caught it.
+
+**What you must do.** Validate the data-map path against your own infrastructure before relying on it for a record-of-processing-activities report.
+
+### Some integration suites do not execute in this build
+
+**What you see.** Nothing. This concerns the evidence behind these areas, not any observed behaviour.
+
+**What it means.** The following areas are exercised by unit tests, but their integration suites do not execute in our CI environment: Elasticsearch monitoring, OpenSearch, tiered storage (S3 and Azure Blob), tenant sharding, and two provider-conformance base suites. Their behaviour is unverified against live infrastructure in this release.
+
+**This is absence of evidence, not evidence of failure.** We are not telling you these areas are broken, and we have no measurement that says they are. We are telling you we did not verify them here, and that you should not read our test totals as covering them.
+
+**What you must do.** If you depend on these areas, validate them in your own environment.
+
+### The Cosmos DB snapshot-store conformance suite does not execute
+
+**What you see.** Nothing directly. As with the entry above, this concerns evidence rather than behaviour.
+
+**What it means.** The Cosmos DB snapshot-store conformance suite does not execute in our CI environment. In our most recent run its fixture did not start, so every test in the suite reported a failure without the suite's assertions ever running.
+
+**Why we are listing it even though the cause looks environmental.** We have not established whether the fixture failure is a local resource limit or something in the provider, and we are disclosing it before we know. A fixture that cannot start produces the same fact for you as a suite that is skipped: **no executing verification of that surface in this build.** The internal cause matters to us; it does not change what you need to know.
+
+**This is the same surface as the two Cosmos DB entries above**, approached from a third direction — coverage, rather than a symptom. Read them together: treat the Cosmos DB provider as materially less proven than the others in this release.
+
+**What you must do.** If you depend on the Cosmos DB snapshot store, validate the operations you rely on against your own infrastructure.
+
+### Cosmos DB telemetry coverage does not execute on Linux CI runners
+
+**What you see.** Nothing. Evidence again, not behaviour.
+
+**What it means.** The Cosmos DB event-store telemetry suite is skipped on our Linux CI runners, so its behaviour is not verified in this build.
+
+**What you must do.** If you rely on telemetry emitted by the Cosmos DB event store, verify it in your own environment.
+
 ---
 
 ## July 2026 — Tenant-isolation hardening, default-on store durability & a host-less startup trigger

@@ -178,14 +178,15 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 			SELECT TableName, FieldName, DataCategory, DataSubjectIdColumn, IdType,
 				   KeyIdColumn, TenantIdColumn, Description
 			FROM {_options.FullRegistrationsTableName}
-			WHERE TenantId = @ScopedTenantId
+			WHERE TenantId IN (@ScopedTenantId, @UntenantedTenantId)
 			ORDER BY TableName, FieldName";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var rows = await connection.QueryAsync<RegistrationRow>(
-			new CommandDefinition(sql, new { ScopedTenantId = CurrentTenantTerm },
+			new CommandDefinition(sql,
+				new { ScopedTenantId = CurrentTenantTerm, UntenantedTenantId = TenantScope.UntenantedSentinel },
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToRegistration()).ToList();
@@ -276,8 +277,17 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 		// opts into. It previously sat behind `if (tenantId is not null)` and, when present, added
 		// `TenantIdColumn IS NOT NULL`: a null-check on a COLUMN NAME. The caller's tenant was never bound,
 		// so passing one changed nothing and omitting one changed nothing — every caller read every tenant.
-		whereClauses.Add("TenantId = @ScopedTenantId");
+		// Untenanted registrations are included alongside the caller's own. A registration is schema
+		// metadata — it names a table, a field and a category, never a person — so an untenanted one
+		// discloses nothing about another tenant. Excluding it is the harmful direction: these rows ARE the
+		// sweep list the erasure path walks, so a registration the scope cannot see is a field that is
+		// never erased and never reported as missed.
+		//
+		// This widening is REGISTRATIONS ONLY. Discovered locations, erasure requests and legal holds are
+		// subject-linked and stay on strict equality.
+		whereClauses.Add("TenantId IN (@ScopedTenantId, @UntenantedTenantId)");
 		parameters.Add("ScopedTenantId", CurrentTenantTerm);
+		parameters.Add("UntenantedTenantId", TenantScope.UntenantedSentinel);
 
 		// The tenantId ARGUMENT is deliberately not consulted, matching the audit stores' settled contract:
 		// a caller cannot widen the read by omitting it, nor redirect the read by naming another tenant.
@@ -347,14 +357,19 @@ public sealed partial class SqlServerDataInventoryStore : IDataInventoryStore, I
 				    WHERE d.TableName = r.TableName AND d.FieldName = r.FieldName
 				      AND d.TenantId = r.TenantId) AS RecordCount
 			FROM {_options.FullRegistrationsTableName} r
-			WHERE r.TenantId = @ScopedTenantId
+			WHERE r.TenantId IN (@ScopedTenantId, @UntenantedTenantId)
 			ORDER BY r.TableName, r.FieldName";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
+		// Both terms MUST be bound. The scoping predicate was added to this query without its parameters,
+		// so every call threw "must declare the scalar variable" against a real server — a RoPA data map
+		// that cannot be produced at all. No unit test caught it because none of them reach a database.
 		var rows = await connection.QueryAsync<DataMapEntryRow>(
-			new CommandDefinition(sql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			new CommandDefinition(sql,
+				new { ScopedTenantId = CurrentTenantTerm, UntenantedTenantId = TenantScope.UntenantedSentinel },
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 		return rows.Select(r => r.ToDataMapEntry()).ToList();
 	}

@@ -57,6 +57,33 @@ public abstract class DataInventoryStoreConformanceTestKit
 	protected abstract IDataInventoryStore CreateStore();
 
 	/// <summary>
+	/// Enters an ambient tenant scope for the duration of the returned handle, so that saves and reads
+	/// performed inside it are attributed to <paramref name="tenantId"/>.
+	/// </summary>
+	/// <param name="tenantId">The tenant term to make current.</param>
+	/// <returns>
+	/// A handle that restores the previous scope when disposed, or <see langword="null"/> if this store
+	/// cannot be multi-tenant. Returning <see langword="null"/> causes the tenant arms to self-skip.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// Tenancy is a property of ambient context, not of any argument a caller supplies, so a store's
+	/// isolation cannot be observed without a way to change that context. A conformance arm that saves
+	/// several registrations under one ambient scope and then reads them back is asserting on the
+	/// fixture's own naming rather than on tenancy — it can neither detect a leak nor prove isolation.
+	/// This member is what makes the property observable, and therefore assertable.
+	/// </para>
+	/// <para>
+	/// This is deliberately abstract rather than defaulting to <see langword="null"/>. A default would
+	/// make skipping the path of least resistance: a multi-tenant store whose author never implemented
+	/// the seam would silently skip the arms that check its isolation, and would be indistinguishable
+	/// from a single-tenant store that legitimately cannot express the property. Declining is a decision
+	/// this kit requires you to state, not one it makes on your behalf.
+	/// </para>
+	/// </remarks>
+	protected abstract IDisposable? EnterTenant(string tenantId);
+
+	/// <summary>
 	/// Optional cleanup after each test.
 	/// </summary>
 	/// <returns>A task representing the cleanup operation.</returns>
@@ -825,17 +852,47 @@ public abstract class DataInventoryStoreConformanceTestKit
 	{
 		// Arrange
 		var store = CreateStore();
-		var tenantAReg = CreateRegistration("TenantATable", "TenantAField", tenantIdColumn: "TenantA");
-		var tenantBReg = CreateRegistration("TenantBTable", "TenantBField", tenantIdColumn: "TenantB");
+
+		// A store that cannot be multi-tenant cannot exhibit the property under test. Declining is
+		// stated by the implementor (EnterTenant is abstract), never inferred from a default.
+		using var probe = EnterTenant("TenantA");
+		if (probe is null)
+		{
+			return;
+		}
+
+		probe.Dispose();
+
+		// The tenant term comes from AMBIENT CONTEXT at save time, never from a field on the DTO.
+		// TenantIdColumn holds the NAME of a column in the consumer's table and is left null here
+		// precisely so that no assertion below can accidentally rest on it.
+		var tenantAReg = CreateRegistration("TenantATable", "TenantAField", tenantIdColumn: null);
+		var tenantBReg = CreateRegistration("TenantBTable", "TenantBField", tenantIdColumn: null);
 		var noTenantReg = CreateRegistration("NoTenantTable", "NoTenantField", tenantIdColumn: null);
 
 		try
 		{
-			await store.SaveRegistrationAsync(tenantAReg, CancellationToken.None).ConfigureAwait(false);
-			await store.SaveRegistrationAsync(tenantBReg, CancellationToken.None).ConfigureAwait(false);
+			// Each save happens under ITS OWN scope. Without this the three rows land under one tenant,
+			// a scoped read correctly returns all three, and the arms below assert on table NAMES rather
+			// than on tenancy -- passing a leaking store and failing a correct one.
+			using (EnterTenant("TenantA"))
+			{
+				await store.SaveRegistrationAsync(tenantAReg, CancellationToken.None).ConfigureAwait(false);
+			}
+
+			using (EnterTenant("TenantB"))
+			{
+				await store.SaveRegistrationAsync(tenantBReg, CancellationToken.None).ConfigureAwait(false);
+			}
+
+			// Saved with NO tenant scope: an estate-wide registration, which every scope must see.
 			await store.SaveRegistrationAsync(noTenantReg, CancellationToken.None).ConfigureAwait(false);
 
-			// Act - Filter by TenantA
+			// Act - read as TenantA. The tenantId ARGUMENT is deliberately still passed and every
+			// conforming store ignores it: a caller must not be able to widen the read by omitting it,
+			// nor redirect it by naming another tenant.
+			using var scope = EnterTenant("TenantA");
+
 			var tenantAResults = await GetQueryStore(store).FindRegistrationsForDataSubjectAsync(
 				"test-user",
 				DataSubjectIdType.UserId,

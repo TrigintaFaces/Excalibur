@@ -109,8 +109,24 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 		_ = Should.Throw<ArgumentNullException>(() => _factory.GetOrCreate(null!));
 	}
 
+	/// <summary>
+	/// The Polly factory must hand back the Polly breaker itself, not an adapter over something else.
+	/// </summary>
+	/// <remarks>
+	/// This assertion used to read <c>ShouldBeAssignableTo&lt;CircuitBreakerPattern&gt;()</c> and certified
+	/// the defect it should have caught. The factory returned a wrapper that inherited that hand-rolled
+	/// breaker and re-declared all 11 members with <c>new</c>; since <c>new</c> binds by STATIC type and the
+	/// factory's declared return type was the base, every caller reached the hand-rolled implementation.
+	/// Polly was registered, constructed, and never executed — and the old assertion passed on precisely
+	/// that arrangement, so it could not fail while the bug existed.
+	///
+	/// A companion arm asserting the result was NOT the hand-rolled breaker has since been dropped, because
+	/// that breaker no longer exists: nothing registered its factory, so no consumer could resolve it. With
+	/// no concrete class left to inherit, an implementation has nothing to hide behind and the defect is
+	/// structurally impossible rather than merely asserted against.
+	/// </remarks>
 	[Fact]
-	public void GetOrCreate_WithValidName_ReturnsCircuitBreakerPattern()
+	public void GetOrCreate_ReturnsThePollyBreaker_NotTheBespokeOne()
 	{
 		// Arrange
 		_factory = new PollyCircuitBreakerFactory();
@@ -120,7 +136,8 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.ShouldBeAssignableTo<CircuitBreakerPattern>();
+		result.ShouldBeAssignableTo<IResiliencePattern>();
+		result.ShouldBeOfType<PollyCircuitBreakerAdapter>();
 	}
 
 	[Fact]

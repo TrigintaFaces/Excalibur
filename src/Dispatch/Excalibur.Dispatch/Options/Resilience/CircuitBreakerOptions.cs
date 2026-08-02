@@ -29,13 +29,6 @@ public sealed class CircuitBreakerOptions
 	public int FailureThreshold { get; set; } = 5;
 
 	/// <summary>
-	/// Gets or sets the number of consecutive successes required to close the circuit from half-open.
-	/// </summary>
-	/// <value>Default is 3.</value>
-	[Range(1, int.MaxValue)]
-	public int SuccessThreshold { get; set; } = 3;
-
-	/// <summary>
 	/// Gets or sets the duration to keep the circuit open before the next probe.
 	/// </summary>
 	/// <value>Default is 30 seconds.</value>
@@ -46,13 +39,6 @@ public sealed class CircuitBreakerOptions
 	/// </summary>
 	/// <value>Default is 5 seconds.</value>
 	public TimeSpan OperationTimeout { get; set; } = TimeSpan.FromSeconds(5);
-
-	/// <summary>
-	/// Gets or sets the maximum number of concurrent probe executions while in the half-open state.
-	/// </summary>
-	/// <value>Default is 3.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxHalfOpenTests { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the function to determine the circuit key for a message.

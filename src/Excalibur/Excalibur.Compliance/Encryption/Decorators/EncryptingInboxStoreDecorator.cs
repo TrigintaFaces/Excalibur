@@ -20,7 +20,7 @@ namespace Excalibur.Compliance.Encryption.Decorators;
 /// of both plaintext and encrypted messages.
 /// </para>
 /// </remarks>
-internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, ITransactionalInboxStore
+internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTrackingInboxStore, IClaimableInboxStore, IInboxStoreAdmin, IBackoffSchedulableInboxStore, IInboxStoreCapabilities, ITransactionalInboxStore, IScopedTransactionalInboxStore
 {
 	private readonly IInboxStore _inner;
 	private readonly IEncryptionProviderRegistry _registry;
@@ -70,11 +70,25 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// Reports the EFFECTIVE transactional handler+mark capability and composes through chains (see
-	/// <see cref="SupportsClaim"/>).
+	/// <para>
+	/// Reports the EFFECTIVE transactional handler+mark capability across BOTH transactional seams — the
+	/// relational <see cref="ITransactionalInboxStore"/> and the document-store
+	/// <see cref="IScopedTransactionalInboxStore"/> — and composes through chains (see
+	/// <see cref="SupportsClaim"/>). A store capable of either seam is transactional-capable, because this
+	/// decorator can forward the scoped seam over either one.
+	/// </para>
+	/// <para>
+	/// An inner store that reports its own effective capability is AUTHORITATIVE and takes precedence over
+	/// the static interface test: a store may implement a transactional seam yet be configured such that it
+	/// cannot honour the atomic contract (for example a document store lacking the shared partition key its
+	/// batch requires), and it reports <see langword="false"/> for exactly that case. Trusting the interface
+	/// test over that report would re-advertise an atomicity guarantee the store has disclaimed.
+	/// </para>
 	/// </remarks>
 	public bool SupportsTransactional =>
-		_inner is ITransactionalInboxStore || (_inner is IInboxStoreCapabilities capabilities && capabilities.SupportsTransactional);
+		_inner is IInboxStoreCapabilities capabilities
+			? capabilities.SupportsTransactional
+			: _inner is ITransactionalInboxStore or IScopedTransactionalInboxStore;
 
 	/// <inheritdoc />
 	public ValueTask<bool> TryProcessTransactionallyAsync(
@@ -95,6 +109,58 @@ internal sealed class EncryptingInboxStoreDecorator : IInboxStore, IProcessingTr
 		}
 
 		return transactional.TryProcessTransactionallyAsync(messageId, handlerType, handler, cancellationToken);
+	}
+
+	/// <inheritdoc cref="IScopedTransactionalInboxStore.TryProcessTransactionallyAsync" />
+	/// <remarks>
+	/// <para>
+	/// Forwards the scoped exactly-once seam — the highest-precedence atomic path, selected by a type test on
+	/// the OUTERMOST store instance. A decorator that omitted this member would make the seam invisible
+	/// through decoration and silently downgrade a document store's atomicity to the at-least-once claim
+	/// protocol, so it is forwarded here rather than left to the inner store's static type.
+	/// </para>
+	/// <para>
+	/// Two forwarding routes, both preserving the atomic contract. An inner store implementing the scoped
+	/// seam is forwarded directly. An inner store implementing only the relational
+	/// <see cref="ITransactionalInboxStore"/> is bridged onto it by wrapping the active transaction in
+	/// <see cref="SqlInboxTransactionScope"/> — the same adaptation the relational providers apply to expose
+	/// this seam, so the handler still enlists its writes atomically with the processed-mark.
+	/// </para>
+	/// <para>
+	/// No message payload crosses this path, so encryption semantics are unchanged: the handler receives the
+	/// opaque transaction scope, not a stored entry. Payload encryption and decryption remain confined to the
+	/// entry-carrying members (<see cref="CreateEntryAsync"/> on write, <see cref="GetEntryAsync"/> and the
+	/// bulk admin reads on read), exactly as for the relational overload above.
+	/// </para>
+	/// </remarks>
+	public ValueTask<bool> TryProcessTransactionallyAsync(
+		string messageId,
+		string handlerType,
+		Func<IInboxTransactionScope, CancellationToken, ValueTask> handler,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(handler);
+
+		if (_inner is IScopedTransactionalInboxStore scoped)
+		{
+			return scoped.TryProcessTransactionallyAsync(messageId, handlerType, handler, cancellationToken);
+		}
+
+		// Fail LOUD (never a silent fallback) if the inner store can enlist neither seam — a silent downgrade
+		// of exactly-once to at-least-once is the defect this forward exists to prevent. The
+		// SupportsTransactional presence-guard makes this unreachable for a validated configuration.
+		if (_inner is not ITransactionalInboxStore relational)
+		{
+			throw new NotSupportedException(
+				$"The decorated inbox store '{_inner.GetType().FullName}' implements neither IScopedTransactionalInboxStore " +
+				"nor ITransactionalInboxStore; scoped transactional handler+mark cannot be forwarded through the encrypting decorator.");
+		}
+
+		return relational.TryProcessTransactionallyAsync(
+			messageId,
+			handlerType,
+			(transaction, ct) => handler(new SqlInboxTransactionScope(transaction), ct),
+			cancellationToken);
 	}
 
 	/// <inheritdoc />

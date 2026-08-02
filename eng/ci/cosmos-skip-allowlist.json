@@ -32,6 +32,16 @@
       "evidence": "NOT YET MEASURED ON THE PLATFORM IT GUARDS. Every observation held is from a Windows developer box (RUNNER_OS unset, CI unset); the suite passes there 14/14 in 68-294ms. The instability claim has never been reproduced on a Linux CI runner, so this entry records an UNVERIFIED premise, deliberately, rather than presenting it as established.",
       "owner": "TestsDeveloper",
       "expires": "2026-09-15"
+    },
+    {
+      "test": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould",
+      "id": "azure-keyvault-no-emulator-uri-unset",
+      "match": "class",
+      "count": 15,
+      "reason": "All 15 facts call SkipIfVaultUnavailable(), which is Assert.SkipWhen(_provider is null, \"AZURE_KEYVAULT_URI environment variable not set\"). The variable is never set in CI, so the provider is always null and every fact skips. Unlike Cosmos DB there is no Azure Key Vault emulator, so this cannot be closed by adding a container: it needs a real Key Vault resource and credentials in the CI environment.",
+      "evidence": "Measured 2026-08-01 on the committed tree. The class declares 15 [Fact] and 0 [Theory]; all 15 route through SkipIfVaultUnavailable() at AzureKeyVaultProviderIntegrationShould.cs:332. AZURE_KEYVAULT_URI appears exactly once in the workflow tree, at ci.yml:655, inside a step whose own comment reads 'These are DIAGNOSTIC PRINTS, not probes... they cannot fail' -- it reports whether the variable is set and never sets it. No workflow assigns it and no secret is bound to it. So the skip is not intermittent and not environmental drift: it is the guaranteed outcome of every run on the current configuration, and has been for as long as the variable has been unset. What is NOT established: whether these 15 facts pass against a real Key Vault. They have not been observed running anywhere, so this entry records untested coverage, not passing coverage.",
+      "owner": "SoftwareArchitect",
+      "expires": "2026-10-30"
     }
   ]
 }

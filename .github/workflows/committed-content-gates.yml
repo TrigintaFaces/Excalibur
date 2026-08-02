@@ -67,7 +67,7 @@ jobs:
         run: dotnet restore eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       - name: Build (Release)
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet
+        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
       # No `|| true`, no continue-on-error: a non-zero exit (FAIL or REFUSE) reddens this required check.
       - name: Real-infra gate mechanism self-test (real dotnet path)
@@ -103,6 +103,14 @@ jobs:
       # holds (a stale in-code-number claim). Passes clean on committed content today.
       - name: orphaned-constant-gate
         run: bash eng/ci/orphaned-constant-gate.sh
+
+      # BLOCKING — an inbox decorator that declares the relational transactional seam but omits the scoped
+      # one hides the middleware's highest-precedence exactly-once path, because that path is selected by a
+      # type test on the OUTERMOST store instance. Wrapping a document-store inbox in encryption or
+      # telemetry then silently downgrades atomicity to the at-least-once claim protocol, with no error and
+      # no log line. Pure grep over src/**/*.cs; passes clean on committed content today.
+      - name: inbox-decorator-seam-gate
+        run: bash eng/ci/inbox-decorator-seam-gate.sh
 
       # BLOCKING — a raw `await Task.Delay(...)` sync-wait newly added to test code is a non-deterministic
       # wall-clock dependency (poll a condition with a bounded timeout instead). Whole-tree scan; passes

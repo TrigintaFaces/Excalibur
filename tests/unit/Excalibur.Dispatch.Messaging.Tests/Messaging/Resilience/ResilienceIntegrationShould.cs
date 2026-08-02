@@ -305,7 +305,6 @@ public sealed class ResilienceIntegrationShould
 		{
 			FailureThreshold = 1,
 			OpenDuration = TimeSpan.FromMilliseconds(50),
-			SuccessThreshold = 1,
 		};
 		var circuitBreaker = new CircuitBreakerPolicy(options, "payment-service", _cbLogger);
 
@@ -430,7 +429,6 @@ public sealed class ResilienceIntegrationShould
 		{
 			FailureThreshold = 2,
 			OpenDuration = TimeSpan.FromMilliseconds(50),
-			SuccessThreshold = 2,
 		};
 		var circuitBreaker = new CircuitBreakerPolicy(options, "test", _cbLogger);
 		var stateTransitions = new List<(CircuitState From, CircuitState To)>();

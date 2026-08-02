@@ -43,10 +43,8 @@ public sealed class CircuitBreakerValidateOnStartRegistrationShould
 		_ = services.AddPollyCircuitBreaker("valid-breaker", options =>
 		{
 			options.FailureThreshold = 10;
-			options.SuccessThreshold = 2;
 			options.OpenDuration = TimeSpan.FromSeconds(60);
 			options.OperationTimeout = TimeSpan.FromSeconds(10);
-			options.MaxHalfOpenTests = 5;
 		});
 
 		// Act
@@ -56,7 +54,6 @@ public sealed class CircuitBreakerValidateOnStartRegistrationShould
 
 		// Assert
 		value.FailureThreshold.ShouldBe(10);
-		value.SuccessThreshold.ShouldBe(2);
 	}
 
 	[Fact]

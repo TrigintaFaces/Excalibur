@@ -234,7 +234,6 @@ public sealed class CircuitBreakerPolicyShould
 		{
 			FailureThreshold = 1,
 			OpenDuration = TimeSpan.FromMilliseconds(10),
-			SuccessThreshold = 1,
 		};
 		var policy = CreatePolicy(options);
 
@@ -255,14 +254,13 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public async Task CloseCircuitAfterSuccessThresholdInHalfOpen()
+	public async Task CloseCircuitAfterFirstSuccessInHalfOpen()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
 		{
 			FailureThreshold = 1,
 			OpenDuration = TimeSpan.FromMilliseconds(10),
-			SuccessThreshold = 3,
 		};
 		var policy = CreatePolicy(options);
 
@@ -270,12 +268,9 @@ public sealed class CircuitBreakerPolicyShould
 		policy.RecordFailure(new InvalidOperationException("Error"));
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-		// Act - Record successes up to threshold
+		// Act - a single success closes the circuit. The configurable success threshold was removed so the
+		// built-in policy matches Polly, which closes after one successful trial call.
 		policy.RecordSuccess();
-		policy.RecordSuccess();
-		policy.State.ShouldBe(CircuitState.HalfOpen); // Still half-open
-
-		policy.RecordSuccess(); // Threshold reached
 
 		// Assert
 		policy.State.ShouldBe(CircuitState.Closed);
@@ -289,7 +284,6 @@ public sealed class CircuitBreakerPolicyShould
 		{
 			FailureThreshold = 5,
 			OpenDuration = TimeSpan.FromMilliseconds(10),
-			SuccessThreshold = 3,
 		};
 		var policy = CreatePolicy(options);
 
@@ -301,11 +295,8 @@ public sealed class CircuitBreakerPolicyShould
 
 		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
-		// Record some successes
-		policy.RecordSuccess();
-		policy.RecordSuccess();
-
-		// Act - Any failure reopens
+		// Act - any failure while half-open reopens. No successes are recorded first: one success now closes
+		// the circuit, so a pre-success sequence would leave it Closed and stop exercising this property.
 		policy.RecordFailure(new InvalidOperationException("Error in half-open"));
 
 		// Assert
@@ -704,7 +695,6 @@ public sealed class CircuitBreakerPolicyShould
 		{
 			FailureThreshold = 3,
 			OpenDuration = TimeSpan.FromMilliseconds(10),
-			SuccessThreshold = 2,
 		};
 		var policy = CreatePolicy(options);
 		var tasks = new List<Task>();
@@ -867,43 +857,6 @@ public sealed class CircuitBreakerPolicyShould
 		eventCount.ShouldBe(0);
 	}
 
-	[Fact]
-	public async Task ResetSuccessfulProbesOnOpenTransition()
-	{
-		// Arrange
-		var options = new CircuitBreakerOptions
-		{
-			FailureThreshold = 3,
-			OpenDuration = TimeSpan.FromMilliseconds(10),
-			SuccessThreshold = 5,
-		};
-		var policy = CreatePolicy(options);
-
-		// Open, wait for half-open
-		for (var i = 0; i < 3; i++)
-		{
-			policy.RecordFailure();
-		}
-
-		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-
-		// Record some successful probes
-		policy.RecordSuccess();
-		policy.RecordSuccess();
-
-		// Act - Record failure to reopen
-		policy.RecordFailure();
-
-		// Assert
-		policy.State.ShouldBe(CircuitState.Open);
-
-		// Wait for half-open again
-		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-
-		// Successful probes should be reset - need full threshold again
-		policy.RecordSuccess();
-		policy.State.ShouldBe(CircuitState.HalfOpen); // Should still be half-open
-	}
 
 	#endregion Edge Case Tests
 }

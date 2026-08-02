@@ -7,6 +7,8 @@ using Excalibur.Compliance.SqlServer.Erasure;
 
 using Microsoft.Extensions.Options;
 
+using System.Runtime.CompilerServices;
+
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 
 /// <summary>
@@ -97,14 +99,15 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 	public async Task NotReturnAnotherTenantsRegistration_ToAScopedRead()
 	{
 		var owner = CreateStore(OwningTenant);
-		await owner.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
+		var registration = CreateRegistration();
+		await owner.SaveRegistrationAsync(registration, TestCancellationToken);
 
 		var foreigner = CreateStore(ForeignTenant);
 		var disclosed = await foreigner.FindRegistrationsForDataSubjectAsync(
 			SubjectId, DataSubjectIdType.UserId, ForeignTenant, TestCancellationToken);
 
 		disclosed.ShouldNotContain(
-			r => r.TableName == "Customers" && r.FieldName == "EmailAddress",
+			r => r.TableName == registration.TableName && r.FieldName == registration.FieldName,
 			"a tenant that has registered nothing must never be handed another tenant's data-map entry — "
 			+ "this is a GDPR inventory read path, so the disclosed row describes where that tenant's PII "
 			+ "lives, and the caller cannot tell a leaked row from one it is entitled to.");
@@ -123,13 +126,14 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 	public async Task StillReturnTheRegistration_ToAnUnscopedRead()
 	{
 		var store = CreateStore();
-		await store.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
+		var registration = CreateRegistration();
+		await store.SaveRegistrationAsync(registration, TestCancellationToken);
 
 		var found = await store.FindRegistrationsForDataSubjectAsync(
 			SubjectId, DataSubjectIdType.UserId, tenantId: null, TestCancellationToken);
 
 		found.ShouldContain(
-			r => r.TableName == "Customers" && r.FieldName == "EmailAddress",
+			r => r.TableName == registration.TableName && r.FieldName == registration.FieldName,
 			"an unscoped read must still see the registration — a store that returns nothing to anybody "
 			+ "would satisfy the isolation arm perfectly while silently emptying the compliance data map.");
 	}
@@ -151,13 +155,14 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 	public async Task ReturnATenantsOwnRegistration_ToItsOwnScopedRead()
 	{
 		var owner = CreateStore(OwningTenant);
-		await owner.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
+		var registration = CreateRegistration();
+		await owner.SaveRegistrationAsync(registration, TestCancellationToken);
 
 		var found = await owner.FindRegistrationsForDataSubjectAsync(
 			SubjectId, DataSubjectIdType.UserId, OwningTenant, TestCancellationToken);
 
 		found.ShouldContain(
-			r => r.TableName == "Customers" && r.FieldName == "EmailAddress",
+			r => r.TableName == registration.TableName && r.FieldName == registration.FieldName,
 			"a tenant must see its OWN registration on a scoped read. Without this arm, a store that "
 			+ "scopes by returning nothing to anybody passes every isolation assertion in this file while "
 			+ "silently emptying the compliance data map for its rightful owner.");
@@ -183,14 +188,15 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 		var owner = CreateStore(OwningTenant);
 		var foreigner = CreateStore(ForeignTenant);
 
-		await owner.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
-		await foreigner.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
+		var registration = CreateRegistration();
+		await owner.SaveRegistrationAsync(registration, TestCancellationToken);
+		await foreigner.SaveRegistrationAsync(registration, TestCancellationToken);
 
 		var ownersView = await owner.FindRegistrationsForDataSubjectAsync(
 			SubjectId, DataSubjectIdType.UserId, OwningTenant, TestCancellationToken);
 
 		ownersView.ShouldContain(
-			r => r.TableName == "Customers" && r.FieldName == "EmailAddress",
+			r => r.TableName == registration.TableName && r.FieldName == registration.FieldName,
 			"a second tenant registering the same table+field must not consume the first tenant's row. If "
 			+ "this is empty, the foreign write silently replaced the owner's registration and erasure will "
 			+ "never visit that field for the owner — a compliance control failing while reporting success.");
@@ -216,15 +222,16 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 		var owner = CreateStore(OwningTenant);
 		var foreigner = CreateStore(ForeignTenant);
 
-		await owner.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
+		var registration = CreateRegistration();
+		await owner.SaveRegistrationAsync(registration, TestCancellationToken);
 
-		_ = await foreigner.RemoveRegistrationAsync("Customers", "EmailAddress", TestCancellationToken);
+		_ = await foreigner.RemoveRegistrationAsync(registration.TableName, registration.FieldName, TestCancellationToken);
 
 		var survivors = await owner.FindRegistrationsForDataSubjectAsync(
 			SubjectId, DataSubjectIdType.UserId, OwningTenant, TestCancellationToken);
 
 		survivors.ShouldContain(
-			r => r.TableName == "Customers" && r.FieldName == "EmailAddress",
+			r => r.TableName == registration.TableName && r.FieldName == registration.FieldName,
 			"a foreign tenant's deregistration must not delete the owner's registration. If this is empty, "
 			+ "one tenant destroyed another tenant's compliance record by naming a table and a field it "
 			+ "does not own — cross-tenant data destruction, and the owner receives no error at any point.");
@@ -243,18 +250,30 @@ public sealed class SqlServerDataInventoryStoreTenantIsolationShould : Integrati
 	public async Task StillDeleteTheOwnersOwnRegistration()
 	{
 		var owner = CreateStore(OwningTenant);
-		await owner.SaveRegistrationAsync(CreateRegistration(), TestCancellationToken);
+		var registration = CreateRegistration();
+		await owner.SaveRegistrationAsync(registration, TestCancellationToken);
 
-		var removed = await owner.RemoveRegistrationAsync("Customers", "EmailAddress", TestCancellationToken);
+		var removed = await owner.RemoveRegistrationAsync(registration.TableName, registration.FieldName, TestCancellationToken);
 
 		removed.ShouldBeTrue(
 			"a tenant must be able to deregister its OWN field. A DELETE scoped so tightly that it matches "
 			+ "nothing satisfies the cross-tenant arm perfectly while making deregistration impossible.");
 	}
 
-	private static DataLocationRegistration CreateRegistration() => new()
+	// The registration's identity is the CALLING ARM's name, so every arm seeds a row no other arm can
+	// match. Previously all six arms shared one hardcoded TableName/FieldName pair while differing only in
+	// the tenant they saved under, and the arms assert on that same pair -- so a row seeded by one arm was
+	// indistinguishable from the row another arm was written to detect. The unscoped arm writes under the
+	// untenanted sentinel, and untenanted registrations are returned to every scope by ruled design, so
+	// whenever that arm ran first the cross-tenant arm found ITS seed and reported a disclosure that had
+	// not happened. The arm passed alone and failed in company, which reads exactly like a real leak.
+	//
+	// CallerMemberName rather than a per-arm constant on purpose: uniqueness is then a property of the
+	// helper, not a convention each new arm has to remember. An arm added later cannot reintroduce the
+	// collision by copying the call, which is how this was written in the first place.
+	private static DataLocationRegistration CreateRegistration([CallerMemberName] string tableName = "") => new()
 	{
-		TableName = "Customers",
+		TableName = tableName,
 		FieldName = "EmailAddress",
 		DataCategory = "ContactInformation",
 		DataSubjectIdColumn = "CustomerId",

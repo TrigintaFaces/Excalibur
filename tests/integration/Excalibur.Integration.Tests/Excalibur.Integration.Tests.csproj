@@ -149,6 +149,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.CosmosDb\Excalibur.Inbox.CosmosDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.DynamoDb\Excalibur.Inbox.DynamoDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Firestore\Excalibur.Inbox.Firestore.csproj" />
+    <!-- Encrypting inbox decorator — real-infra scoped-transactional lock over a live provider transaction. -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
     <!-- S860 fc1c8a conformance fan-out: SqlServer saga deriver -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
