@@ -61,6 +61,35 @@ if [ "${1:-}" = "--self-test" ]; then
         echo "  liveness: behaviour census found ZERO classes in a tree known to contain them — FAIL"; st_fail=1
     fi
 
+    # COUNTING arm: a [Theory] contributes ONE line per DATA CASE, not one per method.
+    #
+    # This is the arm the gate did not have, and its absence refused a healthy integration run
+    # (accounted=2576 vs EXPECTED=2551). The extraction regex stops before the parameter list, so
+    # every case of a theory yields the same string; deduplicating them counts one test where the
+    # runner executes several. The fixture below is a --list-tests listing with a 3-case theory and
+    # two plain facts: 5 executed cases, 3 distinct method names. EXPECTED must be 5.
+    cat >"$st_tmp/listing.txt" <<'EOF'
+The following Tests are available:
+    Some.Ns.PlainShould.FirstFact
+    Some.Ns.PlainShould.SecondFact
+    Some.Ns.TheoryShould.Cases(value: 1)
+    Some.Ns.TheoryShould.Cases(value: 2)
+    Some.Ns.TheoryShould.Cases(value: 3)
+EOF
+    st_lines="$(grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_][A-Za-z0-9_]*' "$st_tmp/listing.txt" | sed 's/^[[:space:]]*//')"
+    st_cases="$(printf '%s\n' "$st_lines" | grep -c . || true)"
+    st_distinct="$(printf '%s\n' "$st_lines" | sort -u | grep -c . || true)"
+    if [ "$st_cases" -eq 5 ] && [ "$st_distinct" -eq 3 ]; then
+        echo "  counting: theory cases counted individually (5 cases from 3 method names) — PASS"
+    else
+        echo "  counting: expected 5 cases / 3 distinct, got $st_cases / $st_distinct — FAIL"; st_fail=1
+    fi
+    # The arm is only meaningful because the two numbers DIFFER: if a change ever made them equal,
+    # the dedup bug would be undetectable here.
+    if [ "$st_cases" -eq "$st_distinct" ]; then
+        echo "  counting: fixture no longer distinguishes cases from methods — the arm is vacuous — FAIL"; st_fail=1
+    fi
+
     # SAFETY: a class that uses a Cosmos fixture but is NOT admitted by the filter must be detected.
     # Planted, so the arm is proven to fire rather than assumed to.
     mkdir -p "$st_tmp/tests"
@@ -148,9 +177,24 @@ if ! dotnet test "$SLNF" --configuration Release --no-build --list-tests --filte
 fi
 
 # Test lines are indented under "The following Tests are available:"; take fully-qualified names only.
-expected_tests="$(grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_][A-Za-z0-9_]*' "$listing" \
-    | sed 's/^[[:space:]]*//' | sort -u)"
-EXPECTED="$(printf '%s\n' "$expected_tests" | grep -c . || true)"
+# TWO lists from one extraction, because the two consumers need OPPOSITE things.
+#
+# The regex stops at the method name, so a [Theory]'s data cases -- `Foo.Bar(x: 1)`, `Foo.Bar(x: 2)` --
+# both reduce to the identical string `Foo.Bar`. Deduplicating therefore collapses N executed test
+# cases into ONE expected entry, while the TRX counts every case. EXPECTED then undercounts by the
+# theory surplus and the downstream accounting refuses a COMPLETE run.
+#
+# Measured on Excalibur.AuditLogging.Tests: deduped 381, raw lines 410, actually executed 410. The
+# raw line count matches the executed count exactly; the deduplicated one is short by 29 on a single
+# assembly. Across the integration shard the same arithmetic produced accounted=2576 vs EXPECTED=2551
+# and refused a run in which nothing had failed and nothing had vanished.
+#
+# So: COUNT the cases (no dedup, one line per executed test), and DEDUPE only for the class census
+# below, where distinct class names are exactly what is wanted.
+expected_test_lines="$(grep -oE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*\.[A-Za-z_][A-Za-z0-9_]*' "$listing" \
+    | sed 's/^[[:space:]]*//')"
+expected_tests="$(printf '%s\n' "$expected_test_lines" | sort -u)"
+EXPECTED="$(printf '%s\n' "$expected_test_lines" | grep -c . || true)"
 
 [ "${EXPECTED:-0}" -gt 0 ] || fail "EXPECTED census returned 0 tests. A population of zero satisfies every downstream comparison while measuring nothing."
 

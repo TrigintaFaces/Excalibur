@@ -212,6 +212,23 @@ jobs:
           # host EXITING -- an OOM, a stack overflow, a native crash in a provider SDK -- which
           # produces exactly the signature seen: suites reporting clean, then silence.
           #
+          # TestSessionTimeout=3600000 (60 min) against a 120-minute job budget, deliberately half.
+          # This shard was the only test job in the repository with no session cap, and it hung:
+          # Excalibur.Tests started and was still running three hours later while the four measured
+          # assemblies ahead of it took 7s, 24s, 1m02s and 2s. With no cap the runner eventually
+          # kills the job at the wall and writes NOTHING -- the same race ci.yml documents for the
+          # deterministic shard, where an equal session and job timeout meant the session timeout
+          # could never win and no TRX survived. The cap must be strictly lower so it fires FIRST,
+          # aborts the session, and leaves results behind; 60 against 120 is not a tuning guess but
+          # the property that makes the timeout observable.
+          #
+          # --blame-hang-timeout does NOT cover this and is not a substitute. It aborts a TEST that
+          # does not complete within its window; it is blind to a run whose tests all finish and
+          # whose host then never exits -- a lingering foreground thread, an undisposed timer, a
+          # client still holding a connection. That is a hang AFTER the tests, and the observed
+          # signature (assemblies reporting clean, then silence, with blame attached and quiet) is
+          # exactly what that looks like.
+          #
           # LogFilePrefix, NOT LogFileName. A shard runs several test assemblies in sequence and
           # each writes the logger's file, so a fixed name means every assembly overwrites the
           # previous one -- observed live as repeated "WARNING: Overwriting results file". The
@@ -232,7 +249,7 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --settings tests/coverage.runsettings \
             --results-directory ./coverage \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       # if: always() is the load-bearing part. Without it this step is skipped on a failing run,
       # so the artifacts existed only when nobody needed them -- diagnostics uploaded on success
