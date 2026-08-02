@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to Excalibur and Excalibur.Dispatch are documented in this file.
 
@@ -64,6 +64,33 @@ limits of that claim.
   future green build will be evidence about it, where the previous one could not be. See *Known Issues*.
 
 ### Fixed
+
+- **The Record-of-Processing-Activities data map failed on every call, on both SQL providers.** The query
+  referenced a tenant parameter that was never supplied to the command, so the data-map read threw
+  unconditionally on SQL Server and PostgreSQL alike — it could not succeed under any input. Every existing
+  test for this path substituted the query store, so no query was ever executed against a database and the
+  defect passed the full suite. The parameter is now bound, and the coverage gap is disclosed on the What's
+  New page: repairing the query does not create the test that would have caught it.
+
+- **Erasure and legal-hold reads were not scoped to a tenant.** A caller that omitted the tenant argument,
+  or supplied another tenant's identifier, could read records belonging to a different tenant, including
+  case references. Scoping is now applied across all three data-inventory implementations. The conformance
+  kit could not previously observe this at all — with no tenant scope change between writes, its isolation
+  check was comparing names rather than isolation — so it gains an explicit scope switch, declared as a
+  required member so that a provider cannot silently omit it.
+
+- **The Cosmos DB snapshot store could abandon a write without reporting it.** After exhausting its
+  optimistic-concurrency attempts the save returned normally, so a caller was told the snapshot had been
+  stored when it had not. It now raises a concurrency error carrying the version it expected and the
+  version actually stored. The attempt bound is a guard against an unbounded spin, not a budget on how many
+  writers may contend.
+
+- **The Firestore snapshot store surfaced a transport exception on write contention.** Concurrent saves to
+  one aggregate contend on a single document, and the loser received a raw gRPC status where every other
+  provider reports a concurrency error. Contention is now retried within a bound — safe because the store's
+  version guard makes a save idempotent, so a writer that is overtaken while waiting finds the newer
+  version already stored and returns without writing — and reported as a concurrency error if the bound is
+  exhausted.
 
 - **Enabling encryption or telemetry on a document-store inbox silently weakened its delivery guarantee.**
   The inbox pipeline reserves its strongest path — the handler and the processed-mark committing together
@@ -263,6 +290,12 @@ limits of that claim.
   If you consume the workflow analyzers, they require a toolchain new enough for Roslyn 5.3.
 
 ### Removed
+
+- **`ResilientElasticsearchClient` and `MonitoredResilientElasticsearchClient` are no longer public.** Both
+  are implementation behind `IResilientElasticsearchClient`, which is unchanged and remains the supported
+  way to depend on this behaviour. If you referenced either concrete type, depend on the interface. This is
+  a binary-breaking removal, made deliberately while the API is still unfrozen; after the stable release it
+  would have been reserved for a new major line.
 
 - **The outbox cleanup builder and its retention settings.** No store read the values. A validator
   range-checked them, the documentation taught them, and a sample configured them, so the surface

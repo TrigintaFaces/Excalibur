@@ -56,11 +56,23 @@ public sealed class RedisLeaderElectionReentrancyShould : UnitTestBase
 			using var probed = new ManualResetEventSlim(initialState: false);
 			// CurrentLeaderId's getter takes _lock; if the handler is raised while _lock is held, this
 			// background read blocks until the handler returns → the wait times out.
-			_ = Task.Run(() =>
+			//
+			// A DEDICATED THREAD, deliberately NOT Task.Run. This handler blocks its own thread on
+			// probed.Wait below, so a pool-scheduled probe would be waiting for a second pool thread
+			// while the first is parked. On a loaded CI runner the pool is saturated and injects new
+			// threads slowly, so the probe can be delayed past the timeout even though no lock is
+			// held — and the test then reports "lock held", accusing the implementation of a
+			// reentrancy defect it does not have. Observed exactly once in CI while the
+			// implementation provably raised the event outside the lock. A dedicated thread cannot
+			// be starved by pool pressure, so a timeout here means the lock and nothing else, which
+			// is the only reading this assertion is entitled to make.
+			var probeThread = new Thread(() =>
 			{
 				_ = sut.CurrentLeaderId;
 				probed.Set();
-			});
+			})
+			{ IsBackground = true };
+			probeThread.Start();
 			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			lockHeldDuringHandler = !probed.Wait(TimeSpan.FromSeconds(2));
 			#pragma warning restore RS0030
@@ -87,11 +99,15 @@ public sealed class RedisLeaderElectionReentrancyShould : UnitTestBase
 		sut.LostLeadership += (_, _) =>
 		{
 			using var probed = new ManualResetEventSlim(initialState: false);
-			_ = Task.Run(() =>
+			// Dedicated thread, not Task.Run — see the sibling arm for why the thread pool cannot be
+			// trusted here: a pool-starved probe times out and is misreported as a held lock.
+			var probeThread = new Thread(() =>
 			{
 				_ = sut.CurrentLeaderId;
 				probed.Set();
-			});
+			})
+			{ IsBackground = true };
+			probeThread.Start();
 			#pragma warning disable RS0030 // bd-c36hwe: sync-over-async debt (migrate to await/poll)
 			lockHeldDuringHandler = !probed.Wait(TimeSpan.FromSeconds(2));
 			#pragma warning restore RS0030
