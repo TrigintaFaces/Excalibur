@@ -74,7 +74,25 @@ if [ $# -eq 0 ]; then
 fi
 
 if [ -z "$LOG" ]; then
-    LOG="$(mktemp "${TMPDIR:-/tmp}/filtered-test-run.XXXXXX.log")"
+    # The X's must be the LAST characters of the template, with NO suffix after them.
+    #
+    # GNU mktemp (Linux) tolerates `...XXXXXX.log` and infers --suffix. BSD mktemp (macOS) does NOT:
+    # it treats a template whose X's are not trailing as a LITERAL filename. So iteration 1 of the
+    # soak created a file called `filtered-test-run.XXXXXX.log` verbatim and iteration 2 collided
+    # with "mkstemp failed ... File exists". ubuntu passed while macos failed, which is the tell for
+    # a GNU/BSD split rather than a logic error.
+    #
+    # The failure was worse than a missing log. Without the guard below, LOG stayed EMPTY and the
+    # script carried on: `tee ""` failed, the redirect on the assert step failed, and the run ended
+    # in "REFUSE: could not evaluate whether tests executed" — a message that blames the test run
+    # for a plumbing fault, on a soak where every one of the ~40 assemblies had actually PASSED.
+    # A harness that cannot create its own scratch file must say THAT, not cast doubt on the tests.
+    if ! LOG="$(mktemp "${TMPDIR:-/tmp}/filtered-test-run.XXXXXX")" || [ -z "$LOG" ]; then
+        echo "[run-filtered-tests] CANNOT EVALUATE — mktemp could not create a scratch log under" \
+             "'${TMPDIR:-/tmp}'. This is a HARNESS/environment fault and says NOTHING about the" \
+             "tests, which have not been run yet." >&2
+        exit "$E_ENV"
+    fi
 fi
 
 echo "[run-filtered-tests] filter: $FILTER"

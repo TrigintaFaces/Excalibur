@@ -380,18 +380,33 @@ jobs:
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
       - name: "Soak iteration 1 of 3"
+        # windows-latest defaults to pwsh, which has no '\' line-continuation (it uses a backtick),
+        # so the wrapped command below parses as a fresh statement beginning '--filter' and dies with
+        # "Missing expression after unary operator '--'". Sibling steps in this job already pin a shell;
+        # these three did not. bash is required for the continuations AND for the script itself.
+        shell: bash
         run: |
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ env.PRETAG_SOAK_FILTER }}" -- \
             eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-1" --logger "console;verbosity=minimal" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: "Soak iteration 2 of 3"
+        # windows-latest defaults to pwsh, which has no '\' line-continuation (it uses a backtick),
+        # so the wrapped command below parses as a fresh statement beginning '--filter' and dies with
+        # "Missing expression after unary operator '--'". Sibling steps in this job already pin a shell;
+        # these three did not. bash is required for the continuations AND for the script itself.
+        shell: bash
         run: |
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ env.PRETAG_SOAK_FILTER }}" -- \
             eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-2" --logger "console;verbosity=minimal" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: "Soak iteration 3 of 3"
+        # windows-latest defaults to pwsh, which has no '\' line-continuation (it uses a backtick),
+        # so the wrapped command below parses as a fresh statement beginning '--filter' and dies with
+        # "Missing expression after unary operator '--'". Sibling steps in this job already pin a shell;
+        # these three did not. bash is required for the continuations AND for the script itself.
+        shell: bash
         run: |
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ env.PRETAG_SOAK_FILTER }}" -- \

@@ -211,6 +211,15 @@ jobs:
           # --blame-hang-timeout was already here and catches a HANG. It does not catch the test
           # host EXITING -- an OOM, a stack overflow, a native crash in a provider SDK -- which
           # produces exactly the signature seen: suites reporting clean, then silence.
+          #
+          # LogFilePrefix, NOT LogFileName. A shard runs several test assemblies in sequence and
+          # each writes the logger's file, so a fixed name means every assembly overwrites the
+          # previous one -- observed live as repeated "WARNING: Overwriting results file". The
+          # surviving TRX would then hold only the last assembly to finish, and if the host died
+          # part-way it would hold an EARLIER assembly's results while appearing to describe the
+          # run: a diagnostic that is not merely incomplete but actively misleading, which is worse
+          # than the console-only logging this replaced. The prefix form emits one file per
+          # assembly, and the upload below globs them all.
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ matrix.shard.test_filter }}" -- \
             ${{ matrix.shard.filter }} \
@@ -218,7 +227,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --blame-crash \
-            --logger "trx;LogFileName=coverage-shard-${{ matrix.shard.name }}.trx" \
+            --logger "trx;LogFilePrefix=coverage-shard-${{ matrix.shard.name }}" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --settings tests/coverage.runsettings \
@@ -362,11 +371,20 @@ jobs:
 
       - name: Run deterministic unit and DI tests
         run: |
+          # LogFilePrefix, NOT LogFileName: this target is a solution FILTER, so several test
+          # assemblies run in sequence and a fixed name makes each overwrite the last, leaving a
+          # file that describes only whichever assembly finished last. The sibling
+          # transport-conformance step keeps LogFileName correctly -- it runs a single project, so
+          # there is nothing to overwrite.
+          #
+          # This comment sits ABOVE the command, not between its continued lines: a backslash
+          # joins the lines before comments are processed, so a `#` inside the continuation would
+          # swallow every flag after it.
           bash eng/ci/run-filtered-tests.sh \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- \
             eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=test-results.trx" \
+            --logger "trx;LogFilePrefix=deterministic-unit" \
             --logger "console;verbosity=minimal" \
             --results-directory ./test-results
 

@@ -42,6 +42,216 @@
       "evidence": "Measured 2026-08-01 on the committed tree. The class declares 15 [Fact] and 0 [Theory]; all 15 route through SkipIfVaultUnavailable() at AzureKeyVaultProviderIntegrationShould.cs:332. AZURE_KEYVAULT_URI appears exactly once in the workflow tree, at ci.yml:655, inside a step whose own comment reads 'These are DIAGNOSTIC PRINTS, not probes... they cannot fail' -- it reports whether the variable is set and never sets it. No workflow assigns it and no secret is bound to it. So the skip is not intermittent and not environmental drift: it is the guaranteed outcome of every run on the current configuration, and has been for as long as the variable has been unset. What is NOT established: whether these 15 facts pass against a real Key Vault. They have not been observed running anywhere, so this entry records untested coverage, not passing coverage.",
       "owner": "SoftwareArchitect",
       "expires": "2026-10-30"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.MarkFailed_EventuallyReclaimableAfterTheFloorElapses",
+      "id": "outbox-marten-pending-markfailed-eventuallyreclaimableafterthefloorelapses",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'MarkFailed_EventuallyReclaimableAfterTheFloorElapses': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.DeadLettered_NeverReclaimed_ByEitherClaimPath",
+      "id": "outbox-marten-pending-deadlettered-neverreclaimed-byeitherclaimpath",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'DeadLettered_NeverReclaimed_ByEitherClaimPath': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.MarkFailed_DoesNotDecreaseRetryCount_OnAStaleLateReport",
+      "id": "outbox-marten-pending-markfailed-doesnotdecreaseretrycount-onastalelatereport",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'MarkFailed_DoesNotDecreaseRetryCount_OnAStaleLateReport': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.MarkFailed_NotReclaimableWithinTheFloor_ReservedPath",
+      "id": "outbox-marten-pending-markfailed-notreclaimablewithinthefloor-reservedpath",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'MarkFailed_NotReclaimableWithinTheFloor_ReservedPath': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.MarkFailed_NotReclaimableWithinTheFloor_UnreservedInputPath",
+      "id": "outbox-marten-pending-markfailed-notreclaimablewithinthefloor-unreservedinputpath",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'MarkFailed_NotReclaimableWithinTheFloor_UnreservedInputPath': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.MarkFailed_ByANonOwningDispatcher_DoesNotStealTheLease_R2",
+      "id": "outbox-marten-pending-markfailed-byanonowningdispatcher-doesnotstealthelease-r2",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'MarkFailed_ByANonOwningDispatcher_DoesNotStealTheLease_R2': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.MartenOutboxStoreConformanceShould.MarkFailed_OwnedPath_RecordsFailureAndReclaimsAfterTheFloor",
+      "id": "outbox-marten-pending-markfailed-ownedpath-recordsfailureandreclaimsafterthefloor",
+      "match": "test",
+      "count": 1,
+      "reason": "The marten outbox store declares a documented-pending conformance gap for 'MarkFailed_OwnedPath_RecordsFailureAndReclaimsAfterTheFloor': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.MarkFailed_EventuallyReclaimableAfterTheFloorElapses",
+      "id": "outbox-elasticsearch-pending-markfailed-eventuallyreclaimableafterthefloorelapses",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'MarkFailed_EventuallyReclaimableAfterTheFloorElapses': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.DeadLettered_NeverReclaimed_ByEitherClaimPath",
+      "id": "outbox-elasticsearch-pending-deadlettered-neverreclaimed-byeitherclaimpath",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'DeadLettered_NeverReclaimed_ByEitherClaimPath': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.MarkFailed_DoesNotDecreaseRetryCount_OnAStaleLateReport",
+      "id": "outbox-elasticsearch-pending-markfailed-doesnotdecreaseretrycount-onastalelatereport",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'MarkFailed_DoesNotDecreaseRetryCount_OnAStaleLateReport': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.MarkFailed_NotReclaimableWithinTheFloor_ReservedPath",
+      "id": "outbox-elasticsearch-pending-markfailed-notreclaimablewithinthefloor-reservedpath",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'MarkFailed_NotReclaimableWithinTheFloor_ReservedPath': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.MarkFailed_NotReclaimableWithinTheFloor_UnreservedInputPath",
+      "id": "outbox-elasticsearch-pending-markfailed-notreclaimablewithinthefloor-unreservedinputpath",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'MarkFailed_NotReclaimableWithinTheFloor_UnreservedInputPath': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.MarkFailed_ByANonOwningDispatcher_DoesNotStealTheLease_R2",
+      "id": "outbox-elasticsearch-pending-markfailed-byanonowningdispatcher-doesnotstealthelease-r2",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'MarkFailed_ByANonOwningDispatcher_DoesNotStealTheLease_R2': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.MarkFailed_OwnedPath_RecordsFailureAndReclaimsAfterTheFloor",
+      "id": "outbox-elasticsearch-pending-markfailed-ownedpath-recordsfailureandreclaimsafterthefloor",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'MarkFailed_OwnedPath_RecordsFailureAndReclaimsAfterTheFloor': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.GetUnsentMessages_ConcurrentClaimers_ReceiveDisjointSets",
+      "id": "outbox-elasticsearch-pending-getunsentmessages-concurrentclaimers-receivedisjointsets",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'GetUnsentMessages_ConcurrentClaimers_ReceiveDisjointSets': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.ConcurrentMarkSent_OnlyOneSucceeds",
+      "id": "outbox-elasticsearch-pending-concurrentmarksent-onlyonesucceeds",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'ConcurrentMarkSent_OnlyOneSucceeds': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.GetFailedMessages_RespectsOlderThan",
+      "id": "outbox-elasticsearch-pending-getfailedmessages-respectsolderthan",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'GetFailedMessages_RespectsOlderThan': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Data.Outbox.ElasticsearchOutboxStoreConformanceShould.CleanupSentMessages_RespectsBatchSize",
+      "id": "outbox-elasticsearch-pending-cleanupsentmessages-respectsbatchsize",
+      "match": "test",
+      "count": 1,
+      "reason": "The elasticsearch outbox store declares a documented-pending conformance gap for 'CleanupSentMessages_RespectsBatchSize': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.Redis.Outbox.RedisOutboxStoreConformanceShould.GetStatistics_TracksAllStates",
+      "id": "outbox-redis-pending-getstatistics-tracksallstates",
+      "match": "test",
+      "count": 1,
+      "reason": "The redis outbox store declares a documented-pending conformance gap for 'GetStatistics_TracksAllStates': a required contract it does not yet implement. Listed per arm, not per class, so a NEW skip appearing in this class is still refused.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The arm skips through the conformance base's documented-pending mechanism, which skips ONLY for a provider that declares that arm in its own pending map; every non-declaring provider still runs it, so the contract stays covered wherever it is implemented. The same run executed 2533 tests with 0 failures, and the other arms of this class ran and passed, so the store's container is reachable and this is a contract gap rather than an environment one. NOT established: a date by which the contract will be implemented -- 'scheduled' is the claim this expiry exists to hold to account.",
+      "owner": "BackendDeveloper",
+      "expires": "2026-09-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch.Monitoring.MonitoredResilientElasticsearchClientShould",
+      "id": "elasticsearch-monitoring-container-unreachable",
+      "match": "class",
+      "count": 8,
+      "reason": "Every arm skips because the Elasticsearch container was not reachable from InitializeAsync. Unlike the sibling Azure Blob suite, whose skip turned out to be an API-version rejection by a running container, this one appears to be genuine absence.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The skip reports '[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync'. Corroborated independently by the coverage artifact from the SAME run: MonitoredResilientElasticsearchClient is 0.0% covered, 0 of 614 lines, across all four result files -- so no arm executed anywhere in the shard, not merely in this class. The contrast is the point: Azure Blob's cold store read 85.0% covered while its own suite skipped, which is how that skip was exposed as a false claim of absence. NOT established: why the container is unreachable, or whether these 8 arms pass against a reachable Elasticsearch.",
+      "owner": "TestsDeveloper",
+      "expires": "2026-10-01"
+    },
+    {
+      "test": "Excalibur.Integration.Tests.OpenSearch.OpenSearchProjectionStoreIntegrationShould",
+      "id": "opensearch-fixture-readiness-unresolved",
+      "match": "class",
+      "count": 5,
+      "reason": "Every arm skips as infrastructure-unavailable, but the fixture reaches that state WITHOUT throwing, so the cause is a failed readiness check rather than a startup exception.",
+      "evidence": "Measured 2026-08-02 on the CI integration shard. The fixture appends the captured exception to its skip reason whenever InitializeAsync throws; this skip message carries no cause, so the availability flag was cleared on the health-check branch instead. The coverage artifact from the same run shows OpenSearchProjectionStore at 23.5%, 94 of 400 lines, so the type is partially exercised elsewhere and the container is not categorically absent. NOT established: why the readiness check fails. This entry records an open question, not a settled one, and the short expiry reflects that.",
+      "owner": "TestsDeveloper",
+      "expires": "2026-09-15"
     }
   ]
 }
