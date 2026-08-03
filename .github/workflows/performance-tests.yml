@@ -93,7 +93,8 @@ jobs:
           bash eng/ci/run-filtered-tests.sh --filter "Category=Performance" -- \
             eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build \
             --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" \
-            --logger "console;verbosity=minimal" \n            -- RunConfiguration.TestSessionTimeout=600000
+            --logger "console;verbosity=minimal" \
+            -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Package build output for benchmark jobs
         shell: bash

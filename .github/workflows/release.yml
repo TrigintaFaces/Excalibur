@@ -481,7 +481,9 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.pre-release-validation.outputs.version }}"
-          PRERELEASE="${{ needs.pre-release-validation.outputs.prerelease }}"
+          # PRERELEASE was assigned here and never read. Removed rather than quoted: an unused
+          # assignment in a packaging step reads as "prerelease affects packing" to anyone editing
+          # it, and it does not. The output itself is still produced and consumed where it matters.
 
           echo "Creating packages for version: $VERSION"
 

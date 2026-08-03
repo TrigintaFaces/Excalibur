@@ -66,7 +66,32 @@ run_gate() {
 
 	# -oneline keeps one finding per line so the count below is a count of findings, not of the
 	# multi-line source excerpts actionlint prints by default.
-	findings="$("$bin" -no-color -oneline "${files[@]}" 2>&1 | grep -E ':[0-9]+:[0-9]+:' || true)"
+	#
+	# SHELLCHECK STAYS ON, at warning severity and above. An earlier revision of this gate disabled
+	# it outright to make local and CI agree, and that was the wrong fix for the right problem.
+	# shellcheck had found a REAL, build-breaking defect -- a literal `\n` where a line continuation
+	# was intended, so `dotnet test` received an argument `n`, failed before writing any TRX, and the
+	# deterministic-test job went red with no results. Three sites, all introduced by the commit that
+	# added session caps. Turning the integration off would have buried the one finding that mattered
+	# in order to silence 274 informational ones.
+	#
+	# The determinism problem was real and is solved differently: `-ignore` drops the info/style
+	# tiers, which is a decision recorded HERE in the repository rather than an accident of which
+	# tools happen to be installed. A machine without shellcheck still lints less than CI does -- the
+	# install step in committed-content-gates.yml is what closes that, and the DETERMIN self-test arm
+	# asserts the info tier stays filtered.
+	#
+	# SC2170 is ignored with cause: it fires on `[ "${{ steps.x.outputs.n }}" -eq 0 ]`, where
+	# shellcheck reads the un-interpolated literal as non-numeric and objects to a comparison that is
+	# correct once GitHub expands it. That is a false positive about expression syntax, not a defect.
+	#
+	# -pyflakes= stays empty: no workflow embeds Python, so it would only add an install dependency.
+	findings="$(
+		"$bin" -no-color -oneline -pyflakes= \
+			-ignore 'shellcheck reported issue in this script: SC[0-9]+:(info|style):' \
+			-ignore 'shellcheck reported issue in this script: SC2170:' \
+			"${files[@]}" 2>&1 | grep -E ':[0-9]+:[0-9]+:' || true
+	)"
 
 	if [ -n "$findings" ]; then
 		printf '%s\n' "$findings" >&2
@@ -142,6 +167,36 @@ self_test() {
 		echo "  PASS  REFUSE    a missing workflow dir exits 2, not 0"; pass=$((pass + 1))
 	else
 		echo "  FAIL  REFUSE    a missing workflow dir did not exit 2 (exit $rc)"; fail=$((fail + 1))
+	fi
+
+	# SEVERITY FLOOR — a `run:` block with an SC2086 (info) finding must still PASS, because the
+	# info and style tiers are filtered deliberately. shellcheck WARNINGS and ERRORS do fail the
+	# gate, and must: one of them was a literal backslash-n where a line continuation was intended,
+	# which broke a test job outright. This arm asserts the floor is where we set it, not that
+	# shellcheck is off.
+	#
+	# Honest about its own reach: on a box without shellcheck this arm passes trivially, because
+	# there is nothing to disable. It has teeth exactly where the problem appeared -- CI, where
+	# shellcheck IS installed -- which is the environment whose disagreement with local made it
+	# necessary. A green here on a dev box is weak evidence; a green in CI is the real assertion.
+	mkdir -p "$tmp/shellcheck"
+	cat >"$tmp/shellcheck/sc.yml" <<-'YAML'
+		name: sc
+		on: push
+		permissions: {}
+		jobs:
+		  a:
+		    runs-on: ubuntu-latest
+		    steps:
+		      - run: |
+		          target=/tmp/some path
+		          echo $target
+	YAML
+	( run_gate "$tmp/shellcheck" >/dev/null 2>&1 ); rc=$?
+	if [ "$rc" -eq 0 ]; then
+		echo "  PASS  DETERMIN  an info-tier shellcheck finding (SC2086) stays filtered"; pass=$((pass + 1))
+	else
+		echo "  FAIL  DETERMIN  an info-tier shellcheck finding failed the gate (exit $rc) — is the -ignore filter still in place?"; fail=$((fail + 1))
 	fi
 
 	# REFUSE — an EMPTY workflow directory is the case that produced this gate's own false-clean.

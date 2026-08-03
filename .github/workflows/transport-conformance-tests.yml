@@ -165,9 +165,9 @@ jobs:
 
           for report in reports/*-conformance-report/*.md; do
             if [ -f "$report" ]; then
-              transport=$(basename $(dirname "$report") | sed 's/-conformance-report//')
+              transport=$(basename "$(dirname "$report")" | sed 's/-conformance-report//')
               status=$(grep "Status:" "$report" | cut -d ':' -f 2 | xargs || echo "Unknown")
-              echo "| $transport | $status | [View](./$(basename $(dirname "$report"))/conformance-report.md) |" >> summary.md
+              echo "| $transport | $status | [View](./$(basename "$(dirname "$report")")/conformance-report.md) |" >> summary.md
             fi
           done
 

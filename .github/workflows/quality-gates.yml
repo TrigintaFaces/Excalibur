@@ -431,7 +431,8 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFilePrefix=deterministic-unit" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./test-results \n            -- RunConfiguration.TestSessionTimeout=600000
+            --results-directory ./test-results \
+            -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Validate no test failures
         run: |
@@ -502,7 +503,8 @@ jobs:
             --blame-hang-timeout 10m \
             --logger "trx;LogFileName=transport-conformance.trx" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./transport-conformance-results \n            -- RunConfiguration.TestSessionTimeout=900000
+            --results-directory ./transport-conformance-results \
+            -- RunConfiguration.TestSessionTimeout=900000
 
       - name: Upload transport conformance results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
