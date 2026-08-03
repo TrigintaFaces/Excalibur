@@ -40,14 +40,17 @@ jobs:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
+          # Split three ways -- see the note in quality-gates.yml.
+          - { name: excalibur-data, filter: "eng/ci/shards/UnitTests-Excalibur-Data.slnf" }
+          - { name: excalibur-platform, filter: "eng/ci/shards/UnitTests-Excalibur-Platform.slnf" }
+          - { name: excalibur-messaging, filter: "eng/ci/shards/UnitTests-Excalibur-Messaging.slnf" }
           - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf" }
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -55,7 +58,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -83,7 +86,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: nightly-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
@@ -98,10 +101,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -109,7 +112,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -205,7 +208,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: nightly-integration
           path: TestResults/*.trx
@@ -218,10 +221,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -229,7 +232,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -247,10 +250,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -264,13 +267,13 @@ jobs:
             -OutDir management/reports/DependencyAuditReport `
             -ProjectRoot src `
             -PerProjectTimeoutSeconds 120 `
-            -TotalBudgetMinutes 25 `
+            -TotalBudgetMinutes 15 `
             -MaxProjects 180 `
             -FailOnGuardrailBreach
 
       - name: Upload dependency audit
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: nightly-dependency-audit
           path: management/reports/DependencyAuditReport
@@ -285,7 +288,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Compute nightly results
         id: results
@@ -340,32 +343,52 @@ jobs:
 
       - name: Create GitHub issue on failure
         if: steps.results.outputs.status == 'failed'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
+            // ONE issue per persistent failure, not one per night. This previously created
+            // 'Nightly CI failure: <date>' unconditionally, so a defect lasting a fortnight produced
+            // fourteen issues -- and a backlog nobody triages is indistinguishable from no reporting.
+            // The failing job names are the fingerprint: the same set failing again is the same
+            // incident; a different set is a new one.
             const failures = '${{ steps.results.outputs.failures }}';
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const runUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId;
             const today = new Date().toISOString().split('T')[0];
 
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Nightly CI failure: ${today}`,
-              body: [
-                `## Nightly CI Build Failed`,
-                ``,
-                `**Date:** ${today}`,
-                `**Run:** [${context.runId}](${runUrl})`,
-                `**Commit:** ${context.sha}`,
-                ``,
-                `### Failed Jobs`,
-                ``,
-                failures,
-                ``,
-                `### Action Required`,
-                ``,
-                `Investigate and fix the failing jobs before the next nightly run.`,
-                `This issue was automatically created by the nightly CI workflow.`
-              ].join('\n'),
-              labels: ['ci-nightly', 'bug']
+            const fingerprint = failures.split(String.fromCharCode(10)).map(l => l.trim()).filter(Boolean).sort().join('|').slice(0, 120) || 'unclassified';
+            const marker = '<!-- nightly-fingerprint: ' + fingerprint + ' -->';
+
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'ci-nightly', per_page: 100,
             });
+            const match = existing.find(i => (i.body || '').includes(marker));
+
+            if (match) {
+              // Comment rather than duplicate, so occurrence count and first-seen date stay on one
+              // thread and the issue's age reflects how long this has actually been broken.
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: match.number,
+                body: ['Recurred on **' + today + '** - [run ' + context.runId + '](' + runUrl + '), commit ' + context.sha + '.', '', 'Still failing:', '', failures].join(String.fromCharCode(10)),
+              });
+              core.notice('Nightly failure recurred; commented on #' + match.number + ' rather than opening a duplicate.');
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: 'Nightly CI failure: ' + fingerprint.split('|')[0].slice(0, 60),
+                body: [
+                  '## Nightly CI Build Failed', '',
+                  '**First seen:** ' + today,
+                  '**Run:** [' + context.runId + '](' + runUrl + ')',
+                  '**Commit:** ' + context.sha, '',
+                  '### Failed Jobs', '', failures, '',
+                  '### Action Required', '',
+                  'Investigate and fix the failing jobs before the next nightly run. Recurrences are added',
+                  'as comments on this issue rather than as new issues, so the age of this thread is how',
+                  'long the defect has been live.', '',
+                  marker,
+                ].join(String.fromCharCode(10)),
+                labels: ['ci-nightly', 'bug'],
+              });
+              core.notice('Opened #' + created.data.number + ' for a nightly failure not seen before.');
+            }

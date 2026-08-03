@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload governance report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: solution-governance-report
           path: |
@@ -67,7 +67,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload dependency graph report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: package-dependency-report
           path: management/reports/PackageDependencyReport
@@ -98,7 +98,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -172,7 +172,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
 
@@ -183,7 +183,7 @@ jobs:
 
       - name: Upload PublicAPI baseline report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: public-api-baseline-report
           path: management/reports/PublicApiBaselineReport
@@ -195,7 +195,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -219,7 +219,7 @@ jobs:
 
       - name: Upload transitive bloat report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: transitive-bloat-report
           path: management/reports/TransitiveBloatReport
@@ -231,7 +231,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -269,7 +269,7 @@ jobs:
             -MaxDependencyProjects 180
 
       - name: Upload inventory report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dependency-inventory
           path: management/reports/dependency-inventory.md
@@ -280,7 +280,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -306,7 +306,7 @@ jobs:
 
       - name: Upload specs guard report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: specs-location-violations
           path: management/reports/specs-location-violations-${{ github.run_id }}.md

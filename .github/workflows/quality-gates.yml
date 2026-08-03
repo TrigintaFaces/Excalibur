@@ -12,9 +12,25 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# Least privilege, declared explicitly. GITHUB_TOKEN otherwise inherits the repository
+# default, which may be write-all; a workflow that only reads code and reports should never
+# hold a token that can push. Declaring permissions REPLACES the default set rather than
+# adding to it, so every scope this workflow needs is listed here.
+permissions:
+  contents: read
+  pull-requests: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Event-aware, deliberately. This was `${{ github.workflow }}-${{ github.ref }}` with an
+  # unconditional cancel-in-progress, which cancels a PUSH run on main the moment a later commit
+  # arrives -- so a merged commit could be left with no conclusive validation at all. It happened
+  # twice in one session: release-blocking governance refused with `quality=cancelled`, meaning the
+  # gate had proven nothing and correctly declined to call that success.
+  #
+  # Cancelling a superseded PULL REQUEST run is useful and stays. Cancelling protected-branch
+  # validation is not: every commit on main must reach a verdict.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -53,7 +69,7 @@ jobs:
       core_perf: ${{ steps.filter.outputs.core_perf }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -95,7 +111,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -110,7 +126,7 @@ jobs:
           docker system prune -af || true
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -118,7 +134,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -167,17 +183,29 @@ jobs:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          # Split from a single `excalibur` leg that carried 43 test projects -- roughly 3x core (15)
+          # and 14x transport (3). Under coverage instrumentation it exhausted its runner: the job
+          # died with "The hosted runner lost communication with the server", which skipped the
+          # dependent aggregation job, which the summary correctly reports as a BLOCKING gate
+          # failure. Quality Gates was therefore red on every run for a reason that had nothing to
+          # do with the coverage threshold -- the threshold was never evaluated.
+          #
+          # Legs are sized at 13-16 projects because core sustains 15 today. That is a demonstrated
+          # survivable size rather than a guess. Raising the timeout would not have helped: the job
+          # was not running out of time, it was being killed.
+          - { name: excalibur-data, filter: "eng/ci/shards/UnitTests-Excalibur-Data.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: excalibur-platform, filter: "eng/ci/shards/UnitTests-Excalibur-Platform.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: excalibur-messaging, filter: "eng/ci/shards/UnitTests-Excalibur-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -185,7 +213,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -257,7 +285,7 @@ jobs:
       # the coverage upload below so its if-no-files-found: error still guards the coverage file.
       - name: Upload shard diagnostics (TRX, hang and crash reports)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-shard-diagnostics-${{ matrix.shard.name }}
           path: |
@@ -265,10 +293,10 @@ jobs:
             ./coverage/**/Sequence_*.xml
             ./coverage/**/*.dmp
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
 
       - name: Upload shard coverage artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-shard-${{ matrix.shard.name }}
           path: ./coverage/**/coverage.cobertura.xml
@@ -282,12 +310,12 @@ jobs:
     needs: coverage-shards
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Download shard coverage artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: coverage-shard-*
           path: coverage
@@ -347,7 +375,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
           path: ./coverage/merged
@@ -360,13 +388,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -374,7 +402,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -403,7 +431,7 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFilePrefix=deterministic-unit" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./test-results
+            --results-directory ./test-results \n            -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Validate no test failures
         run: |
@@ -422,12 +450,12 @@ jobs:
           fi
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: test-results
           path: ./test-results
-          retention-days: 7
+          retention-days: 14
 
   # Transport conformance (self-contained, conditional)
   transport-conformance:
@@ -438,13 +466,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -452,7 +480,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -474,15 +502,15 @@ jobs:
             --blame-hang-timeout 10m \
             --logger "trx;LogFileName=transport-conformance.trx" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./transport-conformance-results
+            --results-directory ./transport-conformance-results \n            -- RunConfiguration.TestSessionTimeout=900000
 
       - name: Upload transport conformance results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: transport-conformance-results
           path: ./transport-conformance-results
-          retention-days: 7
+          retention-days: 14
 
   # Solution governance gate
   governance:
@@ -491,13 +519,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -525,13 +553,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -539,7 +567,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -577,7 +605,7 @@ jobs:
           if [ -d "tests/ArchitectureTests" ]; then
             dotnet restore tests/ArchitectureTests --verbosity quiet
             dotnet build tests/ArchitectureTests --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
-            dotnet test tests/ArchitectureTests --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet"
+            dotnet test tests/ArchitectureTests --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet" -- RunConfiguration.TestSessionTimeout=420000
           else
             echo "Architecture test project not found, skipping..."
           fi
@@ -590,7 +618,7 @@ jobs:
           ARCH_ENFORCE: "true"
         run: |
           if [ -d "tests/architecture/Boundary.Tests" ]; then
-            dotnet test tests/architecture/Boundary.Tests/ --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet"
+            dotnet test tests/architecture/Boundary.Tests/ --configuration Release --no-build --blame-hang-timeout 5m --logger "console;verbosity=quiet" -- RunConfiguration.TestSessionTimeout=420000
           else
             echo "Boundary.Tests project not yet created, skipping..."
           fi
@@ -602,7 +630,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}

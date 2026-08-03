@@ -21,6 +21,12 @@ on:
         default: true
         type: boolean
 
+# Deny by default at workflow scope; each job below grants only what it needs. This workflow
+# pushes tags, creates releases and publishes packages, so inheriting the repository default
+# token would give every job -- including the ones that merely build and test -- the authority
+# to do all three. Six of the nine jobs need nothing beyond reading the code.
+permissions: {}
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -30,6 +36,8 @@ env:
 jobs:
   # Validate release readiness
   pre-release-validation:
+    permissions:
+      contents: read
     name: Pre-Release Validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -40,7 +48,7 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -75,7 +83,7 @@ jobs:
           echo "✅ Version format is valid"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -133,7 +141,7 @@ jobs:
           fi
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -182,7 +190,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "console;verbosity=minimal" \
-            -- RunConfiguration.TestSessionTimeout=1500000
+            -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Release readiness check
         run: |
@@ -226,7 +234,7 @@ jobs:
 
       - name: Upload flaky quarantine report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
@@ -235,6 +243,8 @@ jobs:
 
   # Build once per OS, then soak iterations download pre-built artifacts
   pre-tag-soak-build:
+    permissions:
+      contents: read
     name: Pre-Tag Soak Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
@@ -245,10 +255,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -306,7 +316,7 @@ jobs:
           fi
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -329,7 +339,7 @@ jobs:
           ls -lh soak-build-output.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: soak-build-${{ matrix.os }}
           path: soak-build-output.tar.gz
@@ -337,6 +347,8 @@ jobs:
           compression-level: 0
 
   pre-tag-unit-soak:
+    permissions:
+      contents: read
     name: Pre-Tag Unit Soak (${{ matrix.os }}, 3 iterations)
     runs-on: ${{ matrix.os }}
     needs: [pre-release-validation, pre-tag-soak-build]
@@ -349,10 +361,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -360,7 +372,7 @@ jobs:
             10.0.x
 
       - name: Download pre-built soak artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: soak-build-${{ matrix.os }}
 
@@ -414,13 +426,15 @@ jobs:
 
       - name: Upload soak test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pre-tag-unit-soak-${{ matrix.os }}
           path: "**/pre-tag-unit-soak-*.trx"
           retention-days: 30
 
   build-packages:
+    permissions:
+      contents: read
     name: Build Release Packages
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -430,12 +444,12 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -443,7 +457,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -516,7 +530,7 @@ jobs:
           Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
 
       - name: Upload packages
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: packages-${{ matrix.os }}
           path: |
@@ -525,18 +539,20 @@ jobs:
           retention-days: 90
 
   release-sbom:
+    permissions:
+      contents: read
     name: Release SBOM (CycloneDX)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -561,7 +577,7 @@ jobs:
           fi
 
       - name: Upload release SBOM artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-cyclonedx-sbom
           path: |
@@ -571,22 +587,24 @@ jobs:
 
   # Security and quality validation
   release-quality-gates:
+    permissions:
+      contents: read
     name: Release Quality Gates
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [pre-release-validation, build-packages]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download packages
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: packages-ubuntu-latest
           path: packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -643,7 +661,7 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: security-analysis
           path: security-report.txt
@@ -651,6 +669,9 @@ jobs:
 
   # Create GitHub release
   create-release:
+    # Creates the GitHub release and pushes the tag.
+    permissions:
+      contents: write
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -660,19 +681,19 @@ jobs:
       release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Download all packages
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: packages-*
           path: all-packages/
           merge-multiple: true
 
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-cyclonedx-sbom
           path: sbom/
@@ -758,7 +779,7 @@ jobs:
 
       - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -785,6 +806,11 @@ jobs:
 
   # Publish to NuGet.org
   publish-nuget:
+    # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
+    # read because this job must not be able to alter the repository it is publishing from.
+    permissions:
+      contents: read
+      id-token: write
     name: Publish to NuGet
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -812,13 +838,13 @@ jobs:
       NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
     steps:
       - name: Download packages
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: packages-ubuntu-latest
           path: packages
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -954,14 +980,25 @@ jobs:
 
   # Post-release tasks
   post-release:
+    # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
+    # read because this job must not be able to alter the repository it is publishing from.
+    permissions:
+      contents: read
+      id-token: write
     name: Post-Release Tasks
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [pre-release-validation, create-release, publish-nuget]
+    # release-quality-gates is here because the summary below READS its result. Without it in
+    # needs, `needs.release-quality-gates.result` is undefined, the comparison is always false,
+    # and the summary printed "Quality Gates | Failed" on every successful release. The release
+    # itself was correctly gated the whole time -- create-release depends on the job -- so this
+    # was a display defect, and it failed in the safe direction. It is still worth fixing: a
+    # summary that always says Failed teaches its readers to ignore the one that means it.
+    needs: [pre-release-validation, create-release, publish-nuget, release-quality-gates]
     if: always() && needs.create-release.result == 'success'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Release summary
         run: |

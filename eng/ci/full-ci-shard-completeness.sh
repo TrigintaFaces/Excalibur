@@ -96,7 +96,7 @@ normalise_reported() {
       -e 's#eng/ci/shards/##g' \
       -e 's/\.slnf//g' \
       | tr -s ' \t' '\n' \
-      | grep -oE '^(UnitTests-[A-Za-z0-9]+|ConformanceTests|PerformanceTests|IntegrationTests)$' \
+      | grep -oE '^(UnitTests-[A-Za-z0-9-]+|ConformanceTests|PerformanceTests|IntegrationTests)$' \
       | sort -u
 }
 

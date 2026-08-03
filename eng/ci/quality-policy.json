@@ -1,0 +1,37 @@
+{
+  "$comment": [
+    "SINGLE SOURCE OF TRUTH for quality policy. Workflows, local scripts and documentation read",
+    "this file; none of them may define these numbers independently.",
+    "",
+    "This exists because two pipelines answered the same question differently: ci.yml declared a",
+    "coverage threshold of 65 while quality-gates.yml enforced 44, and the 65 was a number the",
+    "repository had never met. A threshold nobody can reach does not raise coverage -- it trains",
+    "everyone to route around the gate, which is worse than having no gate.",
+    "",
+    "regressionFloor is what BLOCKS: the level coverage must not fall below. changedCodeTarget is",
+    "where we intend to be. Keeping both recorded means lowering the floor to the truth does not",
+    "quietly delete the ambition."
+  ],
+  "coverage": {
+    "baseline": 44.3,
+    "baselineMeasuredOn": "2026-07-31",
+    "baselineCaveat": "Measured on a run whose integration shard was refusing, so its contribution is uncertain and this figure may be pessimistic. Re-baseline from the first fully green run rather than treating it as settled.",
+    "regressionFloor": 44.0,
+    "changedCodeTarget": 80.0,
+    "aspirationalTarget": 65.0
+  },
+  "build": {
+    "warningsAsErrors": true,
+    "deterministic": true
+  },
+  "artifactRetentionDays": {
+    "pullRequest": 7,
+    "pullRequestFailureDiagnostics": 14,
+    "official": 30,
+    "release": 365
+  },
+  "timeouts": {
+    "note": "An internal budget must be strictly LOWER than its job wall, with headroom to write results. Equal values mean the internal limit can never fire and the runner kills the job with nothing recorded.",
+    "sessionTimeoutMustBeUnderJobTimeout": true
+  }
+}

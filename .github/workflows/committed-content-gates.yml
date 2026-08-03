@@ -43,13 +43,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -57,7 +57,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
@@ -76,13 +76,50 @@ jobs:
   # Whole-tree structural + public-surface gates — pure shell/grep, no build required. Each runs on the
   # checked-out committed SHA. Blocking (no `|| true`) unless a step is marked advisory pending a tracked
   # cleanup, which flips to blocking once the cleanup lands (the shipped-with-teeth sequencing).
+
+      - name: Workflow hygiene (pins, permissions, timeouts, continuations)
+        run: bash eng/ci/workflow-hygiene-gate.sh
+
+      - name: Shard coverage (every test project belongs to a shard)
+        run: python3 eng/ci/shard-coverage-gate.py
+
+      - name: Policy consistency (thresholds match eng/ci/quality-policy.json)
+        run: python3 eng/ci/policy-consistency-gate.py
+
+      # Pinned by VERSION AND SHA256. An unpinned download is a third party deciding what runs in
+      # our gate, and this gate's whole job is to notice things nobody decided.
+      - name: Install actionlint (pinned)
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSL --retry 3 --max-time 120 -o /tmp/actionlint.tar.gz "$url"
+          echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          install -m 0755 /tmp/actionlint /usr/local/bin/actionlint
+          actionlint --version
+
+      # Proves the gate can still FAIL before we believe it passing. A linter that silently stops
+      # reporting is indistinguishable from clean workflows -- which is precisely how the eight
+      # defects this gate was written for survived every green run.
+      - name: actionlint-gate self-test (non-vacuity)
+        run: bash eng/ci/actionlint-gate.sh --self-test
+
+      # BLOCKING — workflow YAML must lint clean. These defects do not stop a run, so no amount of
+      # green CI contradicts them: an undefined `needs` context that made a release summary report
+      # failure on every success, a composite input advertised required:true that all six call sites
+      # omitted, and a bool passed to a string-typed input.
+      - name: actionlint-gate
+        run: bash eng/ci/actionlint-gate.sh
   shell-gates:
     name: Committed-Content Shell Gates
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -132,13 +169,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -163,13 +200,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x

@@ -14,8 +14,16 @@ on:
         type: boolean
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Event-aware, deliberately. This was `${{ github.workflow }}-${{ github.ref }}` with an
+  # unconditional cancel-in-progress, which cancels a PUSH run on main the moment a later commit
+  # arrives -- so a merged commit could be left with no conclusive validation at all. It happened
+  # twice in one session: release-blocking governance refused with `quality=cancelled`, meaning the
+  # gate had proven nothing and correctly declined to call that success.
+  #
+  # Cancelling a superseded PULL REQUEST run is useful and stays. Cancelling protected-branch
+  # validation is not: every commit on main must reach a verdict.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -26,7 +34,10 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
-  COVERAGE_THRESHOLD: 65
+  # COVERAGE_THRESHOLD removed: declared here and consumed zero times, while the LIVE value was
+  # the coverage-threshold input passed to the reusable workflow below. Two numbers, one of them
+  # inert, is how 65 survived years of never being met. The floor lives in
+  # eng/ci/quality-policy.json now.
   # TestTimeouts.Scale() multiplies by this and defaults to 1.0 when unset, so an unset job runs every
   # scaled deadline at its bare local value. This lives at WORKFLOW level, not on a job, because the
   # same assembly runs in several: setting it only on `unit-tests` left the deterministic shard
@@ -49,7 +60,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -76,7 +87,7 @@ jobs:
           df -h
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -84,7 +95,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -122,7 +133,7 @@ jobs:
           echo "Package creation successful"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: build-artifacts
           path: |
@@ -157,10 +168,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '20'
           cache: 'npm'
@@ -187,14 +198,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '20'
           cache: 'npm'
@@ -271,11 +282,11 @@ jobs:
 
       - name: Upload build output for inspection
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: docs-build-output
           path: docs-site/build-output.txt
-          retention-days: 7
+          retention-days: 14
 
       - name: Documentation validation summary
         if: always()
@@ -302,7 +313,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -318,11 +329,11 @@ jobs:
 
       - name: Upload smoke test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-smoke
           path: TestResults/*.trx
-          retention-days: 7
+          retention-days: 14
 
   # ── Unit shard coverage audit ──
   unit-shard-coverage:
@@ -332,7 +343,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -344,7 +355,7 @@ jobs:
 
       - name: Upload shard coverage report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unit-shard-coverage-report
           path: management/reports/UnitShardReport
@@ -375,11 +386,15 @@ jobs:
           # to avoid the concurrency-dependent librdkafka native-thread leak that roots the vstest host.
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", extra-run-settings: "xUnit.MaxParallelThreads=1 xUnit.ParallelizeTestCollections=false" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
+          # Split three ways -- see the note in quality-gates.yml. The single 43-project leg killed
+          # its runner under coverage; these are sized to the largest shard that survives today.
+          - { name: excalibur-data, filter: "eng/ci/shards/UnitTests-Excalibur-Data.slnf" }
+          - { name: excalibur-platform, filter: "eng/ci/shards/UnitTests-Excalibur-Platform.slnf" }
+          - { name: excalibur-messaging, filter: "eng/ci/shards/UnitTests-Excalibur-Messaging.slnf" }
       fail-fast: false
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -394,14 +409,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
@@ -425,7 +440,7 @@ jobs:
       fail-fast: false
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -438,14 +453,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
       - name: Upload code coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
@@ -466,12 +481,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Download unit test result artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           pattern: test-results-unit-*
           path: AggregatedTrx
@@ -494,7 +509,7 @@ jobs:
           ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir management/reports/ShardAggregation
       - name: Upload aggregation report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unit-shard-aggregation-report
           path: management/reports/ShardAggregation/*.json
@@ -511,7 +526,7 @@ jobs:
       VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -525,7 +540,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-windows-deterministic
           path: TestResults/*.trx
@@ -542,7 +557,7 @@ jobs:
       VSTEST_CONNECTION_TIMEOUT: 600
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -557,7 +572,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-windows-async-risk
           path: TestResults/*.trx
@@ -571,7 +586,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -585,7 +600,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-macos-deterministic
           path: TestResults/*.trx
@@ -600,7 +615,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -615,7 +630,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-macos-async-risk
           path: TestResults/*.trx
@@ -630,7 +645,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -748,7 +763,7 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Cleanup orphaned Docker containers
         if: always()
@@ -908,7 +923,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-integration
           path: TestResults/*.trx
@@ -916,7 +931,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-integration
           path: TestResults/**/coverage.cobertura.xml
@@ -932,7 +947,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -960,11 +975,11 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=1200000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-functional
           path: TestResults/*.trx
@@ -972,7 +987,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-functional
           path: TestResults/*/coverage.cobertura.xml
@@ -987,7 +1002,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -1006,11 +1021,11 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=300000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload contract test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-contract
           path: TestResults/*.trx
@@ -1018,7 +1033,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-contract
           path: TestResults/*/coverage.cobertura.xml
@@ -1033,7 +1048,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -1052,11 +1067,11 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=420000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload architecture test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-architecture
           path: TestResults/*.trx
@@ -1064,7 +1079,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-architecture
           path: TestResults/*/coverage.cobertura.xml
@@ -1079,7 +1094,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -1091,7 +1106,7 @@ jobs:
 
       - name: Upload quarantine governance report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: flaky-quarantine-report
           path: management/reports/FlakyQuarantineReport
@@ -1107,13 +1122,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1121,7 +1136,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1165,10 +1180,11 @@ jobs:
             --logger "trx;LogFileName=flaky-quarantine.trx" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
+            -- RunConfiguration.TestSessionTimeout=900000
 
       - name: Upload quarantined test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-flaky-quarantine
           path: TestResults/*.trx
@@ -1183,12 +1199,12 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1210,7 +1226,7 @@ jobs:
           ./eng/ci/serialization-boundary-audit.ps1 -OutDir management/reports/SerializationBoundaryReport
       - name: Upload serialization boundary report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: serialization-boundary-report
           path: management/reports/SerializationBoundaryReport
@@ -1223,12 +1239,12 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1242,7 +1258,7 @@ jobs:
           Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
       - name: Upload trim/AOT audit
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: aot-build-analysis
           path: management/reports/AotBuildAnalysis
@@ -1261,7 +1277,7 @@ jobs:
       checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       checkout-token: ${{ github.token }}
       event-name: ${{ github.event_name }}
-      coverage-threshold: '65'
+      coverage-threshold: '44'
       pr-base-sha: ${{ github.event.pull_request.base.sha || '' }}
       pr-number: ${{ github.event.pull_request.number || '' }}
     secrets: inherit
@@ -1273,7 +1289,10 @@ jobs:
     with:
       checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       checkout-token: ${{ github.token }}
-      run-performance-tests: ${{ github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push' }}
+      # Quoted into a string deliberately: performance.yml types this input as `string`, and a bare
+      # comparison yields a bool. The receiving side compares it against 'true', so a bool would have
+      # to survive an implicit conversion to match.
+      run-performance-tests: ${{ (github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push') && 'true' || 'false' }}
     secrets: inherit
 
   # ── Quality analysis -- self-contained build ──
@@ -1282,9 +1301,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: package
+    # The workflow grants contents+pull-requests read only, so this job could not upload to code
+    # scanning: the action reported "Resource not accessible by integration". Uploading a SARIF
+    # requires security-events: write, and a job that declares permissions replaces the inherited
+    # set rather than adding to it, so contents: read is restated here.
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -1365,15 +1391,20 @@ jobs:
       # read it -- findings were retained for 30 days and looked at by nobody. Uploading to code scanning
       # is what makes the result actually consumed, and matches how secret-scan.yml already does it.
       - name: Upload security results to code scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        # NOT always(). The scan step above REFUSES with a clear message when the scanner wrote no
+        # SARIF -- "Nothing was analysed. Fix the scanner." Running the upload anyway then failed
+        # with "Path does not exist: security-results.sarif", which is a second, louder, less
+        # informative error stacked on top of the first and pointing at the wrong step. Upload only
+        # what exists; when nothing exists the scan step has already said why.
+        if: hashFiles('security-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4
         with:
           sarif_file: security-results.sarif
           category: security-scan
 
       - name: Upload security results artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: security-analysis
           path: security-results.sarif
@@ -1387,7 +1418,7 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -1404,7 +1435,8 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=transport-conformance.trx" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./TestResults
+            --results-directory ./TestResults \
+            -- RunConfiguration.TestSessionTimeout=900000
 
       - name: Generate transport parity dashboard
         shell: pwsh
@@ -1413,7 +1445,7 @@ jobs:
 
       - name: Upload conformance results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: transport-conformance-results
           path: |
@@ -1550,12 +1582,12 @@ jobs:
     needs: package
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1566,7 +1598,7 @@ jobs:
         run: |
           ./eng/ci/pack-report.ps1 -OutDir management/reports/PackReport
       - name: Upload pack report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pack-report
           path: management/reports/PackReport
@@ -1579,13 +1611,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1593,7 +1625,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1642,7 +1674,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Ensure CI triage labels exist
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const labels = [
@@ -1667,7 +1699,7 @@ jobs:
             }
 
       - name: Apply labels based on CI job results
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const labels = [];
@@ -1705,13 +1737,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1719,7 +1751,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1762,13 +1794,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -1776,7 +1808,7 @@ jobs:
             10.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -1855,11 +1887,11 @@ jobs:
 
       - name: Upload build output on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: aot-sample-build-output
           path: aot-build-output.txt
-          retention-days: 7
+          retention-days: 14
 
       - name: AOT sample validation summary
         if: always()
@@ -1957,7 +1989,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
@@ -1971,7 +2003,7 @@ jobs:
       # them all into one directory, so the reporter publishes a single combined check. The reported
       # content is the same; six job startups are not.
       - name: Download all test results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: test-results-*
           merge-multiple: true
@@ -1980,7 +2012,23 @@ jobs:
 
       - name: Publish test results
         if: hashFiles('test-results/**/*.trx') != ''
-        uses: dorny/test-reporter@v3
+        # continue-on-error, deliberately, and the distinction is the whole justification: this step
+        # VERIFIES NOTHING. It renders results that other jobs have already asserted on. Its failure
+        # means "the report was not published", never "the code is wrong", so it must not colour a
+        # run whose tests passed. A GATE must never carry this -- routing around a gate is how a
+        # check becomes decorative -- but a publisher is not a gate.
+        #
+        # It is failing today: the action throws "RangeError: Maximum call stack size exceeded"
+        # while parsing, most likely recursing over a large TRX -- the integration file alone
+        # carries 1544 results and this job merges every shard's artifact into one directory first.
+        #
+        # fail-on-error: false does NOT cover that and was previously mistaken for cover. It is an
+        # input to the action governing whether FAILED TESTS mark the action failed; an unhandled
+        # exception inside the action crashes the step whatever that input says. The sibling
+        # download step above already carries continue-on-error for the same reason; this one was
+        # simply missed.
+        continue-on-error: true
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         with:
           name: Test Results
           path: test-results/**/*.trx

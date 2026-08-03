@@ -5,13 +5,17 @@ param(
     "eng/ci/shards/UnitTests-Transport.slnf",
     "eng/ci/shards/UnitTests-Middleware.slnf",
     "eng/ci/shards/UnitTests-Observability.slnf",
-    "eng/ci/shards/UnitTests-Excalibur.slnf"
+    "eng/ci/shards/UnitTests-Excalibur-Data.slnf",
+    "eng/ci/shards/UnitTests-Excalibur-Platform.slnf",
+    "eng/ci/shards/UnitTests-Excalibur-Messaging.slnf"
   ),
   [string[]]$BlockingTierShards = @(
     "eng/ci/shards/UnitTests-Core.slnf",
     "eng/ci/shards/UnitTests-Transport.slnf",
     "eng/ci/shards/UnitTests-Middleware.slnf",
-    "eng/ci/shards/UnitTests-Excalibur.slnf"
+    "eng/ci/shards/UnitTests-Excalibur-Data.slnf",
+    "eng/ci/shards/UnitTests-Excalibur-Platform.slnf",
+    "eng/ci/shards/UnitTests-Excalibur-Messaging.slnf"
   ),
   [string[]]$AdvisoryTierShards = @(
     "eng/ci/shards/UnitTests-Messaging.slnf",

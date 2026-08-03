@@ -36,7 +36,7 @@ jobs:
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-results-mediatr-parity
           path: BenchmarkDotNet.Artifacts.MediatRParity
@@ -115,7 +115,7 @@ jobs:
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -159,7 +159,7 @@ jobs:
 
       - name: Upload transport benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-results-transport-comparison
           path: BenchmarkDotNet.Artifacts.TransportComparison
@@ -185,7 +185,7 @@ jobs:
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -230,7 +230,7 @@ jobs:
 
       - name: Upload dispatch hot-path benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-results-dispatch-hotpath
           path: BenchmarkDotNet.Artifacts.DispatchHotPath
@@ -255,7 +255,7 @@ jobs:
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -298,7 +298,7 @@ jobs:
 
       - name: Upload observability overhead benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-results-observability-overhead
           path: BenchmarkDotNet.Artifacts.ObservabilityOverhead
@@ -323,7 +323,7 @@ jobs:
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -377,7 +377,7 @@ jobs:
 
       - name: Upload persistence/background benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: benchmark-results-persistence-background-smoke
           path: BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke

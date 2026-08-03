@@ -35,7 +35,7 @@ jobs:
     continue-on-error: ${{ inputs.event-name == 'pull_request' }}
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload SAST log
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: sast-build
           path: sast-build.log
@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -121,7 +121,7 @@ jobs:
 
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gitleaks-report
           path: gitleaks.sarif
@@ -132,7 +132,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -164,7 +164,7 @@ jobs:
           find . -name "bom.json" -o -name "bom.xml"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cyclonedx-sbom
           path: |
@@ -198,7 +198,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
 
@@ -270,7 +270,7 @@ jobs:
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true'
         timeout-minutes: 3
         continue-on-error: true
-        uses: actions/dependency-review-action@v5
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
         with:
           repo-token: ${{ github.token }}
           fail-on-severity: high
@@ -288,7 +288,7 @@ jobs:
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_api_health.outputs.api_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
         timeout-minutes: 3
         continue-on-error: true
-        uses: actions/dependency-review-action@v5
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
         with:
           repo-token: ${{ github.token }}
           fail-on-severity: high
@@ -308,7 +308,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -397,7 +397,7 @@ jobs:
           }
 
       - name: Upload dependency audit
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dependency-audit
           path: management/reports/DependencyAuditReport
@@ -408,7 +408,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -444,7 +444,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code (needed to resolve local composite action)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
           fetch-depth: 1
@@ -463,7 +463,7 @@ jobs:
 
       - name: Upload OSS metadata report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: oss-metadata-report
           path: management/reports/OssMetadataReport/oss-metadata.json

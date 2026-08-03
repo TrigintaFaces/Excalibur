@@ -3,8 +3,14 @@ description: 'Composite action for shared .NET build setup: checkout, SDK instal
 
 inputs:
   checkout-ref:
-    description: 'Git ref to checkout'
-    required: true
+    description: >-
+      Git ref to checkout. Empty (the default) means the ref that triggered the
+      workflow, which is what every caller in this repository wants. This was
+      declared required:true while all six call sites omitted it -- the contract
+      said one thing and every caller did another. It is optional because the
+      empty default is correct, not merely tolerated.
+    required: false
+    default: ''
   checkout-token:
     description: 'Token for checkout (defaults to github.token)'
     required: false
@@ -30,7 +36,7 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
         ref: ${{ inputs.checkout-ref }}
         fetch-depth: ${{ inputs.fetch-depth }}
@@ -51,7 +57,7 @@ runs:
         docker system prune -af || true
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v6
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
       with:
         dotnet-version: |
           8.0.x
@@ -59,7 +65,7 @@ runs:
           10.0.x
 
     - name: Cache NuGet packages
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: .nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}

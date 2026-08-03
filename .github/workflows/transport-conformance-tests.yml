@@ -15,6 +15,15 @@ on:
       - '.github/workflows/transport-conformance-tests.yml'
   workflow_dispatch:
 
+# Least privilege, declared explicitly. GITHUB_TOKEN otherwise inherits the repository
+# default, which may be write-all; a workflow that only reads code and reports should never
+# hold a token that can push. Declaring permissions REPLACES the default set rather than
+# adding to it, so every scope this workflow needs is listed here.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -43,14 +52,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -84,10 +93,10 @@ jobs:
             --logger "trx;LogFileName=${{ matrix.transport }}-conformance-results.trx" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+            -- RunConfiguration.TestSessionTimeout=900000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: ${{ matrix.transport }}-conformance-test-results
@@ -98,7 +107,7 @@ jobs:
           retention-days: 30
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         if: always()
         with:
           files: '**/TestResults/**/coverage.opencover.xml'
@@ -119,7 +128,7 @@ jobs:
             --list-tests --verbosity quiet || true
 
       - name: Upload conformance report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: ${{ matrix.transport }}-conformance-report
@@ -139,7 +148,7 @@ jobs:
 
     steps:
       - name: Download all conformance reports
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: '*-conformance-report'
           path: reports/
@@ -165,7 +174,7 @@ jobs:
           cat summary.md
 
       - name: Upload summary report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: conformance-summary
           path: summary.md
@@ -174,7 +183,7 @@ jobs:
       - name: Post summary to PR
         if: github.event_name == 'pull_request'
         continue-on-error: true
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const fs = require('fs');

@@ -1,0 +1,24 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "src\\Excalibur\\Excalibur.Testing.Conformance\\Excalibur.Testing.Conformance.csproj",
+      "src\\Excalibur\\Excalibur.Testing\\Excalibur.Testing.csproj",
+      "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
+      "tests\\unit\\Excalibur.Cdc.Tests\\Excalibur.Cdc.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Testing.Shouldly.Tests\\Excalibur.Dispatch.Testing.Shouldly.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Testing.Tests\\Excalibur.Dispatch.Testing.Tests.csproj",
+      "tests\\unit\\Excalibur.EventSourcing.Handlers.Tests\\Excalibur.EventSourcing.Handlers.Tests.csproj",
+      "tests\\unit\\Excalibur.EventSourcing.Tests\\Excalibur.EventSourcing.Tests.csproj",
+      "tests\\unit\\Excalibur.Inbox.Oracle.Tests\\Excalibur.Inbox.Oracle.Tests.csproj",
+      "tests\\unit\\Excalibur.Outbox.Oracle.Tests\\Excalibur.Outbox.Oracle.Tests.csproj",
+      "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",
+      "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
+      "tests\\unit\\Excalibur.Testing.Conformance.Tests\\Excalibur.Testing.Conformance.Tests.csproj",
+      "tests\\unit\\Excalibur.Workflows.Abstractions.Tests\\Excalibur.Workflows.Abstractions.Tests.csproj",
+      "tests\\unit\\Excalibur.Workflows.Analyzers.Tests\\Excalibur.Workflows.Analyzers.Tests.csproj",
+      "tests\\unit\\Excalibur.Workflows.SqlServer.Tests\\Excalibur.Workflows.SqlServer.Tests.csproj",
+      "tests\\unit\\Excalibur.Workflows.Tests\\Excalibur.Workflows.Tests.csproj"
+    ]
+  }
+}
