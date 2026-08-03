@@ -46,6 +46,18 @@
 		<!-- CA1873 (logging arg evaluation) — Sprint 564: new rule in SDK 10.0.103, defer fix to next sprint -->
 		<!-- CS1591 REMOVED Sprint 750: XML docs now enforced on all shipping code (previously suppressed, all public APIs documented) -->
 		<NoWarn>$(NoWarn);IDE0010;CA1873</NoWarn>
+
+		<!-- NuGet Audit. Configured at repo level per NuGet guidance; NuGetAuditMode is stated
+		     because its default varies by target framework (all for net10.0+, direct below).
+		     Audit codes are warnings for normal builds and errors under -p:AuditPipeline=true, so a
+		     newly published advisory fails the audit run rather than every developer's build.
+		     https://learn.microsoft.com/nuget/concepts/auditing-packages -->
+		<NuGetAudit>true</NuGetAudit>
+		<NuGetAuditMode>all</NuGetAuditMode>
+		<NuGetAuditLevel>low</NuGetAuditLevel>
+		<NuGetAuditCodes>NU1900;NU1901;NU1902;NU1903;NU1904;NU1905</NuGetAuditCodes>
+		<WarningsAsErrors Condition=" '$(AuditPipeline)' == 'true' ">$(WarningsAsErrors);$(NuGetAuditCodes)</WarningsAsErrors>
+		<WarningsNotAsErrors Condition=" '$(AuditPipeline)' != 'true' ">$(WarningsNotAsErrors);$(NuGetAuditCodes)</WarningsNotAsErrors>
 		<!-- Gate to allow AWS SDK v4 transitives via Lambda event packages (off by default to avoid downgrades). -->
 		<AllowAwsSdkV4>false</AllowAwsSdkV4>
 		<RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>

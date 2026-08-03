@@ -269,7 +269,21 @@ if offenders="$(census_disagreement "$EMULATOR_SCOPE" "$behaviour_classes" "$tra
     fi
 fi
 
+# Persist the expected NAMES, not just the count.
+#
+# EXPECTED is a number, and a number cannot be checked. When downstream accounting refuses on
+# "2576 against an EXPECTED set of 2591" there is nothing in that sentence anyone can act on: the 15
+# could be tests that never ran, or 15 the census counted twice, and those need opposite fixes. The
+# name list turns the difference into a diff -- which method, how many cases, enumerated-or-executed.
+#
+# Written next to the TRX output so the accounting step can read it without another enumeration; an
+# enumeration re-run would be a second measurement of a moving target, not a check of this one.
+EXPECTED_NAMES_FILE="${COSMOS_EXPECTED_NAMES_FILE:-TestResults/cosmos-expected-tests.txt}"
+mkdir -p "$(dirname "$EXPECTED_NAMES_FILE")"
+printf '%s\n' "$expected_test_lines" >"$EXPECTED_NAMES_FILE"
+
 if [ -n "$OUT" ]; then
     printf 'COSMOS_EXPECTED=%s\n' "$EXPECTED" >>"$OUT"
+    printf 'COSMOS_EXPECTED_NAMES_FILE=%s\n' "$EXPECTED_NAMES_FILE" >>"$OUT"
 fi
-echo "Census agrees. EXPECTED = $EXPECTED"
+echo "Census agrees. EXPECTED = $EXPECTED (names: $EXPECTED_NAMES_FILE)"

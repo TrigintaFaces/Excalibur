@@ -65,11 +65,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore ${{ matrix.shard.filter }} --verbosity quiet
-
-      - name: Build
-        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
+      # The repository entry point, not an inlined sequence. The same command a contributor runs.
+      - name: Restore and build
+        run: ./build.sh --build --project ${{ matrix.shard.filter }} --verbosity quiet
 
       - name: Run Unit Tests
         run: |
@@ -119,11 +117,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/IntegrationTests.slnf --verbosity quiet
-
-      - name: Build
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
+      - name: Restore and build
+        run: ./build.sh --build --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       # This job is the ONLY place the Cosmos provider is exercised — ci.yml excludes it from the PR
       # path, so a Cosmos regression is caught here or nowhere. The gate moved here with the tests.
@@ -243,7 +238,11 @@ jobs:
         shell: pwsh
         run: ./eng/validate-package-composition.ps1
 
-  # Dependency vulnerability audit (no build needed, runs dotnet list)
+  # Dependency vulnerability audit. Produces the per-project SARIF the compliance control-evidence
+  # map cites; NuGetAudit in Directory.Build.props is what actually gates a build.
+  # -MaxProjects is a runaway guard and must stay ABOVE the project population (198 in src/ today).
+  # It was 180: breached on every run since the 181st project, failing the job nightly on a
+  # configuration fault while reporting no vulnerabilities.
   dependency-audit:
     name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
@@ -268,7 +267,7 @@ jobs:
             -ProjectRoot src `
             -PerProjectTimeoutSeconds 120 `
             -TotalBudgetMinutes 15 `
-            -MaxProjects 180 `
+            -MaxProjects 400 `
             -FailOnGuardrailBreach
 
       - name: Upload dependency audit
@@ -279,11 +278,36 @@ jobs:
           path: management/reports/DependencyAuditReport
           retention-days: 14
 
+  # npm audit. Deliberately nightly and not on the PR path, matching NuGetAudit's disposition in
+  # Directory.Build.props: an advisory published overnight against an untouched package must not break
+  # unrelated work. Dependency Review (security.yml, PR-only) is what stops new vulnerable deps
+  # entering; this catches advisories raised against dependencies already here.
+  npm-audit:
+    name: npm Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '20'
+
+      # The gate is only evidence if it can fail. Drives the shipped threshold and parsing functions
+      # with canned audit documents -- no network, no install.
+      - name: Prove the gate is non-vacuous
+        run: bash eng/ci/npm-audit.sh --self-test
+
+      - name: Audit every lockfile
+        run: bash eng/ci/npm-audit.sh
+
   # Nightly summary + failure notification
   nightly-summary:
     name: Nightly Summary
     runs-on: ubuntu-latest
-    needs: [deterministic-unit-tests, integration-tests, package-composition, dependency-audit]
+    needs: [deterministic-unit-tests, integration-tests, package-composition, dependency-audit, npm-audit]
     if: always()
     timeout-minutes: 5
     steps:
@@ -299,12 +323,14 @@ jobs:
           integration="${{ needs.integration-tests.result }}"
           packages="${{ needs.package-composition.result }}"
           audit="${{ needs.dependency-audit.result }}"
+          npmaudit="${{ needs.npm-audit.result }}"
 
           failures=""
           if [ "$unit" != "success" ]; then failures="${failures}deterministic-unit-tests ($unit), "; fi
           if [ "$integration" != "success" ] && [ "$integration" != "skipped" ]; then failures="${failures}integration-tests ($integration), "; fi
           if [ "$packages" != "success" ]; then failures="${failures}package-composition ($packages), "; fi
           if [ "$audit" != "success" ]; then failures="${failures}dependency-audit ($audit), "; fi
+          if [ "$npmaudit" != "success" ]; then failures="${failures}npm-audit ($npmaudit), "; fi
 
           if [ -z "$failures" ]; then
             echo "status=passed" >> "$GITHUB_OUTPUT"
@@ -333,6 +359,7 @@ jobs:
             echo "| Integration Tests | ${{ needs.integration-tests.result }} |"
             echo "| Package Composition | ${{ needs.package-composition.result }} |"
             echo "| Dependency Audit | ${{ needs.dependency-audit.result }} |"
+            echo "| npm Dependency Audit | ${{ needs.npm-audit.result }} |"
             if [ -n "${{ steps.results.outputs.failures }}" ]; then
               echo ""
               echo "## Failures"

@@ -1,267 +1,157 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Unified build script for Excalibur Microsoft-style repository transformation
+    The repository's build entry point. CI runs this; contributors run this.
+
 .DESCRIPTION
-    Builds the entire solution with unified configuration, enforces quality gates,
-    and validates architectural boundaries per constitutional requirements.
-.PARAMETER Configuration
-    Build configuration (Debug/Release). Default: Release
-.PARAMETER NoBuild
-    Skip build and only run validation
-.PARAMETER NoTest
-    Skip running tests
-.PARAMETER NoRestore
-    Skip package restore
-.PARAMETER Coverage
-    Generate code coverage reports
-.PARAMETER Pack
-    Create NuGet packages after successful build
-.PARAMETER Verbose
-    Enable verbose output
+    One command for restore/build/test/pack, so the sequence a contributor runs locally is the
+    sequence CI runs. Invoke through ./build.sh or .\build.cmd at the repository root.
+
+    Verbs are additive and run in dependency order regardless of the order given. With no verb,
+    -Restore -Build is assumed.
+
 .EXAMPLE
-    .\eng\build.ps1 -Configuration Release -Coverage -Pack
+    ./build.sh --restore --build
+    ./build.sh --test --project eng/ci/shards/UnitTests-Core.slnf
+    ./build.sh --build --test --configuration Debug
+    ./build.sh --pack
 #>
 [CmdletBinding()]
 param(
-    [string]$Configuration = "Release",
-    [switch]$NoBuild,
-    [switch]$NoTest,
-    [switch]$NoRestore,
-    [switch]$Coverage,
+    [switch]$Restore,
+    [switch]$Build,
+    [switch]$Test,
     [switch]$Pack,
-    [switch]$Verbose
+
+    # A .sln or .slnf. CI shards are .slnf files under eng/ci/shards.
+    [string]$Project = 'Excalibur.sln',
+
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Release',
+
+    # dotnet test --filter expression. When set, the run is required to have executed at least one
+    # test: `dotnet test --filter` exits 0 when the filter matches nothing.
+    [string]$TestFilter,
+
+    [switch]$Coverage,
+
+    # Sets ContinuousIntegrationBuild and turns on the solution-scoped audit-coverage assertion.
+    [switch]$CI,
+
+    # Suppress the restore that -Build would otherwise imply, for callers that restored separately.
+    [switch]$NoRestore,
+
+    # restore --locked-mode: fail rather than silently update a lock file.
+    [switch]$LockedMode,
+
+    # build --no-incremental. Note this rebuilds the named project, NOT its project references;
+    # see .claude/rules/process/clean-rebuild-before-trusting-locks.md.
+    [switch]$NoIncremental,
+
+    # MSBuild properties, given without the -p: prefix, e.g. --properties CI=true AuditPipeline=true.
+    [string[]]$Properties = @(),
+
+    # build -warnaserror.
+    [switch]$WarnAsError,
+
+    [ValidateSet('quiet', 'minimal', 'normal', 'detailed', 'diagnostic')]
+    [string]$Verbosity = 'minimal'
 )
 
+# NOTE: there is deliberately no -Verbose parameter. [CmdletBinding()] already supplies one as a
+# common parameter, and declaring it again is a MetadataError that fails the script before it runs.
+# The previous version of this file did exactly that, which is why nothing ever called it.
+
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
 
-# Article XIV.1: Canonical layout enforcement
-$repoRoot = $PSScriptRoot | Split-Path
-$srcDir = Join-Path $repoRoot "src"
-$testDir = Join-Path $repoRoot "test"
-$engDir = Join-Path $repoRoot "eng"
-$managementDir = Join-Path $repoRoot "management"
-
-Write-Host "🏗️  Excalibur Unified Build" -ForegroundColor Cyan
-Write-Host "Repository: $repoRoot" -ForegroundColor Gray
-Write-Host "Configuration: $Configuration" -ForegroundColor Gray
-Write-Host ""
-
-# Validate canonical directory structure per Article XIV.1
-Write-Host "📁 Validating canonical directory structure..." -ForegroundColor Yellow
-$requiredDirs = @("src", "test", "benchmarks", "samples", "docs", "tools", "eng", "management")
-$missing = @()
-foreach ($dir in $requiredDirs) {
-    $path = Join-Path $repoRoot $dir
-    if (-not (Test-Path $path)) {
-        $missing += $dir
+$repoRoot = Split-Path $PSScriptRoot -Parent
+Push-Location $repoRoot
+try {
+    if (-not ($Restore -or $Build -or $Test -or $Pack)) {
+        $Restore = $true
+        $Build = $true
     }
-}
-if ($missing.Count -gt 0) {
-    Write-Error "❌ Missing required directories per Article XIV.1: $($missing -join ', ')"
-    exit 1
-}
-Write-Host "✅ Canonical directory structure validated" -ForegroundColor Green
 
-# Validate solution file exists
-$solutionFile = Get-ChildItem -Path $repoRoot -Filter "*.sln" | Select-Object -First 1
-if (-not $solutionFile) {
-    Write-Error "❌ No solution file found in repository root"
-    exit 1
-}
-Write-Host "📄 Solution: $($solutionFile.Name)" -ForegroundColor Gray
+    # -Test and -Pack need built output; asking for them alone should not silently test stale bits.
+    if (($Test -or $Pack) -and -not $Build) { $Build = $true }
+    # Restore is implied by build, unless the caller ran it as its own step - which CI does, so that
+    # one restore can carry --locked-mode and several builds can follow it.
+    if ($Build -and -not $Restore -and -not $NoRestore) { $Restore = $true }
+    if ($NoRestore) { $Restore = $false }
 
-# Validate unified build configuration per Article XIV.2-4
-Write-Host "🔧 Validating unified build configuration..." -ForegroundColor Yellow
-$buildFiles = @(
-    "Directory.Build.props",
-    "Directory.Build.targets", 
-    "Directory.Packages.props",
-    "global.json",
-    ".editorconfig"
-)
-foreach ($file in $buildFiles) {
-    $path = Join-Path $repoRoot $file
-    if (-not (Test-Path $path)) {
-        Write-Warning "⚠️  Missing build file: $file"
+    if (-not (Test-Path $Project)) { throw "Project or solution not found: $Project" }
+
+    $artifacts = Join-Path $repoRoot 'artifacts'
+    $commonArgs = @('--verbosity', $Verbosity)
+    if ($CI) { $commonArgs += '-p:ContinuousIntegrationBuild=true' }
+    # Split on comma as well as taking an array: invoked through build.sh the value arrives as one
+    # argv element, so "A=1,B=2" would otherwise become a single -p:A=1,B=2.
+    foreach ($prop in ($Properties | ForEach-Object { $_ -split ',' })) {
+        $prop = $prop.Trim()
+        if ($prop) { $commonArgs += "-p:$prop" }
     }
-}
 
-# Check for EnforceCodeStyleInBuild per Article XIV.2
-$directoryBuildProps = Join-Path $repoRoot "Directory.Build.props"
-if (Test-Path $directoryBuildProps) {
-    $content = Get-Content $directoryBuildProps -Raw
-    if ($content -notmatch "EnforceCodeStyleInBuild.*true") {
-        Write-Warning "⚠️  EnforceCodeStyleInBuild not enabled in Directory.Build.props"
+    function Invoke-Step {
+        param([string]$Name, [string[]]$Arguments)
+        Write-Host "==> dotnet $($Arguments -join ' ')"
+        & dotnet @Arguments
+        # Captured immediately. Anything between the call and this read - even a Write-Host - replaces
+        # the value with its own.
+        $code = $LASTEXITCODE
+        if ($code -ne 0) { throw "$Name failed (dotnet exited $code)" }
     }
-}
-Write-Host "✅ Build configuration validated" -ForegroundColor Green
 
-# Run constitutional validation scripts
-Write-Host "⚖️  Running constitutional validation..." -ForegroundColor Yellow
+    if ($Restore) {
+        $restoreArgs = @('restore', $Project)
+        if ($LockedMode) { $restoreArgs += '--locked-mode' }
+        Invoke-Step 'restore' ($restoreArgs + $commonArgs)
+    }
 
-# Verify layout per Article XIV.1
-$layoutScript = Join-Path $engDir "verify-layout.ps1"
-if (Test-Path $layoutScript) {
-    Write-Host "  📐 Verifying canonical layout..." -ForegroundColor Gray
-    & $layoutScript
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "❌ Layout validation failed"
-        exit 1
+    if ($Build) {
+        # BuildExamplesAndTests is required or test projects are compile-skipped and produce empty
+        # assemblies - see .github/actions/setup-dotnet-build.
+        $buildArgs = @(
+            'build', $Project, '--configuration', $Configuration, '--no-restore',
+            '-p:BuildExamplesAndTests=true')
+        if ($NoIncremental) { $buildArgs += '--no-incremental' }
+        if ($WarnAsError) { $buildArgs += '-warnaserror' }
+        Invoke-Step 'build' ($buildArgs + $commonArgs)
     }
-}
 
-# Verify provider isolation per Articles X, XV.4
-$providersScript = Join-Path $engDir "verify-providers.ps1"
-if (Test-Path $providersScript) {
-    Write-Host "  🏗️  Verifying provider isolation..." -ForegroundColor Gray
-    & $providersScript
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "❌ Provider isolation validation failed"
-        exit 1
-    }
-}
+    if ($Test) {
+        $testArgs = @('test', $Project, '--configuration', $Configuration, '--no-build', '--nologo')
+        if ($TestFilter) { $testArgs += @('--filter', $TestFilter) }
+        $results = Join-Path $artifacts 'TestResults'
+        $testArgs += @('--logger', 'trx;LogFilePrefix=build', '--results-directory', $results)
+        if ($Coverage) {
+            $testArgs += @('--collect:XPlat Code Coverage', '--settings', 'tests/coverage.runsettings')
+        }
+        Invoke-Step 'test' $testArgs
 
-# Verify banned APIs per Article III
-$bannedApisScript = Join-Path $engDir "verify-banned-apis.ps1"
-if (Test-Path $bannedApisScript) {
-    Write-Host "  🚫 Verifying banned API compliance..." -ForegroundColor Gray
-    & $bannedApisScript
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "❌ Banned API validation failed"
-        exit 1
-    }
-}
-Write-Host "✅ Constitutional validation passed" -ForegroundColor Green
-
-# Package restore
-if (-not $NoRestore) {
-    Write-Host "📦 Restoring packages..." -ForegroundColor Yellow
-    $restoreArgs = @("restore", $solutionFile.FullName)
-    if ($Verbose) { $restoreArgs += "--verbosity", "detailed" }
-    
-    & dotnet @restoreArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "❌ Package restore failed"
-        exit 1
-    }
-    Write-Host "✅ Packages restored" -ForegroundColor Green
-}
-
-# Build solution
-if (-not $NoBuild) {
-    Write-Host "🔨 Building solution..." -ForegroundColor Yellow
-    $buildArgs = @("build", $solutionFile.FullName, "--configuration", $Configuration, "--no-restore")
-    if ($Verbose) { $buildArgs += "--verbosity", "detailed" }
-    
-    & dotnet @buildArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "❌ Build failed"
-        exit 1
-    }
-    Write-Host "✅ Build completed successfully" -ForegroundColor Green
-}
-
-# Run tests with coverage
-if (-not $NoTest) {
-    Write-Host "🧪 Running tests..." -ForegroundColor Yellow
-    
-    $testArgs = @("test", $solutionFile.FullName, "--configuration", $Configuration, "--no-restore", "--no-build")
-    if ($Coverage) {
-        $testArgs += "--collect:XPlat Code Coverage"
-        $testArgs += "--results-directory", (Join-Path $repoRoot "TestResults")
-    }
-    if ($Verbose) { $testArgs += "--verbosity", "detailed" }
-    
-    & dotnet @testArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "❌ Tests failed"
-        exit 1
-    }
-    
-    # Validate ≥95% coverage requirement
-    if ($Coverage) {
-        Write-Host "📊 Analyzing code coverage..." -ForegroundColor Yellow
-        $testResultsDir = Join-Path $repoRoot "TestResults"
-        $coverageFiles = Get-ChildItem -Path $testResultsDir -Filter "coverage.cobertura.xml" -Recurse
-        
-        if ($coverageFiles.Count -gt 0) {
-            # Parse coverage and validate ≥95% requirement
-            $latestCoverage = $coverageFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            $coverageXml = [xml](Get-Content $latestCoverage.FullName)
-            $lineRate = [double]$coverageXml.coverage.'line-rate'
-            $coveragePercent = [math]::Round($lineRate * 100, 2)
-            
-            Write-Host "  Coverage: $coveragePercent%" -ForegroundColor Gray
-            if ($coveragePercent -lt 95.0) {
-                Write-Error "❌ Code coverage $coveragePercent% is below required 95% threshold"
-                exit 1
+        # A filtered run that matched nothing exits 0. The count is the evidence, not the exit code.
+        if ($TestFilter) {
+            $executed = 0
+            Get-ChildItem -Path $results -Filter '*.trx' -Recurse -ErrorAction SilentlyContinue |
+                ForEach-Object {
+                    $xml = [xml](Get-Content $_.FullName)
+                    $executed += [int]$xml.TestRun.ResultSummary.Counters.executed
+                }
+            if ($executed -eq 0) {
+                throw "filter '$TestFilter' executed 0 tests. A filter that matches nothing exits 0; that is not a pass."
             }
-            Write-Host "✅ Coverage requirement (≥95%) satisfied" -ForegroundColor Green
-        } else {
-            Write-Warning "⚠️  No coverage reports found"
+            Write-Host "$executed test(s) executed."
         }
     }
-    
-    Write-Host "✅ All tests passed" -ForegroundColor Green
-}
 
-# Create NuGet packages
-if ($Pack) {
-    Write-Host "📦 Creating NuGet packages..." -ForegroundColor Yellow
-    
-    # Find all packable projects in src/
-    $packableProjects = Get-ChildItem -Path $srcDir -Filter "*.csproj" -Recurse | Where-Object {
-        $content = Get-Content $_.FullName -Raw
-        $content -match "<IsPackable>true</IsPackable>" -or $content -notmatch "<IsPackable>false</IsPackable>"
+    if ($Pack) {
+        Invoke-Step 'pack' (@(
+            'pack', $Project, '--configuration', $Configuration, '--no-build',
+            '--output', (Join-Path $artifacts 'packages')) + $commonArgs)
     }
-    
-    foreach ($project in $packableProjects) {
-        Write-Host "  📦 Packing $($project.Name)..." -ForegroundColor Gray
-        $packArgs = @("pack", $project.FullName, "--configuration", $Configuration, "--no-restore", "--no-build")
-        $packArgs += "--output", (Join-Path $repoRoot "artifacts/packages")
-        
-        & dotnet @packArgs
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Failed to pack $($project.Name)"
-            exit 1
-        }
-    }
-    
-    Write-Host "✅ NuGet packages created successfully" -ForegroundColor Green
-}
 
-# Generate build report
-Write-Host "📋 Generating build report..." -ForegroundColor Yellow
-$reportDir = Join-Path $managementDir "reports"
-New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
-
-$buildReport = @{
-    BuildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
-    Configuration = $Configuration
-    Solution = $solutionFile.Name
-    Status = "Success"
-    ValidationsPassed = @("Layout", "Providers", "BannedAPIs")
+    Write-Host 'Build entry point completed.' -ForegroundColor Green
 }
-
-if ($Coverage -and (Test-Path (Join-Path $repoRoot "TestResults"))) {
-    $buildReport.CodeCoverage = "$coveragePercent%"
+finally {
+    Pop-Location
 }
-
-$buildReport | ConvertTo-Json -Depth 3 | Set-Content (Join-Path $reportDir "last-build.json")
-Write-Host "✅ Build report saved to management/reports/last-build.json" -ForegroundColor Green
-
-Write-Host ""
-Write-Host "🎉 Build completed successfully!" -ForegroundColor Green
-Write-Host "   Configuration: $Configuration" -ForegroundColor Gray
-if (-not $NoTest) {
-    Write-Host "   Tests: ✅ Passed" -ForegroundColor Gray
-}
-if ($Coverage) {
-    Write-Host "   Coverage: $coveragePercent%" -ForegroundColor Gray
-}
-if ($Pack) {
-    Write-Host "   Packages: ✅ Created" -ForegroundColor Gray
-}
-Write-Host "   Constitutional compliance: ✅ Validated" -ForegroundColor Gray

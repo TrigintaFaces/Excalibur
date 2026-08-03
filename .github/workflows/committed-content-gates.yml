@@ -64,10 +64,10 @@ jobs:
           restore-keys: ${{ runner.os }}-nuget-
 
       - name: Restore
-        run: dotnet restore eng/ci/shards/IntegrationTests.slnf --verbosity quiet
+        run: ./build.sh --restore --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       - name: Build (Release)
-        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
+        run: ./build.sh --build --no-restore --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       # No `|| true`, no continue-on-error: a non-zero exit (FAIL or REFUSE) reddens this required check.
       - name: Real-infra gate mechanism self-test (real dotnet path)
@@ -113,6 +113,15 @@ jobs:
       # omitted, and a bool passed to a string-typed input.
       - name: actionlint-gate
         run: bash eng/ci/actionlint-gate.sh
+
+      # BLOCKING - .github/workflows/ is COPIED to the public mirror, so a beads/tracker reference
+      # there both leaks internal tooling into a shipped file and breaks the downstream checkout,
+      # because the private scripts are not copied. The lock was written with safety, liveness and
+      # four non-vacuity arms (two hermetic, two against a historical commit that genuinely carried
+      # the references) - and was invoked by nothing, so the operator directive it enforces was
+      # unenforced. Its own arms run first; a lock nobody can see fail is not evidence.
+      - name: no-beads-in-workflows lock
+        run: bash eng/ci/no-beads-in-workflows.harness-lock.sh
   shell-gates:
     name: Committed-Content Shell Gates
     runs-on: ubuntu-latest
@@ -183,7 +192,7 @@ jobs:
             10.0.x
 
       - name: Restore (writes lock files if the committed ones are stale)
-        run: dotnet restore Excalibur.sln --verbosity quiet
+        run: ./build.sh --restore --verbosity quiet
 
       # ADVISORY pending a restore-verification dry-run (`|| true`): a tracked lock file rewritten by
       # restore means the committed lock is stale. Flips to blocking (drop the `|| true`) once a CI/local
@@ -214,7 +223,7 @@ jobs:
             10.0.x
 
       - name: Restore (representative shipping project — makes MSBuild property evaluation deterministic)
-        run: dotnet restore src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj --verbosity quiet
+        run: ./build.sh --restore --project src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj --verbosity quiet
 
       # BLOCKING (no `|| true`): a shipping project that evaluates a blank projectUrl / icon / lockfile-flag
       # reddens this required check. Passes clean on committed content today.

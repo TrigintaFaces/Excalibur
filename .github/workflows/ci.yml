@@ -108,22 +108,22 @@ jobs:
         # committed lock files are documentation: a drifted (or downgraded) dependency restores
         # green and the pinned version is overwritten in place. NU1004 names the package and both
         # versions. Samples carry no lock files, so this flag is deliberately NOT applied there.
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
+        run: ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
 
       # Build the Dispatch core FIRST (clean, --no-incremental) before the transitive store
       # projects. A core public-API lag (RS0016/RS0017 -- a public symbol missing its PublicAPI.*.txt
       # entry) then fails fast HERE with a clear "core public API" error, instead of surfacing late and
       # confusingly as a downstream store-project build failure (a recurring core-public-API-lag pattern).
       - name: Build core first (fail fast on core public-API lag)
-        run: dotnet build src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --configuration Release --no-restore --no-incremental --verbosity quiet
+        run: ./build.sh --build --no-restore --no-incremental --project src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --verbosity quiet
 
       - name: Build shipping projects
-        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
+        run: ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
       - name: Deterministic build validation
         run: |
           echo "Validating deterministic builds with CI flag..."
-          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore -p:CI=true --verbosity quiet
+          ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --properties CI=true --verbosity quiet
           echo "Deterministic build validation successful"
 
       - name: Package validation
@@ -912,6 +912,52 @@ jobs:
           $accounted = $totalExecuted + $skippedNames.Count
           Write-Host "executed=$totalExecuted + skipped=$($skippedNames.Count) = $accounted, EXPECTED=$expected"
           if ($accounted -ne $expected) {
+            # NAME THE DIFFERENCE. "2576 against 2591" is an arithmetic fact and nobody can act on it:
+            # the 15 are either tests that never ran (a real partial run) or entries the census counted
+            # and execution merges (a census defect), and those need OPPOSITE fixes. Measured on the
+            # mirror: accounted held at 2576 across two runs while EXPECTED moved 2551 -> 2591, which
+            # points at the census -- but "points at" is not evidence, and this diff is.
+            #
+            # Compared per NAME, as a multiset. The census regex truncates a theory's parameter list, so
+            # `Foo.Bar(x: 1)` and `Foo.Bar(x: 2)` both census as `Foo.Bar`; TRX names are normalised the
+            # same way and counted, so a method short by N cases is reported as short by N.
+            $namesFile = $env:COSMOS_EXPECTED_NAMES_FILE
+            if ($namesFile -and (Test-Path $namesFile)) {
+              $expectedCounts = @{}
+              foreach ($line in (Get-Content $namesFile | Where-Object { $_.Trim() })) {
+                $n = $line.Trim()
+                $expectedCounts[$n] = 1 + ($expectedCounts[$n] ?? 0)
+              }
+              $observedCounts = @{}
+              foreach ($trx in $trxFiles) {
+                [xml]$x = Get-Content $trx.FullName
+                foreach ($r in $x.TestRun.Results.UnitTestResult) {
+                  $n = ($r.testName -replace '\(.*$', '').Trim()
+                  $observedCounts[$n] = 1 + ($observedCounts[$n] ?? 0)
+                }
+              }
+              $allNames = @($expectedCounts.Keys) + @($observedCounts.Keys) | Sort-Object -Unique
+              $short = @(); $surplus = @()
+              foreach ($n in $allNames) {
+                $e = $expectedCounts[$n] ?? 0
+                $o = $observedCounts[$n] ?? 0
+                if ($o -lt $e) { $short += "  -$($e - $o)  $n   (enumerated $e, saw $o)" }
+                elseif ($o -gt $e) { $surplus += "  +$($o - $e)  $n   (enumerated $e, saw $o)" }
+              }
+              if ($short.Count -gt 0) {
+                Write-Host "`nENUMERATED BUT NOT ACCOUNTED FOR ($($short.Count) name(s)) -- candidates for a genuinely partial run:"
+                $short | ForEach-Object { Write-Host $_ }
+              }
+              if ($surplus.Count -gt 0) {
+                Write-Host "`nACCOUNTED FOR BUT NOT ENUMERATED ($($surplus.Count) name(s)) -- candidates for a census defect:"
+                $surplus | ForEach-Object { Write-Host $_ }
+              }
+              if ($short.Count -eq 0 -and $surplus.Count -eq 0) {
+                Write-Host "`nPer-name totals agree exactly. The discrepancy is in the COUNTERS, not the test set -- suspect a TRX whose ResultSummary disagrees with its own rows."
+              }
+            } else {
+              Write-Host "`n(no expected-name list at '$namesFile' -- run the census to get a named diff instead of this arithmetic)"
+            }
             Write-Error "REFUSE -- $accounted tests accounted for against an EXPECTED set of $expected. A run that dies partway reports a clean failure total, so this discrepancy is the finding, not a rounding issue."
             exit 3
           }
@@ -1162,11 +1208,11 @@ jobs:
         if: env.FLAKY_TEST_COUNT != '0'
         # --locked-mode: see the shipping-restore step. Verified to pass on this shard before
         # being applied; a drifted lock file here fails with NU1004 rather than being rewritten.
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf --locked-mode --verbosity quiet
+        run: ./build.sh --restore --project eng/ci/shards/TestsOnly.slnf --locked-mode --verbosity quiet
 
       - name: Build
         if: env.FLAKY_TEST_COUNT != '0'
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
+        run: ./build.sh --build --no-restore --project eng/ci/shards/TestsOnly.slnf --verbosity quiet
 
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'
@@ -1299,7 +1345,17 @@ jobs:
   quality:
     name: Quality Analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Was 15. The job was killed at 15m17s having spent 11 minutes inside its FIRST real step, so five
+    # of its seven steps have never executed in CI at all and there is no measurement for them. 30 is
+    # therefore a bound with headroom, not a fitted number -- the honest cap until a run gets far
+    # enough to measure the rest. The step that overran no longer exists: its 389 per-project
+    # `dotnet list` invocations (of which ~192 could not have succeeded) are now NuGetAudit inside
+    # restore, configured in Directory.Build.props.
+    #
+    # NOTE FOR TRIAGE: a timed-out job reports conclusion "cancelled", identical to a concurrency
+    # cancellation. If this job reads "cancelled", check its duration against this cap BEFORE
+    # attributing it to concurrency policy -- that defect is fixed, and this one wore its clothes.
+    timeout-minutes: 30
     needs: package
     # The workflow grants contents+pull-requests read only, so this job could not upload to code
     # scanning: the action reported "Resource not accessible by integration". Uploading a SARIF
@@ -1319,10 +1375,11 @@ jobs:
         with:
           solution-filter: eng/ci/shards/ShippingOnly.slnf
 
-      - name: Scan for vulnerable packages (R20.10)
-        run: |
-          echo "Scanning for vulnerable NuGet packages..."
-          pwsh -File eng/scan-vulnerabilities.ps1
+      # NuGetAudit runs inside restore and checks direct + transitive packages against the GitHub
+      # Advisory Database. AuditPipeline=true promotes NU1901-1904 to errors for this run only;
+      # Directory.Solution.targets asserts every project was actually audited.
+      - name: Audit packages for known vulnerabilities (R20.10)
+        run: ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --properties AuditPipeline=true
 
       - name: Validate serialization policy (R0.14, R20.24-26)
         run: |

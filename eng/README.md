@@ -50,7 +50,10 @@ This folder contains all build, validation, and CI scripts for the repository. I
 | `audit-package-metadata.ps1` | Package metadata completeness |
 | `inventory-projects.ps1` | Regenerate `project-manifest.yaml` |
 | `add-missing-to-solution.ps1` | Bulk-add missing projects to the solution |
-| `scan-vulnerabilities.ps1` | Dependency vulnerability scanning |
+
+Dependency vulnerability scanning is not a script here: `restore` does it. NuGetAudit is configured
+in `Directory.Build.props` and runs on every restore; `dotnet restore -p:AuditPipeline=true` makes its
+findings blocking. `Directory.Solution.targets` asserts the audit covered every project.
 
 ### Testing
 

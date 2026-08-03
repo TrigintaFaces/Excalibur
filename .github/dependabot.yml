@@ -38,6 +38,28 @@ updates:
           - "FakeItEasy"
           - "TestContainers*"
 
+  # npm updates. Every open Dependabot alert on this repo is npm, across these three lockfiles;
+  # without an entry here the alerts are raised but no update PR is ever opened for them.
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/docs-site"
+      - "/src/Excalibur/Excalibur.Operations.Dashboard.Spa/ClientApp"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      # Dev-only toolchain (build, test, lint) moves together; these are the majority of npm churn
+      # and none of it ships to a consumer.
+      dev-dependencies:
+        dependency-type: "development"
+        patterns: ["*"]
+
   # GitHub Actions updates
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -107,7 +107,17 @@ $allProjects = @(Get-ChildItem -Path $rootPath -Recurse -File -Filter *.csproj -
 
 $selectedProjects = @($allProjects | Select-Object -First ([Math]::Max(1, $MaxProjects)))
 if ($allProjects.Count -gt $selectedProjects.Count) {
-  Write-Warning "Project scan capped to $($selectedProjects.Count) of $($allProjects.Count) projects."
+  # This is a RUNAWAY guard, not a budget. It is breached when the cap sits BELOW the real population,
+  # which is a configuration fault, not a finding about dependencies -- and with -FailOnGuardrailBreach
+  # it fails every single run, forever, while the report it just wrote says nothing is wrong.
+  #
+  # Measured: -MaxProjects 180 against src/, which holds 198 projects. Exit 1 every night since the
+  # 181st project was added; zero timeouts, zero budget breaches, zero non-zero scans in the same run.
+  # The nightly job had been red for a reason that had nothing to do with vulnerabilities.
+  #
+  # The message names the fix because the caller cannot see this number from the failure otherwise.
+  Write-Warning "Project scan capped to $($selectedProjects.Count) of $($allProjects.Count) projects -- $($allProjects.Count - $selectedProjects.Count) project(s) were NOT audited."
+  Write-Warning "The cap (-MaxProjects $MaxProjects) is BELOW the project population ($($allProjects.Count)). Raise it above the population; a cap under it can never pass."
   $guardrailBreached = $true
 }
 

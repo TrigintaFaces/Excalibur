@@ -52,7 +52,10 @@ info() { printf 'SPA GATE: %s\n' "$*"; }
 
 run_tests() {
     info "vitest (the SPA's unit tests)"
-    (cd "$CLIENT_APP" && npx vitest run --reporter=basic) || source_fail "vitest reported failures"
+    # `basic` was deprecated in vitest 3 and REMOVED in 4; it fails to load as a custom reporter,
+    # which the gate reports as "vitest reported failures" -- a tooling fault wearing a test failure's
+    # clothes. `dot` is the concise CI reporter in 4.
+    (cd "$CLIENT_APP" && npx vitest run --reporter=dot) || source_fail "vitest reported failures"
 }
 
 run_typecheck() {

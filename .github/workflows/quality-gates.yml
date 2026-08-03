@@ -222,10 +222,10 @@ jobs:
 
       - name: Restore and build shard
         run: |
-          dotnet restore ${{ matrix.shard.filter }} --verbosity quiet
+          ./build.sh --restore --project ${{ matrix.shard.filter }} --verbosity quiet
           # See .github/actions/setup-dotnet-build: without this the shard's test projects are
           # compile-skipped on Windows and produce empty assemblies.
-          dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
+          ./build.sh --build --no-restore --project ${{ matrix.shard.filter }} --verbosity quiet
 
       - name: Run shard tests with coverage
         run: |
@@ -274,10 +274,25 @@ jobs:
             --blame-crash \
             --logger "trx;LogFilePrefix=coverage-shard-${{ matrix.shard.name }}" \
             --logger "console;verbosity=minimal" \
-            --collect:"XPlat Code Coverage" \
-            --settings tests/coverage.runsettings \
+            --collect:"Code Coverage" \
+            --settings tests/coverage.msft.runsettings \
             --results-directory ./coverage \
-            -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=3600000
+
+      # The built-in collector emits a binary .coverage; everything downstream reads cobertura.
+      - name: Convert coverage to cobertura
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet tool install -g dotnet-coverage || dotnet tool update -g dotnet-coverage
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          mapfile -t files < <(find ./coverage -name "*.coverage")
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::no .coverage file produced -- the collector did not run. An absent report is not a clean report."
+            exit 1
+          fi
+          mkdir -p ./coverage/merged
+          dotnet-coverage merge "${files[@]}" --output ./coverage/merged/coverage.cobertura.xml --output-format cobertura
 
       # if: always() is the load-bearing part. Without it this step is skipped on a failing run,
       # so the artifacts existed only when nobody needed them -- diagnostics uploaded on success
@@ -411,8 +426,8 @@ jobs:
 
       - name: Restore and build
         run: |
-          dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
-          dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
+          ./build.sh --restore --project eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
+          ./build.sh --build --no-restore --project eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
 
       - name: Run deterministic unit and DI tests
         run: |

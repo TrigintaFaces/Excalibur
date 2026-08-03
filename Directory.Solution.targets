@@ -1,0 +1,27 @@
+<Project>
+
+  <!--
+    Verifies NuGetAudit ran against every project. Restore publishes these counts (MSBuild 17.13+);
+    a project that drops out of the audit otherwise reports no vulnerabilities indistinguishably
+    from a clean one.
+
+    Must live in Directory.Solution.targets: restore runs at solution scope, so a target in
+    Directory.Build.props would never observe these properties.
+    https://learn.microsoft.com/nuget/concepts/auditing-packages#ensure-restore-audited-projects
+  -->
+  <Target Name="AssertEveryProjectWasAudited" AfterTargets="Restore" Condition="'$(CI)' == 'true'">
+    <PropertyGroup>
+      <_AuditedOrSkipped>$([MSBuild]::Add($(RestoreProjectsAuditedCount), $(RestoreSkippedCount)))</_AuditedOrSkipped>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="NuGet audit: $(RestoreProjectsAuditedCount) audited, $(RestoreSkippedCount) skipped, of $(RestoreProjectCount)." />
+
+    <!-- Static graph restore does not publish these outputs; report that the check could not run. -->
+    <Warning Condition="'$(RestoreProjectCount)' == ''"
+             Text="NuGet audit coverage unverified: restore published no counts (static graph restore?)." />
+
+    <Error Condition="'$(RestoreProjectCount)' != '' AND $(_AuditedOrSkipped) &lt; $(RestoreProjectCount)"
+           Text="Restore audited $(_AuditedOrSkipped) of $(RestoreProjectCount) projects. $([MSBuild]::Subtract($(RestoreProjectCount), $(_AuditedOrSkipped))) project(s) were checked against no advisory database." />
+  </Target>
+
+</Project>

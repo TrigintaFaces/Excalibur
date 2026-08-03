@@ -381,7 +381,8 @@ jobs:
         run: tar -xzf soak-build-output.tar.gz && rm soak-build-output.tar.gz
 
       - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+        shell: bash
+        run: ./build.sh --restore --verbosity quiet
 
       - name: Compose pre-tag soak filter
         shell: pwsh

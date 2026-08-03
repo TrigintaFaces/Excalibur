@@ -75,15 +75,18 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore performance test shard
-        run: dotnet restore eng/ci/shards/PerformanceTests.slnf
+        shell: bash
+        run: ./build.sh --restore --project eng/ci/shards/PerformanceTests.slnf
 
       - name: Build performance test shard
-        run: dotnet build eng/ci/shards/PerformanceTests.slnf --configuration Release --no-restore
+        shell: bash
+        run: ./build.sh --build --no-restore --project eng/ci/shards/PerformanceTests.slnf
 
       - name: Build benchmark project for downstream jobs
+        shell: bash
         run: |
-          dotnet restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-          dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          ./build.sh --restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run performance test shard
         # Via run-filtered-tests.sh: a --filter that matches nothing makes `dotnet test` exit 0 having
@@ -158,9 +161,10 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore and build benchmarks
+        shell: bash
         run: |
-          dotnet restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-          dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          ./build.sh --restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Package build output
         shell: bash
@@ -221,7 +225,8 @@ jobs:
         run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
       - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+        shell: bash
+        run: ./build.sh --restore --verbosity quiet
 
       - name: Run hot path benchmarks
         shell: pwsh
@@ -305,7 +310,8 @@ jobs:
         run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
       - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+        shell: bash
+        run: ./build.sh --restore --verbosity quiet
 
       - name: Run memory allocation benchmarks
         run: |
@@ -354,7 +360,8 @@ jobs:
         run: tar -xzf perf-build-output.tar.gz && rm perf-build-output.tar.gz
 
       - name: Restore NuGet packages for runtime dependencies
-        run: dotnet restore Excalibur.sln --verbosity quiet
+        shell: bash
+        run: ./build.sh --restore --verbosity quiet
 
       # TODO: Enable when benchmarks/CloudNativePatterns.Benchmarks project exists
       # - name: Run cloud native patterns benchmarks

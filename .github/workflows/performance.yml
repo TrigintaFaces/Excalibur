@@ -51,7 +51,8 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+        shell: bash
+        run: ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run MediatR local parity benchmark gate
         shell: pwsh
@@ -130,7 +131,8 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+        shell: bash
+        run: ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run transport comparison benchmark gate
         shell: pwsh
@@ -200,7 +202,8 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+        shell: bash
+        run: ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run dispatch hot-path benchmark gate
         shell: pwsh
@@ -270,7 +273,8 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+        shell: bash
+        run: ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run observability overhead benchmark gate
         shell: pwsh
@@ -338,7 +342,8 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+        shell: bash
+        run: ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run persistence/background benchmark smoke classes
         shell: pwsh
