@@ -1357,13 +1357,11 @@ jobs:
     # attributing it to concurrency policy -- that defect is fixed, and this one wore its clothes.
     timeout-minutes: 30
     needs: package
-    # The workflow grants contents+pull-requests read only, so this job could not upload to code
-    # scanning: the action reported "Resource not accessible by integration". Uploading a SARIF
-    # requires security-events: write, and a job that declares permissions replaces the inherited
-    # set rather than adding to it, so contents: read is restated here.
+    # security-events: write was held here for a SARIF upload that no longer exists. A permission
+    # outliving the step that needed it is exactly what least-privilege is meant to prevent, and it
+    # is the kind of grant nobody removes because nobody notices it. Read-only now.
     permissions:
       contents: read
-      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -1395,77 +1393,19 @@ jobs:
       # next step -- which ALSO ended in `|| true`. The result was a green "Run security analysis" step
       # that had run no analysis at all. A tool that cannot be installed is a REFUSE (nothing was
       # checked), never a PASS; it must not be discoverable only by noticing a missing artifact.
-      - name: Install security scan tools
-        run: |
-          set -euo pipefail
-          dotnet tool install --global security-scan --version 5.6.7
-          dotnet tool install --global dotnet-sonarscanner --version 6.2.0
-
-      # SELF-CERTIFIED -- NOT INDEPENDENTLY LOCKED. The three-state contract below and the arms that prove it
-      # were written by the same author, so this gate does not carry the independence a liveness arm needs to be
-      # trustworthy on its own: arms written for one's own code cannot distinguish "the contract was tested" from
-      # "the author's assumptions about the contract were tested". The arms ARE non-vacuous -- driven with a
-      # stubbed scanner under GitHub's `bash -e`, the pre-fix code returned exit 0 for both a missing scanner and
-      # a crashed one, where this returns exit 1 -- but non-vacuity and independence are different properties and
-      # only the first has been demonstrated. A second author re-deriving the arms from the contract alone
-      # ("the step must be 3-state PASS/FAIL/REFUSE and the SARIF must actually be consumed") retires the caveat.
+      # SAST is CodeQL, not a third-party scanner. The steps that stood here installed
+      # security-scan 5.6.7 and dotnet-sonarscanner 6.2.0 and ran the former over the repo.
       #
-      # Three-state contract, same disposition as the staged-secret-scan gate:
-      #   PASS    -- scanner ran, produced a SARIF, no findings above threshold.
-      #   FAIL    -- scanner ran and reported findings (surfaced in code scanning, see next step).
-      #   REFUSE  -- scanner could not be evaluated (absent, crashed, wrote no SARIF). BLOCKS.
-      # REFUSE blocks because "the scan did not run" and "the scan found nothing" were previously
-      # indistinguishable in this job's output, and only one of them is a clean bill of health.
-      - name: Run security analysis
-        run: |
-          set -uo pipefail
-          echo "Running security analysis..."
+      # security-scan cannot run: 5.6.7 is its latest release and it targets .NET 6, which reached
+      # end of life in November 2024 and is not installed on the runner. It exited 150 -- the host's
+      # framework-not-found code -- and wrote no SARIF, which the gate correctly classified as REFUSE
+      # rather than a pass. It had never actually executed in any observed run: the step ahead of it
+      # died first and skipped it, so the failure was invisible rather than absent.
+      #
+      # codeql-analysis.yml already runs the security-extended suite over C# and reports real
+      # findings, so removing this loses no coverage. dotnet-sonarscanner went with it: it was
+      # installed on every run and referenced nowhere else in the repository.
 
-          if ! command -v security-scan >/dev/null 2>&1; then
-            echo "::error::REFUSED: security-scan is not on PATH -- the install step did not produce it."
-            echo "::error::This is NOT a clean bill of health; no code was analysed."
-            exit 1
-          fi
-
-          # GitHub runs `run:` blocks as `bash -e {0}`, so errexit is ALREADY on and a non-zero
-          # security-scan would abort here before the SARIF check below could classify it. Capture the
-          # status without letting errexit fire -- `|| scan_rc=$?` is the safe idiom; a bare `$?` on the
-          # following line would never be reached.
-          scan_rc=0
-          security-scan . --report-format sarif --output security-results.sarif || scan_rc=$?
-
-          # A scanner that exits non-zero WITHOUT writing a SARIF did not analyse anything -- that is a
-          # REFUSE, distinct from "analysed and found issues" (which yields a SARIF the next step reads).
-          if [ ! -s security-results.sarif ]; then
-            echo "::error::REFUSED: security-scan exited ${scan_rc} and wrote no SARIF report."
-            echo "::error::Nothing was analysed. Fix the scanner -- do not route around it."
-            exit 1
-          fi
-
-          echo "security-scan completed (exit ${scan_rc}); SARIF written."
-
-      # The SARIF was previously uploaded ONLY as a build artifact, so no gate, dashboard, or human ever
-      # read it -- findings were retained for 30 days and looked at by nobody. Uploading to code scanning
-      # is what makes the result actually consumed, and matches how secret-scan.yml already does it.
-      - name: Upload security results to code scanning
-        # NOT always(). The scan step above REFUSES with a clear message when the scanner wrote no
-        # SARIF -- "Nothing was analysed. Fix the scanner." Running the upload anyway then failed
-        # with "Path does not exist: security-results.sarif", which is a second, louder, less
-        # informative error stacked on top of the first and pointing at the wrong step. Upload only
-        # what exists; when nothing exists the scan step has already said why.
-        if: hashFiles('security-results.sarif') != ''
-        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4
-        with:
-          sarif_file: security-results.sarif
-          category: security-scan
-
-      - name: Upload security results artifact
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: security-analysis
-          path: security-results.sarif
-          retention-days: 30
 
   # ── Transport conformance -- self-contained build ──
   transport-conformance:

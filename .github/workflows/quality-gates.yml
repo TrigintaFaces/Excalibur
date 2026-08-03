@@ -227,6 +227,18 @@ jobs:
           # compile-skipped on Windows and produce empty assemblies.
           bash ./build.sh --build --no-restore --project ${{ matrix.shard.filter }} --verbosity quiet
 
+      # A missing settings file surfaces as "The Settings file ... could not be found" buried in a
+      # test run's output, after the run has already started and produced nothing. Assert it up front
+      # so the failure names itself. This exact file was missed by a manual sync and took all six
+      # shards down with a message that read like a collector fault.
+      - name: Assert the coverage settings file is present
+        shell: bash
+        run: |
+          test -f tests/coverage.msft.runsettings || {
+            echo "::error::tests/coverage.msft.runsettings is missing. The coverage collector cannot run without it; this is a missing FILE, not a collector fault."
+            exit 1
+          }
+
       - name: Run shard tests with coverage
         run: |
           # --logger trx and --blame-crash are diagnostic, not decorative. This shard previously

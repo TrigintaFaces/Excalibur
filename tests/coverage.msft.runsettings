@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Coverage settings for the collector built into .NET, selected with the collect argument
+  "Code Coverage" (as opposed to "XPlat Code Coverage", which is coverlet).
+
+  Scoping is the same intent as coverage.runsettings' <Include>[Excalibur.*]*</Include> for coverlet,
+  expressed in this collector's ModulePaths form: measure our own assemblies, not the third-party SDKs
+  that happen to sit in a test output directory, and not the test assemblies themselves.
+
+  ModulePath patterns are regular expressions matched against the full module path, and they are
+  case-insensitive.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="Code Coverage">
+        <Configuration>
+          <CodeCoverage>
+            <ModulePaths>
+              <Include>
+                <ModulePath>.*\\Excalibur\..*\.dll$</ModulePath>
+                <ModulePath>.*/Excalibur\..*\.dll$</ModulePath>
+              </Include>
+              <Exclude>
+                <!-- Test assemblies measure the tests, not the product. Coverlet's equivalent is
+                     IncludeTestAssembly=false. -->
+                <ModulePath>.*Tests\.dll$</ModulePath>
+                <ModulePath>.*Testing\.dll$</ModulePath>
+                <ModulePath>.*Testing\..*\.dll$</ModulePath>
+                <ModulePath>.*Testing\.Conformance\.dll$</ModulePath>
+              </Exclude>
+            </ModulePaths>
+
+            <Attributes>
+              <Exclude>
+                <Attribute>^System\.Diagnostics\.DebuggerHiddenAttribute$</Attribute>
+                <Attribute>^System\.Diagnostics\.DebuggerNonUserCodeAttribute$</Attribute>
+                <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+                <Attribute>^System\.Runtime\.CompilerServices\.CompilerGeneratedAttribute$</Attribute>
+                <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+                <Attribute>^System\.ObsoleteAttribute$</Attribute>
+              </Exclude>
+            </Attributes>
+
+            <Sources>
+              <Exclude>
+                <Source>.*\\obj\\.*</Source>
+                <Source>.*/obj/.*</Source>
+                <Source>.*\.g\.cs$</Source>
+                <Source>.*\.generated\.cs$</Source>
+              </Exclude>
+            </Sources>
+
+            <CollectFromChildProcesses>True</CollectFromChildProcesses>
+          </CodeCoverage>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
