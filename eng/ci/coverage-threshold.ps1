@@ -112,7 +112,21 @@ if ($files.Count -eq 0) {
 [hashtable]$classFallbackByKey = @{}
 
 foreach ($file in $files) {
-	$xml = [xml](Get-Content -Raw -- $file.FullName)
+	# Load through XmlDocument rather than the [xml] cast. On a malformed report the cast's
+	# conversion error embeds THE ENTIRE DOCUMENT in its message -- a 31MB report produced an error
+	# so large GitHub truncated the step mid-message, and the actual fault ("Name cannot begin with
+	# the '3' character") was only recoverable from a different step's log. The failure was
+	# diagnosable everywhere except the place it happened.
+	$xml = New-Object System.Xml.XmlDocument
+	try {
+		$xml.Load($file.FullName)
+	} catch {
+		$detail = $_.Exception.Message
+		if ($detail.Length -gt 400) { $detail = $detail.Substring(0, 400) + " ...(truncated)" }
+		Write-Error ("REFUSE: '{0}' ({1:N0} bytes) is not parseable XML: {2}`nA corrupt report is not a low coverage number -- do not re-baseline against this run." -f `
+			$file.FullName, $file.Length, $detail)
+		exit 1
+	}
 	foreach ($clsNode in $xml.SelectNodes("//class")) {
 		$cls = [System.Xml.XmlElement]$clsNode
 		$sourcePath = Get-NormalizedSourcePath -Path ([string]$cls.GetAttribute("filename"))

@@ -34,6 +34,45 @@ readonly EXIT_ENV=2
 pass() { printf 'SELF-TEST: PASS -- %s\n' "$*"; }
 fail() { printf 'SELF-TEST: FAIL -- %s\n' "$*" >&2; restore; exit 1; }
 
+# A restoration proof is only meaningful from a CLEAN baseline. If a file already has pending
+# changes when its arm starts, the post-restore `git status` says nothing about whether the
+# restore worked -- yet it reads as "the harness left the tree dirty", which is a confident
+# accusation of the wrong component.
+#
+# The case that makes this load-bearing: a committed blob that is not its own normalized form.
+# A `text`-attributed file carrying a stray CRLF cleans to a DIFFERENT hash than the blob it
+# was committed as, so git calls it modified the moment it re-reads the content. On a CRLF
+# checkout the smudge hides it and the tree looks clean; on an LF checkout it does not. That
+# lands as "left modified after restore" on Linux CI, byte-exact restore and all, and is
+# unreproducible on Windows. Assert the baseline so the arm names the real fault.
+#
+# `git status` alone CANNOT answer this. It short-circuits on the index's cached stat data, so a
+# file whose content already disagrees with its blob reports CLEAN until something changes the
+# file's inode or mtime -- and the `cp`/`mv -f` below is exactly that. The dirt would then first
+# become visible AFTER the restore, i.e. it would read as the restore's fault. Hash the content
+# directly, which no stat cache can mask, and check it BEFORE touching anything.
+require_clean_baseline() {
+    local f="$1" head_blob worktree_blob
+    head_blob="$(git rev-parse "HEAD:$(git ls-files --full-name -- "$f")" 2>/dev/null || true)"
+    worktree_blob="$(git hash-object --path="$f" "$f" 2>/dev/null || true)"
+    if [ -z "$(git status --porcelain -- "$f")" ] \
+       && { [ -z "$head_blob" ] || [ "$head_blob" = "$worktree_blob" ]; }; then
+        return 0
+    fi
+    printf 'SELF-TEST: FAIL -- %s is ALREADY dirty BEFORE this arm ran.\n' "$f" >&2
+    printf '  A restoration proof needs a clean baseline, so this run is no verdict on the restore.\n' >&2
+    printf '    committed blob : %s\n' "${head_blob:-<none>}" >&2
+    printf '    working tree   : %s\n' "${worktree_blob:-<unreadable>}" >&2
+    if [ -n "$head_blob" ] && [ "$head_blob" != "$worktree_blob" ] \
+       && [ -z "$(git status --porcelain -- "$f")" ]; then
+        printf '  `git status` calls this file clean and its CONTENT disagrees with its blob, so the\n' >&2
+        printf '  committed blob is not its own normalized form -- e.g. build output committed with a\n' >&2
+        printf '  stray CRLF under a `text` attribute. It reads clean on a CRLF checkout and modified\n' >&2
+        printf '  on an LF one. Fix the ARTIFACT (rebuild/normalize it and commit), not this check.\n' >&2
+    fi
+    exit 1
+}
+
 restore() {
     if [ -f "$BACKUP" ]; then
         mv -f "$BACKUP" "$ENTRY"
@@ -66,6 +105,7 @@ esac
 
 # ---------------------------------------------------------------- negative control
 printf 'SELF-TEST: negative control -- source edited, assets stale, drift check must exit %s\n' "$EXIT_DRIFT"
+require_clean_baseline "$ENTRY"
 cp "$ENTRY" "$BACKUP"
 printf '\nconsole.log("__spa_gate_selftest_probe__");\n' >> "$ENTRY"
 
@@ -108,6 +148,7 @@ restore_index() {
 trap restore_index EXIT
 
 printf 'SELF-TEST: index.html template-only negative control -- stale committed index.html, drift check must exit %s\n' "$EXIT_DRIFT"
+require_clean_baseline "$INDEX"
 cp "$INDEX" "$INDEX_BACKUP"
 # A stale CSP <meta> the fresh vite build will NOT emit: it changes index.html CONTENT (normalized,
 # so not a CRLF artifact) but renames NO hashed asset, so only check (2) can see it.

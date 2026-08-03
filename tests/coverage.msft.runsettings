@@ -9,6 +9,14 @@
 
   ModulePath patterns are regular expressions matched against the full module path, and they are
   case-insensitive.
+
+  The `[^\\/]*` after `Excalibur\.` is load-bearing and must not be relaxed back to `.*`. A `.*`
+  CROSSES DIRECTORY SEPARATORS, and every test project lives in `tests/unit/Excalibur.*.Tests/`, so
+  `.*\\Excalibur\..*\.dll$` matched that project's ENTIRE output directory -- every third-party SDK
+  sitting next to the test assembly. Measured on a real shard artifact: 16 foreign packages (Dapper,
+  DiffEngine, FakeItEasy, Shouldly, xunit.v3 x6, ...) = 52,900 of 170,850 lines, 31% of the report,
+  attributed to us. The character class holds the match inside a single path segment, which is what
+  "the assembly is named Excalibur.<something>" actually means.
 -->
 <RunSettings>
   <DataCollectionRunSettings>
@@ -18,8 +26,8 @@
           <CodeCoverage>
             <ModulePaths>
               <Include>
-                <ModulePath>.*\\Excalibur\..*\.dll$</ModulePath>
-                <ModulePath>.*/Excalibur\..*\.dll$</ModulePath>
+                <ModulePath>.*\\Excalibur\.[^\\/]*\.dll$</ModulePath>
+                <ModulePath>.*/Excalibur\.[^\\/]*\.dll$</ModulePath>
               </Include>
               <Exclude>
                 <!-- Test assemblies measure the tests, not the product. Coverlet's equivalent is

@@ -114,6 +114,14 @@ jobs:
       - name: actionlint-gate
         run: bash eng/ci/actionlint-gate.sh
 
+      # Proves the coverage-completeness gate still REFUSES a partial measurement, and still passes a
+      # complete one. Both arms matter: the gate exists because six shards succeeded and the
+      # aggregation reported a failure that had nothing to do with coverage, and a completeness gate
+      # that can only ever say PASS would have been just as blind. Its parser reads the shard names
+      # out of quality-gates.yml, so this also catches the matrix being renamed out from under it.
+      - name: coverage-shard-reports-complete self-test (non-vacuity)
+        run: bash eng/ci/coverage-shard-reports-complete.sh --self-test
+
       # BLOCKING - .github/workflows/ is COPIED to the public mirror, so a beads/tracker reference
       # there both leaks internal tooling into a shipped file and breaks the downstream checkout,
       # because the private scripts are not copied. The lock was written with safety, liveness and

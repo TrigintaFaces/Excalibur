@@ -314,7 +314,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: coverage-shard-diagnostics-${{ matrix.shard.name }}
+          # NOT `coverage-shard-diagnostics-*`: the aggregation job downloads `coverage-shard-*`,
+          # and a diagnostics artifact named that way is pulled in as if it were a coverage report.
+          # It carries no cobertura, so it contributed nothing but download volume -- twelve
+          # extractions racing into one directory instead of six.
+          name: shard-diagnostics-${{ matrix.shard.name }}
           path: |
             ./coverage/**/*.trx
             ./coverage/**/Sequence_*.xml
@@ -341,20 +345,67 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
+      # merge-multiple is deliberately ABSENT. Every shard writes its report to the same internal
+      # path (merged/coverage.cobertura.xml), so merging them into one directory put six concurrent
+      # writers on one file: a corrupt 31MB document that ReportGenerator could not parse, on a run
+      # where all six shards had succeeded. Without it each artifact extracts to its own
+      # coverage/coverage-shard-<name>/ directory -- distinct paths, no race, and the downstream
+      # globs see all six reports instead of the one that happened to win.
       - name: Download shard coverage artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: coverage-shard-*
           path: coverage
-          merge-multiple: true
+
+      # Runs BEFORE the merge so an incomplete measurement is named as such. A missing report and a
+      # low percentage are opposite problems; without this the aggregation would compute a confident
+      # number from whatever subset arrived.
+      - name: Verify every shard reported
+        shell: bash
+        run: bash eng/ci/coverage-shard-reports-complete.sh --coverage-root coverage
 
       - name: Merge coverage reports
+        shell: bash
         run: |
+          set -euo pipefail
           dotnet tool install -g dotnet-reportgenerator-globaltool || true
+
+          # ReportGenerator exits 0 when it reads NOTHING -- it wrote Cobertura.xml, summary.html and
+          # Summary.txt from zero reports on the run that produced this comment. Its exit code alone
+          # cannot distinguish "merged six shards" from "parsed nothing at all", so count the inputs
+          # ourselves and hold its output to that count.
+          mapfile -t reports < <(find ./coverage -type f -name 'coverage.cobertura.xml' | sort)
+          if [ "${#reports[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: no cobertura reports to merge. An absent report is not a clean report."
+            exit 1
+          fi
+          echo "merging ${#reports[@]} shard report(s):"
+          printf '  %s\n' "${reports[@]}"
+
+          # Redirect rather than pipe. `... | tee log` would make the pipeline's status tee's, which
+          # is the same exit-masking that once let a failed commit report success -- and it is worth
+          # avoiding even under `pipefail`, because the captured value here has to be unambiguous.
+          set +e
           reportgenerator \
             -reports:"./coverage/**/coverage.cobertura.xml" \
             -targetdir:"./coverage/merged" \
-            -reporttypes:"Cobertura;HtmlSummary;TextSummary"
+            -reporttypes:"Cobertura;HtmlSummary;TextSummary" > reportgenerator.log 2>&1
+          rg_exit=$?
+          set -e
+          cat reportgenerator.log
+
+          if [ "$rg_exit" -ne 0 ]; then
+            echo "::error::REFUSE: ReportGenerator exited ${rg_exit}."
+            exit 1
+          fi
+          if ! [ -s ./coverage/merged/Cobertura.xml ]; then
+            echo "::error::REFUSE: ReportGenerator exited 0 but produced no non-empty Cobertura.xml -- it read none of the ${#reports[@]} reports it was given. An exit code is not evidence of an effect."
+            exit 1
+          fi
+          if grep -qiE 'Error during reading report|Failed to parse' reportgenerator.log; then
+            echo "::error::REFUSE: ReportGenerator reported a read failure while still exiting 0. See the log above."
+            exit 1
+          fi
 
       - name: Enforce coverage threshold
         id: coverage_threshold
