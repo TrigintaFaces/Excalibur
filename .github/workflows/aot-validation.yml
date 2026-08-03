@@ -243,7 +243,7 @@ jobs:
         run: tar -xzf aot-restore-output.tar.gz && rm aot-restore-output.tar.gz
 
       - name: Restore NuGet packages
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       - name: Publish AOT binary
         shell: bash
@@ -325,7 +325,7 @@ jobs:
         run: tar -xzf aot-restore-output.tar.gz && rm aot-restore-output.tar.gz
 
       - name: Restore NuGet packages for runtime dependencies
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       - name: Run AOT build analysis (report-only)
         shell: pwsh

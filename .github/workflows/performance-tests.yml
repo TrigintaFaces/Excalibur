@@ -76,17 +76,17 @@ jobs:
 
       - name: Restore performance test shard
         shell: bash
-        run: ./build.sh --restore --project eng/ci/shards/PerformanceTests.slnf
+        run: bash ./build.sh --restore --project eng/ci/shards/PerformanceTests.slnf
 
       - name: Build performance test shard
         shell: bash
-        run: ./build.sh --build --no-restore --project eng/ci/shards/PerformanceTests.slnf
+        run: bash ./build.sh --build --no-restore --project eng/ci/shards/PerformanceTests.slnf
 
       - name: Build benchmark project for downstream jobs
         shell: bash
         run: |
-          ./build.sh --restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-          ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          bash ./build.sh --restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run performance test shard
         # Via run-filtered-tests.sh: a --filter that matches nothing makes `dotnet test` exit 0 having
@@ -163,8 +163,8 @@ jobs:
       - name: Restore and build benchmarks
         shell: bash
         run: |
-          ./build.sh --restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
-          ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          bash ./build.sh --restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+          bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Package build output
         shell: bash
@@ -226,7 +226,7 @@ jobs:
 
       - name: Restore NuGet packages for runtime dependencies
         shell: bash
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       - name: Run hot path benchmarks
         shell: pwsh
@@ -311,7 +311,7 @@ jobs:
 
       - name: Restore NuGet packages for runtime dependencies
         shell: bash
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       - name: Run memory allocation benchmarks
         run: |
@@ -361,7 +361,7 @@ jobs:
 
       - name: Restore NuGet packages for runtime dependencies
         shell: bash
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       # TODO: Enable when benchmarks/CloudNativePatterns.Benchmarks project exists
       # - name: Run cloud native patterns benchmarks

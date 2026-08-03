@@ -222,10 +222,10 @@ jobs:
 
       - name: Restore and build shard
         run: |
-          ./build.sh --restore --project ${{ matrix.shard.filter }} --verbosity quiet
+          bash ./build.sh --restore --project ${{ matrix.shard.filter }} --verbosity quiet
           # See .github/actions/setup-dotnet-build: without this the shard's test projects are
           # compile-skipped on Windows and produce empty assemblies.
-          ./build.sh --build --no-restore --project ${{ matrix.shard.filter }} --verbosity quiet
+          bash ./build.sh --build --no-restore --project ${{ matrix.shard.filter }} --verbosity quiet
 
       - name: Run shard tests with coverage
         run: |
@@ -426,8 +426,8 @@ jobs:
 
       - name: Restore and build
         run: |
-          ./build.sh --restore --project eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
-          ./build.sh --build --no-restore --project eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
+          bash ./build.sh --restore --project eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
+          bash ./build.sh --build --no-restore --project eng/ci/shards/UnitTests-Deterministic.slnf --verbosity quiet
 
       - name: Run deterministic unit and DI tests
         run: |

@@ -67,7 +67,7 @@ jobs:
 
       # The repository entry point, not an inlined sequence. The same command a contributor runs.
       - name: Restore and build
-        run: ./build.sh --build --project ${{ matrix.shard.filter }} --verbosity quiet
+        run: bash ./build.sh --build --project ${{ matrix.shard.filter }} --verbosity quiet
 
       - name: Run Unit Tests
         run: |
@@ -118,7 +118,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore and build
-        run: ./build.sh --build --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
+        run: bash ./build.sh --build --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       # This job is the ONLY place the Cosmos provider is exercised — ci.yml excludes it from the PR
       # path, so a Cosmos regression is caught here or nowhere. The gate moved here with the tests.

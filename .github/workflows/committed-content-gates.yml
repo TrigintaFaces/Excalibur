@@ -64,10 +64,10 @@ jobs:
           restore-keys: ${{ runner.os }}-nuget-
 
       - name: Restore
-        run: ./build.sh --restore --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
+        run: bash ./build.sh --restore --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       - name: Build (Release)
-        run: ./build.sh --build --no-restore --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
+        run: bash ./build.sh --build --no-restore --project eng/ci/shards/IntegrationTests.slnf --verbosity quiet
 
       # No `|| true`, no continue-on-error: a non-zero exit (FAIL or REFUSE) reddens this required check.
       - name: Real-infra gate mechanism self-test (real dotnet path)
@@ -192,7 +192,7 @@ jobs:
             10.0.x
 
       - name: Restore (writes lock files if the committed ones are stale)
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       # ADVISORY pending a restore-verification dry-run (`|| true`): a tracked lock file rewritten by
       # restore means the committed lock is stale. Flips to blocking (drop the `|| true`) once a CI/local
@@ -223,7 +223,7 @@ jobs:
             10.0.x
 
       - name: Restore (representative shipping project — makes MSBuild property evaluation deterministic)
-        run: ./build.sh --restore --project src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj --verbosity quiet
+        run: bash ./build.sh --restore --project src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj --verbosity quiet
 
       # BLOCKING (no `|| true`): a shipping project that evaluates a blank projectUrl / icon / lockfile-flag
       # reddens this required check. Passes clean on committed content today.

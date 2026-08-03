@@ -108,22 +108,22 @@ jobs:
         # committed lock files are documentation: a drifted (or downgraded) dependency restores
         # green and the pinned version is overwritten in place. NU1004 names the package and both
         # versions. Samples carry no lock files, so this flag is deliberately NOT applied there.
-        run: ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
+        run: bash ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
 
       # Build the Dispatch core FIRST (clean, --no-incremental) before the transitive store
       # projects. A core public-API lag (RS0016/RS0017 -- a public symbol missing its PublicAPI.*.txt
       # entry) then fails fast HERE with a clear "core public API" error, instead of surfacing late and
       # confusingly as a downstream store-project build failure (a recurring core-public-API-lag pattern).
       - name: Build core first (fail fast on core public-API lag)
-        run: ./build.sh --build --no-restore --no-incremental --project src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --verbosity quiet
+        run: bash ./build.sh --build --no-restore --no-incremental --project src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --verbosity quiet
 
       - name: Build shipping projects
-        run: ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --verbosity quiet
+        run: bash ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
       - name: Deterministic build validation
         run: |
           echo "Validating deterministic builds with CI flag..."
-          ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --properties CI=true --verbosity quiet
+          bash ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --properties CI=true --verbosity quiet
           echo "Deterministic build validation successful"
 
       - name: Package validation
@@ -1208,11 +1208,11 @@ jobs:
         if: env.FLAKY_TEST_COUNT != '0'
         # --locked-mode: see the shipping-restore step. Verified to pass on this shard before
         # being applied; a drifted lock file here fails with NU1004 rather than being rewritten.
-        run: ./build.sh --restore --project eng/ci/shards/TestsOnly.slnf --locked-mode --verbosity quiet
+        run: bash ./build.sh --restore --project eng/ci/shards/TestsOnly.slnf --locked-mode --verbosity quiet
 
       - name: Build
         if: env.FLAKY_TEST_COUNT != '0'
-        run: ./build.sh --build --no-restore --project eng/ci/shards/TestsOnly.slnf --verbosity quiet
+        run: bash ./build.sh --build --no-restore --project eng/ci/shards/TestsOnly.slnf --verbosity quiet
 
       - name: Run quarantined tests
         if: env.FLAKY_TEST_COUNT != '0'
@@ -1379,7 +1379,7 @@ jobs:
       # Advisory Database. AuditPipeline=true promotes NU1901-1904 to errors for this run only;
       # Directory.Solution.targets asserts every project was actually audited.
       - name: Audit packages for known vulnerabilities (R20.10)
-        run: ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --properties AuditPipeline=true
+        run: bash ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --properties AuditPipeline=true
 
       - name: Validate serialization policy (R0.14, R20.24-26)
         run: |

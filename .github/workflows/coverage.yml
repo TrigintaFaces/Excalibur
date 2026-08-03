@@ -203,8 +203,8 @@ jobs:
         continue-on-error: true
         working-directory: base
         run: |
-          ./build.sh --restore --project "$BASE_UNIT_TESTS_SLNF"
-          ./build.sh --build --no-restore --project "$BASE_UNIT_TESTS_SLNF"
+          bash ./build.sh --restore --project "$BASE_UNIT_TESTS_SLNF"
+          bash ./build.sh --build --no-restore --project "$BASE_UNIT_TESTS_SLNF"
       - name: Mark base build status
         shell: bash
         run: |

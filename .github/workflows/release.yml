@@ -382,7 +382,7 @@ jobs:
 
       - name: Restore NuGet packages for runtime dependencies
         shell: bash
-        run: ./build.sh --restore --verbosity quiet
+        run: bash ./build.sh --restore --verbosity quiet
 
       - name: Compose pre-tag soak filter
         shell: pwsh
