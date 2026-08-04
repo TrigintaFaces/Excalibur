@@ -60,15 +60,19 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Install DocFX
-        run: dotnet tool install -g docfx
+        # `dotnet tool restore` installs the versions pinned in .config/dotnet-tools.json rather
+        # than whatever is newest today. A floating tool is an unpinned input to the build: it can
+        # change output, or break, on a day nothing in this repository changed. The manifest is
+        # tracked, so the version is reviewable and Dependabot can propose updates to it.
+        run: dotnet tool restore
 
       - name: Generate API metadata and build site
         working-directory: docs/api
         run: |
           echo "Generating API metadata..."
-          docfx metadata docfx.json
+          dotnet docfx metadata docfx.json
           echo "Building API reference site..."
-          docfx build docfx.json
+          dotnet docfx build docfx.json
 
       - name: Upload API docs artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

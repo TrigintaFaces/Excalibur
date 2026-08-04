@@ -77,7 +77,7 @@ $CoveragePattern = "$ArtifactsDir/**/coverage.cobertura.xml"
 $ReportDir = Join-Path $ArtifactsDir "report"
 
 Write-Host "`nGenerating coverage report..." -ForegroundColor Yellow
-reportgenerator `
+dotnet reportgenerator `
     -reports:"$CoveragePattern" `
     -targetdir:"$ReportDir" `
     -reporttypes:"$ReportTypes" `

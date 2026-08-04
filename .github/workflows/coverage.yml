@@ -419,7 +419,11 @@ jobs:
           merge-multiple: true
 
       - name: Install ReportGenerator
-        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+        # `dotnet tool restore` installs the versions pinned in .config/dotnet-tools.json rather
+        # than whatever is newest today. A floating tool is an unpinned input to the build: it can
+        # change output, or break, on a day nothing in this repository changed. The manifest is
+        # tracked, so the version is reviewable and Dependabot can propose updates to it.
+        run: dotnet tool restore
 
       - name: Generate coverage report
         run: |
@@ -445,7 +449,7 @@ jobs:
             exit 0
           fi
 
-          reportgenerator \
+          dotnet reportgenerator \
             -reports:"coverage/**/coverage.cobertura.xml" \
             -targetdir:"management/reports/CoverageReport" \
             -reporttypes:"Html;Cobertura;TextSummary;Badges" \

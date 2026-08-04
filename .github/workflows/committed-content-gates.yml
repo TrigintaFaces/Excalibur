@@ -133,6 +133,22 @@ jobs:
       # unenforced. Its own arms run first; a lock nobody can see fail is not evidence.
       - name: no-beads-in-workflows lock
         run: bash eng/ci/no-beads-in-workflows.harness-lock.sh
+
+      # A container image tagged "latest" is a promise the registry can re-point, so the image we
+      # tested is not necessarily the image anyone else gets. Most of these live under samples/ and
+      # templates/, which SHIP -- a consumer following a sample runs the image it names, and that is
+      # the one class of staleness we cannot fix for them afterwards.
+      #
+      # A ratchet rather than a ban: there are dozens already and some vendors publish only :latest,
+      # so banning them outright would mean a risky mass edit or a gate everyone routes around. The
+      # count may fall freely and may not rise. Its own arms run first -- in particular the one
+      # proving a LOCALLY BUILT :latest is not counted, since absorbing build outputs into the
+      # baseline would make the number stop measuring supply-chain exposure at all.
+      - name: mutable-image-tag ratchet self-test (non-vacuity)
+        run: bash eng/ci/mutable-image-tag-gate.sh --self-test
+
+      - name: mutable-image-tag ratchet
+        run: bash eng/ci/mutable-image-tag-gate.sh
   shell-gates:
     name: Committed-Content Shell Gates
     runs-on: ubuntu-latest

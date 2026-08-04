@@ -72,6 +72,38 @@ updates:
         dependency-type: "development"
         patterns: ["*"]
 
+  # Container images in Dockerfiles and compose files. There was no docker ecosystem here at all, so
+  # nothing has ever proposed an update to a base or service image -- while actions and NuGet were
+  # both maintained. Measured across the tracked Dockerfiles and compose files: two images ride a
+  # mutable `latest` tag, RabbitMQ appears at three different versions (one of them a floating
+  # major), and Elasticsearch and Kibana are each pinned at two different versions in different
+  # samples while the test fixtures use a third.
+  #
+  # This matters more than usual because most of these files are under samples/ and templates/, which
+  # SHIP. A consumer following a sample runs the image it names, so a stale or floating image there is
+  # a consumer-facing defect rather than an internal inconvenience -- and it is the one class of
+  # staleness we cannot fix for them after the fact.
+  #
+  # Grouped deliberately: ungrouped this would open a pull request per image per directory across ~20
+  # directories, and a review queue nobody can keep up with is how dependency updates start getting
+  # rubber-stamped.
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/samples/**"
+      - "/templates/**"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    groups:
+      container-images:
+        patterns: ["*"]
+
   # GitHub Actions updates
   - package-ecosystem: "github-actions"
     directory: "/"

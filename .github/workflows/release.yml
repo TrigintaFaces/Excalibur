@@ -673,7 +673,11 @@ jobs:
       # describes the first.
       - name: Generate CycloneDX SBOM for the shipping set
         run: |
-          dotnet tool install --global CycloneDX || dotnet tool update --global CycloneDX
+          # Pinned in .config/dotnet-tools.json rather than installed at whatever version is
+          # newest today. `|| dotnet tool update` previously meant this step could silently change
+          # the SBOM generator between runs, which is a poor property for the tool that produces our
+          # supply-chain evidence.
+          dotnet tool restore
           dotnet CycloneDX ./src -o ./sbom -F Json -t
 
       - name: Assert the SBOM exists

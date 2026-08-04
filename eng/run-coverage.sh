@@ -115,7 +115,7 @@ REPORT_DIR="$ARTIFACTS_DIR/report"
 
 echo ""
 echo "Generating coverage report..."
-reportgenerator \
+dotnet reportgenerator \
     -reports:"$COVERAGE_PATTERN" \
     -targetdir:"$REPORT_DIR" \
     -reporttypes:"$REPORT_TYPES" \

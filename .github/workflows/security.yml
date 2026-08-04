@@ -148,7 +148,11 @@ jobs:
         run: bash ./build.sh --restore
       - name: Generate CycloneDX SBOM for all packages
         run: |
-          dotnet tool install --global CycloneDX || dotnet tool update --global CycloneDX
+          # Pinned in .config/dotnet-tools.json rather than installed at whatever version is
+          # newest today. `|| dotnet tool update` previously meant this step could silently change
+          # the SBOM generator between runs, which is a poor property for the tool that produces our
+          # supply-chain evidence.
+          dotnet tool restore
           dotnet CycloneDX ./src -o ./src -F Json -t
 
       - name: Validate SBOM completeness
