@@ -24,14 +24,29 @@ docs/api/
 
 ## Prerequisites
 
-1. **.NET 9 SDK** - Required for building the solution
-2. **DocFX** - Documentation generator
+1. **.NET 10 SDK** - Required for building the solution. The exact version is pinned in
+   `global.json` (`10.0.100`, rolling forward to the latest feature band), so you do not need to
+   choose one - install .NET 10 and the SDK resolves itself.
+2. **DocFX** - Documentation generator, pinned as a local tool (see below).
 
-### Install DocFX
+### Restore the tools
+
+DocFX is pinned in `.config/dotnet-tools.json` rather than installed globally, so everyone -
+contributor and CI alike - runs the same version:
 
 ```bash
-dotnet tool install -g docfx
+dotnet tool restore
 ```
+
+Then invoke it through `dotnet`, which resolves the pinned local tool:
+
+```bash
+dotnet docfx --version
+```
+
+A global `dotnet tool install -g docfx` still works, but it installs whatever version is newest
+today, which is how a documentation build starts differing between two machines for no reason
+anyone can see.
 
 ## Generating Documentation
 
@@ -58,13 +73,13 @@ cd docs/api
 dotnet build ../../ -c Release
 
 # Generate API metadata
-docfx metadata docfx.json
+dotnet docfx metadata docfx.json
 
 # Build static site
-docfx build docfx.json
+dotnet docfx build docfx.json
 
 # Serve locally (optional)
-docfx docfx.json --serve
+dotnet docfx docfx.json --serve
 ```
 
 ## Output
@@ -133,9 +148,9 @@ Modify the template by adding custom files:
 ```yaml
 - name: Generate API Docs
   run: |
-    dotnet tool install -g docfx
+    dotnet tool restore
     cd docs/api
-    docfx docfx.json
+    dotnet docfx docfx.json
 
 - name: Deploy to GitHub Pages
   uses: peaceiris/actions-gh-pages@v3
@@ -151,11 +166,11 @@ Modify the template by adding custom files:
   inputs:
     command: custom
     custom: tool
-    arguments: install -g docfx
+    arguments: restore
 
 - script: |
     cd docs/api
-    docfx docfx.json
+    dotnet docfx docfx.json
   displayName: 'Generate API Documentation'
 ```
 
@@ -164,8 +179,9 @@ Modify the template by adding custom files:
 ### Common Issues
 
 1. **"docfx not found"**
-   - Run: `dotnet tool install -g docfx`
-   - Ensure `~/.dotnet/tools` is in PATH
+   - Run `dotnet tool restore` from the repository root, then invoke it as `dotnet docfx`.
+   - A bare `docfx` only resolves for a globally installed copy; the pinned local tool is
+     reached through `dotnet`, so the two are not interchangeable.
 
 2. **Build errors during metadata generation**
    - Ensure solution builds: `dotnet build -c Release`
