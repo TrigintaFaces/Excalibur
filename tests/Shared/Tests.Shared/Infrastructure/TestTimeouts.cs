@@ -36,6 +36,34 @@ public static class TestTimeouts
 	public static TimeSpan ContainerStart => TimeSpan.FromSeconds(120 * Multiplier);
 
 	/// <summary>
+	/// Total wall-clock budget for a container fixture's initialization, across every retry.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>Deliberately NOT scaled by the multiplier</b>, unlike every other value here. The others
+	/// are bounded by how slow the machine is, so scaling them is right. This one is bounded by
+	/// something outside the process: the test runner is invoked with <c>--blame-hang-timeout</c>,
+	/// and when no test reports progress for that long the blame collector kills the test host.
+	/// Scaling this value would push it past that ceiling on exactly the slow CI agents where the
+	/// ceiling matters most.
+	/// </para>
+	/// <para>
+	/// A killed host is the worst available failure mode, because it does not look like one. The
+	/// tests that finished are reported as passed, the tests that never started are absent rather
+	/// than failed, and the runner prints <c>Passed! - Failed: 0</c>. Observed: a 10.2 minute gap
+	/// after the last test against a 10 minute blame timeout, 96 tests missing from the results
+	/// entirely, and a green-looking assembly. Only the population census caught it.
+	/// </para>
+	/// <para>
+	/// So this is set below the <b>shortest</b> blame timeout in use (jobs pass 5m and 10m), leaving
+	/// room for the fixture to throw a diagnosable error while the host is still alive. If a blame
+	/// timeout is ever lowered below this, lower this with it -- the invariant is
+	/// <c>budget &lt; blame-hang-timeout</c>, and it is what keeps a container failure loud.
+	/// </para>
+	/// </remarks>
+	public static TimeSpan ContainerInitBudget { get; } = TimeSpan.FromSeconds(240);
+
+	/// <summary>
 	/// Default timeout for container health checks (10 seconds * multiplier).
 	/// </summary>
 	public static TimeSpan HealthCheck => TimeSpan.FromSeconds(10 * Multiplier);

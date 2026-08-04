@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
+using System.Diagnostics;
+
 using Tests.Shared.Infrastructure;
 
 namespace Tests.Shared.Fixtures;
@@ -112,6 +114,41 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	protected virtual TimeSpan ContainerDisposeTimeout => TestTimeouts.ContainerDispose;
 
 	/// <summary>
+	/// Gets the TOTAL wall-clock budget for <see cref="InitializeAsync"/>, across every retry.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This exists because the fixture must lose a race deliberately. The test runs pass
+	/// <c>--blame-hang-timeout</c> (10m on some jobs, 5m on others); when no test reports progress
+	/// for that long, the blame collector kills the test host. A killed host does not fail the run
+	/// in any visible way: the tests that had already finished are reported as passed, the tests
+	/// that had not started yet are simply absent, and the runner prints
+	/// <c>Passed! - Failed: 0</c>.
+	/// </para>
+	/// <para>
+	/// The per-attempt timeout alone could exceed that. <see cref="TestTimeouts.ContainerStart"/> is
+	/// 120s scaled by <c>TEST_TIMEOUT_MULTIPLIER</c>, which is 3 on CI, so one attempt could run 6
+	/// minutes and three attempts plus backoff could run about 18 -- comfortably past the blame
+	/// timeout. A slow container therefore killed the host before this class could throw the clear
+	/// "container startup failed" error it is written to throw.
+	/// </para>
+	/// <para>
+	/// Measured, on the run that produced this: the last test finished at 13:12:08, the assembly
+	/// reported success at 13:22:21 -- a 10.2 minute gap against a 10 minute blame timeout -- and 96
+	/// tests that had never run were missing from the results entirely. Not failed, not skipped:
+	/// absent. A healthy run of the same commit executed all 96. The only thing that noticed was the
+	/// population census, which refused because the accounted total did not equal the expected one.
+	/// </para>
+	/// <para>
+	/// So the budget is deliberately below the SHORTEST blame timeout in use, not the longest. If a
+	/// container cannot start within it, this class throws while the host is still alive, the
+	/// collection fails visibly, and the failure names the container instead of vanishing.
+	/// Override only to make it smaller.
+	/// </para>
+	/// </remarks>
+	protected virtual TimeSpan TotalInitializationBudget => TestTimeouts.ContainerInitBudget;
+
+	/// <summary>
 	/// Initializes the container with proper timeout and error handling.
 	/// </summary>
 	/// <remarks>
@@ -131,12 +168,33 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 		// after attempt 1 while the message claimed 3.
 		var attemptsMade = 0;
 
+		// The whole of initialization is bounded, not just each attempt. See
+		// TotalInitializationBudget: exceeding the runner's blame-hang timeout does not produce a
+		// failure, it produces a KILLED HOST that still reports "Passed!" with the unrun tests
+		// silently missing. Every wait below is clamped to what is left of this budget so the
+		// fixture always throws first, while there is still a process alive to throw in.
+		var budget = TotalInitializationBudget;
+		var startedAt = Stopwatch.StartNew();
+		TimeSpan Remaining() => budget - startedAt.Elapsed;
+
 		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
 			attemptsMade = attempt;
+
+			var attemptBudget = Remaining();
+			if (attemptBudget <= TimeSpan.Zero)
+			{
+				lastException ??= new TimeoutException(
+					$"The total container initialization budget of {budget.TotalSeconds:F0}s was exhausted before attempt {attempt}.");
+				break;
+			}
+
+			// Whichever is tighter: this attempt's own timeout, or what remains of the total budget.
+			var effectiveTimeout = attemptBudget < ContainerStartTimeout ? attemptBudget : ContainerStartTimeout;
+
 			try
 			{
-				using var cts = new CancellationTokenSource(ContainerStartTimeout);
+				using var cts = new CancellationTokenSource(effectiveTimeout);
 				await InitializeContainerAsync(cts.Token).ConfigureAwait(false);
 				DockerAvailable = true;
 				InitializationError = null;
@@ -146,7 +204,17 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			{
 				// Retry transient Docker startup issues (daemon hiccups, named pipe timeouts, etc.).
 				lastException = ex;
-				await Task.Delay(TimeSpan.FromSeconds(5 * attempt)).ConfigureAwait(false);
+
+				var backoff = TimeSpan.FromSeconds(5 * attempt);
+				var left = Remaining();
+				if (left <= TimeSpan.Zero)
+				{
+					break;
+				}
+
+				// Never sleep past the budget: a backoff that outlives it hands the remaining time
+				// to the blame collector, which is the outcome this budget exists to prevent.
+				await Task.Delay(backoff < left ? backoff : left).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -163,7 +231,11 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 			// Throw so the collection/class fixture fails clearly instead of producing
 			// hundreds of cryptic "Could not find resource" errors from individual tests.
 			throw new InvalidOperationException(
-				$"Container startup failed after {attemptsMade} attempt(s) (max {maxAttempts}): {InitializationError}",
+				$"Container startup failed after {attemptsMade} attempt(s) (max {maxAttempts}) within a total budget of "
+				+ $"{TotalInitializationBudget.TotalSeconds:F0}s, having spent {startedAt.Elapsed.TotalSeconds:F0}s: {InitializationError}. "
+				+ "This is thrown deliberately BEFORE the runner's blame-hang timeout so the failure is visible: a hang "
+				+ "past that timeout kills the test host, and the tests that never ran then go MISSING from the results "
+				+ "rather than failing, while the assembly still reports Passed.",
 				lastException);
 		}
 
