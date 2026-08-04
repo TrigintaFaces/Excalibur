@@ -131,6 +131,11 @@ jobs:
           fi
 
   package:
+    # Gated at the ROOT. Every .NET job descends from this one or from the other root, so
+    # gating the two roots skips the whole chain -- 31 jobs -- without scattering the same
+    # condition across each of them, where it would drift the moment someone adds a job.
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     name: Package (Ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -382,6 +387,11 @@ jobs:
 
   # ── Smoke tests -- no dependencies, starts immediately for fast PR feedback ──
   smoke-tests:
+    # Gated at the ROOT. Every .NET job descends from this one or from the other root, so
+    # gating the two roots skips the whole chain -- 31 jobs -- without scattering the same
+    # condition across each of them, where it would drift the moment someone adds a job.
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     name: Smoke Tests (Critical Path)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -550,8 +560,9 @@ jobs:
   unit-shard-aggregation:
     name: Unit Shard Aggregation (honest set + compile + de-dup)
     runs-on: ubuntu-latest
-    needs: [unit-tests, unit-tests-async-risk]
-    if: always()
+    needs: [unit-tests, unit-tests-async-risk, changes]
+    # always() alone would run this with skipped dependencies and no results to aggregate.
+    if: always() && needs.changes.outputs.docs_only != 'true'
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -1405,7 +1416,9 @@ jobs:
       - functional-tests
       - contract-tests
       - architecture-tests
-    if: always()
+      - changes
+    # As above: without the docs_only guard this would aggregate coverage that never ran.
+    if: always() && needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/coverage.yml
     with:
       checkout-ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -2008,7 +2021,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
+    needs: [changes, package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
     if: always()
     steps:
       - name: Generate CI summary
@@ -2068,6 +2081,13 @@ jobs:
           # Listed here so the exemption is a visible decision rather than an accident of omission.
           # aot-build-analysis and pack-quality say "report" / "report-only" in their own names.
           ADVISORY_JOBS: "flaky-tests-quarantine aot-build-analysis pack-quality"
+          # When the change is documentation-only the .NET chain is skipped ON PURPOSE, so `skipped`
+          # stops meaning "something went wrong" for those jobs -- but only then, and only if the
+          # jobs that should still run actually did.
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          # These run regardless of classification. On a docs-only change they are the entire gate,
+          # so if they are missing or skipped the run proved nothing and must not pass.
+          ALWAYS_REQUIRED: "changes documentation-validation"
         shell: bash
         run: |
           set -euo pipefail
@@ -2076,25 +2096,49 @@ jobs:
 
           needs = json.loads(os.environ["NEEDS_JSON"])
           advisory = {j for j in os.environ.get("ADVISORY_JOBS", "").split() if j}
+          docs_only = os.environ.get("DOCS_ONLY", "") == "true"
+          always_required = {j for j in os.environ.get("ALWAYS_REQUIRED", "").split() if j}
 
           if not needs:
               print("::error::REFUSE: this job has no dependencies, so it can only ever pass. "
                     "A required check that checks nothing is worse than none.")
               sys.exit(1)
 
-          failed, adv = [], []
+          failed, adv, tolerated = [], [], []
           for name in sorted(needs):
               result = (needs[name] or {}).get("result")
               if name in advisory:
                   adv.append((name, result))
-              elif result != "success":
+              elif result == "success":
+                  pass
+              elif docs_only and result == "skipped" and name not in always_required:
+                  # Skipped BECAUSE the classifier said this change touches only documentation.
+                  # Narrow on purpose: only `skipped`, only when docs_only, never for a job that is
+                  # supposed to run anyway. A cancellation still fails, here as everywhere.
+                  tolerated.append((name, result))
+              else:
                   failed.append((name, result))
 
+          # A docs-only run must still PROVE something. If everything skipped, the classifier was
+          # wrong or the graph is broken -- and "nothing ran" would read as "all clear", which is the
+          # exact failure this job exists to prevent, arriving through a new door.
+          if docs_only:
+              ran = [n for n in needs
+                     if (needs[n] or {}).get("result") == "success" and n not in advisory]
+              if not ran:
+                  print("::error::REFUSE: classified documentation-only and NOTHING succeeded. "
+                        "A run that proved nothing is not a pass.")
+                  sys.exit(1)
+
           print("")
-          print(f"### Required checks: {len(needs) - len(advisory)} gating, {len(advisory)} advisory")
+          mode = "documentation-only" if docs_only else "full"
+          print(f"### Required checks: {len(needs) - len(advisory)} gating, {len(advisory)} advisory "
+                f"({mode} change)")
           print("")
           for name, result in adv:
               print(f"- advisory `{name}`: {result}")
+          for name, result in tolerated:
+              print(f"- skipped, documentation-only change: `{name}`")
           for name, result in failed:
               print(f"- **FAILED** `{name}`: {result}")
 
