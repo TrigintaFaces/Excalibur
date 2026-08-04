@@ -663,6 +663,30 @@ jobs:
           sha256sum "${files[@]}" | tee SHA256SUMS.txt
           echo "hashed ${#files[@]} file(s)"
 
+      # The SBOM is generated HERE, next to the packages it describes, rather than in a parallel job.
+      #
+      # It was produced by a separate job running its own restore of the solution. Same commit, so
+      # the CONTENT was right -- measured: the source tree and the shipping set differ by exactly one
+      # project. The problem was never scope. It was that nothing connected the SBOM to the packages
+      # except the fact that two jobs happened to run on the same commit, which is an argument, not
+      # evidence. A consumer holding a .nupkg and an SBOM had no way to tell whether the second
+      # describes the first.
+      - name: Generate CycloneDX SBOM for the shipping set
+        run: |
+          dotnet tool install --global CycloneDX || dotnet tool update --global CycloneDX
+          dotnet CycloneDX ./src -o ./sbom -F Json -t
+
+      - name: Assert the SBOM exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(find ./sbom -name 'bom.json' -o -name 'bom.xml' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::REFUSE: no SBOM generated. An absent SBOM is not an empty one, and the attestation below would have nothing to bind."
+            exit 1
+          fi
+          echo "SBOM file(s): $count"
+
       # Build provenance: a signed, verifiable statement binding these exact bytes to this
       # repository, this workflow, and this commit. Consumers verify with `gh attestation verify`.
       #
@@ -677,6 +701,26 @@ jobs:
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
         with:
           subject-path: packages/*.nupkg
+
+      # Binds the SBOM to the packages cryptographically, so "this SBOM describes these packages" is
+      # verifiable rather than inferred from two artifacts sitting in the same release. Without it a
+      # consumer can check that a package came from us (provenance, above) and can read a dependency
+      # list, but cannot establish that the list is that package's.
+      - name: Attest the SBOM against the packages it describes
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4
+        with:
+          subject-path: packages/*.nupkg
+          sbom-path: sbom/bom.json
+
+      # Same artifact name the release job already downloads, so moving generation here changes where
+      # the SBOM comes from without changing what consumes it.
+      - name: Upload release SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-cyclonedx-sbom
+          path: sbom/**
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -695,52 +739,7 @@ jobs:
             packages/SHA256SUMS.txt
           retention-days: 90
 
-  release-sbom:
-    permissions:
-      contents: read
-    name: Release SBOM (CycloneDX)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [pre-release-validation, pre-tag-unit-soak]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
-        with:
-          dotnet-version: |
-            10.0.x
-
-      - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
-
-      - name: Generate CycloneDX SBOM for release
-        run: |
-          dotnet tool install --global CycloneDX || dotnet tool update --global CycloneDX
-          dotnet CycloneDX ./src -o ./src -F Json -t
-
-      - name: Validate SBOM files exist
-        run: |
-          sbom_count=$(find . -name "bom.json" -o -name "bom.xml" | wc -l)
-          echo "Found $sbom_count SBOM file(s)"
-          if [ "$sbom_count" -eq 0 ]; then
-            echo "❌ No SBOM files generated"
-            exit 1
-          fi
-
-      - name: Upload release SBOM artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: release-cyclonedx-sbom
-          path: |
-            **/bom.json
-            **/bom.xml
-          retention-days: 90
-
-  # Security and quality validation
   release-quality-gates:
     permissions:
       contents: read
@@ -831,7 +830,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [pre-release-validation, build-packages, release-quality-gates, release-sbom]
+    needs: [pre-release-validation, build-packages, release-quality-gates]
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_id: ${{ steps.create_release.outputs.id }}
