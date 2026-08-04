@@ -261,7 +261,13 @@ if problems:
     for p in problems:
         print("FAIL: " + p)
     sys.exit(1)
-print("create-release drafts; finalize-release publishes only after publish-nuget succeeds")
+# Enumerate what was actually checked. The previous message named only the draft ordering, so when
+# the staging-validation assertions were added the output kept reporting the older, narrower scope --
+# a reader could not tell from a PASS whether the new arm had run at all. A success message that
+# under-reports its own coverage is the same defect these assertions exist to catch, one level up.
+print("checked: create-release drafts; finalize-release publishes only after publish-nuget succeeds; "
+      "publish-nuget is gated on staging-validation and does not use always(); staging-validation "
+      "consumes the canonical 'packages' artifact")
 '@
     $pyFile = Join-Path ([System.IO.Path]::GetTempPath()) 'rehearsal-order.py'
     $py | Out-File -FilePath $pyFile -Encoding UTF8
