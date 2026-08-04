@@ -100,8 +100,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
 
       - name: Cache NuGet packages
@@ -1197,8 +1195,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
 
       - name: Cache NuGet packages
@@ -1273,8 +1269,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
       - name: Validate Serializer Policy
         shell: pwsh
@@ -1313,8 +1307,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
       - name: Run trim/AOT audit (report-only)
         shell: pwsh
@@ -1607,8 +1599,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
       - name: Generate pack quality report
         shell: pwsh
@@ -1637,8 +1627,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
 
       - name: Cache NuGet packages
@@ -1763,8 +1751,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
 
       - name: Cache NuGet packages
@@ -1819,8 +1805,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
 
       - name: Cache NuGet packages
