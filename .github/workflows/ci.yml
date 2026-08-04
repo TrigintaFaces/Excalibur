@@ -909,8 +909,18 @@ jobs:
 
           # Accounting: nothing VANISHED. This identity is necessary and NOT sufficient -- it is satisfied
           # by 0 executed and everything skipped -- so the unapproved-skip refusal above is its liveness arm.
-          $accounted = $totalExecuted + $skippedNames.Count
-          Write-Host "executed=$totalExecuted + skipped=$($skippedNames.Count) = $accounted, EXPECTED=$expected"
+          #
+          # EVERY bucket a test can land in must appear here. Skips are sorted into TWO lists above
+          # (allowlist-bearing suppressions, and structurally-inapplicable capability skips) and this sum
+          # counted only the first, so every capability skip read as a VANISHED test. That is what the
+          # long-running "2576 against 2591" was: 2546 executed + 30 suppressed + 15 capability = 2591,
+          # exactly EXPECTED. Nothing was ever missing; a bucket was missing from the arithmetic.
+          #
+          # A capability skip IS accounted for: it is named, categorised at the skip site, and printed in
+          # full above. It is not a test that disappeared. If a third skip category is ever added, it must
+          # be added to this sum in the same commit -- that is the whole lesson of this line.
+          $accounted = $totalExecuted + $skippedNames.Count + $capabilitySkips.Count
+          Write-Host "executed=$totalExecuted + skipped=$($skippedNames.Count) + capability=$($capabilitySkips.Count) = $accounted, EXPECTED=$expected"
           if ($accounted -ne $expected) {
             # NAME THE DIFFERENCE. "2576 against 2591" is an arithmetic fact and nobody can act on it:
             # the 15 are either tests that never ran (a real partial run) or entries the census counted
