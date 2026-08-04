@@ -220,6 +220,43 @@ else:
     if "always()" in cond:
         problems.append("finalize-release uses always(); a failed publish must leave the release a draft")
 
+# Public publishing must be GATED on staged validation, not merely preceded by it. Publication to
+# NuGet.org cannot be undone, so the packages have to be proven installable from a real remote feed
+# while they are still a candidate. A `needs` edge is the whole enforcement, and a `needs` edge is
+# one careless edit from gone -- which is why it is asserted here rather than trusted.
+pn = jobs.get("publish-nuget")
+if not pn:
+    problems.append("publish-nuget job is missing")
+else:
+    needs = pn.get("needs") or []
+    if isinstance(needs, str):
+        needs = [needs]
+    if "staging-validation" not in needs:
+        problems.append(
+            f"publish-nuget does not depend on staging-validation (needs={needs}); packages could "
+            "reach NuGet.org without ever being proven to install from a remote feed, and that "
+            "cannot be undone")
+    # always() would let publication proceed THROUGH a failed or skipped validation, which is the
+    # same as having no gate while still appearing to have one.
+    cond = str(pn.get("if") or "")
+    if "always()" in cond:
+        problems.append(
+            f"publish-nuget condition {cond!r} uses always(); it would publish even when staged "
+            "validation failed or was skipped")
+
+sv = jobs.get("staging-validation")
+if not sv:
+    problems.append("staging-validation job is missing; publish-nuget's gate would not exist")
+else:
+    # The gate must consume the ONE canonical package set (Item 5.1). Validating a different
+    # artifact than the one published proves nothing about what ships.
+    dl = [s for s in (sv.get("steps") or []) if "download-artifact" in str(s.get("uses", ""))]
+    names = [str((s.get("with") or {}).get("name") or "") for s in dl]
+    if "packages" not in names:
+        problems.append(
+            f"staging-validation does not download the canonical 'packages' artifact (found {names}); "
+            "it would validate something other than what publish-nuget uploads")
+
 if problems:
     for p in problems:
         print("FAIL: " + p)

@@ -10,6 +10,11 @@ on:
       - '*.targets'
       - 'Directory.Packages.props'
       - '.github/workflows/release-rehearsal.yml'
+      # The rehearsal asserts properties of release.yml's job graph -- that the GitHub release stays
+      # a draft until packages are uploaded, and that publish-nuget is gated on staged validation.
+      # Without this path it would not run when release.yml CHANGES, so the one edit each assertion
+      # exists to catch is the one edit that would not trigger it.
+      - '.github/workflows/release.yml'
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +24,11 @@ on:
       - '*.targets'
       - 'Directory.Packages.props'
       - '.github/workflows/release-rehearsal.yml'
+      # The rehearsal asserts properties of release.yml's job graph -- that the GitHub release stays
+      # a draft until packages are uploaded, and that publish-nuget is gated on staged validation.
+      # Without this path it would not run when release.yml CHANGES, so the one edit each assertion
+      # exists to catch is the one edit that would not trigger it.
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 # Least privilege, declared explicitly. GITHUB_TOKEN otherwise inherits the repository

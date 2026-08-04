@@ -979,6 +979,67 @@ jobs:
                "${{ steps.create_release.outputs.upload_url }}?name=excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz&label=All+NuGet+Packages"
 
   # Publish to NuGet.org
+  # Publication to NuGet.org is IRREVERSIBLE -- a version, once pushed, cannot be replaced. This job
+  # is the last point at which that is still true of a candidate and not of a release, so it is where
+  # the packages are proven to install from a real remote feed rather than from a directory.
+  #
+  # The pre-existing packaging smoke test packs its OWN packages, with a synthetic version, into a
+  # LOCAL folder. That proves a package can be produced and referenced. It cannot prove the thing that
+  # actually breaks on a release: that the exact artifact about to become permanent resolves over the
+  # wire, at its real version, with its real dependency graph. A folder feed silently forgives
+  # defects a real feed does not.
+  #
+  # GitHub Packages is the staging feed because it needs no new secret and no external account --
+  # GITHUB_TOKEN with packages:write is sufficient, so the gate cannot be skipped for want of
+  # credentials. The packages land somewhere visible but plainly not the distribution channel;
+  # nuget.org remains the only place a consumer is told to look.
+  staging-validation:
+    name: Staged Package Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [pre-release-validation, build-packages]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 10.0.x
+
+      # The ONE canonical package set (Item 5.1). Not an OS-suffixed candidate: publishing must not
+      # be able to choose between artifacts, and neither must validation, or the two could disagree
+      # about what was proven.
+      - name: Download the release packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages
+          path: packages
+
+      - name: Prove the staging gate can fail
+        shell: pwsh
+        # Runs BEFORE the real validation, every release. A gate whose own self-test is only run by
+        # hand is a gate nobody has checked lately, and this one guards an irreversible act.
+        run: ./eng/ci/staging-feed-validate.ps1 -SelfTest
+
+      - name: Stage the packages and prove they install from the feed
+        shell: pwsh
+        env:
+          STAGING_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./eng/ci/staging-feed-validate.ps1 `
+            -PackagesPath "packages" `
+            -FeedUrl "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
+            -FeedName "staging" `
+            -FeedUser "${{ github.actor }}" `
+            -FeedToken "$env:STAGING_TOKEN" `
+            -Version "${{ needs.pre-release-validation.outputs.version }}"
+
   publish-nuget:
     # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
     # read because this job must not be able to alter the repository it is publishing from.
@@ -988,7 +1049,10 @@ jobs:
     name: Publish to NuGet
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [pre-release-validation, create-release]
+    # publish-nuget cannot begin until the packages have been proven to install from a real
+    # remote feed. This is Item 5.3s load-bearing criterion: public publishing is gated on staged
+    # validation, not merely preceded by it.
+    needs: [pre-release-validation, create-release, staging-validation]
     # Fork guard. This name is the MIRROR repository, and that is correct: CI does
     # not execute in the development repository this file is authored in -- these
     # workflows are copied to the mirror and run there, so at runtime
