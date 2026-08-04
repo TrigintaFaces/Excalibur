@@ -553,6 +553,12 @@ jobs:
   build-packages:
     permissions:
       contents: read
+      # Provenance is a SIGNED statement about these bytes, so this job needs an OIDC identity to
+      # sign with and permission to record the attestation. Both are scoped to this job alone --
+      # nothing else in this workflow can mint an attestation, which is the point: an attestation
+      # that anything could produce attests to nothing.
+      id-token: write
+      attestations: write
     name: Build Release Packages
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -646,6 +652,40 @@ jobs:
 
           Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
 
+      # A hash manifest, computed over the packages that are ABOUT TO BE UPLOADED -- not recomputed
+      # later from a download, which would attest to whatever arrived rather than to what was built.
+      # This is the "hash manifest" half of mapping a released package back to its official build,
+      # and it is what makes divergence detectable at all: without it, "the same packages" is an
+      # assertion nobody can check after the fact.
+      - name: Record package hashes
+        shell: bash
+        working-directory: packages
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=( *.nupkg *.snupkg )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: no packages to hash. Nothing was built, so nothing can be attested."
+            exit 1
+          fi
+          sha256sum "${files[@]}" | tee SHA256SUMS.txt
+          echo "hashed ${#files[@]} file(s)"
+
+      # Build provenance: a signed, verifiable statement binding these exact bytes to this
+      # repository, this workflow, and this commit. Consumers verify with `gh attestation verify`.
+      #
+      # Only .nupkg is attested, not .snupkg: the shipping artifact is what a consumer installs, and
+      # attesting symbol packages adds subjects without adding assurance about what runs.
+      #
+      # This runs in build-packages ON PURPOSE. Attesting anywhere later would attest to a
+      # downloaded copy -- provenance describing an artifact's journey rather than its origin, which
+      # is the opposite of the point. It also cannot be produced from untrusted PR code: this
+      # workflow runs only on tags.
+      - name: Attest build provenance for the canonical package set
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
+        with:
+          subject-path: packages/*.nupkg
+
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -653,9 +693,14 @@ jobs:
           # nameable and therefore pickable; a single unsuffixed name means there is exactly one
           # artifact any consumer can ask for, and no convention by which to choose between rivals.
           name: packages
+          # SHA256SUMS.txt ships WITH the packages or it may as well not exist: computed on the
+          # runner and left there, it would answer the divergence question only during the one run
+          # that cannot ask it. (This comment sits OUTSIDE the block scalar below deliberately --
+          # inside `path: |`, a `#` is literal text, not a comment, and becomes a path pattern.)
           path: |
             packages/*.nupkg
             packages/*.snupkg
+            packages/SHA256SUMS.txt
           retention-days: 90
 
   release-sbom:

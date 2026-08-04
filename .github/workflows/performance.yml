@@ -48,8 +48,7 @@ jobs:
           checkout-token: ${{ inputs.checkout-token }}
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Build benchmarks
         shell: bash
         run: bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
@@ -128,8 +127,7 @@ jobs:
           checkout-token: ${{ inputs.checkout-token }}
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Build benchmarks
         shell: bash
         run: bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
@@ -199,8 +197,7 @@ jobs:
           checkout-token: ${{ inputs.checkout-token }}
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Build benchmarks
         shell: bash
         run: bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
@@ -270,8 +267,7 @@ jobs:
           checkout-token: ${{ inputs.checkout-token }}
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Build benchmarks
         shell: bash
         run: bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
@@ -339,8 +335,7 @@ jobs:
           checkout-token: ${{ inputs.checkout-token }}
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Build benchmarks
         shell: bash
         run: bash ./build.sh --build --no-restore --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj

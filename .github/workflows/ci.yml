@@ -1776,8 +1776,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Run sample validation
         shell: pwsh
         run: |

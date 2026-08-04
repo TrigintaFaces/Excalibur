@@ -143,8 +143,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Package restore metadata for downstream jobs
         shell: bash
         run: |

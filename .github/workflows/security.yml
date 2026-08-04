@@ -145,8 +145,7 @@ jobs:
           solution-filter: ''
 
       - name: Restore dependencies
-        run: dotnet restore
-
+        run: bash ./build.sh --restore
       - name: Generate CycloneDX SBOM for all packages
         run: |
           dotnet tool install --global CycloneDX || dotnet tool update --global CycloneDX
