@@ -59,6 +59,19 @@ def scan(files):
             u = s.get("uses")
             if u and not u.startswith("./") and not re.search(r"@[0-9a-f]{40}$", u):
                 out.append((f, "unpinned-action", f"{jn}: {u}"))
+            # Shipping packages must be ONE artifact. Two package artifacts built from the same
+            # sources create two candidates and no rule for choosing, and the consumers duly
+            # disagreed: publish took `packages-ubuntu-latest` by name while the GitHub release
+            # merged `packages-*` into one directory where same-named .nupkg files overwrite each
+            # other. Any OS-suffixed or pattern-matched shipping artifact reopens that.
+            w = s.get("with") or {}
+            if u and ("upload-artifact" in u or "download-artifact" in u):
+                art, pat = str(w.get("name") or ""), str(w.get("pattern") or "")
+                bad = art if re.match(r"^packages[-.]", art) else (pat if re.match(r"^packages[-*.]", pat) else "")
+                if bad:
+                    out.append((f, "split-shipping-artifact",
+                                f"{jn}: '{bad}' -- shipping packages must be a single artifact named "
+                                f"'packages'; an OS suffix or a glob makes two candidates pickable"))
             r = str(s.get("run") or "")
             if not r:
                 continue
@@ -86,11 +99,14 @@ if self_test:
         "name: bad\non: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n"
         "    steps:\n      - uses: actions/checkout@v7\n      - run: |\n"
         "          cmd " + BS + "\n          # swallowed\n          --flag\n"
-        "      - run: dotnet test -- RunConfiguration.TestSessionTimeout=600000\n")
+        "      - run: dotnet test -- RunConfiguration.TestSessionTimeout=600000\n"
+        "      - uses: actions/upload-artifact@" + "0"*40 + "\n        with:\n"
+        "          name: packages-ubuntu-latest\n")
     found = {k for _, k, _ in scan([bad])}
-    need = {"no-permissions", "unpinned-action", "comment-in-continuation", "session-ge-wall"}
+    need = {"no-permissions", "unpinned-action", "comment-in-continuation", "session-ge-wall",
+            "split-shipping-artifact"}
     missing = need - found
-    print("SELF-TEST: planted 4 defect classes, detected", sorted(found))
+    print("SELF-TEST: planted 5 defect classes, detected", sorted(found))
     if missing:
         print("SELF-TEST FAIL -- undetected:", sorted(missing), file=sys.stderr); sys.exit(1)
     clean = os.path.join(d, "workflows", "ok.yml")
@@ -99,7 +115,8 @@ if self_test:
         "    steps:\n      - run: echo hi\n")
     if scan([clean]):
         print("SELF-TEST FAIL -- flagged a clean file:", scan([clean]), file=sys.stderr); sys.exit(1)
-    print("SELF-TEST PASS (safety: all 4 planted defects caught; liveness: clean file passes)")
+    print(f"SELF-TEST PASS (safety: all {len(need)} planted defect classes caught; "
+          "liveness: clean file passes)")
     sys.exit(0)
 
 files = sorted(glob.glob(".github/workflows/*.yml")) + sorted(glob.glob(".github/actions/*/action.yml"))

@@ -82,6 +82,77 @@ jobs:
           fi
           echo "✅ Version format is valid"
 
+      # An official release must be reproducible from an identified commit. Two ways it silently is
+      # not, neither previously checked:
+      #
+      #   DIRTY TREE   a step that mutates sources before packing produces artifacts that match no
+      #                commit. The version says one thing and the bits are something else, and
+      #                nothing downstream can tell -- the .nupkg carries no record of it.
+      #   TAG ELSEWHERE  a tag-triggered release whose tag does not point at the commit being built
+      #                means the version identifies a different tree than the one being shipped.
+      #
+      # Checked here, in pre-release-validation, so it refuses BEFORE any side effect.
+      - name: Assert the source is releasable (clean tree, tag at HEAD)
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+
+          dirty="$(git status --porcelain)"
+          if [ -n "$dirty" ]; then
+            echo "::error::REFUSE: the working tree is not clean, so these artifacts correspond to no commit."
+            echo "$dirty"
+            exit 1
+          fi
+          echo "working tree clean"
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="v${VERSION}"
+            tag_sha="$(git rev-list -n 1 "$tag" 2>/dev/null || true)"
+            head_sha="$(git rev-parse HEAD)"
+            if [ -z "$tag_sha" ]; then
+              echo "::error::REFUSE: tag ${tag} does not resolve. A tag-triggered release must build the tagged commit."
+              exit 1
+            fi
+            if [ "$tag_sha" != "$head_sha" ]; then
+              echo "::error::REFUSE: tag ${tag} points at ${tag_sha} but this run is building ${head_sha}. The version would identify a different tree than the one shipped."
+              exit 1
+            fi
+            echo "tag ${tag} is at HEAD (${head_sha})"
+          else
+            echo "manual dispatch: no tag to reconcile yet; create-release owns tag creation."
+          fi
+
+      # "Duplicate version publication is detected BEFORE side effects." --skip-duplicate at push
+      # time is not that: by then the git tag and the GitHub release already exist, so a re-run that
+      # collides leaves a published release pointing at packages it did not publish. NuGet's flat
+      # container is authoritative and needs no credentials, so the question is cheap to ask first.
+      - name: Refuse a version already on NuGet
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          ids="$(grep -oE '"[^"]*\.csproj"' eng/ci/shards/ShippingOnly.slnf | tr -d '"' | xargs -n1 basename | sed 's/\.csproj$//' | sort -u)"
+          [ -n "$ids" ] || { echo "::error::REFUSE: no shipping project ids resolved; cannot check for duplicates."; exit 1; }
+
+          taken=""
+          for id in $ids; do
+            lower="$(echo "$id" | tr '[:upper:]' '[:lower:]')"
+            code="$(curl -s -o /dev/null -w '%{http_code}' \
+              "https://api.nuget.org/v3-flatcontainer/${lower}/${VERSION}/${lower}.${VERSION}.nupkg" || echo 000)"
+            case "$code" in
+              200) taken="${taken}${taken:+, }${id}" ;;
+              404) : ;;
+              *)   echo "::error::REFUSE: NuGet returned ${code} for ${id} ${VERSION}. An unanswered question is not a clear answer."; exit 1 ;;
+            esac
+          done
+
+          if [ -n "$taken" ]; then
+            echo "::error::REFUSE: version ${VERSION} is already published on NuGet for: ${taken}. Publishing it again would either be a no-op or a divergence; pick a new version."
+            exit 1
+          fi
+          echo "version ${VERSION} is unpublished for all $(echo "$ids" | wc -w) shipping package(s)"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -433,16 +504,30 @@ jobs:
           path: "**/pre-tag-unit-soak-*.trx"
           retention-days: 30
 
+  # ONE canonical package set, built ONCE on the canonical agent.
+  #
+  # This job used to pack on a [ubuntu-latest, windows-latest] matrix, producing two artifacts of
+  # identically-named .nupkg files from the same sources. What consumed them made that worse, not
+  # academic: `publish-nuget` took `packages-ubuntu-latest` BY NAME -- an arbitrary pick by filename
+  # convention -- while `create-release` downloaded `packages-*` with merge-multiple, collapsing both
+  # sets into one directory where same-named files overwrite each other non-deterministically. So the
+  # GitHub release could attach one OS's build and NuGet.org receive the other's, with nothing
+  # comparing them.
+  #
+  # .NET NuGet packages are platform-neutral: the same sources produce the same package regardless of
+  # which OS packed them. Building them twice creates two candidates and an unanswerable question
+  # about which is authoritative. Microsoft's repositories build shipping packages once on the
+  # official-build agent and use other platforms to VALIDATE, not to produce shipping artifacts.
+  #
+  # Cross-platform build coverage is not lost: `pre-tag-soak-build` still builds on ubuntu, windows
+  # AND macos, and gates this job through `pre-tag-unit-soak`.
   build-packages:
     permissions:
       contents: read
     name: Build Release Packages
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: [pre-release-validation, pre-tag-unit-soak]
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -535,7 +620,10 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: packages-${{ matrix.os }}
+          # Deliberately NOT `packages-<os>`. The OS suffix is what made two candidate package sets
+          # nameable and therefore pickable; a single unsuffixed name means there is exactly one
+          # artifact any consumer can ask for, and no convention by which to choose between rivals.
+          name: packages
           path: |
             packages/*.nupkg
             packages/*.snupkg
@@ -600,10 +688,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Download packages
+      # Was `packages-ubuntu-latest`: one OS's artifact, chosen by filename convention from two
+      # candidates built from the same sources. Every consumer -- validation, release, publish -- must
+      # read the SAME artifact, and there is now exactly one for them to name.
+      - name: Download the canonical package set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages-ubuntu-latest
+          name: packages
           path: packages
 
       - name: Setup .NET
@@ -688,12 +779,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download all packages
+      # `name:`, not `pattern: packages-*` with merge-multiple. That pattern collapsed two artifacts
+      # of identically-named .nupkg files into one directory, so the release attached whichever copy
+      # won the write race. There is now one package set and the release asks for it by name.
+      - name: Download the canonical package set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: packages-*
+          name: packages
           path: all-packages/
-          merge-multiple: true
 
       - name: Download SBOM artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -840,10 +933,13 @@ jobs:
       NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
       NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
     steps:
-      - name: Download packages
+      # Was `packages-ubuntu-latest`: one OS's artifact, chosen by filename convention from two
+      # candidates built from the same sources. Every consumer -- validation, release, publish -- must
+      # read the SAME artifact, and there is now exactly one for them to name.
+      - name: Download the canonical package set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: packages-ubuntu-latest
+          name: packages
           path: packages
 
       - name: Setup .NET
