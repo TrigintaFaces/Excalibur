@@ -996,13 +996,36 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Validate NuGet API Key
+      # Trusted Publishing: the credential is minted HERE, per run, and expires in an hour.
+      #
+      # This replaces a long-lived NUGET_API_KEY secret. A stored publishing key is a standing
+      # capability -- it works from anywhere, for anyone who obtains it, until someone notices and
+      # rotates it. An OIDC exchange is bounded on every axis that matters: nuget.org validates the
+      # token against a policy naming this repository AND this workflow file AND this environment,
+      # the resulting key lives one hour, and each token buys exactly one key.
+      #
+      # Deliberately placed as late as practical: the key expires an hour after issue, so minting it
+      # early risks it dying before a slow signing or push step gets to use it.
+      #
+      # If the exchange fails -- typically because the nuget.org policy is missing, or names a
+      # different workflow file -- this step fails and NOTHING is published. That failure mode is
+      # safe by construction now: create-release produced a DRAFT, so a failed publish leaves an
+      # unannounced draft to delete rather than a public release pointing at absent packages.
+      - name: NuGet login (OIDC to short-lived key)
+        id: nuget_login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          # The nuget.org PROFILE NAME, not an email address. Held as a secret only to avoid
+          # publishing the account name in a mirrored file; it is not a credential.
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Confirm a short-lived key was issued
         run: |
-          if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
-            echo "❌ NUGET_API_KEY secret is not set"
+          if [ -z "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" ]; then
+            echo "::error::REFUSE: the OIDC exchange returned no API key. Nothing has been published. Check that a Trusted Publishing policy exists on nuget.org naming this repository owner, this repository, the workflow file 'release.yml', and the 'nuget-production' environment."
             exit 1
           fi
-          echo "✅ NuGet API key is configured"
+          echo "Short-lived publishing key issued (valid ~1 hour)."
 
       # A release that cannot sign MUST NOT publish. This fails the job rather than
       # falling through to an unsigned push: shipping unsigned packages to a public feed
@@ -1072,7 +1095,7 @@ jobs:
               echo "Publishing: $package_name"
 
               dotnet nuget push "$package" \
-                --api-key "${{ secrets.NUGET_API_KEY }}" \
+                --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
                 --source "https://api.nuget.org/v3/index.json" \
                 --skip-duplicate || {
                   echo "❌ Failed to publish $package_name"
