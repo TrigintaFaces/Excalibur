@@ -3,9 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-
 using Excalibur.Data.OpenSearch.Projections;
 using Excalibur.EventSourcing;
 
@@ -22,17 +19,43 @@ namespace Excalibur.Integration.Tests.OpenSearch;
 /// OpenSearch TestContainers. Tests CRUD operations through real OpenSearch.
 /// Gracefully skips when OpenSearch container is unavailable.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Container ownership lives on <see cref="OpenSearchContainerFixture"/>, not here.</b> xUnit
+/// constructs a new instance of a test class for every fact, so the container this class used to start
+/// from its own <c>InitializeAsync</c> was started once per fact — five OpenSearch containers for five
+/// facts, and five full start timeouts when OpenSearch was unavailable. The collection fixture is
+/// constructed once, so the container starts once.
+/// </para>
+/// <para>
+/// <b>Isolation:</b> the container is shared, so each test instance gets its own index
+/// (<c>test-projections-{guid}</c>) and its own service provider and store bound to it. No test can see
+/// another's documents, which is the same isolation a per-test container gave — without the per-test
+/// container.
+/// </para>
+/// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Database", "OpenSearch")]
 [Trait("Component", "Projections")]
+[Collection(OpenSearchTestCollection.CollectionName)]
 [SuppressMessage("Design", "CA1506", Justification = "Integration test")]
 public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 {
-	private IContainer? _container;
+	private readonly OpenSearchContainerFixture _fixture;
+
+	/// <summary>
+	/// Per-test-instance index. xUnit builds one instance per fact, so this is unique per fact and is
+	/// what keeps facts isolated from each other on the shared container.
+	/// </summary>
+	private readonly string _indexName = $"test-projections-{Guid.NewGuid():N}";
+
 	private ServiceProvider? _serviceProvider;
 	private IProjectionStore<TestOpenSearchProjection>? _store;
 	private bool _available;
 	private Exception? _unavailableCause;
+
+	public OpenSearchProjectionStoreIntegrationShould(OpenSearchContainerFixture fixture) =>
+		_fixture = fixture;
 
 	/// <summary>Appends the captured startup cause to a skip reason, so the log says WHY.</summary>
 	private string SkipReason(string reason) =>
@@ -40,50 +63,40 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 	public async ValueTask InitializeAsync()
 	{
+		if (!_fixture.Available)
+		{
+			// The container never started. The fixture already paid — and recorded — that cost once;
+			// this instance must not pay it again.
+			_unavailableCause = _fixture.UnavailableCause;
+			_available = false;
+			return;
+		}
+
 		try
 		{
-			_container = new ContainerBuilder()
-				.WithImage("opensearchproject/opensearch:2.16.0")
-				.WithPortBinding(9200, true)
-				.WithEnvironment("discovery.type", "single-node")
-				.WithEnvironment("DISABLE_SECURITY_PLUGIN", "true")
-				.WithEnvironment("DISABLE_INSTALL_DEMO_CONFIG", "true")
-				.WithEnvironment("OPENSEARCH_JAVA_OPTS", "-Xms256m -Xmx256m")
-				.WithWaitStrategy(Wait.ForUnixContainer()
-					.UntilHttpRequestIsSucceeded(r => r.ForPort(9200).ForPath("/")))
-				.Build();
-
-			using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-			await _container.StartAsync(cts.Token).ConfigureAwait(false);
-			await Task.Delay(5000).ConfigureAwait(false);
-
-			var port = _container.GetMappedPublicPort(9200);
-			var uri = new Uri($"http://localhost:{port}");
-
 			var services = new ServiceCollection();
 			services.AddLogging();
-			services.AddSingleton<IOpenSearchClient>(new OpenSearchClient(
-				new ConnectionSettings(uri)
-					.DefaultIndex("test-projections")
-					.DisableDirectStreaming()));
+
+			// NodeUri MUST be set. This overload of AddOpenSearchProjectionStore builds the store
+			// WITHOUT a client (OpenSearchProjectionStoreExtensions.cs:48) — the store constructs its own
+			// from OpenSearchProjectionStoreOptions.NodeUri, which defaults to https://localhost:9200.
+			// Registering an IOpenSearchClient in DI does not reach it and is therefore not done here.
+			// The container's port is mapped to a random host port, so pointing the store at the
+			// container means setting NodeUri to the fixture's endpoint.
 			services.AddOpenSearchProjectionStore<TestOpenSearchProjection>(options =>
 			{
-				options.IndexName = "test-projections";
+				options.NodeUri = _fixture.Endpoint.ToString();
+				options.IndexName = _indexName;
 			});
 
 			_serviceProvider = services.BuildServiceProvider();
 			_store = _serviceProvider.GetRequiredService<IProjectionStore<TestOpenSearchProjection>>();
 
-			// Verify connectivity before marking available
-			try
-			{
-				await _store.CountAsync(null, CancellationToken.None).ConfigureAwait(false);
-				_available = true;
-			}
-			catch
-			{
-				_available = false;
-			}
+			// Reachability was already established once by the fixture's ping. It is deliberately NOT
+			// re-probed here: the previous per-fact probe counted documents in this fact's own index,
+			// which does not exist yet, so it could never succeed and every fact skipped itself against
+			// a healthy node.
+			_available = true;
 		}
 		catch (Exception ex)
 		{
@@ -97,6 +110,26 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 
 	public async ValueTask DisposeAsync()
 	{
+		// The container is owned by the collection fixture and deliberately NOT stopped here: it is
+		// shared with every other fact in this collection. Only this instance's own index and service
+		// provider are torn down.
+		try
+		{
+			if (_available)
+			{
+				var client = new OpenSearchClient(new ConnectionSettings(_fixture.Endpoint));
+
+				// The store prefixes the configured index name (OpenSearchProjectionStoreOptions
+				// .IndexPrefix defaults to "projections"), so delete by that pattern rather than the
+				// bare name. Scoped to this fact's unique index, so no other fact is touched.
+				_ = await client.Indices.DeleteAsync($"*{_indexName}").ConfigureAwait(false);
+			}
+		}
+		catch (Exception)
+		{
+			// Best effort cleanup — a leftover index cannot affect another fact, which uses its own.
+		}
+
 		try
 		{
 			if (_serviceProvider is not null)
@@ -107,19 +140,6 @@ public sealed class OpenSearchProjectionStoreIntegrationShould : IAsyncLifetime
 		catch (Exception)
 		{
 			// Best effort cleanup
-		}
-
-		try
-		{
-			if (_container is not null)
-			{
-				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-				await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
-			}
-		}
-		catch (Exception)
-		{
-			// Suppress disposal errors and timeouts to prevent test host crash
 		}
 	}
 

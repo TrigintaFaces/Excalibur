@@ -9,6 +9,8 @@ using Excalibur.EventSourcing;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Projections;
 
 /// <summary>
@@ -52,7 +54,9 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Projections;
 [Trait("Category", "Integration")]
 [Trait("Database", "Elasticsearch")]
 [Trait("Component", "Projections")]
-public sealed class ElasticSearchProjectionStoreKeywordQueryShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchHostTests))]
+public sealed class ElasticSearchProjectionStoreKeywordQueryShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchIntegrationTestBase(fixture)
 {
 	[Fact]
 	public async Task ResolveExactMatchFilterAndSortAgainstDeclaredKeywordMapping_NotANonexistentKeywordSubField()

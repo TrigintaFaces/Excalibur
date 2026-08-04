@@ -231,13 +231,30 @@ jobs:
       # test run's output, after the run has already started and produced nothing. Assert it up front
       # so the failure names itself. This exact file was missed by a manual sync and took all six
       # shards down with a message that read like a collector fault.
-      - name: Assert the coverage settings file is present
+      # Present AND well-formed. Presence alone was not enough: a `--` inside an XML comment (illegal
+      # in XML, and easy to type as a dash in prose) made the collector reject the file with
+      # "Settings file provided does not conform to required format", repeated once per test project
+      # and attributed to nothing in particular. All six shards went down together, again, with a
+      # message that again read like a collector fault. A settings file is code; parse it before use.
+      - name: Assert the coverage settings file is present and well-formed
         shell: bash
         run: |
+          set -euo pipefail
           test -f tests/coverage.msft.runsettings || {
             echo "::error::tests/coverage.msft.runsettings is missing. The coverage collector cannot run without it; this is a missing FILE, not a collector fault."
             exit 1
           }
+          python3 - <<'PY' || exit 1
+          import sys, xml.dom.minidom
+          p = "tests/coverage.msft.runsettings"
+          try:
+              xml.dom.minidom.parse(p)
+          except Exception as e:
+              print(f"::error::{p} is not well-formed XML: {e}. The collector will reject it and blame itself. "
+                    f"Note '--' is illegal inside an XML comment.")
+              sys.exit(1)
+          print(f"{p}: present and well-formed")
+          PY
 
       - name: Run shard tests with coverage
         run: |

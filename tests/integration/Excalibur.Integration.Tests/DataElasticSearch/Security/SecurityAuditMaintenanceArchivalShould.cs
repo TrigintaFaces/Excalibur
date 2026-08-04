@@ -12,6 +12,8 @@ using Excalibur.Data.ElasticSearch.Security;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
 
 /// <summary>
@@ -34,7 +36,9 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
 [Trait("Category", "Integration")]
 [Trait("Database", "Elasticsearch")]
 [Trait("Component", "Compliance")]
-public sealed class SecurityAuditMaintenanceArchivalShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchAuditTests))]
+public sealed class SecurityAuditMaintenanceArchivalShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchAuditTestBase(fixture)
 {
 	private const string AuditIndex = "security-audit-test";
 

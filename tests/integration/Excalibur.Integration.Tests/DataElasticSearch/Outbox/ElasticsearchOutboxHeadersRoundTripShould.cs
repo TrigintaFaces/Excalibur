@@ -5,12 +5,16 @@ using Excalibur.Outbox.ElasticSearch;
 
 using Microsoft.Extensions.Options;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Outbox;
 
 [Trait("Category", "Integration")]
 [Trait("Component", "Outbox")]
 [Trait("Database", "Elasticsearch")]
-public sealed class ElasticsearchOutboxHeadersRoundTripShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchHostTests))]
+public sealed class ElasticsearchOutboxHeadersRoundTripShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchIntegrationTestBase(fixture)
 {
 	[Fact]
 	public async Task PreserveMessageHeadersExactly_OnPersistThenReloadOnAFreshStoreInstance()

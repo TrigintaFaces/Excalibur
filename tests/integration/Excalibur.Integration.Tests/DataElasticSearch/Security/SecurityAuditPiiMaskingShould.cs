@@ -11,6 +11,8 @@ using Excalibur.Data.ElasticSearch.Security;
 
 using Microsoft.Extensions.Options;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
 
 /// <summary>
@@ -44,9 +46,13 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
 [Trait("Category", "Integration")]
 [Trait("Database", "Elasticsearch")]
 [Trait("Component", "Compliance")]
-public sealed class SecurityAuditPiiMaskingShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchAuditTests))]
+public sealed class SecurityAuditPiiMaskingShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchAuditTestBase(fixture)
 {
-    private const string AuditIndexPattern = "security-audit-*";
+    // AuditIndexPattern is inherited from ElasticsearchAuditTestBase, which also resets it before every
+    // fact. A local copy would hide the base member and, more importantly, would let this test's index
+    // pattern drift away from the one the base resets.
     private const string RawIp = "203.0.113.42";
     private const string RawUserAgent = "Mozilla/5.0 (X11; TestAgent) pbnn9g-raw-ua";
 

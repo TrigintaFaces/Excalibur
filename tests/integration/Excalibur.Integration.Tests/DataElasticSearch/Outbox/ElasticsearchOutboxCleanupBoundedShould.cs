@@ -5,6 +5,8 @@ using Excalibur.Outbox.ElasticSearch;
 
 using Microsoft.Extensions.Options;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Outbox;
 
 // Author≠impl regression lock for bd-v8k7jo (MS-A1, DATA LOSS HEADLINE):
@@ -19,7 +21,9 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Outbox;
 [Trait("Category", "Integration")]
 [Trait("Component", "Outbox")]
 [Trait("Database", "Elasticsearch")]
-public sealed class ElasticsearchOutboxCleanupBoundedShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchHostTests))]
+public sealed class ElasticsearchOutboxCleanupBoundedShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchIntegrationTestBase(fixture)
 {
 	private const int StagedStatus = (int)OutboxStatus.Staged; // 0
 	private const int SentStatus = (int)OutboxStatus.Sent;     // 2

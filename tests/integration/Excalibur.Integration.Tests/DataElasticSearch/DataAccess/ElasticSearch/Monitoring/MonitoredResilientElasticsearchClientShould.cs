@@ -10,7 +10,7 @@ using Excalibur.Data.ElasticSearch.Exceptions;
 using Excalibur.Data.ElasticSearch.Monitoring;
 using Excalibur.Data.ElasticSearch.Resilience;
 
-using Testcontainers.Elasticsearch;
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
 
 using Xunit;
 
@@ -22,36 +22,49 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch
 ///     Performance metrics assertions are conditional because the monitoring layer uses
 ///     probabilistic sampling (default 1%) that may not record every operation.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>The container is shared, not per-fact.</b> This class used to build an Elasticsearch container in
+/// its own <c>InitializeAsync</c>; because xUnit constructs a new instance of a test class for every
+/// fact, that started eight containers for eight facts. It now joins the shared
+/// <see cref="ElasticsearchHostTests"/> collection, whose fixture starts one.
+/// </para>
+/// <para>
+/// <b>Isolation:</b> each fact indexes into its own <c>test-index-{guid}</c> and builds its own service
+/// provider, so no fact can see another's documents or another's monitoring counters — the same
+/// isolation the per-fact container gave.
+/// </para>
+/// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
+[Collection(nameof(ElasticsearchHostTests))]
 public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 {
-	private ElasticsearchContainer? _elasticsearchContainer;
+	private readonly ElasticsearchContainerFixture _fixture;
+
+	/// <summary>
+	/// Per-fact index. xUnit builds one instance per fact, so this is unique per fact and is what keeps
+	/// facts isolated from each other on the shared container.
+	/// </summary>
+	private readonly string _index = $"test-index-{Guid.NewGuid():N}";
+
 	private ServiceProvider? _serviceProvider;
 	private IResilientElasticsearchClient? _client;
 	private ElasticsearchMonitoringService? _monitoringService;
 	private bool _dockerAvailable;
+
+	public MonitoredResilientElasticsearchClientShould(ElasticsearchContainerFixture fixture) =>
+		_fixture = fixture;
 
 	/// <inheritdoc/>
 	public async ValueTask InitializeAsync()
 	{
 		try
 		{
-			_elasticsearchContainer = new ElasticsearchBuilder()
-				.WithImage("docker.elastic.co/elasticsearch/elasticsearch:9.0.0")
-				.WithEnvironment("discovery.type", "single-node")
-				.WithEnvironment("xpack.security.enabled", "false")
-				.WithPortBinding(9200, true)
-				.Build();
-
-			using var startCts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-			await _elasticsearchContainer.StartAsync(startCts.Token).ConfigureAwait(false);
-
 			var configuration = new ConfigurationBuilder()
 				.AddInMemoryCollection(new Dictionary<string, string?>
 				{
-					["ElasticSearch:Url"] = _elasticsearchContainer.GetConnectionString()
-						.Replace("https://", "http://", StringComparison.OrdinalIgnoreCase),
+					["ElasticSearch:Url"] = _fixture.ConnectionString,
 					["ElasticSearch:Resilience:Enabled"] = "true",
 					["ElasticSearch:Resilience:Retry:MaxAttempts"] = "1",
 					["ElasticSearch:Resilience:CircuitBreaker:Enabled"] = "true",
@@ -99,7 +112,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange
 		var testDoc = new TestDocument { Id = "test-1", Name = "Test Document", Value = 42 };
-		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = _index, Id = testDoc.Id };
 
 		// Act
 		var response = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
@@ -125,10 +138,10 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange - Index a test document first
 		var testDoc = new TestDocument { Id = "test-2", Name = "Search Test", Value = 100 };
-		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = _index, Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
-		var searchRequest = new SearchRequest(Indices.Parse("test-index"))
+		var searchRequest = new SearchRequest(Indices.Parse(_index))
 		{
 			Query = new MatchQuery { Field = "name", Query = "Search" },
 			Size = 10,
@@ -179,7 +192,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 			bulkOperations.Add(new BulkIndexOperation<TestDocument>(doc) { Id = doc.Id });
 		}
 
-		var bulkRequest = new BulkRequest("test-index")
+		var bulkRequest = new BulkRequest(_index)
 		{
 			Operations = bulkOperations,
 		};
@@ -261,14 +274,14 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange - Index a document first so the index exists for aggregation queries
 		var testDoc = new TestDocument { Id = "agg-test", Name = "Aggregation Test", Value = 42 };
-		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = _index, Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for indexing to complete
 		await Task.Delay(1000).ConfigureAwait(false);
 
 		// Create an aggregation query
-		var searchRequest = new SearchRequest(Indices.Parse("test-index"))
+		var searchRequest = new SearchRequest(Indices.Parse(_index))
 		{
 			Size = 0,
 			Aggregations = new Dictionary<string, Aggregation>
@@ -310,7 +323,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Act - Perform a normal operation
 		var testDoc = new TestDocument { Id = "cb-test", Name = "Circuit Breaker Test", Value = 123 };
-		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = _index, Id = testDoc.Id };
 		var response = await _client.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
@@ -332,7 +345,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 
 		// Arrange - Perform some operations to potentially populate metrics
 		var testDoc = new TestDocument { Id = "metrics-test", Name = "Metrics Test", Value = 456 };
-		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = "test-index", Id = testDoc.Id };
+		var indexRequest = new IndexRequest<TestDocument>(testDoc) { Index = _index, Id = testDoc.Id };
 		_ = await _client!.IndexAsync(indexRequest, CancellationToken.None).ConfigureAwait(false);
 
 		// Act - Get metrics (may be empty due to sampling), reset, and get again
@@ -372,18 +385,20 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 			// Suppress service provider disposal errors
 		}
 
+		// The container belongs to the collection fixture and must NOT be stopped here — it is shared
+		// with every other fact in the collection. Only this fact's own index is removed.
 		try
 		{
-			if (_elasticsearchContainer is not null)
+			if (_dockerAvailable)
 			{
-				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-				await _elasticsearchContainer.StopAsync(cts.Token).ConfigureAwait(false);
-				await _elasticsearchContainer.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
+				var client = new Elastic.Clients.Elasticsearch.ElasticsearchClient(
+					new Elastic.Clients.Elasticsearch.ElasticsearchClientSettings(new Uri(_fixture.ConnectionString)));
+				_ = await client.Indices.DeleteAsync(_index).ConfigureAwait(false);
 			}
 		}
 		catch (Exception)
 		{
-			// Suppress container disposal errors and timeouts to prevent test host hang
+			// Best effort cleanup — a leftover index cannot affect another fact, which uses its own.
 		}
 	}
 

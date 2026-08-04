@@ -11,6 +11,8 @@ using Microsoft.Extensions.Logging;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
 
 /// <summary>
@@ -36,7 +38,9 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Security;
 [Trait("Category", "Integration")]
 [Trait("Database", "Elasticsearch")]
 [Trait("Component", "Compliance")]
-public sealed class AuditIntegrityRealElasticsearchShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchAuditTests))]
+public sealed class AuditIntegrityRealElasticsearchShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchAuditTestBase(fixture)
 {
 	private static readonly byte[] KeyOne =
 		System.Text.Encoding.UTF8.GetBytes("qa71t5-realES-key-ONE-256bits-of-entropy!!");

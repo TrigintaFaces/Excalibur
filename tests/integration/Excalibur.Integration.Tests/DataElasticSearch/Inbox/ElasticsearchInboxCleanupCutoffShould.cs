@@ -6,6 +6,8 @@ using Excalibur.Inbox.ElasticSearch;
 
 using Microsoft.Extensions.Options;
 
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
+
 namespace Excalibur.Integration.Tests.DataElasticSearch.Inbox;
 
 // bd-6toaue (S841, ADR-336): ElasticsearchInboxStore.CleanupAsync issued a MatchAll DeleteByQuery, deleting
@@ -18,7 +20,9 @@ namespace Excalibur.Integration.Tests.DataElasticSearch.Inbox;
 [Trait("Category", "Integration")]
 [Trait("Component", "Inbox")]
 [Trait("Database", "Elasticsearch")]
-public sealed class ElasticsearchInboxCleanupCutoffShould : ElasticsearchIntegrationTestBase
+[Collection(nameof(ElasticsearchHostTests))]
+public sealed class ElasticsearchInboxCleanupCutoffShould(ElasticsearchContainerFixture fixture)
+	: ElasticsearchIntegrationTestBase(fixture)
 {
 	[Fact]
 	public async Task DeleteOnlyEntriesStrictlyOlderThanTheCutoff_OnACustomIndex()

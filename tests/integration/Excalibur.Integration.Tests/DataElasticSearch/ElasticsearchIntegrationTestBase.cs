@@ -5,22 +5,36 @@
 
 using System.Collections.Concurrent;
 
-using DotNet.Testcontainers.Builders;
-
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
-using Elastic.Transport;
-
-using Testcontainers.Elasticsearch;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch;
 
 /// <summary>
-///     Base class for Elasticsearch integration tests with TestContainers support.
+///     Base class for Elasticsearch integration tests, bound to a <b>shared</b> Elasticsearch container.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>This base does not own a container, and must not.</b> xUnit constructs a new instance of a test
+/// class for every fact, so the container this base used to start from <c>InitializeAsync</c> was started
+/// <i>once per fact</i>. Twelve facts derived from it, so twelve Elasticsearch containers were started
+/// where one would do — each paying a multi-minute start, which is what exhausted the CI job's wall clock.
+/// Container ownership therefore belongs to a collection fixture
+/// (<see cref="global::Tests.Shared.Fixtures.ElasticsearchContainerFixture"/>), which xUnit constructs
+/// once per collection.
+/// </para>
+/// <para>
+/// <b>Isolation on the shared container</b> is by index name. <see cref="TestIndexPrefix"/> is generated
+/// in this constructor, and because xUnit builds one instance per fact, every fact gets its own unique
+/// prefix. Derived classes must name every index they create with that prefix; on teardown every index
+/// under the prefix is resolved and deleted, so a fact cannot leave state another fact can see. Tests
+/// whose subject-under-test hardcodes a global index pattern cannot use prefixing and must reset that
+/// pattern up front instead — see <c>ElasticsearchAuditTestBase</c>.
+/// </para>
+/// </remarks>
 public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 {
-	private ElasticsearchContainer? _container;
+	private readonly ElasticsearchContainerFixture _fixture;
 
 	/// <summary>
 	///     Gets the service provider for the test.
@@ -43,9 +57,9 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	protected IConfiguration Configuration { get; private set; }
 
 	/// <summary>
-	///     Gets the connection string for the Elasticsearch container.
+	///     Gets the connection string for the shared Elasticsearch container.
 	/// </summary>
-	protected string ConnectionString => _container?.GetConnectionString() ?? string.Empty;
+	protected string ConnectionString => _fixture.ConnectionString;
 
 	/// <summary>
 	///     Gets the test index prefix.
@@ -56,11 +70,6 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	///     Gets the list of indices created during the test.
 	/// </summary>
 	protected ConcurrentBag<string> CreatedIndices { get; }
-
-	/// <summary>
-	///     Gets a value indicating whether to enable security features in the test container.
-	/// </summary>
-	protected virtual bool EnableSecurity => false;
 
 	/// <summary>
 	///     Gets a value indicating whether to enable monitoring features in the test.
@@ -75,20 +84,31 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	/// <summary>
 	///     Initializes a new instance of the <see cref="ElasticsearchIntegrationTestBase" /> class.
 	/// </summary>
-	protected ElasticsearchIntegrationTestBase()
+	/// <param name="fixture">
+	///     The shared Elasticsearch container fixture, injected by xUnit from the collection this test
+	///     class belongs to.
+	/// </param>
+	/// <remarks>
+	///     <see cref="TestIndexPrefix"/> is assigned here, and xUnit constructs one instance per fact, so
+	///     each fact receives a prefix no other fact uses. That is the isolation guarantee on the shared
+	///     container.
+	/// </remarks>
+	protected ElasticsearchIntegrationTestBase(ElasticsearchContainerFixture fixture)
 	{
+		_fixture = fixture ?? throw new ArgumentNullException(nameof(fixture));
 		TestIndexPrefix = $"test-{Guid.NewGuid():N}-";
 		CreatedIndices = [];
 	}
 
 	/// <summary>
-	///     Initializes the test environment.
+	///     Initializes the test environment against the shared container.
 	/// </summary>
+	/// <remarks>
+	///     No container is started here. The collection fixture already started exactly one, and starting
+	///     another per fact is the defect this base was changed to remove.
+	/// </remarks>
 	public virtual async ValueTask InitializeAsync()
 	{
-		// Start Elasticsearch container
-		await StartContainerAsync().ConfigureAwait(false);
-
 		// Setup services
 		var services = new ServiceCollection();
 
@@ -114,11 +134,6 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 			// _ = services.AddElasticsearchPerformanceOptimizations(Configuration);
 		}
 
-		if (EnableSecurity)
-		{
-			_ = services.AddElasticsearchSecurity(Configuration);
-		}
-
 		// Add logging
 		_ = services.AddLogging(static builder =>
 		{
@@ -137,124 +152,23 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	/// <summary>
 	///     Disposes of test resources.
 	/// </summary>
+	/// <remarks>
+	///     The container is owned by the collection fixture and is deliberately NOT stopped here — it is
+	///     shared with every other fact in the collection. Only this fact's own indices and services are
+	///     torn down.
+	/// </remarks>
 	public virtual async ValueTask DisposeAsync()
 	{
 		try
 		{
 			// Clean up created indices
 			await CleanupIndicesAsync().ConfigureAwait(false);
-
+		}
+		finally
+		{
 			// Dispose services
 			(ServiceProvider as IDisposable)?.Dispose();
 		}
-		finally
-		{
-			// Stop container
-			try
-			{
-				if (_container != null)
-				{
-					using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-					await _container.StopAsync(cts.Token).ConfigureAwait(false);
-					await _container.DisposeAsync().AsTask().WaitAsync(cts.Token).ConfigureAwait(false);
-				}
-			}
-			catch (Exception)
-			{
-				// Suppress disposal errors and timeouts to prevent test host crash
-			}
-		}
-	}
-
-	/// <summary>
-	///     Starts the Elasticsearch container.
-	/// </summary>
-	protected virtual async Task StartContainerAsync()
-	{
-		var builder = new ElasticsearchBuilder()
-			.WithImage("docker.elastic.co/elasticsearch/elasticsearch:9.0.0")
-			.WithName($"es-test-{Guid.NewGuid():N}")
-			.WithEnvironment("discovery.type", "single-node")
-			.WithEnvironment("xpack.security.enabled", EnableSecurity.ToString().ToUpperInvariant())
-			.WithEnvironment("xpack.security.http.ssl.enabled", "false")
-			// NOTE: `xpack.monitoring.enabled` was REMOVED — it is an unknown node setting in
-			// Elasticsearch 9.x and makes the container fail bootstrap ("unknown setting
-			// [xpack.monitoring.enabled]", exit code 1), breaking every ES TestContainers test.
-			// DI-side monitoring is still controlled by `EnableMonitoring` (AddElasticsearchMonitoring).
-			.WithEnvironment("indices.query.bool.max_clause_count", "10000")
-			.WithEnvironment("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
-			.WithPortBinding(9200, true)
-			.WithWaitStrategy(Wait.ForUnixContainer()
-				.UntilHttpRequestIsSucceeded(static r => r
-					.ForPort(9200)
-					.ForPath("/")
-				.WithMethod(System.Net.Http.HttpMethod.Get)));
-
-		if (EnableSecurity)
-		{
-			builder = builder
-				.WithEnvironment("ELASTIC_PASSWORD", "changeme");
-		}
-
-		_container = builder.Build();
-		await _container.StartAsync().ConfigureAwait(false);
-
-		// Wait for cluster to be ready
-		await WaitForClusterHealthAsync().ConfigureAwait(false);
-	}
-
-	/// <summary>
-	///     Waits for the Elasticsearch cluster to be healthy.
-	/// </summary>
-	protected virtual async Task WaitForClusterHealthAsync()
-	{
-		var maxAttempts = 30;
-		var attempt = 0;
-
-		// Create a single client for health checking to avoid leaking connection pools
-#pragma warning disable CA2000 // Settings object lifetime is managed by ElasticsearchClient
-		var settings = new ElasticsearchClientSettings(new Uri(ConnectionString))
-			.DefaultIndex($"{TestIndexPrefix}default")
-			.EnableDebugMode()
-			.PrettyJson();
-#pragma warning restore CA2000
-
-		if (EnableSecurity)
-		{
-			settings = settings.Authentication(new BasicAuthentication("elastic", "changeme"));
-		}
-
-		var tempClient = new ElasticsearchClient(settings);
-
-		try
-		{
-			while (attempt < maxAttempts)
-			{
-				try
-				{
-					var health = await tempClient.Cluster.HealthAsync().ConfigureAwait(false);
-
-					if (health.IsValidResponse &&
-						(health.Status == HealthStatus.Green || health.Status == HealthStatus.Yellow))
-					{
-						return;
-					}
-				}
-				catch
-				{
-					// Ignore and retry
-				}
-
-				attempt++;
-				await Task.Delay(1000).ConfigureAwait(false);
-			}
-		}
-		finally
-		{
-			(tempClient as IDisposable)?.Dispose();
-		}
-
-		throw new InvalidOperationException("Elasticsearch cluster failed to become healthy");
 	}
 
 	/// <summary>
@@ -274,16 +188,14 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 			["Elasticsearch:Performance:EnableCaching"] = EnablePerformanceFeatures.ToString(),
 			["Elasticsearch:Performance:CacheExpirationMinutes"] = "5",
 			["Elasticsearch:Performance:EnableQueryOptimization"] = EnablePerformanceFeatures.ToString(),
-			["Elasticsearch:Security:EnableFieldEncryption"] = EnableSecurity.ToString(),
+			// The shared container runs with xpack.security disabled, so field encryption is off. This
+			// used to be driven by an EnableSecurity toggle that no derived class ever overrode; the
+			// toggle is gone rather than left in place, because on a shared container it could no longer
+			// reconfigure the node and would have been a setting that silently did nothing.
+			["Elasticsearch:Security:EnableFieldEncryption"] = "False",
 			["Elasticsearch:Monitoring:EnableMetrics"] = EnableMonitoring.ToString(),
 			["Elasticsearch:Monitoring:EnableTracing"] = EnableMonitoring.ToString(),
 		};
-
-		if (EnableSecurity)
-		{
-			testConfig["Elasticsearch:Username"] = "elastic";
-			testConfig["Elasticsearch:Password"] = "test-password";
-		}
 
 		_ = builder.AddInMemoryCollection(testConfig);
 	}
@@ -417,11 +329,44 @@ public abstract class ElasticsearchIntegrationTestBase : IAsyncLifetime
 	}
 
 	/// <summary>
-	///     Cleans up all created indices.
+	///     Deletes every index this test created.
 	/// </summary>
+	/// <remarks>
+	///     The container is shared, so leaving indices behind is no longer harmless — it leaks state into
+	///     the facts that run after this one. Deletion is therefore by <see cref="TestIndexPrefix"/>
+	///     wildcard, which covers indices created implicitly by an indexing call as well as those
+	///     registered in <see cref="CreatedIndices"/>. Indices outside this fact's prefix are never
+	///     matched, so no other fact's state can be destroyed.
+	/// </remarks>
 	protected virtual async Task CleanupIndicesAsync()
 	{
-		foreach (var index in CreatedIndices)
+		// Resolve the prefix to CONCRETE index names before deleting. A wildcard index delete is
+		// rejected outright by Elasticsearch 8+ (action.destructive_requires_name defaults to true), so
+		// Indices.DeleteAsync("prefix*") would report an invalid response and remove nothing — cleanup
+		// that looks like it works and does not. Deleting resolved names sidesteps that entirely.
+		var names = new HashSet<string>(CreatedIndices, StringComparer.Ordinal);
+
+		try
+		{
+			var resolved = await Client.Indices
+				.GetAsync(new GetIndexRequest($"{TestIndexPrefix}*") { IgnoreUnavailable = true })
+				.ConfigureAwait(false);
+
+			if (resolved.IsValidResponse)
+			{
+				foreach (var name in resolved.Indices.Keys)
+				{
+					_ = names.Add(name.ToString()!);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			LoggerFactory.CreateLogger<ElasticsearchIntegrationTestBase>()
+				.LogWarning(ex, "Error resolving indices for {Pattern}", $"{TestIndexPrefix}*");
+		}
+
+		foreach (var index in names)
 		{
 			try
 			{
