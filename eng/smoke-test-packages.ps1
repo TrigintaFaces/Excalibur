@@ -438,11 +438,33 @@ finally {
 $shippingFilter = Join-Path $PSScriptRoot 'ci/shards/ShippingOnly.slnf'
 $baselineFile   = Join-Path $PSScriptRoot 'ci/smoke-test-coverage-baseline.txt'
 if (Test-Path $shippingFilter) {
+    # Split on BOTH separators explicitly. The .slnf stores Windows paths, and
+    # [System.IO.Path]::GetFileNameWithoutExtension does not treat a backslash as a separator on
+    # Linux -- there the whole 'src\Dispatch\...\X.csproj' survives as one "filename", every name
+    # fails to match the covered list, and the ratchet reports the full shipping count as uncovered.
+    # It passed locally on Windows and failed on the runner, which is the only place it runs.
     $shipping = ([regex]::Matches((Get-Content $shippingFilter -Raw), '"([^"]*\.csproj)"') |
-        ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Groups[1].Value) } |
+        ForEach-Object { ($_.Groups[1].Value -split '[\\/]')[-1] -replace '\.csproj$', '' } |
         Sort-Object -Unique)
     $covered   = @($Script:DispatchPackages)
     $uncovered = @($shipping | Where-Object { $covered -notcontains $_ })
+
+    # CONTROL on the ratchet's own inputs. The count above is only meaningful if the two lists are
+    # comparable at all; if the covered names match nothing in the shipping set, every package reads
+    # as uncovered and the ratchet fails with a number that describes a parsing fault rather than
+    # coverage. That is not hypothetical -- it is exactly what happened when the shipping names were
+    # extracted with a path API that ignores backslashes on Linux: 197 uncovered instead of 193, a
+    # confident number about nothing. A miscompare must say so instead of masquerading as a
+    # regression.
+    $unmatched = @($covered | Where-Object { $shipping -notcontains $_ })
+    if ($unmatched.Count -gt 0) {
+        Write-Host ""
+        Write-Host "COVERAGE CONTROL FAILED: $($unmatched.Count) of $($covered.Count) smoke-tested name(s) do not appear in the shipping set:" -ForegroundColor Red
+        $unmatched | ForEach-Object { Write-Host "    $_" -ForegroundColor Red }
+        Write-Host "The uncovered count below would be measuring a name-matching fault, not coverage." -ForegroundColor Red
+        Write-Host "Check how shipping names are parsed from the solution filter before trusting any number here." -ForegroundColor Red
+        $Script:TestPassed = $false
+    }
 
     Write-Host ""
     Write-Host "Smoke-test coverage: $($covered.Count) of $($shipping.Count) shipping package(s) consumed as packages; $($uncovered.Count) uncovered." -ForegroundColor Cyan
