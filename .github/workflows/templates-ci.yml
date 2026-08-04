@@ -26,8 +26,13 @@ on:
 permissions: read-all
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Event-aware: a PUSH keys the group by run id, so it shares a group with nothing and cannot be
+  # superseded -- neither while running nor while queued. Every commit on a protected branch must
+  # reach a verdict, and a ref-keyed group with an unconditional cancel silently denied that to
+  # any commit followed quickly by another. Superseding a stale PULL REQUEST run is still wanted,
+  # so PRs group by number and keep cancel-in-progress.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
