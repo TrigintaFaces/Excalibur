@@ -2097,6 +2097,22 @@ jobs:
           # These run regardless of classification. On a docs-only change they are the entire gate,
           # so if they are missing or skipped the run proved nothing and must not pass.
           ALWAYS_REQUIRED: "changes documentation-validation"
+          # Jobs that are allowed to SKIP on a pull request, and only there.
+          #
+          # The performance gates are wired to run on push and not on pull requests
+          # (performance.yml gates every job on run-performance-tests, which ci.yml passes as true
+          # only for a push). So call-performance reports "skipped" on every PR -- and this job
+          # counted a skip as a failure, which made CI Summary RED ON EVERY PULL REQUEST BY
+          # CONSTRUCTION. Measured: on push it succeeds and the summary can be green; on a PR it
+          # skips and the summary always failed. Requiring this check while that held would have
+          # made main permanently unmergeable.
+          #
+          # The tolerance is deliberately narrow on BOTH axes. Only "skipped" is tolerated -- a
+          # FAILED performance gate still fails the summary, on any event. And it is tolerated only
+          # when the event is pull_request -- on a push, where these gates are supposed to run, a
+          # skip is still a failure, because that would mean the gate silently stopped running.
+          MAY_SKIP_ON_PR: "call-performance"
+          EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2107,6 +2123,8 @@ jobs:
           advisory = {j for j in os.environ.get("ADVISORY_JOBS", "").split() if j}
           docs_only = os.environ.get("DOCS_ONLY", "") == "true"
           always_required = {j for j in os.environ.get("ALWAYS_REQUIRED", "").split() if j}
+          may_skip_on_pr = {j for j in os.environ.get("MAY_SKIP_ON_PR", "").split() if j}
+          is_pull_request = os.environ.get("EVENT_NAME", "") == "pull_request"
 
           if not needs:
               print("::error::REFUSE: this job has no dependencies, so it can only ever pass. "
@@ -2120,11 +2138,15 @@ jobs:
                   adv.append((name, result))
               elif result == "success":
                   pass
+              elif result == "skipped" and is_pull_request and name in may_skip_on_pr:
+                  # Not run on pull requests by design -- see MAY_SKIP_ON_PR above. Narrow twice
+                  # over: only a skip, and only on a pull request.
+                  tolerated.append((name, "not run on pull requests by design"))
               elif docs_only and result == "skipped" and name not in always_required:
                   # Skipped BECAUSE the classifier said this change touches only documentation.
                   # Narrow on purpose: only `skipped`, only when docs_only, never for a job that is
                   # supposed to run anyway. A cancellation still fails, here as everywhere.
-                  tolerated.append((name, result))
+                  tolerated.append((name, "skipped: documentation-only change"))
               else:
                   failed.append((name, result))
 
@@ -2146,8 +2168,8 @@ jobs:
           print("")
           for name, result in adv:
               print(f"- advisory `{name}`: {result}")
-          for name, result in tolerated:
-              print(f"- skipped, documentation-only change: `{name}`")
+          for name, reason in tolerated:
+              print(f"- tolerated `{name}`: {reason}")
           for name, result in failed:
               print(f"- **FAILED** `{name}`: {result}")
 
