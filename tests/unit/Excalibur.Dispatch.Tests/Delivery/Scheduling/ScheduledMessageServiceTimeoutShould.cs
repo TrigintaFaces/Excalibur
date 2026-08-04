@@ -113,6 +113,38 @@ public sealed class ScheduledMessageServiceTimeoutShould
 		await service.StartAsync(CancellationToken.None);
 		try
 		{
+			// Wait on the signal OR on the background loop ending, whichever happens first.
+			//
+			// This exists because of a real CI failure that taught nothing. The test timed out after
+			// 30 seconds against a 50ms poll interval -- roughly 600 missed poll cycles -- and all it
+			// reported was "Timed out waiting for signal". A timeout that large is not slowness: the
+			// loop did not run. But BackgroundService swallows an ExecuteAsync fault into its
+			// ExecuteTask, so if the loop threw before its first poll, the only symptom is the
+			// signal never arriving, and the actual exception is never surfaced by the assertion.
+			//
+			// Awaiting ExecuteTask when it finishes first re-throws whatever ExecuteAsync threw, so
+			// the next occurrence names its own cause instead of blaming the clock. This does NOT
+			// widen the timeout, and does not make the test pass when it would have failed -- it
+			// changes an unactionable flake into a diagnosable one.
+			var loop = service.ExecuteTask;
+			if (loop is null)
+			{
+				throw new InvalidOperationException(
+					"ExecuteTask was null after StartAsync: the background loop was never started.");
+			}
+
+			var finished = await Task.WhenAny(polled.Task, loop);
+			if (!ReferenceEquals(finished, polled.Task))
+			{
+				// Re-throws the real fault if ExecuteAsync threw.
+				await loop;
+
+				throw new InvalidOperationException(
+					"The scheduler loop ended without ever polling the store. ExecuteAsync completed "
+					+ "without faulting and without calling GetAllAsync, so the first iteration was "
+					+ "skipped rather than delayed.");
+			}
+
 			await WaitHelpers.AwaitSignalAsync(polled.Task, TimeSpan.FromSeconds(30));
 		}
 		finally
