@@ -1939,7 +1939,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation]
+    needs: [package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
     if: always()
     steps:
       - name: Generate CI summary
@@ -1976,11 +1976,69 @@ jobs:
           echo "| Performance Gates | ${{ needs.call-performance.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.release-blocking-ci.result }}" = "success" ]; then
-            echo "**All critical checks passed!** Ready for merge." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Some checks failed.** Please review the results above." >> $GITHUB_STEP_SUMMARY
-          fi
+      # THE required status check. Branch protection should require this ONE context and nothing else.
+      #
+      # This job already depended on every gate and already printed their results — and then exited 0
+      # regardless. It was a scoreboard, not a gate: a run where every dependency failed still ended
+      # with a green "CI Summary". Anything pinning it as a required check was protected by a job
+      # that could not fail. The old verdict line made that worse by announcing "All critical checks
+      # passed!" on the strength of ONE dependency's result while 23 others went unread.
+      #
+      # `skipped` and `cancelled` count as NOT SUCCESS, deliberately. A dependency that never ran has
+      # not passed, and treating absence as success is how a cancelled run, a path filter, or a job
+      # deleted from the graph produces a false-green aggregate. The plan's criterion is exactly
+      # this: cancellation must not be able to manufacture a green.
+      #
+      # Adding or renaming a job changes nothing here — `needs` is the list, `toJSON(needs)` reads
+      # whatever it contains — so branch protection never needs editing again. That is the point:
+      # the required-context list stops being a thing anyone has to remember to maintain.
+      - name: Verdict — every required check must have succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          # Explicitly non-blocking, by its own name ("Flaky Quarantine Suite (Non-blocking)").
+          # Listed here so the exemption is a visible decision rather than an accident of omission.
+          # aot-build-analysis and pack-quality say "report" / "report-only" in their own names.
+          ADVISORY_JOBS: "flaky-tests-quarantine aot-build-analysis pack-quality"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          advisory = {j for j in os.environ.get("ADVISORY_JOBS", "").split() if j}
+
+          if not needs:
+              print("::error::REFUSE: this job has no dependencies, so it can only ever pass. "
+                    "A required check that checks nothing is worse than none.")
+              sys.exit(1)
+
+          failed, adv = [], []
+          for name in sorted(needs):
+              result = (needs[name] or {}).get("result")
+              if name in advisory:
+                  adv.append((name, result))
+              elif result != "success":
+                  failed.append((name, result))
+
+          print("")
+          print(f"### Required checks: {len(needs) - len(advisory)} gating, {len(advisory)} advisory")
+          print("")
+          for name, result in adv:
+              print(f"- advisory `{name}`: {result}")
+          for name, result in failed:
+              print(f"- **FAILED** `{name}`: {result}")
+
+          if failed:
+              names = ", ".join(f"{n} ({r})" for n, r in failed)
+              print("")
+              print(f"**Not ready for merge.** {len(failed)} required check(s) did not succeed: {names}")
+              print(f"::error::{len(failed)} required check(s) did not succeed: {names}")
+              sys.exit(1)
+
+          print("")
+          print("**All required checks passed.** Ready for merge.")
+          PY
 
   # ── Test result trend reporting ──
   test-result-reporter:
