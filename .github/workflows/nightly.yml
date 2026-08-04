@@ -368,6 +368,52 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  # Service-level indicators. Every question this answers has been answered by hand at least once in
+  # this repository, and got a wrong answer at least once -- is the queue draining, how long does a
+  # run take, how often does main go red. Hand-measuring a moving system produces a snapshot reported
+  # as a state.
+  #
+  # Advisory, like the flake report: an indicator that can fail a build stops being an indicator and
+  # becomes a gate people route around.
+  ci-sli-report:
+    name: CI Service-Level Indicators (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+
+      - name: ci-sli-report self-test (non-vacuity)
+        run: python3 eng/ci/ci-sli-report.py --self-test
+
+      - name: Report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          python3 eng/ci/ci-sli-report.py --repo "${GITHUB_REPOSITORY}" --limit 30 > ci-sli.md || rc=$?
+          cat ci-sli.md >> "$GITHUB_STEP_SUMMARY" || true
+          cat ci-sli.md
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::SLI report could not be produced: no runs retrieved. This is 'no data', not 'CI is healthy'."
+          fi
+
+      - name: Upload SLI report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-sli-report
+          path: ci-sli.md
+          if-no-files-found: warn
+          retention-days: 90
+
   nightly-summary:
     name: Nightly Summary
     runs-on: ubuntu-latest
