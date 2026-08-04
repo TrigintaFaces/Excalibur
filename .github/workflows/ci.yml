@@ -64,6 +64,72 @@ env:
 jobs:
   # ── Package job (Ubuntu) -- NuGet packaging, deterministic validation ──
   # Replaces the old 'build' job. Does NOT produce test artifacts.
+  # Change classification. Deliberately ONE distinction, not the nine the plan lists, because that
+  # is the one measurement supports: 5 of the last 25 commits on main touched nothing but
+  # documentation, and ci.yml costs ~92 minutes at the median. The other proposed axes (dashboard,
+  # templates, samples) had zero qualifying commits in the same window, so gating on them would add
+  # branching that never fires -- conditions that are never exercised are conditions nobody knows
+  # are broken.
+  #
+  # SAFE BY CONSTRUCTION, and this is the part that matters: the classification is a WHITELIST. A
+  # commit is docs-only when EVERY changed path matches a documentation pattern. Anything else --
+  # src, tests, eng, .github, a props file, a lock file, a path nobody anticipated -- makes it false
+  # and the full pipeline runs. A new directory added tomorrow is treated as code without anyone
+  # remembering to update this, which is the opposite of a blacklist's failure mode.
+  changes:
+    name: Classify Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="$(git rev-parse HEAD^ 2>/dev/null || echo '')"
+            head="$(git rev-parse HEAD)"
+          fi
+
+          # No base means no diff to classify -- a first commit, or a shallow history. Run
+          # everything. An unknowable classification must never be the permissive one by accident.
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "no usable base commit; classifying as code (full pipeline)"
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$base" "$head")"
+          if [ -z "$changed" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "no changed files detected; classifying as code (full pipeline)"
+            exit 0
+          fi
+
+          echo "changed files:"
+          echo "$changed" | sed 's/^/  /'
+
+          # Whitelist. Any path that is NOT documentation flips this to code.
+          non_docs="$(echo "$changed" | grep -vE '^(docs/|docs-site/|management/|\.beads/)|(^|/)[^/]*\.md$' || true)"
+          if [ -z "$non_docs" ]; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "classification: DOCS-ONLY -- the .NET build and test matrix will be skipped"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "classification: code -- these paths are not documentation:"
+            echo "$non_docs" | sed 's/^/  /'
+          fi
+
   package:
     name: Package (Ubuntu)
     runs-on: ubuntu-latest

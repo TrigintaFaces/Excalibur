@@ -53,6 +53,18 @@ updates:
     labels:
       - "dependencies"
       - "npm"
+    ignore:
+      # TypeScript MAJORS only. A grouped dev-dependency bump proposed typescript 7, which cannot
+      # resolve here for two independent reasons: svelte-check peers on `^5.0.0 || ^6.0.0`, so
+      # `npm ci` fails outright with ERESOLVE, and TypeScript 7 removed `baseUrl`, which the
+      # docs-site tsconfig sets (TS5102). Both are upstream facts, not something this repository can
+      # fix, so the proposal can only ever fail CI and be reopened next week.
+      #
+      # Scoped to major deliberately: minor and patch TypeScript updates still flow. Remove this
+      # entry once svelte-check accepts TypeScript 7 and the tsconfig drops baseUrl -- it is a
+      # statement about a current incompatibility, not a policy about TypeScript.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       # Dev-only toolchain (build, test, lint) moves together; these are the majority of npm churn
       # and none of it ships to a consumer.
