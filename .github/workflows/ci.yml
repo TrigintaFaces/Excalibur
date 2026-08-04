@@ -591,6 +591,11 @@ jobs:
           retention-days: 30
 
   # ── Cross-platform: Windows deterministic ──
+  # RISK COVERED: path semantics and case-insensitivity. This is not hypothetical here -- the build
+  # skips test projects whose path contains a backslash-delimited `tests` segment unless a property
+  # is set, a condition that can only match on Windows, and this job is what surfaces it. Measured
+  # over 30 runs: TWO failures, both Windows-only, both the same discovery defect, on different
+  # assemblies. That is this matrix leg earning its place, not noise.
   unit-tests-windows:
     name: Unit Tests (Windows - Deterministic)
     runs-on: windows-latest
@@ -653,6 +658,11 @@ jobs:
           retention-days: 30
 
   # ── Cross-platform: macOS deterministic ──
+  # RISK COVERED: a second case-insensitive filesystem with different path and ARM64 semantics from
+  # Windows. HONEST STATUS: zero unique failures across the 30 runs measured -- no demonstrated catch
+  # in that window. Thirty runs is a few days and says little about a rare class, so this is recorded
+  # rather than acted on. If it is ever cut, cut it on evidence gathered deliberately, not on the
+  # absence in a short window.
   unit-tests-macos:
     name: Unit Tests (macOS - Deterministic)
     runs-on: macos-latest
