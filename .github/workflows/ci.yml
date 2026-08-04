@@ -120,7 +120,16 @@ jobs:
           echo "$changed" | sed 's/^/  /'
 
           # Whitelist. Any path that is NOT documentation flips this to code.
-          non_docs="$(echo "$changed" | grep -vE '^(docs/|docs-site/|management/|\.beads/)|(^|/)[^/]*\.md$' || true)"
+          #
+          # The issue-tracker directory is deliberately NOT listed. It is a private directory that
+          # does not exist in the repository this file is published to, so an entry for it could
+          # never match anything here -- and a workflow that ships publicly must not name a private
+          # path at all. A regression lock enforces that, and it caught this line.
+          #
+          # Omitting it is also the safe direction: an unrecognised path classifies as code and runs
+          # the full pipeline. The failure mode of this whitelist is skipping a build that was
+          # needed, so every entry has to earn its place; nothing is added for tidiness.
+          non_docs="$(echo "$changed" | grep -vE '^(docs/|docs-site/|management/)|(^|/)[^/]*\.md$' || true)"
           if [ -z "$non_docs" ]; then
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
             echo "classification: DOCS-ONLY -- the .NET build and test matrix will be skipped"
