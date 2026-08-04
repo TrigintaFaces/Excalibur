@@ -14,15 +14,25 @@ on:
         type: boolean
 
 concurrency:
-  # Event-aware, deliberately. This was `${{ github.workflow }}-${{ github.ref }}` with an
-  # unconditional cancel-in-progress, which cancels a PUSH run on main the moment a later commit
-  # arrives -- so a merged commit could be left with no conclusive validation at all. It happened
-  # twice in one session: release-blocking governance refused with `quality=cancelled`, meaning the
-  # gate had proven nothing and correctly declined to call that success.
+  # Every commit on a protected branch must reach a verdict. Two separate mechanisms could take that
+  # away, and both are closed here.
   #
-  # Cancelling a superseded PULL REQUEST run is useful and stays. Cancelling protected-branch
-  # validation is not: every commit on main must reach a verdict.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # 1. RUNNING runs. This was `${{ github.workflow }}-${{ github.ref }}` with an unconditional
+  #    cancel-in-progress, which killed a push run on main the moment a later commit arrived.
+  #    Observed twice in one session: release-blocking governance refused with `quality=cancelled`,
+  #    the gate having proven nothing and correctly declining to call that success.
+  #
+  # 2. QUEUED runs -- the half that fix missed. `cancel-in-progress: false` protects a run that has
+  #    STARTED; it does nothing for one still pending. GitHub documents that when a run enters a
+  #    busy group, "any previously pending job or workflow in the concurrency group will be
+  #    canceled". Measured, not theorised: two pushes in quick succession left the middle commit's
+  #    run cancelled 18 minutes after creation with ZERO jobs -- that commit got no CI verdict at
+  #    all, while its other workflows went green and made it look validated.
+  #
+  # So a PUSH keys the group by RUN ID: unique by construction, sharing a group with nothing, and
+  # therefore unsupersedable. Coalescing superseded PULL REQUEST runs is still wanted and still
+  # happens -- PRs group by number, and cancel-in-progress stays true for them.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
