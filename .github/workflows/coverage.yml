@@ -63,23 +63,33 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout-ref }}
+      # merge-multiple is deliberately ABSENT. It flattens every shard into one directory, which
+      # destroys the only thing that attributes a report to the shard that produced it -- and the
+      # completeness check below needs exactly that attribution. It is also the flag that once put six
+      # concurrent writers on one path and produced a corrupt 31MB document, on a run where every
+      # shard had SUCCEEDED.
       - name: Download unit coverage artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: code-coverage-unit-*
           path: cov
-          merge-multiple: true
-      - name: Validate coverage artifacts exist
+      # This replaced a count > 0 check, which was the vacuous form of the question: ONE shard
+      # reporting satisfied a six-shard expectation, so five shards could vanish and the gate would
+      # compute a confident percentage from the sixth. A missing report and a low percentage are
+      # OPPOSITE problems with opposite fixes, and a number derived from a partial measurement is
+      # worse than no number, because it looks like a measurement.
+      #
+      # The expected set is read from ci.yml's own unit-tests matrix rather than restated here, so it
+      # cannot drift away from the set that actually runs. ci.yml is this reusable workflow's only
+      # caller. Exit 3 is INCOMPLETE and exit 4 is UNKNOWABLE; both are REFUSE, neither is a pass.
+      - name: Verify every shard reported
         shell: bash
         run: |
-          shopt -s globstar nullglob
-          reports=(cov/**/coverage.cobertura.xml)
-          count=${#reports[@]}
-          echo "Found ${count} coverage report(s)."
-          if [ ${count} -eq 0 ]; then
-            echo "No coverage reports were downloaded."
-            exit 1
-          fi
+          bash eng/ci/coverage-shard-reports-complete.sh \
+            --coverage-root cov \
+            --workflow .github/workflows/ci.yml \
+            --job unit-tests \
+            --artifact-prefix code-coverage-unit-
       - name: Measure coverage threshold (report-only)
         id: coverage_threshold
         shell: pwsh
@@ -416,11 +426,21 @@ jobs:
           shopt -s globstar nullglob
           reports=(coverage/**/coverage.cobertura.xml)
           if [ ${#reports[@]} -eq 0 ]; then
-            echo "No coverage reports found; generating placeholder summary."
+            # This used to write "Line coverage: 0" and exit 0 -- a FABRICATED measurement. Zero
+            # percent is a finding about the code; no reports is a finding about the pipeline, and
+            # they are not the same fact. The placeholder made them indistinguishable to every reader
+            # downstream, and the one that reads a coverage summary is looking for a number, so it
+            # would have found one.
+            #
+            # This job is report-only and runs under always(), so it does not fail the build here --
+            # it emits an unmistakably non-numeric marker instead. Nothing can parse a percentage out
+            # of it, which is the entire point.
+            echo "::warning::No coverage reports found. Emitting a NO DATA marker, NOT a zero."
             mkdir -p management/reports/CoverageReport
             {
               echo "Coverage Summary"
-              echo "Line coverage: 0"
+              echo "Line coverage: NO DATA -- no cobertura reports reached this job."
+              echo "This is not 0%. A missing measurement and a measured zero are different facts."
             } > management/reports/CoverageReport/Summary.txt
             exit 0
           fi

@@ -46,29 +46,15 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
-  # RATCHET FLOOR, not the goal. This is the level coverage must not fall BELOW; raise it whenever a
-  # green run measures higher. COVERAGE_TARGET below records where we actually want to be.
+  # COVERAGE_THRESHOLD and COVERAGE_TARGET were declared here and are now REMOVED. This workflow no
+  # longer measures coverage -- it stopped re-running the unit shards a second time to collect it --
+  # so both had become declarations nothing read. A number nobody consumes is the shape the coverage
+  # floor got into in the first place: four places declared one, they disagreed, and the unreachable
+  # value survived for months precisely because it was inert.
   #
-  # It was 65 — a number the repo has never met. Measured 2026-07-31: combined 44.3%
-  # (src/Dispatch 49.13%, src/Excalibur 41.6%). The history explains how that persisted:
-  #
-  #   2026-02-25  ef5fb3a6b  "make quality-gates coverage threshold report-only"  removed -FailBelowThreshold
-  #   2026-04-05  769d3e2d8  "Microsoft-quality sweep … [Sprint 749]"             silently restored it
-  #
-  # So a deliberate report-only decision was reverted by an unrelated multi-concern sweep, and the gate
-  # has blocked on an unmeetable number ever since. A threshold nobody can reach does not raise
-  # coverage; it trains everyone to bypass the gate, which is worse than not having one.
-  #
-  # A floor at the measured level enforces something TRUE and always achievable — do not regress — and
-  # it catches the failure that actually matters: a shard silently stopping contributing coverage.
-  #
-  # CAVEAT, deliberately recorded rather than smoothed over: 44.3% was measured on a run whose
-  # integration shard had been refusing, so its contribution is uncertain and this floor may be
-  # pessimistic. Re-baseline from the first fully green run rather than treating 44 as settled.
-  COVERAGE_THRESHOLD: 44
-  # Where we intend to be. Not enforced — recorded so lowering the floor to the truth does not quietly
-  # delete the ambition, which is how the report-only decision got lost in the first place.
-  COVERAGE_TARGET: 65
+  # The floor and the target live in eng/ci/quality-policy.json, which is the single source, and
+  # eng/ci/policy-consistency-gate.py fails the build if a workflow restates a value that disagrees
+  # with it. Coverage itself is measured once, in ci.yml, from the shards that produce it.
 
 jobs:
   core-perf-change-detection:
@@ -180,307 +166,11 @@ jobs:
         run: bash eng/ci/duplicate-xml-doc-tags.sh src
 
   # Code coverage quality gate (sharded, self-contained)
-  coverage-shards:
-    name: "Code Coverage (Shard: ${{ matrix.shard.name }})"
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        shard:
-          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          # Split from a single `excalibur` leg that carried 43 test projects -- roughly 3x core (15)
-          # and 14x transport (3). Under coverage instrumentation it exhausted its runner: the job
-          # died with "The hosted runner lost communication with the server", which skipped the
-          # dependent aggregation job, which the summary correctly reports as a BLOCKING gate
-          # failure. Quality Gates was therefore red on every run for a reason that had nothing to
-          # do with the coverage threshold -- the threshold was never evaluated.
-          #
-          # Legs are sized at 13-16 projects because core sustains 15 today. That is a demonstrated
-          # survivable size rather than a guess. Raising the timeout would not have helped: the job
-          # was not running out of time, it was being killed.
-          - { name: excalibur-data, filter: "eng/ci/shards/UnitTests-Excalibur-Data.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: excalibur-platform, filter: "eng/ci/shards/UnitTests-Excalibur-Platform.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: excalibur-messaging, filter: "eng/ci/shards/UnitTests-Excalibur-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
-        with:
-          dotnet-version: |
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore and build shard
-        run: |
-          bash ./build.sh --restore --project ${{ matrix.shard.filter }} --verbosity quiet
-          # See .github/actions/setup-dotnet-build: without this the shard's test projects are
-          # compile-skipped on Windows and produce empty assemblies.
-          bash ./build.sh --build --no-restore --project ${{ matrix.shard.filter }} --verbosity quiet
-
-      # A missing settings file surfaces as "The Settings file ... could not be found" buried in a
-      # test run's output, after the run has already started and produced nothing. Assert it up front
-      # so the failure names itself. This exact file was missed by a manual sync and took all six
-      # shards down with a message that read like a collector fault.
-      # Present AND well-formed. Presence alone was not enough: a `--` inside an XML comment (illegal
-      # in XML, and easy to type as a dash in prose) made the collector reject the file with
-      # "Settings file provided does not conform to required format", repeated once per test project
-      # and attributed to nothing in particular. All six shards went down together, again, with a
-      # message that again read like a collector fault. A settings file is code; parse it before use.
-      - name: Assert the coverage settings file is present and well-formed
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f tests/coverage.msft.runsettings || {
-            echo "::error::tests/coverage.msft.runsettings is missing. The coverage collector cannot run without it; this is a missing FILE, not a collector fault."
-            exit 1
-          }
-          python3 - <<'PY' || exit 1
-          import sys, xml.dom.minidom
-          p = "tests/coverage.msft.runsettings"
-          try:
-              xml.dom.minidom.parse(p)
-          except Exception as e:
-              print(f"::error::{p} is not well-formed XML: {e}. The collector will reject it and blame itself. "
-                    f"Note '--' is illegal inside an XML comment.")
-              sys.exit(1)
-          print(f"{p}: present and well-formed")
-          PY
-
-      - name: Run shard tests with coverage
-        run: |
-          # --logger trx and --blame-crash are diagnostic, not decorative. This shard previously
-          # logged to console only and uploaded nothing but coverage, so a failure left no
-          # machine-readable record of WHICH test died: a run that ended after 54 minutes, well
-          # inside its 120-minute budget, could not be attributed to a test, a hang or a host
-          # crash. Every other test job in this repo writes a TRX; this one did not, and the
-          # skip-accounting gate that reads TRX had nothing to read.
-          #
-          # --blame-hang-timeout was already here and catches a HANG. It does not catch the test
-          # host EXITING -- an OOM, a stack overflow, a native crash in a provider SDK -- which
-          # produces exactly the signature seen: suites reporting clean, then silence.
-          #
-          # TestSessionTimeout=3600000 (60 min) against a 120-minute job budget, deliberately half.
-          # This shard was the only test job in the repository with no session cap, and it hung:
-          # Excalibur.Tests started and was still running three hours later while the four measured
-          # assemblies ahead of it took 7s, 24s, 1m02s and 2s. With no cap the runner eventually
-          # kills the job at the wall and writes NOTHING -- the same race ci.yml documents for the
-          # deterministic shard, where an equal session and job timeout meant the session timeout
-          # could never win and no TRX survived. The cap must be strictly lower so it fires FIRST,
-          # aborts the session, and leaves results behind; 60 against 120 is not a tuning guess but
-          # the property that makes the timeout observable.
-          #
-          # --blame-hang-timeout does NOT cover this and is not a substitute. It aborts a TEST that
-          # does not complete within its window; it is blind to a run whose tests all finish and
-          # whose host then never exits -- a lingering foreground thread, an undisposed timer, a
-          # client still holding a connection. That is a hang AFTER the tests, and the observed
-          # signature (assemblies reporting clean, then silence, with blame attached and quiet) is
-          # exactly what that looks like.
-          #
-          # LogFilePrefix, NOT LogFileName. A shard runs several test assemblies in sequence and
-          # each writes the logger's file, so a fixed name means every assembly overwrites the
-          # previous one -- observed live as repeated "WARNING: Overwriting results file". The
-          # surviving TRX would then hold only the last assembly to finish, and if the host died
-          # part-way it would hold an EARLIER assembly's results while appearing to describe the
-          # run: a diagnostic that is not merely incomplete but actively misleading, which is worse
-          # than the console-only logging this replaced. The prefix form emits one file per
-          # assembly, and the upload below globs them all.
-          bash eng/ci/run-filtered-tests.sh \
-            --filter "${{ matrix.shard.test_filter }}" -- \
-            ${{ matrix.shard.filter }} \
-            --configuration Release \
-            --no-build \
-            --blame-hang-timeout 5m \
-            --blame-crash \
-            --logger "trx;LogFilePrefix=coverage-shard-${{ matrix.shard.name }}" \
-            --logger "console;verbosity=minimal" \
-            --collect:"Code Coverage" \
-            --settings tests/coverage.msft.runsettings \
-            --results-directory ./coverage \
-            -- RunConfiguration.TestSessionTimeout=3600000
-
-      # The built-in collector emits a binary .coverage; everything downstream reads cobertura.
-      - name: Convert coverage to cobertura
-        shell: bash
-        run: |
-          set -euo pipefail
-          dotnet tool install -g dotnet-coverage || dotnet tool update -g dotnet-coverage
-          export PATH="$PATH:$HOME/.dotnet/tools"
-          mapfile -t files < <(find ./coverage -name "*.coverage")
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "::error::no .coverage file produced -- the collector did not run. An absent report is not a clean report."
-            exit 1
-          fi
-          mkdir -p ./coverage/merged
-          dotnet-coverage merge "${files[@]}" --output ./coverage/merged/coverage.cobertura.xml --output-format cobertura
-
-      # if: always() is the load-bearing part. Without it this step is skipped on a failing run,
-      # so the artifacts existed only when nobody needed them -- diagnostics uploaded on success
-      # and withheld on failure is the exact inversion of what they are for. Kept separate from
-      # the coverage upload below so its if-no-files-found: error still guards the coverage file.
-      - name: Upload shard diagnostics (TRX, hang and crash reports)
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          # NOT `coverage-shard-diagnostics-*`: the aggregation job downloads `coverage-shard-*`,
-          # and a diagnostics artifact named that way is pulled in as if it were a coverage report.
-          # It carries no cobertura, so it contributed nothing but download volume -- twelve
-          # extractions racing into one directory instead of six.
-          name: shard-diagnostics-${{ matrix.shard.name }}
-          path: |
-            ./coverage/**/*.trx
-            ./coverage/**/Sequence_*.xml
-            ./coverage/**/*.dmp
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload shard coverage artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: coverage-shard-${{ matrix.shard.name }}
-          path: ./coverage/**/coverage.cobertura.xml
-          if-no-files-found: error
-          retention-days: 7
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: coverage-shards
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          token: ${{ github.token }}
-      # merge-multiple is deliberately ABSENT. Every shard writes its report to the same internal
-      # path (merged/coverage.cobertura.xml), so merging them into one directory put six concurrent
-      # writers on one file: a corrupt 31MB document that ReportGenerator could not parse, on a run
-      # where all six shards had succeeded. Without it each artifact extracts to its own
-      # coverage/coverage-shard-<name>/ directory -- distinct paths, no race, and the downstream
-      # globs see all six reports instead of the one that happened to win.
-      - name: Download shard coverage artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: coverage-shard-*
-          path: coverage
-
-      # Runs BEFORE the merge so an incomplete measurement is named as such. A missing report and a
-      # low percentage are opposite problems; without this the aggregation would compute a confident
-      # number from whatever subset arrived.
-      - name: Verify every shard reported
-        shell: bash
-        run: bash eng/ci/coverage-shard-reports-complete.sh --coverage-root coverage
-
-      - name: Merge coverage reports
-        shell: bash
-        run: |
-          set -euo pipefail
-          dotnet tool install -g dotnet-reportgenerator-globaltool || true
-
-          # ReportGenerator exits 0 when it reads NOTHING -- it wrote Cobertura.xml, summary.html and
-          # Summary.txt from zero reports on the run that produced this comment. Its exit code alone
-          # cannot distinguish "merged six shards" from "parsed nothing at all", so count the inputs
-          # ourselves and hold its output to that count.
-          mapfile -t reports < <(find ./coverage -type f -name 'coverage.cobertura.xml' | sort)
-          if [ "${#reports[@]}" -eq 0 ]; then
-            echo "::error::REFUSE: no cobertura reports to merge. An absent report is not a clean report."
-            exit 1
-          fi
-          echo "merging ${#reports[@]} shard report(s):"
-          printf '  %s\n' "${reports[@]}"
-
-          # Redirect rather than pipe. `... | tee log` would make the pipeline's status tee's, which
-          # is the same exit-masking that once let a failed commit report success -- and it is worth
-          # avoiding even under `pipefail`, because the captured value here has to be unambiguous.
-          set +e
-          reportgenerator \
-            -reports:"./coverage/**/coverage.cobertura.xml" \
-            -targetdir:"./coverage/merged" \
-            -reporttypes:"Cobertura;HtmlSummary;TextSummary" > reportgenerator.log 2>&1
-          rg_exit=$?
-          set -e
-          cat reportgenerator.log
-
-          if [ "$rg_exit" -ne 0 ]; then
-            echo "::error::REFUSE: ReportGenerator exited ${rg_exit}."
-            exit 1
-          fi
-          if ! [ -s ./coverage/merged/Cobertura.xml ]; then
-            echo "::error::REFUSE: ReportGenerator exited 0 but produced no non-empty Cobertura.xml -- it read none of the ${#reports[@]} reports it was given. An exit code is not evidence of an effect."
-            exit 1
-          fi
-          if grep -qiE 'Error during reading report|Failed to parse' reportgenerator.log; then
-            echo "::error::REFUSE: ReportGenerator reported a read failure while still exiting 0. See the log above."
-            exit 1
-          fi
-
-      - name: Enforce coverage threshold
-        id: coverage_threshold
-        shell: pwsh
-        run: |
-          ./eng/ci/coverage-threshold.ps1 `
-            -CoverageRoot "coverage" `
-            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}') `
-            -FailBelowThreshold
-      - name: Coverage threshold status
-        shell: bash
-        run: |
-          combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
-          dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
-          excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
-          threshold="${{ env.COVERAGE_THRESHOLD }}"
-          target="${{ env.COVERAGE_TARGET }}"
-
-          echo "Coverage (Dispatch): ${dispatch}%"
-          echo "Coverage (Excalibur): ${excalibur}%"
-          echo "Coverage (Combined): ${combined}%"
-          echo "Ratchet floor (enforced): ${threshold}%   — coverage must not fall below this"
-          echo "Target (not enforced):    ${target}%   — where we intend to be"
-
-          # REFUSE, not pass. "Below the target" is a policy choice we have deliberately made
-          # report-only; "no figure at all" is a broken instrument, and reporting success for a
-          # measurement that never happened is the one thing a gate must never do. These are
-          # different states and they get different exits.
-          if [ -z "$combined" ]; then
-            echo "::error::Coverage REFUSE — the threshold script emitted no combined figure, so coverage was NOT measured. This is not a pass: fix the coverage instrument or the report inputs."
-            exit 1
-          fi
-
-          # The distance to the TARGET is reported every run so lowering the enforced floor to the truth
-          # does not make the ambition invisible. A goal nobody is shown is a goal nobody moves toward.
-          if (( $(awk "BEGIN {print ($combined < $target)}") )); then
-            gap="$(awk "BEGIN {printf \"%.1f\", $target - $combined}")"
-            echo "::notice::Coverage ${combined}% is ${gap} points below the ${target}% target. The enforced floor is ${threshold}%; raise it when a green run measures higher."
-          fi
-
-          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
-            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
-          else
-            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
-          fi
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: coverage-report
-          path: ./coverage/merged
-          retention-days: 7
+  # Coverage USED TO BE COMPUTED HERE, by re-running the same six unit shards that ci.yml already
+  # runs -- same names, same solution filters, same tests -- purely to collect it a second time with a
+  # different collector. It now runs once, in ci.yml, next to the shards that produce it. See the
+  # coverage-aggregate job there. Removing it also removes a per-run global tool install that existed
+  # only to convert the second collector binary output into a format everything downstream could read.
 
   # Test quality gate (self-contained)
   test-quality:
@@ -745,7 +435,7 @@ jobs:
     name: Quality Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, harness-gates]
+    needs: [test-quality, transport-conformance, code-analysis, governance, architecture, harness-gates]
     if: always()
     steps:
       - name: Check all gates
@@ -767,7 +457,6 @@ jobs:
             fi
           }
 
-          check_blocking "coverage" "${{ needs.coverage.result }}"
           check_blocking "test-quality" "${{ needs.test-quality.result }}"
           check_blocking "code-analysis" "${{ needs.code-analysis.result }}"
           check_blocking "governance" "${{ needs.governance.result }}"
@@ -786,7 +475,9 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Gate | Result | Tier |" >> "$GITHUB_STEP_SUMMARY"
           echo "|------|--------|------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Code Coverage | ${{ needs.coverage.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          # Code Coverage is reported by ci.yml, which is where it is now measured -- once, from the
+          # unit shards that already produce it. A scoreboard row for a job this workflow no longer
+          # runs would be a status with nothing behind it.
           echo "| Test Quality | ${{ needs.test-quality.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Code Analysis | ${{ needs.code-analysis.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Governance | ${{ needs.governance.result }} | blocking |" >> "$GITHUB_STEP_SUMMARY"

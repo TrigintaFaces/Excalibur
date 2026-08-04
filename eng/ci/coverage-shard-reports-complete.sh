@@ -32,17 +32,27 @@ EXIT_INCOMPLETE=3
 EXIT_UNKNOWABLE=4
 
 COVERAGE_ROOT="coverage"
-WORKFLOW=".github/workflows/quality-gates.yml"
-MATRIX_JOB="coverage-shards"
+# Defaults follow the LIVE aggregation. They used to name quality-gates.yml's coverage-shards job,
+# which re-ran the same six unit shards purely to collect coverage a second time; that duplicate is
+# gone and coverage is now aggregated from the unit shards that already produce it. A default naming
+# a deleted job would REFUSE (exit 4) rather than pass, which is the safe direction -- but a gate
+# whose defaults point at nothing is one careless invocation away from being noise.
+WORKFLOW=".github/workflows/ci.yml"
+MATRIX_JOB="unit-tests"
 REPORT_NAME="coverage.cobertura.xml"
+# Artifact directory prefix. The shard's report lands under <prefix><shard>/ once the run's
+# artifacts are downloaded without merge-multiple. Parameterised because the same completeness
+# question is asked of more than one workflow, and hardcoding one workflow's naming is how a gate
+# ends up silently inapplicable to the place it was moved to.
+ARTIFACT_PREFIX="code-coverage-unit-"
 SELF_TEST=0
 
 usage() {
     cat <<'EOF'
 Usage: coverage-shard-reports-complete.sh [options]
   --coverage-root DIR   directory the shard artifacts were extracted into (default: coverage)
-  --workflow FILE       workflow declaring the shard matrix (default: .github/workflows/quality-gates.yml)
-  --job NAME            matrix job key to read the shard names from (default: coverage-shards)
+  --workflow FILE       workflow declaring the shard matrix (default: .github/workflows/ci.yml)
+  --job NAME            matrix job key to read the shard names from (default: unit-tests)
   --self-test           prove this gate is non-vacuous, then exit
 EOF
 }
@@ -53,6 +63,7 @@ while [ $# -gt 0 ]; do
         --workflow)      WORKFLOW="$2"; shift 2 ;;
         --job)           MATRIX_JOB="$2"; shift 2 ;;
         --report-name)   REPORT_NAME="$2"; shift 2 ;;
+        --artifact-prefix) ARTIFACT_PREFIX="$2"; shift 2 ;;
         --self-test)     SELF_TEST=1; shift ;;
         -h|--help)       usage; exit 0 ;;
         *) printf 'unknown argument: %s\n' "$1" >&2; usage >&2; exit "$EXIT_UNKNOWABLE" ;;
@@ -103,7 +114,7 @@ run_gate() {
         # The artifact for shard X extracts to <root>/coverage-shard-X/**. Match on that directory
         # so two shards cannot satisfy each other's expectation.
         local hits
-        hits="$(find "${coverage_root}" -type f -name "$REPORT_NAME" -path "*coverage-shard-${shard}/*" 2>/dev/null | wc -l | tr -d '[:space:]')"
+        hits="$(find "${coverage_root}" -type f -name "$REPORT_NAME" -path "*${ARTIFACT_PREFIX}${shard}/*" 2>/dev/null | wc -l | tr -d '[:space:]')"
         if [ "$hits" -eq 0 ]; then
             missing="${missing}${missing:+, }${shard}"
         else
@@ -163,9 +174,9 @@ EOF
 
     # LIVENESS: a complete set is GREEN. Without this arm a gate that refuses everything looks healthy.
     root="${tmp}/cov"
-    mkdir -p "${root}/coverage-shard-alpha/merged" "${root}/coverage-shard-beta/merged"
-    : > "${root}/coverage-shard-alpha/merged/${REPORT_NAME}"
-    : > "${root}/coverage-shard-beta/merged/${REPORT_NAME}"
+    mkdir -p "${root}/${ARTIFACT_PREFIX}alpha/merged" "${root}/${ARTIFACT_PREFIX}beta/merged"
+    : > "${root}/${ARTIFACT_PREFIX}alpha/merged/${REPORT_NAME}"
+    : > "${root}/${ARTIFACT_PREFIX}beta/merged/${REPORT_NAME}"
     status=0; run_gate "$root" "$fixture_wf" "coverage-shards" >/dev/null || status=$?
     if [ "$status" -ne 0 ]; then
         printf 'SELF-TEST: FAIL -- a COMPLETE set was refused (exit %s). This gate would block every green run.\n' "$status" >&2
@@ -174,7 +185,7 @@ EOF
     printf 'SELF-TEST: PASS -- a complete shard set is GREEN (liveness)\n'
 
     # SAFETY: one shard missing REFUSES, with the incomplete code specifically.
-    rm -rf "${root}/coverage-shard-beta"
+    rm -rf "${root}/${ARTIFACT_PREFIX}beta"
     status=0; run_gate "$root" "$fixture_wf" "coverage-shards" >/dev/null 2>&1 || status=$?
     if [ "$status" -ne "$EXIT_INCOMPLETE" ]; then
         printf 'SELF-TEST: FAIL -- a MISSING shard exited %s, expected %s. The gate is vacuous: a partial measurement would be reported as a coverage number.\n' "$status" "$EXIT_INCOMPLETE" >&2
@@ -183,8 +194,8 @@ EOF
     printf 'SELF-TEST: PASS -- a missing shard REFUSES with the incomplete code (safety)\n'
 
     # SAFETY: one shard cannot satisfy another's expectation.
-    mkdir -p "${root}/coverage-shard-alpha/merged/extra"
-    : > "${root}/coverage-shard-alpha/merged/extra/${REPORT_NAME}"
+    mkdir -p "${root}/${ARTIFACT_PREFIX}alpha/merged/extra"
+    : > "${root}/${ARTIFACT_PREFIX}alpha/merged/extra/${REPORT_NAME}"
     status=0; run_gate "$root" "$fixture_wf" "coverage-shards" >/dev/null 2>&1 || status=$?
     if [ "$status" -ne "$EXIT_INCOMPLETE" ]; then
         printf 'SELF-TEST: FAIL -- two reports from ONE shard satisfied a two-shard expectation (exit %s). Counting files instead of shards is how a partial run reports a full number.\n' "$status" >&2
