@@ -422,11 +422,55 @@ finally {
     Invoke-CleanupPhase -Success $Script:TestPassed
 }
 
+# ============================================================================
+# Coverage, stated out loud.
+#
+# This test consumes PACKED PACKAGES rather than project references, which is the property that
+# makes it worth having -- and it does so for a hand-maintained list. A green result therefore says
+# "the packages in $DispatchPackages work in isolation", not "the shipping surface works", and
+# nothing in the output used to distinguish those. A pass reported wider than what was measured is
+# how a 2%-coverage gate reads as release confidence.
+#
+# So the number is printed every run, and the uncovered count is RATCHETED against a committed
+# baseline: it may shrink freely, and growing it fails. That makes adding a shipping package
+# without smoke-testing it a deliberate act with a visible cost, instead of a silent one.
+# ============================================================================
+$shippingFilter = Join-Path $PSScriptRoot 'ci/shards/ShippingOnly.slnf'
+$baselineFile   = Join-Path $PSScriptRoot 'ci/smoke-test-coverage-baseline.txt'
+if (Test-Path $shippingFilter) {
+    $shipping = ([regex]::Matches((Get-Content $shippingFilter -Raw), '"([^"]*\.csproj)"') |
+        ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Groups[1].Value) } |
+        Sort-Object -Unique)
+    $covered   = @($Script:DispatchPackages)
+    $uncovered = @($shipping | Where-Object { $covered -notcontains $_ })
+
+    Write-Host ""
+    Write-Host "Smoke-test coverage: $($covered.Count) of $($shipping.Count) shipping package(s) consumed as packages; $($uncovered.Count) uncovered." -ForegroundColor Cyan
+
+    if (Test-Path $baselineFile) {
+        $baseline = [int]((Get-Content $baselineFile -Raw) -replace '\D', '')
+        if ($uncovered.Count -gt $baseline) {
+            Write-Host ""
+            Write-Host "SMOKE COVERAGE REGRESSED: $($uncovered.Count) uncovered, baseline is $baseline." -ForegroundColor Red
+            Write-Host "A shipping package was added without smoke-testing it. Add it to `$Script:DispatchPackages," -ForegroundColor Red
+            Write-Host "or raise the baseline deliberately and say why in the commit message." -ForegroundColor Red
+            $Script:TestPassed = $false
+        }
+        elseif ($uncovered.Count -lt $baseline) {
+            Write-Host "Coverage improved ($($uncovered.Count) < $baseline). Lower the baseline in $baselineFile to lock it in." -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "No coverage baseline at $baselineFile; not ratcheting." -ForegroundColor Yellow
+    }
+}
+
 # Final status
 Write-Host ""
 if ($Script:TestPassed) {
     Write-Banner "SMOKE TEST PASSED"
-    Write-Host "All Dispatch packages work correctly in isolation." -ForegroundColor Green
+    Write-Host "The smoke-tested packages work correctly in isolation." -ForegroundColor Green
+    Write-Host "This is NOT a statement about the packages it does not cover -- see the coverage line above." -ForegroundColor Yellow
     Write-Host ""
     exit 0
 }

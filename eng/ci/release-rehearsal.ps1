@@ -172,6 +172,115 @@ Run-Step 'Public API baseline audit' {
 }
 
 # --- Step 7: Validate governance stack ---
+# A rehearsal that packs but never looks at the RELEASE PIPELINE rehearses half the release. The
+# defect this catches shipped for months: create-release published the GitHub release with
+# draft: false while publish-nuget depended on it, so the public announcement preceded the packages
+# existing and a publish failure left a release pointing at packages that were never uploaded.
+#
+# Nothing about that is observable from packing. It is a property of the job graph, and a property
+# is exactly what a rehearsal can check for free -- no tag, no publish, no side effect.
+Run-Step 'Release ordering: draft precedes publish' {
+    $releaseYml = Join-Path $RepoRoot '.github/workflows/release.yml'
+    if (-not (Test-Path $releaseYml)) { throw "release.yml not found at: $releaseYml" }
+
+    # Parsed as YAML rather than grepped: `draft: true` appearing SOMEWHERE in the file says
+    # nothing about which job it belongs to, and this assertion is about the graph.
+    $py = @'
+import sys, io, yaml
+d = yaml.safe_load(io.open(sys.argv[1], encoding="utf-8").read())
+jobs = d.get("jobs") or {}
+problems = []
+
+cr = jobs.get("create-release")
+if not cr:
+    problems.append("create-release job is missing")
+else:
+    rel = [s for s in (cr.get("steps") or []) if "action-gh-release" in str(s.get("uses", ""))]
+    if not rel:
+        problems.append("create-release has no action-gh-release step")
+    else:
+        draft = (rel[0].get("with") or {}).get("draft")
+        if draft is not True:
+            problems.append(
+                f"create-release publishes with draft={draft!r}; it must be True so the release is "
+                "not announced before publish-nuget has put the packages on the feed")
+
+fin = jobs.get("finalize-release")
+if not fin:
+    problems.append("finalize-release job is missing; nothing would ever publish the draft")
+else:
+    needs = fin.get("needs") or []
+    if "publish-nuget" not in needs:
+        problems.append(f"finalize-release does not depend on publish-nuget (needs={needs})")
+    cond = str(fin.get("if") or "")
+    if "publish-nuget.result" not in cond or "success" not in cond:
+        problems.append(
+            f"finalize-release condition {cond!r} does not require publish-nuget to have SUCCEEDED; "
+            "it could publish a release whose packages failed to upload")
+    if "always()" in cond:
+        problems.append("finalize-release uses always(); a failed publish must leave the release a draft")
+
+if problems:
+    for p in problems:
+        print("FAIL: " + p)
+    sys.exit(1)
+print("create-release drafts; finalize-release publishes only after publish-nuget succeeds")
+'@
+    $pyFile = Join-Path ([System.IO.Path]::GetTempPath()) 'rehearsal-order.py'
+    $py | Out-File -FilePath $pyFile -Encoding UTF8
+    $out = & python3 $pyFile $releaseYml 2>&1
+    $out | ForEach-Object { Write-Host "  $_" }
+    if ($LASTEXITCODE -ne 0) { throw 'Release ordering invariant violated -- see above.' }
+}
+
+# Report-only. Answers "if we released from THIS commit, would the version collide?" before anyone
+# tags, using the same classification the release itself performs. It never fails the rehearsal on a
+# collision -- a rehearsal is not a release, and a version being published is not an error here --
+# but it turns a surprise at tag time into a line in a report.
+Run-Step 'Publication state of the version this commit would ship' {
+    $pkgs = Get-ChildItem -Path (Join-Path $RepoRoot 'artifacts') -Filter '*.nupkg' -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notlike '*.symbols.nupkg' }
+    if (-not $pkgs) {
+        Write-Host "  no packed .nupkg found; skipping (pack step is the source of the version)"
+        return
+    }
+
+    # Version is whatever Pack actually produced -- read from the artifact, not recomputed, so this
+    # cannot disagree with the thing that would be published.
+    $sample = $pkgs[0].BaseName
+    if ($sample -notmatch '^(?<id>.+?)\.(?<ver>\d+\.\d+\.\d+.*)$') {
+        Write-Host "  could not parse a version from '$sample'; skipping"
+        return
+    }
+    $version = $Matches['ver']
+    Write-Host "  version this commit would ship: $version"
+
+    $published = 0; $total = 0; $unknown = 0
+    foreach ($p in $pkgs) {
+        if ($p.BaseName -notmatch '^(?<id>.+?)\.(?<ver>\d+\.\d+\.\d+.*)$') { continue }
+        $total++
+        $id = $Matches['id'].ToLowerInvariant()
+        $url = "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg"
+        try {
+            $resp = Invoke-WebRequest -Uri $url -Method Head -SkipHttpErrorCheck -TimeoutSec 20
+            switch ($resp.StatusCode) {
+                200 { $published++ }
+                404 { }
+                default { $unknown++ }
+            }
+        } catch { $unknown++ }
+    }
+
+    $mode = if ($published -eq 0) { 'fresh' } elseif ($published -eq $total) { 'resumed' } else { 'partial' }
+    Write-Host "  publication state: $mode ($published of $total already on NuGet; $unknown unanswered)"
+    if ($mode -ne 'fresh') {
+        Write-Host "  NOTE: releasing this version would be a re-run, not a first publish." -ForegroundColor Yellow
+    }
+    if ($unknown -gt 0) {
+        Write-Host "  NOTE: $unknown package(s) could not be checked; treat this report as incomplete." -ForegroundColor Yellow
+    }
+}
+
 Run-Step 'Validate governance stack' {
     $govScript = Join-Path $RepoRoot 'eng/ci/validate-governance-stack.ps1'
     if (-not (Test-Path $govScript)) {
