@@ -304,6 +304,78 @@ jobs:
         run: bash eng/ci/npm-audit.sh
 
   # Nightly summary + failure notification
+  # "Flake rate and top offenders are visible weekly." Nightly rather than weekly, because the input
+  # is retained test results and reading them more often costs nothing.
+  #
+  # It does NOT retry anything. A retry in the test path is one edit away from turning red green:
+  # once a rerun's success becomes the job's result, a flaky test is indistinguishable from a healthy
+  # one and the signal is destroyed at the moment it is produced. Tests run once, that result stands,
+  # and flakiness is read from history instead -- a test that both passed and failed across the
+  # window is flaky by observation.
+  #
+  # Advisory by construction: this job reports and never gates. A flake report that can fail the
+  # build becomes a thing people route around, and then it stops being read at all.
+  flake-report:
+    name: Flake Report (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read   # to list recent runs and download their retained test results
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+
+      - name: Gather test results from recent CI runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p flake-input
+          # Successful runs only would hide every flake, since a flake most often shows up in a run
+          # that failed. Take recent COMPLETED runs regardless of conclusion.
+          runs="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow=ci.yml --status completed \
+                    --limit 12 --json databaseId --jq '.[].databaseId')"
+          n=0
+          for r in $runs; do
+            if gh run download "$r" --repo "${GITHUB_REPOSITORY}" --pattern 'test-results-*' \
+                 --dir "flake-input/run-$r" >/dev/null 2>&1; then
+              n=$((n + 1))
+            fi
+          done
+          echo "gathered results from ${n} run(s)"
+          echo "trx files: $(find flake-input -name '*.trx' | wc -l)"
+
+      # Its own arms first: a report nobody can see fail is not evidence.
+      - name: flake-report self-test (non-vacuity)
+        run: python3 eng/ci/flake-report.py --self-test
+
+      - name: Report
+        shell: bash
+        run: |
+          set -euo pipefail
+          # REFUSE (exit 2) means nothing was measured, which is NOT the same as no flakes. Surface
+          # it as a warning rather than silence -- but do not fail, because this job is advisory.
+          rc=0
+          python3 eng/ci/flake-report.py --glob 'flake-input/**/*.trx' > flake-report.md || rc=$?
+          cat flake-report.md >> "$GITHUB_STEP_SUMMARY" || true
+          cat flake-report.md
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Flake report could not be produced: no parseable test results in the window. This is 'no data', not 'no flakes'."
+          fi
+
+      - name: Upload flake report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: flake-report
+          path: flake-report.md
+          if-no-files-found: warn
+          retention-days: 30
+
   nightly-summary:
     name: Nightly Summary
     runs-on: ubuntu-latest
