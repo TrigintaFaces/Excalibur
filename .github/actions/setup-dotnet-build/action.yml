@@ -92,8 +92,13 @@ runs:
         # test projects compile; on Windows they are silently skipped into EMPTY assemblies, the test
         # step finds no tests, and xUnit v3 dies parsing "No test matches the given testcase filter"
         # as a catastrophic error naming neither the skip nor the platform.
+        # -bl emits an MSBuild BINARY log alongside the text one. The text log is what the assertion
+        # below grades; the binlog is what a human needs when the assertion PASSES and the build was
+        # still wrong. It records every target, property and skip decision, which a Verbosity=normal
+        # text log does not, and it is the standard diagnostic in .NET repositories for this reason.
         dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
-          -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log
+          -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log \
+          -bl:build.binlog
 
     - name: Assert the build compiled what it claims
       if: inputs.solution-filter != '' && inputs.restore-only != 'true'
@@ -102,3 +107,22 @@ runs:
       # skipped, 2 the log could not be graded. Without this, "the solution builds clean" is a claim
       # whose evidence looks identical whether it held or not.
       run: bash eng/ci/assert-compiled-not-skipped.sh build-verbosity-normal.log
+
+    # The evidence must outlive the runner. These logs were written, graded, and then discarded --
+    # so when a Windows job reported "No test matches the given testcase filter" for an assembly
+    # holding 845 tests, and the skip assertion above had PASSED, the one artifact that could
+    # distinguish a hole in that assertion from an entirely different cause no longer existed. The
+    # failure was diagnosable only while it was happening, which is not when anyone is looking.
+    #
+    # always() is load-bearing: uploading diagnostics only when the build succeeded is the exact
+    # inversion of what they are for.
+    - name: Upload build logs (a failure is diagnosed AFTER it happens)
+      if: always() && inputs.solution-filter != '' && inputs.restore-only != 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: build-logs-${{ github.job }}-${{ strategy.job-index || '0' }}
+        path: |
+          build-verbosity-normal.log
+          build.binlog
+        if-no-files-found: warn
+        retention-days: 14
