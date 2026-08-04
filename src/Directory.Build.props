@@ -86,13 +86,23 @@
 
 		<!-- Package Metadata - R0.4 Requirement -->
 		<!-- Version computed by MinVer from git tags (Polly pattern).
-		     Tag format: v3.0.0-alpha.178 → PackageVersion 3.0.0-alpha.178
-		     Commits after tag auto-increment: 3.0.0-alpha.179, .180, etc.
-		     Local dev with no tags: 3.0.0-alpha.0
-		     Release: git tag v3.0.0 → 3.0.0
-		     CI override still works: -p:MinVerVersionOverride=X.Y.Z -->
+		     Tag format: v10.0.0-alpha.1 → PackageVersion 10.0.0-alpha.1
+		     Commits after tag auto-increment: 10.0.0-alpha.2, .3, etc.
+		     Local dev below the floor: 10.0.0-alpha.0.<height>
+		     Release: git tag v10.0.0 → 10.0.0
+		     CI override still works: -p:MinVerVersionOverride=X.Y.Z
+
+		     The floor is 10.0 because package versions MATCH THE TARGETED .NET MAJOR: a consumer
+		     reads the package version and knows the runtime it targets, with no ambiguity. The
+		     framework single-targets net10.0, so the first stable version is 10.x. When the dev line
+		     moves to net11.0, this floor moves with it — it is not a number to leave behind.
+
+		     The tag remains authoritative: MinVer derives from it, and this floor only applies when
+		     the derived version would fall BELOW it. Measured when it was raised from 3.0: the same
+		     commit went from 3.0.0-alpha.216.2439 to 10.0.0-alpha.0.2439, which is the intent —
+		     pre-10 tags no longer set the version, and they should not. -->
 		<MinVerTagPrefix>v</MinVerTagPrefix>
-		<MinVerMinimumMajorMinor>3.0</MinVerMinimumMajorMinor>
+		<MinVerMinimumMajorMinor>10.0</MinVerMinimumMajorMinor>
 		<MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
 		<Authors>The Excalibur Project Contributors</Authors>
 		<Product>Excalibur</Product>

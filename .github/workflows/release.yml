@@ -46,6 +46,9 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      # fresh | resumed | partial -- see the publication-state step. Downstream jobs must be able to
+      # tell a first attempt from a re-run, or recovery is indistinguishable from a mistake.
+      release_mode: ${{ steps.publication_state.outputs.mode }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -123,35 +126,61 @@ jobs:
             echo "manual dispatch: no tag to reconcile yet; create-release owns tag creation."
           fi
 
-      # "Duplicate version publication is detected BEFORE side effects." --skip-duplicate at push
-      # time is not that: by then the git tag and the GitHub release already exist, so a re-run that
-      # collides leaves a published release pointing at packages it did not publish. NuGet's flat
-      # container is authoritative and needs no credentials, so the question is cheap to ask first.
-      - name: Refuse a version already on NuGet
+      # Establish the PUBLICATION STATE before any side effect, and classify rather than refuse.
+      #
+      # An earlier revision of this step refused outright whenever the version was already on NuGet.
+      # That is correct for a fresh release and hostile for a resumed one: a run that publishes to
+      # NuGet and then fails at a later step would be permanently unrerunnable, which contradicts
+      # this pipeline's own idempotency requirement (a re-run must be possible, and an
+      # already-published version must record success rather than fail).
+      #
+      # It is also stricter than it needs to be, because NuGet.org versions are IMMUTABLE: a
+      # published version cannot be overwritten with different content. So "published" cannot mean
+      # "about to be silently replaced". The genuine divergence risk -- the version identifying a
+      # different tree than the one being built -- is caught by the tag-at-HEAD assertion above,
+      # which is the check that actually discriminates.
+      #
+      #   fresh    nothing published        -> a first attempt
+      #   resumed  everything published     -> a re-run of a completed publish; verify, do not republish
+      #   partial  some published           -> a previous run died mid-publish; this is THE recovery case
+      #
+      # An unanswerable HTTP response still REFUSES: an unanswered question is not a clear answer.
+      - name: Establish publication state
+        id: publication_state
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           ids="$(grep -oE '"[^"]*\.csproj"' eng/ci/shards/ShippingOnly.slnf | tr -d '"' | xargs -n1 basename | sed 's/\.csproj$//' | sort -u)"
-          [ -n "$ids" ] || { echo "::error::REFUSE: no shipping project ids resolved; cannot check for duplicates."; exit 1; }
+          [ -n "$ids" ] || { echo "::error::REFUSE: no shipping project ids resolved; publication state is unknowable."; exit 1; }
 
-          taken=""
+          total=0; published=0; taken=""
           for id in $ids; do
+            total=$((total + 1))
             lower="$(echo "$id" | tr '[:upper:]' '[:lower:]')"
             code="$(curl -s -o /dev/null -w '%{http_code}' \
               "https://api.nuget.org/v3-flatcontainer/${lower}/${VERSION}/${lower}.${VERSION}.nupkg" || echo 000)"
             case "$code" in
-              200) taken="${taken}${taken:+, }${id}" ;;
+              200) published=$((published + 1)); taken="${taken}${taken:+ }${id}" ;;
               404) : ;;
               *)   echo "::error::REFUSE: NuGet returned ${code} for ${id} ${VERSION}. An unanswered question is not a clear answer."; exit 1 ;;
             esac
           done
 
-          if [ -n "$taken" ]; then
-            echo "::error::REFUSE: version ${VERSION} is already published on NuGet for: ${taken}. Publishing it again would either be a no-op or a divergence; pick a new version."
-            exit 1
+          if   [ "$published" -eq 0 ];      then mode=fresh
+          elif [ "$published" -eq "$total" ]; then mode=resumed
+          else                                   mode=partial
           fi
-          echo "version ${VERSION} is unpublished for all $(echo "$ids" | wc -w) shipping package(s)"
+
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "published_count=${published}" >> "$GITHUB_OUTPUT"
+          echo "shipping_count=${total}" >> "$GITHUB_OUTPUT"
+
+          echo "publication state: ${mode} -- ${published} of ${total} shipping package(s) already at ${VERSION}"
+          case "$mode" in
+            resumed) echo "::warning::Version ${VERSION} is fully published already. This run will verify and finalise rather than republish. If you meant to ship new code, bump the version." ;;
+            partial) echo "::warning::Version ${VERSION} is PARTIALLY published (${published}/${total}). A previous run died mid-publish. Already-published: ${taken}" ;;
+          esac
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -801,12 +830,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # "Tag exists at the same commit -> continue; tag exists elsewhere -> fail." The second half
+          # was missing: an existing tag was accepted without asking WHERE it points, so a re-run
+          # could publish this commit's packages under a version whose tag identifies a different
+          # tree. Existence was the wrong question; identity is the right one.
           if ! git tag -l | grep -q "^v${VERSION}$"; then
             git tag -a "v${VERSION}" -m "Release v${VERSION}"
             git push origin "v${VERSION}"
             echo "✅ Created and pushed tag v${VERSION}"
           else
-            echo "Tag v${VERSION} already exists"
+            tag_sha="$(git rev-list -n 1 "v${VERSION}")"
+            head_sha="$(git rev-parse HEAD)"
+            if [ "$tag_sha" != "$head_sha" ]; then
+              echo "::error::REFUSE: tag v${VERSION} already exists at ${tag_sha}, but this run is building ${head_sha}. Re-tagging would make the version identify a different tree than the one shipped. Pick a new version, or delete the tag deliberately if it was wrong."
+              exit 1
+            fi
+            echo "Tag v${VERSION} already exists at this commit (${head_sha}) -- idempotent re-run, continuing."
           fi
 
       - name: Generate release notes
@@ -882,7 +921,14 @@ jobs:
           tag_name: v${{ needs.pre-release-validation.outputs.version }}
           name: Excalibur v${{ needs.pre-release-validation.outputs.version }}
           body_path: release_notes.md
-          draft: false
+          # DRAFT until the packages are actually on NuGet. This job runs BEFORE publish-nuget, so
+          # publishing here announced a release whose packages might never arrive: a publish failure
+          # left a public release pointing at packages that do not exist, and the announcement cannot
+          # be un-sent. A draft is invisible to consumers and deletable, so a failed publish leaves
+          # something to clean up rather than something to retract.
+          #
+          # finalize-release publishes it, and only after NuGet has the packages.
+          draft: true
           prerelease: ${{ needs.pre-release-validation.outputs.prerelease == 'true' }}
           files: |
             all-packages/*.nupkg
@@ -1078,6 +1124,78 @@ jobs:
           done
 
   # Post-release tasks
+  # The ONE step that makes the release public, and it runs last on purpose.
+  #
+  # Ordering, stated as the rule it enforces: a public GitHub release must never announce packages
+  # that failed to publish. create-release therefore produces a DRAFT, publish-nuget puts the
+  # packages on the feed, and only then does this job flip the draft.
+  #
+  # A separate job rather than a step in post-release, because post-release is deliberately
+  # `contents: read` -- "this job must not be able to alter the repository it is publishing from" --
+  # and finalising needs `contents: write`. Widening post-release would trade a real security
+  # boundary for one step's convenience. This job has that one permission and does that one thing.
+  #
+  # No `always()`: if publishing did not succeed, this must NOT run. The release stays a draft, which
+  # is the correct end state for a failed publish and is announced as such below.
+  finalize-release:
+    permissions:
+      contents: write
+    name: Publish the Release (after NuGet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [pre-release-validation, create-release, publish-nuget]
+    if: needs.publish-nuget.result == 'success'
+    steps:
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.pre-release-validation.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Idempotent by construction: a release already published is the desired end state, so a
+          # re-run verifies rather than failing. `--draft=false` on a published release is a no-op.
+          state="$(gh release view "v${VERSION}" --json isDraft --jq '.isDraft' 2>/dev/null || echo "missing")"
+          case "$state" in
+            missing)
+              echo "::error::REFUSE: release v${VERSION} does not exist, but publish-nuget succeeded. The packages are on NuGet with no release describing them."
+              exit 1 ;;
+            true)
+              gh release edit "v${VERSION}" --draft=false
+              echo "Published release v${VERSION} -- packages are on NuGet." ;;
+            false)
+              echo "Release v${VERSION} was already published; nothing to do (idempotent re-run)." ;;
+          esac
+
+  # Runs whatever happened, so a failed publish still says what state the release was left in.
+  # Without this, a draft left behind by a failed publish is silent: nothing in the run output tells
+  # you it exists or that it needs deleting.
+  announce-draft-retained:
+    permissions:
+      contents: read
+    name: Report a Retained Draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [pre-release-validation, create-release, publish-nuget]
+    if: always() && needs.create-release.result == 'success' && needs.publish-nuget.result != 'success'
+    steps:
+      - name: Say the release is still a draft, and why
+        env:
+          VERSION: ${{ needs.pre-release-validation.outputs.version }}
+          PUBLISH_RESULT: ${{ needs.publish-nuget.result }}
+        run: |
+          {
+            echo "### Release v${VERSION} was NOT published"
+            echo ""
+            echo "NuGet publishing finished as \`${PUBLISH_RESULT}\`, so the GitHub release for"
+            echo "\`v${VERSION}\` has been left as a **draft**. No consumer has been told about a"
+            echo "release whose packages may not exist."
+            echo ""
+            echo "To recover: fix the cause and re-run. The publication-state check will classify"
+            echo "this as \`resumed\` or \`partial\` and will not block the re-run. If the release was"
+            echo "a mistake, delete the draft and the tag."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Release v${VERSION} left as a draft: publish-nuget = ${PUBLISH_RESULT}"
+
   post-release:
     # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
     # read because this job must not be able to alter the repository it is publishing from.
