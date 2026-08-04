@@ -1564,19 +1564,33 @@ jobs:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos]
+    needs: [changes, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos]
     if: always()
     steps:
       - name: Validate release-blocking test matrix
         shell: bash
         run: |
           set -euo pipefail
+          # A skip is tolerated ONLY on a documentation-only change, where these gates are
+          # SUPPOSED not to run. Anywhere else a skipped release-blocking gate is a failure: it
+          # would mean the gate silently stopped running, which is what this job exists to catch,
+          # and treating that as a pass would make the whole tier advisory.
+          #
+          # Missed when the roots were gated on the classifier, because that change was verified
+          # against the jobs that SKIP and not against the jobs that READ their results. These two
+          # carry always(), so they ran with skipped dependencies and reported them as failures on
+          # the very first documentation-only pull request.
+          DOCS_ONLY="${{ needs.changes.outputs.docs_only }}"
+
           require_success() {
             local suite="$1"
             local status="$2"
-            if [[ "$status" != "success" ]]; then
-              failures+=("${suite}=${status}")
+            if [[ "$status" == "success" ]]; then return; fi
+            if [[ "$status" == "skipped" && "$DOCS_ONLY" == "true" ]]; then
+              echo "  tolerated: ${suite} skipped -- documentation-only change" >&2
+              return
             fi
+            failures+=("${suite}=${status}")
           }
           failures=()
 
@@ -1617,19 +1631,33 @@ jobs:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [package, release-blocking-tests, quality, flaky-quarantine-governance, serialization-policy, call-security, call-governance]
+    needs: [changes, package, release-blocking-tests, quality, flaky-quarantine-governance, serialization-policy, call-security, call-governance]
     if: always()
     steps:
       - name: Validate release-blocking CI policy
         shell: bash
         run: |
           set -euo pipefail
+          # A skip is tolerated ONLY on a documentation-only change, where these gates are
+          # SUPPOSED not to run. Anywhere else a skipped release-blocking gate is a failure: it
+          # would mean the gate silently stopped running, which is what this job exists to catch,
+          # and treating that as a pass would make the whole tier advisory.
+          #
+          # Missed when the roots were gated on the classifier, because that change was verified
+          # against the jobs that SKIP and not against the jobs that READ their results. These two
+          # carry always(), so they ran with skipped dependencies and reported them as failures on
+          # the very first documentation-only pull request.
+          DOCS_ONLY="${{ needs.changes.outputs.docs_only }}"
+
           require_success() {
             local gate="$1"
             local status="$2"
-            if [[ "$status" != "success" ]]; then
-              failures+=("${gate}=${status}")
+            if [[ "$status" == "success" ]]; then return; fi
+            if [[ "$status" == "skipped" && "$DOCS_ONLY" == "true" ]]; then
+              echo "  tolerated: ${gate} skipped -- documentation-only change" >&2
+              return
             fi
+            failures+=("${gate}=${status}")
           }
 
           failures=()
