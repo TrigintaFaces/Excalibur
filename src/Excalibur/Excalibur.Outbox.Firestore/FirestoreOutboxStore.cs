@@ -35,7 +35,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -577,7 +577,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		return ValueTask.CompletedTask;
 	}

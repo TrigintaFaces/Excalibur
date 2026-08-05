@@ -33,7 +33,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 	private readonly ILogger<DynamoDbActivityGroupGrantStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -274,7 +274,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -287,7 +287,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

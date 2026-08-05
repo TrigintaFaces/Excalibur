@@ -46,7 +46,15 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbSnapshotDocument>? _collection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -187,6 +195,12 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 		// if we are genuinely older it matches nothing, the insert collides again, and the conflict
 		// is real. The loop bound only limits how many times we are willing to lose that race before
 		// concluding the same thing.
+		//
+		// Two attempts are sufficient for the argument: the first can lose the insert race, and by
+		// the second a document exists for the guard to compare against. The bound is higher because
+		// the document can be removed between attempts -- retention trimming, an erasure -- which
+		// returns a later attempt to the empty state the first one faced. Five bounds the pathology
+		// without changing the reasoning; it is not a probability knob.
 		const int maxAttempts = 5;
 		var attempt = 0;
 
@@ -204,7 +218,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 					LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 					break;
 				}
-				catch (MongoWriteException ex) when (ex.WriteError?.Code == 11000 && attempt < maxAttempts)
+				catch (MongoWriteException ex) when (IsIdIndexDuplicate(ex) && attempt < maxAttempts)
 				{
 					// Lost an insert race. Whether that means we are superseded is not yet known --
 					// re-run the guard against the document that now exists and let it decide.
@@ -212,7 +226,7 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 				}
 			}
 		}
-		catch (MongoWriteException ex) when (ex.WriteError?.Code == 11000)
+		catch (MongoWriteException ex) when (IsIdIndexDuplicate(ex))
 		{
 			// Exhausted: a document exists and the guard did not match it on any attempt, so a
 			// version at least as high as this one is already stored. This snapshot is genuinely
@@ -325,6 +339,19 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -333,6 +360,34 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 		return ValueTask.CompletedTask;
 	}
 
+	/// <summary>
+	/// Builds the client, database handle and collection handle once, however many callers arrive
+	/// together.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The obvious consequence of racing here is the null dereference -- one caller assigns the
+	/// client and is still assigning the collection when another sees a non-null client, skips the
+	/// block and uses a collection that is still null. That window is only a few instructions wide,
+	/// which is why it was so hard to reproduce. It is NOT the dominant consequence.
+	/// </para>
+	/// <para>
+	/// The dominant one is that every caller that lost the race had already CONSTRUCTED a client,
+	/// and only one of them was ever stored in the field. The others were unreachable the moment
+	/// they were overwritten, and a client owns a connection pool and background server-monitoring
+	/// threads. Disposal below can only release the client the field is holding, so each lost race
+	/// leaked one pool for the lifetime of the process. Unlike the null dereference that happens on
+	/// EVERY lost race, not on the narrow interleaving -- so the defect that was easy to miss was
+	/// also the one that was certain to occur.
+	/// </para>
+	/// <para>
+	/// Publication is safe without building into locals first. The three fields are written inside
+	/// the lock and are followed by a volatile write of the flag, so a caller that takes the early
+	/// return above has performed a volatile read of that same flag and cannot observe the fields as
+	/// they were before it. The flag is the release, the early-return check is the acquire, and the
+	/// pair is what makes the fields visible rather than merely assigned.
+	/// </para>
+	/// </remarks>
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
 		if (_initialized)
@@ -340,43 +395,101 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 			return;
 		}
 
-		if (_client == null)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
-			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
-			settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
-			settings.MaxConnectionPoolSize = _options.MaxPoolSize;
-
-			if (_options.UseSsl)
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
 			{
-				settings.UseTls = true;
+				return;
+			}
+			if (_client == null)
+			{
+				var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
+				settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
+				settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+				settings.MaxConnectionPoolSize = _options.MaxPoolSize;
+
+				if (_options.UseSsl)
+				{
+					settings.UseTls = true;
+				}
+
+				_client = new MongoClient(settings);
+				_database = _client.GetDatabase(_options.DatabaseName);
+				_collection = _database.GetCollection<MongoDbSnapshotDocument>(_options.CollectionName);
 			}
 
-			_client = new MongoClient(settings);
-			_database = _client.GetDatabase(_options.DatabaseName);
-			_collection = _database.GetCollection<MongoDbSnapshotDocument>(_options.CollectionName);
+			// Create indexes
+			var indexBuilder = Builders<MongoDbSnapshotDocument>.IndexKeys;
+
+			// Index on aggregateId and aggregateType for queries
+			var aggregateIndex = new CreateIndexModel<MongoDbSnapshotDocument>(
+				indexBuilder.Combine(
+					indexBuilder.Ascending(d => d.AggregateId),
+					indexBuilder.Ascending(d => d.AggregateType)),
+				new CreateIndexOptions { Name = "ix_aggregate" });
+
+			// Index on version for version-based queries
+			var versionIndex = new CreateIndexModel<MongoDbSnapshotDocument>(
+				indexBuilder.Ascending(d => d.Version),
+				new CreateIndexOptions { Name = "ix_version" });
+
+			_ = await _collection!.Indexes.CreateManyAsync(
+				[aggregateIndex, versionIndex],
+				cancellationToken).ConfigureAwait(false);
+
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
+	}
+
+	/// <summary>
+	/// Whether a duplicate-key error came from the <c>_id</c> index, which is the only one the
+	/// version-guard retry reasons about.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The retry above treats a duplicate key as "a document exists, re-run the guard against it",
+	/// and on exhaustion it concludes "this snapshot is superseded". Both statements are only true
+	/// of the <c>_id</c> index. A duplicate on any OTHER unique index means something entirely
+	/// different, and the loop would spin against it five times and then report a version conflict
+	/// that never happened -- a wrong verdict, reported confidently, with the real violation lost.
+	/// Nothing in this store creates a second unique index, so today the distinction is theoretical;
+	/// it stops being theoretical the moment a consumer adds one to the collection.
+	/// </para>
+	/// <para>
+	/// An unrecognised message is treated as an <c>_id</c> conflict, which is deliberately the
+	/// pre-existing behaviour. The index name is parsed out of a server message, and a message
+	/// format this code does not recognise must not turn a routine version conflict into a thrown
+	/// exception on the common path. So the narrowing only ever fires when a DIFFERENT index is
+	/// positively identified: unknown means behave as before, and only a name we can read and that
+	/// is not <c>_id_</c> escalates.
+	/// </para>
+	/// </remarks>
+	private static bool IsIdIndexDuplicate(MongoWriteException exception)
+	{
+		if (exception.WriteError?.Code != 11000)
+		{
+			return false;
 		}
 
-		// Create indexes
-		var indexBuilder = Builders<MongoDbSnapshotDocument>.IndexKeys;
+		var message = exception.WriteError.Message ?? string.Empty;
+		var marker = message.IndexOf("index:", StringComparison.Ordinal);
+		if (marker < 0)
+		{
+			return true;
+		}
 
-		// Index on aggregateId and aggregateType for queries
-		var aggregateIndex = new CreateIndexModel<MongoDbSnapshotDocument>(
-			indexBuilder.Combine(
-				indexBuilder.Ascending(d => d.AggregateId),
-				indexBuilder.Ascending(d => d.AggregateType)),
-			new CreateIndexOptions { Name = "ix_aggregate" });
+		var remainder = message.AsSpan(marker + "index:".Length).TrimStart();
+		var space = remainder.IndexOf(' ');
+		var indexName = space < 0 ? remainder : remainder[..space];
 
-		// Index on version for version-based queries
-		var versionIndex = new CreateIndexModel<MongoDbSnapshotDocument>(
-			indexBuilder.Ascending(d => d.Version),
-			new CreateIndexOptions { Name = "ix_version" });
-
-		_ = await _collection!.Indexes.CreateManyAsync(
-			[aggregateIndex, versionIndex],
-			cancellationToken).ConfigureAwait(false);
-
-		_initialized = true;
+		return indexName.SequenceEqual("_id_");
 	}
 
 	[LoggerMessage(DataMongoDbEventId.SnapshotSaved, LogLevel.Debug, "Saved snapshot for {AggregateType}/{AggregateId} at version {Version}")]

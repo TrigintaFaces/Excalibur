@@ -545,7 +545,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 		_disposed = true;
 		DisposeClientIfOwned();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -558,7 +558,7 @@ public sealed partial class CosmosDbSagaStore : ISagaStore, IAsyncDisposable, ID
 
 		_disposed = true;
 		DisposeClientIfOwned();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

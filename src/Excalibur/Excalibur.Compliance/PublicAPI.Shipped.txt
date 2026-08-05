@@ -640,6 +640,7 @@ Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.SchemaName.set ->
 Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.TablePrefix.get -> string!
 Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions.TablePrefix.set -> void
 Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore
+Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.Dispose() -> void
 Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.GetConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ConsentRecord?>!
 Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.PostgresComplianceStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions!>! options, Excalibur.Dispatch.ITenantContext? tenantContext, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore!>! logger) -> void
 Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore.PostgresComplianceStore(System.Func<Npgsql.NpgsqlConnection!>! connectionFactory, Excalibur.Compliance.Stores.Postgres.PostgresComplianceOptions? options, Excalibur.Dispatch.ITenantContext? tenantContext, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Stores.Postgres.PostgresComplianceStore!>! logger) -> void

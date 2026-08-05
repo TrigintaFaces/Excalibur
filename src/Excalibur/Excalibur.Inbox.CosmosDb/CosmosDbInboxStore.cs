@@ -38,7 +38,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 	private CosmosClient? _client;
 	private Container? _container;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -832,7 +832,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -845,7 +845,7 @@ public sealed partial class CosmosDbInboxStore : IInboxStore, IProcessingTrackin
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

@@ -44,7 +44,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 	// when loaded through the canonical read path (the i2eabb cross-path fault).
 	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
 
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -505,7 +505,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}
 

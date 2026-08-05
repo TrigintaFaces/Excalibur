@@ -43,7 +43,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly bool _ownsClient;
 	private IAmazonDynamoDB? _client;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -496,7 +496,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -514,7 +514,7 @@ public sealed partial class DynamoDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

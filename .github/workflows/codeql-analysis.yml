@@ -120,3 +120,9 @@ jobs:
           # This script would parse SARIF output from CodeQL
           echo "Checking for critical/high severity findings..."
           # Add SARIF parsing logic here if needed
+      # See secret-scan.yml: this is one of four required contexts and wrote no summary, so a failure
+      # blocked the merge while explaining nothing. always() -- the failing case is the one that needs it.
+      - name: Report result
+        if: always()
+        run: |
+          bash eng/ci/job-summary.sh             --title "CodeQL Security Analysis (C#)"             --verdict "${{ job.status == 'success' && 'pass' || 'fail' }}"             --detail "CodeQL analysed the C# sources for security findings"             --next "Open the Security tab's code-scanning alerts for this run. A finding is triaged, not dismissed: fix it, or record why it is not exploitable here."

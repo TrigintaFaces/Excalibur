@@ -94,12 +94,14 @@ public sealed class PostgresComplianceOptions
 /// This implementation requires Postgres 12+ and the Npgsql driver.
 /// </para>
 /// </remarks>
-public sealed partial class PostgresComplianceStore : IComplianceStore
+public sealed partial class PostgresComplianceStore : IComplianceStore, IDisposable
 {
 	private readonly Func<NpgsqlConnection> _connectionFactory;
 	private readonly PostgresComplianceOptions _options;
 	private readonly ILogger<PostgresComplianceStore> _logger;
 	private readonly ITenantContext? _tenantContext;
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+	private volatile bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
@@ -373,7 +375,7 @@ public sealed partial class PostgresComplianceStore : IComplianceStore
 	}
 
 	/// <summary>
-	/// Ensures the schema and tables this store writes to exist, once per store instance.
+	/// Ensures the schema and tables this store writes to exist, exactly once per store instance.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -382,21 +384,75 @@ public sealed partial class PostgresComplianceStore : IComplianceStore
 	/// provider error far from its cause.
 	/// </para>
 	/// <para>
-	/// Deliberately unsynchronized. Concurrent first calls may both run this, which is harmless: the DDL is
-	/// <c>IF NOT EXISTS</c> throughout and the verification path is a read, so the work is idempotent and the
-	/// race costs at most one redundant round trip. This follows the framework convention for lazily
-	/// initialized state — the same contract as <c>ConcurrentDictionary.GetOrAdd</c>, whose factory runs
-	/// outside the lock and may run more than once — and it avoids holding a lock across arbitrary database
-	/// I/O, which is the more expensive mistake.
+	/// This was previously unsynchronized on purpose, and the argument for that is recorded here because it
+	/// was reasonable and still wrong. It ran: the DDL is <c>IF NOT EXISTS</c> throughout and the
+	/// verification path is a read, so a repeated run is idempotent and costs one redundant round trip;
+	/// holding a lock across arbitrary database I/O is the more expensive mistake; and
+	/// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey,TValue}"/> likewise runs its
+	/// factory outside the lock.
+	/// </para>
+	/// <para>
+	/// The flaw is in the first step. <c>IF NOT EXISTS</c> is idempotent in its RESULT, not atomic in its
+	/// EXECUTION: two sessions creating the same object concurrently can both pass the existence check and
+	/// then collide in the system catalog, which raises rather than returning quietly. The comparison to a
+	/// concurrent dictionary does not carry either -- that contract tolerates a factory running twice
+	/// because the loser's value is discarded, whereas here the second run is a schema change against a
+	/// shared database. So initialization is serialized, with the completion flag re-checked inside the lock
+	/// so a caller that merely waited does not repeat the work.
+	/// </para>
+	/// <para>
+	/// The lock is held across database I/O, which the earlier note rightly called out as a cost. It is
+	/// bounded: it is taken once per store instance, only on the path that has not yet initialized, and
+	/// every subsequent call returns on the flag without touching it.
 	/// </para>
 	/// </remarks>
 	private async Task EnsureInitializedAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
 		if (_initialized)
 		{
 			return;
 		}
 
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			if (_initialized)
+			{
+				return;
+			}
+
+			await InitializeCoreAsync(connection, cancellationToken).ConfigureAwait(false);
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
+	}
+
+	/// <summary>
+	/// Releases the initialisation lock.
+	/// </summary>
+	/// <remarks>
+	/// The flag is set before anything is released, so a caller that races disposal is refused by
+	/// the guard above rather than reaching a half-torn-down store. This mirrors how the framework
+	/// disposes its own lazily-connected caches.
+	/// </remarks>
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		_initLock?.Dispose();
+	}
+
+	private async Task InitializeCoreAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+	{
 		if (_options.AutoCreateSchema)
 		{
 			await CreateSchemaIfNotExistsAsync(connection, cancellationToken).ConfigureAwait(false);
@@ -406,7 +462,6 @@ public sealed partial class PostgresComplianceStore : IComplianceStore
 			await VerifySchemaExistsAsync(connection, cancellationToken).ConfigureAwait(false);
 		}
 
-		_initialized = true;
 	}
 
 	/// <summary>

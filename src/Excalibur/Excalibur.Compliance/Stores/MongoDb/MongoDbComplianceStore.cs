@@ -96,7 +96,15 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 	private IMongoCollection<ErasureLogDocument>? _erasureLogCollection;
 	private IMongoCollection<SubjectAccessDocument>? _subjectAccessCollection;
 	private volatile bool _disposed;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
+	private volatile bool _initialized;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MongoDbComplianceStore"/> class.
@@ -271,6 +279,19 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -284,39 +305,54 @@ public sealed partial class MongoDbComplianceStore : IComplianceStore, IDisposab
 			return;
 		}
 
-		if (_client == null)
+
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
 			{
-				throw new InvalidOperationException(
-					$"'{nameof(MongoDbComplianceOptions)}.{nameof(MongoDbComplianceOptions.ConnectionString)}' is required. " +
-					$"Configure it via services.Configure<{nameof(MongoDbComplianceOptions)}>(config.GetSection(\"MongoDbCompliance\")) " +
-					"or set the ConnectionString property directly.");
+				return;
+			}
+			if (_client == null)
+			{
+				if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+				{
+					throw new InvalidOperationException(
+						$"'{nameof(MongoDbComplianceOptions)}.{nameof(MongoDbComplianceOptions.ConnectionString)}' is required. " +
+						$"Configure it via services.Configure<{nameof(MongoDbComplianceOptions)}>(config.GetSection(\"MongoDbCompliance\")) " +
+						"or set the ConnectionString property directly.");
+				}
+
+				var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
+				settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
+				settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+
+				_client = new MongoClient(settings);
+				_database = _client.GetDatabase(_options.DatabaseName);
+				_consentCollection = _database.GetCollection<ConsentDocument>(_options.ConsentCollectionName);
+				_erasureLogCollection = _database.GetCollection<ErasureLogDocument>(_options.ErasureLogsCollectionName);
+				_subjectAccessCollection = _database.GetCollection<SubjectAccessDocument>(_options.SubjectAccessCollectionName);
 			}
 
-			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
-			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
-			settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+			// Create unique index on erasure logs for subject_id queries
+			// Tenant-first compound index: every read of this collection is tenant-scoped, so leading with the
+			// tenant lets a scoped scan use the index prefix instead of scanning other tenants' documents.
+			var erasureIndexBuilder = Builders<ErasureLogDocument>.IndexKeys;
+			var subjectIdIndex = new CreateIndexModel<ErasureLogDocument>(
+				erasureIndexBuilder.Ascending(d => d.TenantId).Ascending(d => d.SubjectId));
 
-			_client = new MongoClient(settings);
-			_database = _client.GetDatabase(_options.DatabaseName);
-			_consentCollection = _database.GetCollection<ConsentDocument>(_options.ConsentCollectionName);
-			_erasureLogCollection = _database.GetCollection<ErasureLogDocument>(_options.ErasureLogsCollectionName);
-			_subjectAccessCollection = _database.GetCollection<SubjectAccessDocument>(_options.SubjectAccessCollectionName);
+			_ = await _erasureLogCollection!.Indexes
+				.CreateOneAsync(subjectIdIndex, cancellationToken: cancellationToken)
+				.ConfigureAwait(false);
+
+			_initialized = true;
 		}
-
-		// Create unique index on erasure logs for subject_id queries
-		// Tenant-first compound index: every read of this collection is tenant-scoped, so leading with the
-		// tenant lets a scoped scan use the index prefix instead of scanning other tenants' documents.
-		var erasureIndexBuilder = Builders<ErasureLogDocument>.IndexKeys;
-		var subjectIdIndex = new CreateIndexModel<ErasureLogDocument>(
-			erasureIndexBuilder.Ascending(d => d.TenantId).Ascending(d => d.SubjectId));
-
-		_ = await _erasureLogCollection!.Indexes
-			.CreateOneAsync(subjectIdIndex, cancellationToken: cancellationToken)
-			.ConfigureAwait(false);
-
-		_initialized = true;
+		finally
+		{
+			_ = _initLock.Release();
+		}
 	}
 
 	[LoggerMessage(

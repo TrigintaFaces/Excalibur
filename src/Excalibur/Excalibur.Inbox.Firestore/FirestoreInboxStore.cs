@@ -41,7 +41,13 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	private readonly ITenantContext? _tenantContext;
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it concurrent first callers each run the
+	// provisioning below, and where more than one field is assigned a second caller can observe
+	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: read on the fast path outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -112,7 +118,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 		using var activity = InboxActivitySource.StartCreateEntryActivity(messageId, handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var entry = new InboxEntry(messageId, handlerType, messageType, payload, metadata);
 		var docId = GetDocumentId(messageId, handlerType);
@@ -142,7 +148,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 		using var activity = InboxActivitySource.StartMarkProcessedActivity(messageId, handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -200,7 +206,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -255,7 +261,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -317,7 +323,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -354,7 +360,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -405,7 +411,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 		using var activity = InboxActivitySource.StartExistsActivity(messageId, handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -427,7 +433,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -451,7 +457,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -481,7 +487,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 
 		using var activity = InboxActivitySource.StartMarkFailedActivity(messageId, handlerType);
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var docId = GetDocumentId(messageId, handlerType);
 		var docRef = _collection!.Document(docId);
@@ -556,7 +562,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var query = _collection!
 			.WhereEqualTo("status", (int)InboxStatus.Failed)
@@ -577,7 +583,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// <inheritdoc/>
 	public async ValueTask<IEnumerable<InboxEntry>> GetAllEntriesAsync(CancellationToken cancellationToken)
 	{
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var snapshot = await _collection!.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -587,7 +593,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	/// <inheritdoc/>
 	public async ValueTask<InboxStatistics> GetStatisticsAsync(CancellationToken cancellationToken)
 	{
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// Firestore doesn't support COUNT aggregation natively without reading documents
 		// For efficiency, we query each status separately with a limit of 0
@@ -633,7 +639,7 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	{
 		using var activity = InboxActivitySource.StartCleanupActivity();
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var cutoff = olderThan;
 
@@ -677,6 +683,19 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 		}
 
 		_disposed = true;
+
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
 		// FirestoreDb doesn't implement IDisposable - connections are managed internally
 		return ValueTask.CompletedTask;
 	}
@@ -800,36 +819,50 @@ public sealed partial class FirestoreInboxStore : IInboxStore, IProcessingTracki
 	[LoggerMessage(DataFirestoreEventId.InboxCleanedUp, LogLevel.Information, "Cleaned up {Count} inbox entries")]
 	private static partial void LogCleanedUpEntries(ILogger logger, int count, Exception? exception);
 
-	private async Task EnsureInitializedAsync()
+	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
 		if (_initialized)
 		{
 			return;
 		}
 
-		var builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId };
 
-		if (!string.IsNullOrEmpty(_options.EmulatorHost))
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			builder.EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly;
-			_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
-		}
+			// Re-check inside the lock: the winner finished while this caller waited.
+			if (_initialized)
+			{
+				return;
+			}
+			var builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId };
 
-		if (!string.IsNullOrEmpty(_options.CredentialsPath))
-		{
+			if (!string.IsNullOrEmpty(_options.EmulatorHost))
+			{
+				builder.EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly;
+				_ = FirestoreEmulatorHelper.TryConfigureEmulatorHost(_options.EmulatorHost);
+			}
+
+			if (!string.IsNullOrEmpty(_options.CredentialsPath))
+			{
 #pragma warning disable CS0618 // Obsolete CredentialsPath/JsonCredentials
-			builder.CredentialsPath = _options.CredentialsPath;
+				builder.CredentialsPath = _options.CredentialsPath;
 #pragma warning restore CS0618
-		}
-		else if (!string.IsNullOrEmpty(_options.CredentialsJson))
-		{
+			}
+			else if (!string.IsNullOrEmpty(_options.CredentialsJson))
+			{
 #pragma warning disable CS0618
-			builder.JsonCredentials = _options.CredentialsJson;
+				builder.JsonCredentials = _options.CredentialsJson;
 #pragma warning restore CS0618
-		}
+			}
 
-		_db = await builder.BuildAsync().ConfigureAwait(false);
-		_collection = _db.Collection(_options.CollectionName);
-		_initialized = true;
+			_db = await builder.BuildAsync().ConfigureAwait(false);
+			_collection = _db.Collection(_options.CollectionName);
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
 	}
 }

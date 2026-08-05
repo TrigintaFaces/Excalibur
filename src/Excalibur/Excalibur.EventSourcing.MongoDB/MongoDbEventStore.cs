@@ -64,7 +64,15 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbEventDocument>? _eventsCollection;
 	private IMongoCollection<MongoDbCounterDocument>? _countersCollection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -383,6 +391,19 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -487,51 +508,66 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			return;
 		}
 
-		if (_client == null)
-		{
-			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
-			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
-			settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
-			settings.MaxConnectionPoolSize = _options.MaxPoolSize;
 
-			if (_options.UseSsl)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
 			{
-				settings.UseTls = true;
+				return;
+			}
+			if (_client == null)
+			{
+				var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
+				settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
+				settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+				settings.MaxConnectionPoolSize = _options.MaxPoolSize;
+
+				if (_options.UseSsl)
+				{
+					settings.UseTls = true;
+				}
+
+				_client = new MongoClient(settings);
+				_database = _client.GetDatabase(_options.DatabaseName);
+				_eventsCollection = _database.GetCollection<MongoDbEventDocument>(_options.CollectionName);
+				_countersCollection = _database.GetCollection<MongoDbCounterDocument>(_options.CounterCollectionName);
 			}
 
-			_client = new MongoClient(settings);
-			_database = _client.GetDatabase(_options.DatabaseName);
-			_eventsCollection = _database.GetCollection<MongoDbEventDocument>(_options.CollectionName);
-			_countersCollection = _database.GetCollection<MongoDbCounterDocument>(_options.CounterCollectionName);
+			// Create indexes
+			var indexBuilder = Builders<MongoDbEventDocument>.IndexKeys;
+
+			// UNIQUE compound index for optimistic concurrency
+			// This enforces that (streamId, aggregateType, version) is unique
+			var uniqueVersionIndex = new CreateIndexModel<MongoDbEventDocument>(
+				indexBuilder.Combine(
+					indexBuilder.Ascending(d => d.StreamId),
+					indexBuilder.Ascending(d => d.AggregateType),
+					indexBuilder.Ascending(d => d.Version)),
+				new CreateIndexOptions { Unique = true, Name = "ix_stream_version_unique" });
+
+			// Index on globalSequence for ordering
+			var globalSequenceIndex = new CreateIndexModel<MongoDbEventDocument>(
+				indexBuilder.Ascending(d => d.GlobalSequence),
+				new CreateIndexOptions { Name = "ix_global_sequence" });
+
+			// Index on eventId for lookups
+			var eventIdIndex = new CreateIndexModel<MongoDbEventDocument>(
+				indexBuilder.Ascending(d => d.EventId),
+				new CreateIndexOptions { Name = "ix_event_id" });
+
+			_ = await _eventsCollection!.Indexes.CreateManyAsync(
+				[uniqueVersionIndex, globalSequenceIndex, eventIdIndex],
+				cancellationToken).ConfigureAwait(false);
+
+			_initialized = true;
 		}
-
-		// Create indexes
-		var indexBuilder = Builders<MongoDbEventDocument>.IndexKeys;
-
-		// UNIQUE compound index for optimistic concurrency
-		// This enforces that (streamId, aggregateType, version) is unique
-		var uniqueVersionIndex = new CreateIndexModel<MongoDbEventDocument>(
-			indexBuilder.Combine(
-				indexBuilder.Ascending(d => d.StreamId),
-				indexBuilder.Ascending(d => d.AggregateType),
-				indexBuilder.Ascending(d => d.Version)),
-			new CreateIndexOptions { Unique = true, Name = "ix_stream_version_unique" });
-
-		// Index on globalSequence for ordering
-		var globalSequenceIndex = new CreateIndexModel<MongoDbEventDocument>(
-			indexBuilder.Ascending(d => d.GlobalSequence),
-			new CreateIndexOptions { Name = "ix_global_sequence" });
-
-		// Index on eventId for lookups
-		var eventIdIndex = new CreateIndexModel<MongoDbEventDocument>(
-			indexBuilder.Ascending(d => d.EventId),
-			new CreateIndexOptions { Name = "ix_event_id" });
-
-		_ = await _eventsCollection!.Indexes.CreateManyAsync(
-			[uniqueVersionIndex, globalSequenceIndex, eventIdIndex],
-			cancellationToken).ConfigureAwait(false);
-
-		_initialized = true;
+		finally
+		{
+			_ = _initLock.Release();
+		}
 	}
 
 	private byte[] SerializeEvent(IDomainEvent @event)

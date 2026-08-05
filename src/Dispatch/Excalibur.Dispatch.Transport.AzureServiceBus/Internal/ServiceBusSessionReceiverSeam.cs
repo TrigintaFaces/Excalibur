@@ -45,7 +45,7 @@ internal sealed partial class ServiceBusSessionReceiverSeam : IServiceBusReceive
 	// Guards _session so concurrent ReceiveMessagesAsync / settle calls never race on the session swap.
 	private readonly SemaphoreSlim _sessionGate = new(1, 1);
 	private ServiceBusSessionReceiver? _session;
-	private bool _disposed;
+	private volatile bool _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServiceBusSessionReceiverSeam"/> class.

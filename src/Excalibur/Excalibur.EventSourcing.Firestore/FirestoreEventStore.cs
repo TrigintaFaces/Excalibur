@@ -40,7 +40,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 	// when loaded through the canonical read path (the i2eabb cross-path fault).
 	private readonly JsonSerializerOptions _jsonOptions = EventSerializationDefaults.CreateCanonicalOptions();
 	private FirestoreDb? _db;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -554,7 +554,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

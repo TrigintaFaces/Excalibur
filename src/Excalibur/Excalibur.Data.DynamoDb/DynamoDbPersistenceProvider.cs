@@ -62,7 +62,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
 	private IAmazonDynamoDBStreams? _streamsClient;
-	private bool _initialized;
+	private volatile bool _initialized;
 
 	private volatile bool _disposed;
 
@@ -890,7 +890,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		// Direct disposal is safe because _disposed flag prevents concurrent init.
 		_client?.Dispose();
 		_streamsClient?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc />
@@ -918,7 +918,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 
 		_client?.Dispose();
 		_streamsClient?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]

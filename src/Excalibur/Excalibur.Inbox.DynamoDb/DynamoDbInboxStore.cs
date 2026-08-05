@@ -50,7 +50,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// </remarks>
 	private readonly bool _ownsClient;
 
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -874,7 +874,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -892,7 +892,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

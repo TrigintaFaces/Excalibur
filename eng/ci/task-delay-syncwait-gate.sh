@@ -119,6 +119,29 @@ run_gate() {
         return 2
     fi
 
+    # The base must exist before it is diffed against. git reports an unknown revision on stderr and
+    # produces no output, and the diff plumbing below sends stderr to /dev/null -- so an unresolvable
+    # base yielded an empty diff, an empty diff yielded no violations, and the gate printed a clean
+    # pass having compared nothing at all. That is the one outcome a gate must never produce: a green
+    # it did not earn. It happens in CI for ordinary reasons, not exotic ones -- a shallow clone that
+    # never fetched the base, a force-push that orphaned it, a deleted branch.
+    #
+    # An unresolvable base is therefore a REFUSAL, not a pass and not a violation: nothing was
+    # measured, so there is nothing to report either way. Only the modes that consume the base are
+    # checked; --staged and --working diff against the index and the work tree and never touch it.
+    case "$mode" in
+        committed|all)
+            if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null 2>&1; then
+                echo "task-delay-syncwait-gate: REFUSE — base '$base' does not resolve to a commit." >&2
+                echo "  NOTHING was compared. This is not a pass: the gate could not run, which is a" >&2
+                echo "  different outcome from running and finding nothing." >&2
+                echo "  Usually a shallow clone (try: git fetch --unshallow, or fetch-depth: 0 in CI), a" >&2
+                echo "  force-push that orphaned the ref, or a deleted branch." >&2
+                return 2
+            fi
+            ;;
+    esac
+
     local hits
     hits="$(tds_diff_text "$mode" "$base" | tds_scan_diff)"
 
@@ -173,6 +196,18 @@ self_test() {
         echo "self-test FAIL: flagged a line with no Task.Delay" >&2; pass=0
     fi
 
+    # --- Base resolution: an unresolvable base must REFUSE, never pass -----
+    # No set -e here, so the non-zero return is captured rather than fatal.
+    local base_rc
+    run_gate "all" "0000000000000000000000000000000000000000" "0" >/dev/null 2>&1
+    base_rc=$?
+    if [ "$base_rc" -ne 2 ]; then
+        echo "self-test FAIL: an unresolvable base returned $base_rc, expected 2 (REFUSE)." >&2
+        echo "                A gate that cannot resolve its base has compared nothing, so a clean" >&2
+        echo "                verdict from it is a green it did not earn." >&2
+        pass=0
+    fi
+
     # --- File allowlist ----------------------------------------------------
     if ! tds_is_allowlisted_file 'tests/Shared/Tests.Shared/Infrastructure/WaitHelpers.cs'; then
         echo "self-test FAIL: WaitHelpers.cs not allowlisted" >&2; pass=0
@@ -222,7 +257,7 @@ EOF
     fi
 
     if [ "$pass" -eq 1 ]; then
-        echo "✅ task-delay-syncwait-gate self-test PASSED (flags planted sync-wait; ignores allowlist/perf/pragma/WhenAny/comment)."
+        echo "✅ task-delay-syncwait-gate self-test PASSED (flags planted sync-wait; ignores allowlist/perf/pragma/WhenAny/comment; REFUSES an unresolvable base)."
         return 0
     fi
     echo "❌ task-delay-syncwait-gate self-test FAILED." >&2

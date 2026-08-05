@@ -1,0 +1,16 @@
+# Stores whose lazy initialisation is not yet serialised.
+#
+# EMPTY, and that is the point. This file is a ratchet: it may SHRINK freely, and it may not GROW.
+# A new store must serialise its initialisation, and a fix is recorded by deleting its line in the
+# same commit that lands it.
+#
+# It is deliberately kept rather than deleted now that it is empty. Deleting it would remove the
+# record that the exception mechanism exists, and the next person to meet a genuinely hard case
+# would have to invent one -- most likely by relaxing the assertion, which is the failure this file
+# was created to prevent.
+#
+# The last seven entries were the public sealed compliance stores. They were held back because
+# adding a SemaphoreSlim made them own an IDisposable they never released, and adding IDisposable to
+# a shipped public type is a product decision rather than a mechanical edit. It was resolved the way
+# the framework resolves it for its own lazily-connected caches: the type implements IDisposable,
+# sets its disposed flag before releasing anything, and refuses use after disposal.

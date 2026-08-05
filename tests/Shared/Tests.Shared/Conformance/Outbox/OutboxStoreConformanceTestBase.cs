@@ -1895,4 +1895,46 @@ public abstract class OutboxStoreConformanceTestBase : IAsyncLifetime
 	}
 
 	#endregion Failure-Anchored Re-claim Floor Conformance (lz7us9)
+	/// <summary>
+	/// Concurrent first callers must not fault: lazy initialisation has to be serialised.
+	/// </summary>
+	/// <remarks>
+	/// Deliberately builds a SECOND, fresh store rather than using the fixture's, because the window
+	/// this exercises exists only before initialisation completes and the fixture's store is already
+	/// past it. Reads a key that does not exist, so nothing is mutated and any fault is the finding.
+	/// </para>
+	/// <para>
+	/// SCOPE, stated because a test that reads as broader than it is would be worse than none. This
+	/// was measured against a store with a genuinely unsynchronised initialisation and did NOT detect
+	/// it: 0 failures in 5 runs. The reason is structural -- that store assigns its client, database
+	/// and collection in three consecutive SYNCHRONOUS statements with no await between them, so a
+	/// second caller can only observe the half-built state through true parallelism in a window of a
+	/// few instructions. CI hit it under load; a barrier on a quiet machine does not.
+	/// </para>
+	/// <para>
+	/// It is also VACUOUS for a store the deriver hands back already initialised. 22 of the 77
+	/// conformance derivers call InitializeAsync inside their factory (or share one document store
+	/// across the class), so for those the store has already passed through the window before this
+	/// fact runs and no number of concurrent callers can re-enter it. That is nearly a third, and it
+	/// is not a defect in those derivers -- eager initialisation is what their production wiring does
+	/// -- but it does mean this fact must not be read as covering them.
+	/// </para>
+	/// <para>
+	/// So this is a guard against GROSS concurrency faults -- an operation that throws, deadlocks, or
+	/// corrupts shared state when entered many times at once -- and it is NOT the detector for the
+	/// narrow lazy-init race. The name said "Race First Use", which claimed exactly the thing the
+	/// paragraphs above disclaim; it now says what it asserts. The race itself is bound by two tests
+	/// that do not depend on observing it: LazyInitialisationRunsExactlyOnceShould forces the
+	/// interleaving deterministically and asserts the body runs once (25/25 runs, no container), and
+	/// LazyInitialisationIsGuardedTests asserts structurally that every store has the guard at all.
+	/// </remarks>
+	[Fact]
+	public virtual async Task Should_Not_Fault_When_Many_Callers_Use_The_Store_Concurrently()
+	{
+		var store = await CreateStoreAsync().ConfigureAwait(false);
+
+		await ConcurrentFirstUse.ShouldNotFaultAsync(
+			async () => _ = await store.GetUnsentMessagesAsync(1, CancellationToken.None).ConfigureAwait(false),
+			"the outbox store").ConfigureAwait(false);
+	}
 }

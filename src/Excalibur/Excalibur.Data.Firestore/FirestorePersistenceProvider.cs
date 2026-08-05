@@ -44,7 +44,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	private readonly ILogger<FirestorePersistenceProvider> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private FirestoreDb? _db;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -838,7 +838,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		// Do not block on _initLock.Wait() in sync Dispose -- use DisposeAsync for graceful cleanup.
 		// Direct disposal is safe because _disposed flag prevents concurrent init.
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -864,7 +864,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 			// Proceed with disposal even if lock acquisition times out
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]

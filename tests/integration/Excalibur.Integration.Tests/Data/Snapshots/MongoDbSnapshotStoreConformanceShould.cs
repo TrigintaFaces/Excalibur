@@ -10,6 +10,8 @@ using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using Microsoft.Extensions.Options;
 
 using Shouldly;
@@ -157,5 +159,98 @@ public sealed class MongoDbSnapshotStoreConformanceShould : SnapshotConformanceT
 		public string? TenantId => TenantContextHolder.Current;
 
 		public bool HasTenant => !string.IsNullOrEmpty(TenantContextHolder.Current);
+	}
+
+	/// <summary>
+	/// A duplicate key raised by an index OTHER than <c>_id</c> must surface, not be reported as a
+	/// version conflict.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The save path retries on duplicate key and, on exhaustion, concludes "a newer snapshot is
+	/// already stored, skipping this one". That conclusion is only sound for the <c>_id</c> index.
+	/// Any other unique constraint produces the same error code and means something completely
+	/// different, so the untargeted catch turned an unrelated write violation into a silent,
+	/// confident, WRONG verdict -- the caller is told its snapshot was superseded, the real
+	/// violation is discarded, and nothing is logged as a failure.
+	/// </para>
+	/// <para>
+	/// This runs against real MongoDB because the assumption under test belongs to the SERVER, not
+	/// to us: the store distinguishes the two cases by reading the index name out of the driver's
+	/// error message. A mocked exception would assert only that we can parse a string we wrote
+	/// ourselves, which is precisely the part that cannot be wrong. The safety arm below therefore
+	/// establishes a second unique index on the real collection and provokes it.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task Surface_A_Duplicate_Key_From_A_Foreign_Index_Instead_Of_Reporting_A_Version_Conflict()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue(
+			"MongoDB container must be available - real-infra conformance is never skipped.");
+
+		var store = SnapshotStore!;
+		var client = new MongoClient(_fixture.ConnectionString);
+		var collection = client.GetDatabase(_fixture.DatabaseName)
+			.GetCollection<BsonDocument>(_fixture.CollectionName);
+
+		// LIVENESS, asserted first and against the UNMODIFIED collection: an ordinary superseded
+		// snapshot is still skipped quietly. Without this arm the safety assertion below is equally
+		// satisfied by a store that has simply started throwing on every duplicate key, which would
+		// be a worse regression than the defect being fixed.
+		var supersededType = $"TL{Guid.NewGuid():N}";
+		var supersededAggregate = Guid.NewGuid().ToString();
+
+		await store.SaveSnapshotAsync(
+			CreateTestSnapshot(supersededAggregate, supersededType, 9, [9]),
+			CancellationToken.None).ConfigureAwait(false);
+		await Should.NotThrowAsync(async () => await store.SaveSnapshotAsync(
+			CreateTestSnapshot(supersededAggregate, supersededType, 2, [2]),
+			CancellationToken.None).ConfigureAwait(false));
+
+		var kept = await store.GetLatestSnapshotAsync(supersededAggregate, supersededType, CancellationToken.None)
+			.ConfigureAwait(false);
+		kept.ShouldNotBeNull();
+		kept.Version.ShouldBe(
+			9,
+			"the older snapshot was not merely accepted without throwing -- it overwrote a newer one, "
+			+ "which is the lost update this guard exists to prevent.");
+
+		// Every document written so far carries a DISTINCT aggregateType, which is what makes the
+		// unique index below creatable at all. Writing two of a kind first makes CreateOneAsync
+		// itself fail, and the safety assertion is then never reached -- the first version of this
+		// test did exactly that and reported a failure that had nothing to do with the store.
+		var foreignIndex = await collection.Indexes.CreateOneAsync(
+			new CreateIndexModel<BsonDocument>(
+				Builders<BsonDocument>.IndexKeys.Ascending("aggregateType"),
+				new CreateIndexOptions { Unique = true }),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		try
+		{
+			var collidingType = $"TS{Guid.NewGuid():N}";
+
+			await store.SaveSnapshotAsync(
+				CreateTestSnapshot(Guid.NewGuid().ToString(), collidingType, 5, [1, 2, 3]),
+				CancellationToken.None).ConfigureAwait(false);
+
+			// SAFETY. A DIFFERENT aggregate, so the _id differs and the version guard has no quarrel
+			// with it. It collides only on the unique index established above, and that collision
+			// must not be reported to the caller as "your snapshot was superseded".
+			var write = await Should.ThrowAsync<MongoWriteException>(async () => await store.SaveSnapshotAsync(
+				CreateTestSnapshot(Guid.NewGuid().ToString(), collidingType, 6, [4, 5, 6]),
+				CancellationToken.None).ConfigureAwait(false));
+
+			write.WriteError.Code.ShouldBe(
+				11000,
+				"the arm did not provoke a duplicate key at all, so it proves nothing about how one "
+				+ "is classified.");
+			write.WriteError.Message.Contains("aggregateType", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+				"the duplicate key came from a different index than the one this test established, so "
+				+ $"the safety property was never exercised. Message: {write.WriteError.Message}");
+		}
+		finally
+		{
+			await collection.Indexes.DropOneAsync(foreignIndex, CancellationToken.None).ConfigureAwait(false);
+		}
 	}
 }

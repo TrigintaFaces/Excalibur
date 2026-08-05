@@ -37,7 +37,13 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 	private readonly PostgresAuditOptions _options;
 	private readonly ITenantContext? _tenantContext;
 	private readonly ILogger<PostgresAuditStore> _logger;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it concurrent first callers each run the
+	// provisioning below, and where more than one field is assigned a second caller can observe
+	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: read on the fast path outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -343,6 +349,19 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 		}
 
 		_disposed = true;
+
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
 		return ValueTask.CompletedTask;
 	}
 
@@ -353,12 +372,26 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 			return;
 		}
 
-		if (_options.AutoCreateTable)
-		{
-			await CreateSchemaAndTableAsync(cancellationToken).ConfigureAwait(false);
-		}
 
-		_initialized = true;
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Re-check inside the lock: the winner finished while this caller waited.
+			if (_initialized)
+			{
+				return;
+			}
+			if (_options.AutoCreateTable)
+			{
+				await CreateSchemaAndTableAsync(cancellationToken).ConfigureAwait(false);
+			}
+
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
 		LogAuditStoreInitialized();
 	}
 

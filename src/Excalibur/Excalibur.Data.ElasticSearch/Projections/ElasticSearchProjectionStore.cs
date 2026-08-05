@@ -62,7 +62,13 @@ public sealed partial class ElasticSearchProjectionStore<
 	private readonly string _projectionType;
 	private readonly string _indexName;
 	private ElasticsearchClient? _client;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it concurrent first callers each run the
+	// provisioning below, and where more than one field is assigned a second caller can observe
+	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: read on the fast path outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -317,6 +323,19 @@ public sealed partial class ElasticSearchProjectionStore<
 		}
 
 		_disposed = true;
+
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
 		// ElasticsearchClient doesn't implement IDisposable - it manages connections internally
 		return ValueTask.CompletedTask;
 	}
@@ -693,49 +712,63 @@ public sealed partial class ElasticSearchProjectionStore<
 			return;
 		}
 
-		if (_client is null)
-		{
-			ElasticsearchClientSettings settings;
 
-			if (_options.NodeUris is { Count: > 0 } uris)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Re-check inside the lock: the winner finished while this caller waited.
+			if (_initialized)
 			{
-				NodePool pool = _options.ConnectionPoolType switch
+				return;
+			}
+			if (_client is null)
+			{
+				ElasticsearchClientSettings settings;
+
+				if (_options.NodeUris is { Count: > 0 } uris)
 				{
-					ConnectionPoolType.Sniffing => new SniffingNodePool(uris),
-					_ => new StaticNodePool(uris),
-				};
-				settings = new ElasticsearchClientSettings(pool)
-					.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
-			}
-			else
-			{
-				settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
-					.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+					NodePool pool = _options.ConnectionPoolType switch
+					{
+						ConnectionPoolType.Sniffing => new SniffingNodePool(uris),
+						_ => new StaticNodePool(uris),
+					};
+					settings = new ElasticsearchClientSettings(pool)
+						.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+				}
+				else
+				{
+					settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
+						.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+				}
+
+				if (_options.EnableDebugMode)
+				{
+					settings = settings.DisableDirectStreaming();
+				}
+
+				if (!string.IsNullOrWhiteSpace(_options.Auth.ApiKey))
+				{
+					settings = settings.Authentication(new ApiKey(_options.Auth.ApiKey));
+				}
+				else if (!string.IsNullOrWhiteSpace(_options.Auth.Username) && !string.IsNullOrWhiteSpace(_options.Auth.Password))
+				{
+					settings = settings.Authentication(new BasicAuthentication(_options.Auth.Username, _options.Auth.Password));
+				}
+
+				_client = new ElasticsearchClient(settings);
 			}
 
-			if (_options.EnableDebugMode)
+			if (_options.Index.CreateIndexOnInitialize)
 			{
-				settings = settings.DisableDirectStreaming();
+				await CreateIndexIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 			}
 
-			if (!string.IsNullOrWhiteSpace(_options.Auth.ApiKey))
-			{
-				settings = settings.Authentication(new ApiKey(_options.Auth.ApiKey));
-			}
-			else if (!string.IsNullOrWhiteSpace(_options.Auth.Username) && !string.IsNullOrWhiteSpace(_options.Auth.Password))
-			{
-				settings = settings.Authentication(new BasicAuthentication(_options.Auth.Username, _options.Auth.Password));
-			}
-
-			_client = new ElasticsearchClient(settings);
+			_initialized = true;
 		}
-
-		if (_options.Index.CreateIndexOnInitialize)
+		finally
 		{
-			await CreateIndexIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
+			_ = _initLock.Release();
 		}
-
-		_initialized = true;
 		LogInitialized(_indexName, _projectionType);
 	}
 

@@ -279,7 +279,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -291,7 +291,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		return ValueTask.CompletedTask;
 	}
 
@@ -317,9 +317,9 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var createSchemaSql = $"CREATE SCHEMA IF NOT EXISTS \"{_schemaName}\"";
-		_ = await connection.ExecuteAsync(new CommandDefinition(createSchemaSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			_ = await connection.ExecuteAsync(new CommandDefinition(createSchemaSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-		var createTableSql = $@"
+			var createTableSql = $@"
 			CREATE TABLE IF NOT EXISTS {_fullTableName} (
 				processor_id VARCHAR(255) NOT NULL, slot_name VARCHAR(255) NOT NULL,
 				table_name VARCHAR(255) NOT NULL DEFAULT '', position VARCHAR(32) NOT NULL,
@@ -327,12 +327,12 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 				event_count BIGINT NOT NULL DEFAULT 0,
 				CONSTRAINT pk_{_tableName} PRIMARY KEY (processor_id, slot_name, table_name)
 			)";
-		_ = await connection.ExecuteAsync(new CommandDefinition(createTableSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			_ = await connection.ExecuteAsync(new CommandDefinition(createTableSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
-		var createIndexSql = $@"
+			var createIndexSql = $@"
 			CREATE INDEX IF NOT EXISTS ix_{_tableName}_updated_at
 			ON {_fullTableName} (processor_id, updated_at DESC)";
-		_ = await connection.ExecuteAsync(new CommandDefinition(createIndexSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			_ = await connection.ExecuteAsync(new CommandDefinition(createIndexSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 
 			_initialized = true;
 		}

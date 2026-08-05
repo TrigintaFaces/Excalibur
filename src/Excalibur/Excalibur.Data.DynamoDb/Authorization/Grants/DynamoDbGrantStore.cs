@@ -32,7 +32,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 	private readonly TimeProvider _timeProvider;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -440,7 +440,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -453,7 +453,7 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IDurableGrantStore
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

@@ -31,7 +31,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStor
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -362,7 +362,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStor
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		// FirestoreDb doesn't implement IDisposable - connections are managed internally
 		return ValueTask.CompletedTask;
 	}

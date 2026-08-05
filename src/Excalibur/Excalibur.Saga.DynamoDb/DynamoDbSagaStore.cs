@@ -47,7 +47,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly bool _ownsClient;
 	private IAmazonDynamoDB? _client;
-	private bool _initialized;
+	private volatile bool _initialized;
 
 	private volatile bool _disposed;
 
@@ -549,7 +549,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -567,7 +567,7 @@ public sealed partial class DynamoDbSagaStore : ISagaStore, IAsyncDisposable, ID
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

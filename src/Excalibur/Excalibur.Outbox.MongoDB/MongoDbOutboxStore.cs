@@ -43,7 +43,15 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IOutboxStor
 	// Per-scope fencing control document {_id: "<collection>::fence", highWater}. A single atomic
 	// findOneAndUpdate on THIS doc is the fence CAS (guard+advance in one op) — no read-then-write.
 	private IMongoCollection<BsonDocument>? _fenceCollection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	// R1 at-least-once (wseau9/lz7us9): a plainly-failed message stays re-claimable once its NextAttemptAt
@@ -603,6 +611,19 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IOutboxStor
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock?.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -680,59 +701,74 @@ public sealed partial class MongoDbOutboxStore : IFencedOutboxStore, IOutboxStor
 			return;
 		}
 
-		if (_client == null)
-		{
-			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
-			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
-			settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
-			settings.MaxConnectionPoolSize = _options.MaxPoolSize;
 
-			if (_options.UseSsl)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
 			{
-				settings.UseTls = true;
+				return;
+			}
+			if (_client == null)
+			{
+				var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
+				settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
+				settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+				settings.MaxConnectionPoolSize = _options.MaxPoolSize;
+
+				if (_options.UseSsl)
+				{
+					settings.UseTls = true;
+				}
+
+				_client = new MongoClient(settings);
+				_database = _client.GetDatabase(_options.DatabaseName);
+				_collection = _database.GetCollection<MongoDbOutboxDocument>(_options.CollectionName);
+				_fenceCollection = _database.GetCollection<BsonDocument>(_options.CollectionName + "__fence");
 			}
 
-			_client = new MongoClient(settings);
-			_database = _client.GetDatabase(_options.DatabaseName);
-			_collection = _database.GetCollection<MongoDbOutboxDocument>(_options.CollectionName);
-			_fenceCollection = _database.GetCollection<BsonDocument>(_options.CollectionName + "__fence");
+			// Create indexes
+			var indexBuilder = Builders<MongoDbOutboxDocument>.IndexKeys;
+
+			// Compound index for unsent message queries: status + scheduledAt + priority + createdAt
+			var unsentIndex = new CreateIndexModel<MongoDbOutboxDocument>(
+				indexBuilder.Combine(
+					indexBuilder.Ascending(d => d.Status),
+					indexBuilder.Ascending(d => d.ScheduledAt),
+					indexBuilder.Ascending(d => d.Priority),
+					indexBuilder.Ascending(d => d.CreatedAt)));
+
+			// Index on status for status-specific queries
+			var statusIndex = new CreateIndexModel<MongoDbOutboxDocument>(
+				indexBuilder.Ascending(d => d.Status));
+
+			// Index for failed message queries
+			var failedIndex = new CreateIndexModel<MongoDbOutboxDocument>(
+				indexBuilder.Combine(
+					indexBuilder.Ascending(d => d.Status),
+					indexBuilder.Ascending(d => d.RetryCount),
+					indexBuilder.Ascending(d => d.LastAttemptAt)));
+
+			// TTL index on SentAt for automatic cleanup
+			if (_options.SentMessageTtlSeconds > 0)
+			{
+				var ttlIndex = new CreateIndexModel<MongoDbOutboxDocument>(
+					indexBuilder.Ascending(d => d.SentAt),
+					new CreateIndexOptions { ExpireAfter = TimeSpan.FromSeconds(_options.SentMessageTtlSeconds) });
+
+				_ = await _collection!.Indexes.CreateOneAsync(ttlIndex, cancellationToken: cancellationToken).ConfigureAwait(false);
+			}
+
+			_ = await _collection!.Indexes.CreateManyAsync([unsentIndex, statusIndex, failedIndex], cancellationToken).ConfigureAwait(false);
+
+			_initialized = true;
 		}
-
-		// Create indexes
-		var indexBuilder = Builders<MongoDbOutboxDocument>.IndexKeys;
-
-		// Compound index for unsent message queries: status + scheduledAt + priority + createdAt
-		var unsentIndex = new CreateIndexModel<MongoDbOutboxDocument>(
-			indexBuilder.Combine(
-				indexBuilder.Ascending(d => d.Status),
-				indexBuilder.Ascending(d => d.ScheduledAt),
-				indexBuilder.Ascending(d => d.Priority),
-				indexBuilder.Ascending(d => d.CreatedAt)));
-
-		// Index on status for status-specific queries
-		var statusIndex = new CreateIndexModel<MongoDbOutboxDocument>(
-			indexBuilder.Ascending(d => d.Status));
-
-		// Index for failed message queries
-		var failedIndex = new CreateIndexModel<MongoDbOutboxDocument>(
-			indexBuilder.Combine(
-				indexBuilder.Ascending(d => d.Status),
-				indexBuilder.Ascending(d => d.RetryCount),
-				indexBuilder.Ascending(d => d.LastAttemptAt)));
-
-		// TTL index on SentAt for automatic cleanup
-		if (_options.SentMessageTtlSeconds > 0)
+		finally
 		{
-			var ttlIndex = new CreateIndexModel<MongoDbOutboxDocument>(
-				indexBuilder.Ascending(d => d.SentAt),
-				new CreateIndexOptions { ExpireAfter = TimeSpan.FromSeconds(_options.SentMessageTtlSeconds) });
-
-			_ = await _collection!.Indexes.CreateOneAsync(ttlIndex, cancellationToken: cancellationToken).ConfigureAwait(false);
+			_ = _initLock.Release();
 		}
-
-		_ = await _collection!.Indexes.CreateManyAsync([unsentIndex, statusIndex, failedIndex], cancellationToken).ConfigureAwait(false);
-
-		_initialized = true;
 	}
 
 	[LoggerMessage(DataMongoDbEventId.MessageStaged, LogLevel.Debug, "Staged message {MessageId} of type {MessageType} to destination {Destination}")]
