@@ -172,17 +172,51 @@ public sealed partial class MongoDbSnapshotStore : ISnapshotStore, IAsyncDisposa
 
 		var replaceOptions = new ReplaceOptions { IsUpsert = true };
 
+		// A duplicate key here means A DOCUMENT EXISTS -- it does NOT mean a newer one does, and
+		// treating those as the same thing silently discarded newer snapshots.
+		//
+		// The losing interleaving: when no snapshot exists yet, every concurrent writer evaluates the
+		// version guard against nothing, so every one of them matches nothing and the upsert turns
+		// into an INSERT of the same _id. Exactly one insert wins; the rest fail with 11000. If the
+		// winner is an older version, the newer ones were thrown away -- the store then reports a
+		// version lower than one it accepted, which is the opposite of the guarantee this guard
+		// exists to provide.
+		//
+		// Retrying is what makes the guard meaningful. On the retry the document exists, so the
+		// filter can finally do the comparison it was written for: if we are newer it replaces, and
+		// if we are genuinely older it matches nothing, the insert collides again, and the conflict
+		// is real. The loop bound only limits how many times we are willing to lose that race before
+		// concluding the same thing.
+		const int maxAttempts = 5;
+		var attempt = 0;
+
 		try
 		{
-			_ = await _collection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
-					.ConfigureAwait(false);
+			while (true)
+			{
+				attempt++;
 
-			LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
+				try
+				{
+					_ = await _collection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
+							.ConfigureAwait(false);
+
+					LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
+					break;
+				}
+				catch (MongoWriteException ex) when (ex.WriteError?.Code == 11000 && attempt < maxAttempts)
+				{
+					// Lost an insert race. Whether that means we are superseded is not yet known --
+					// re-run the guard against the document that now exists and let it decide.
+					cancellationToken.ThrowIfCancellationRequested();
+				}
+			}
 		}
 		catch (MongoWriteException ex) when (ex.WriteError?.Code == 11000)
 		{
-			// Duplicate key error - a newer snapshot already exists
-			// This is expected behavior when concurrent saves occur with older versions
+			// Exhausted: a document exists and the guard did not match it on any attempt, so a
+			// version at least as high as this one is already stored. This snapshot is genuinely
+			// superseded and skipping it is correct.
 			result = WriteStoreTelemetry.Results.Conflict;
 			LogSnapshotVersionSkipped(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
 		}
