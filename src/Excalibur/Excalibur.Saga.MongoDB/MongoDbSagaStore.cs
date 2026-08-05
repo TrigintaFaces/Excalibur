@@ -42,6 +42,14 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoCollection<MongoDbSagaDocument>? _collection;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
 	private volatile bool _initialized;
 	private volatile bool _disposed;
 
@@ -331,6 +339,19 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -346,41 +367,56 @@ public sealed partial class MongoDbSagaStore : ISagaStore, IAsyncDisposable
 			return;
 		}
 
-		if (_client == null)
-		{
-			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
-			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
-			settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
-			settings.MaxConnectionPoolSize = _options.MaxPoolSize;
 
-			if (_options.UseSsl)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
 			{
-				settings.UseTls = true;
+				return;
+			}
+			if (_client == null)
+			{
+				var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
+				settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
+				settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+				settings.MaxConnectionPoolSize = _options.MaxPoolSize;
+
+				if (_options.UseSsl)
+				{
+					settings.UseTls = true;
+				}
+
+				_client = new MongoClient(settings);
+				_collection = _client.GetDatabase(_options.DatabaseName)
+					.GetCollection<MongoDbSagaDocument>(_options.CollectionName);
 			}
 
-			_client = new MongoClient(settings);
-			_collection = _client.GetDatabase(_options.DatabaseName)
-				.GetCollection<MongoDbSagaDocument>(_options.CollectionName);
+			// Create indexes for efficient queries
+			var indexBuilder = Builders<MongoDbSagaDocument>.IndexKeys;
+
+			// Index on sagaType for type-based queries
+			var typeIndex = new CreateIndexModel<MongoDbSagaDocument>(
+				indexBuilder.Ascending(d => d.SagaType),
+				new CreateIndexOptions { Name = "ix_saga_type" });
+
+			// Index on isCompleted for filtering active sagas
+			var completedIndex = new CreateIndexModel<MongoDbSagaDocument>(
+				indexBuilder.Ascending(d => d.IsCompleted),
+				new CreateIndexOptions { Name = "ix_is_completed" });
+
+			_ = await _collection!.Indexes.CreateManyAsync(
+				[typeIndex, completedIndex],
+				cancellationToken).ConfigureAwait(false);
+
+			_initialized = true;
 		}
-
-		// Create indexes for efficient queries
-		var indexBuilder = Builders<MongoDbSagaDocument>.IndexKeys;
-
-		// Index on sagaType for type-based queries
-		var typeIndex = new CreateIndexModel<MongoDbSagaDocument>(
-			indexBuilder.Ascending(d => d.SagaType),
-			new CreateIndexOptions { Name = "ix_saga_type" });
-
-		// Index on isCompleted for filtering active sagas
-		var completedIndex = new CreateIndexModel<MongoDbSagaDocument>(
-			indexBuilder.Ascending(d => d.IsCompleted),
-			new CreateIndexOptions { Name = "ix_is_completed" });
-
-		_ = await _collection!.Indexes.CreateManyAsync(
-			[typeIndex, completedIndex],
-			cancellationToken).ConfigureAwait(false);
-
-		_initialized = true;
+		finally
+		{
+			_ = _initLock.Release();
+		}
 	}
 
 	/// <summary>

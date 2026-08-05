@@ -84,7 +84,7 @@ public sealed partial class CosmosDbProjectionStore<
 	private readonly JsonSerializerOptions _jsonOptions;
 	private CosmosClient? _client;
 	private Container? _container;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

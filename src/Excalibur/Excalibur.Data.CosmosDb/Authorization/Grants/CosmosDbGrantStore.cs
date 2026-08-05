@@ -32,7 +32,7 @@ public sealed partial class CosmosDbGrantStore : IGrantStore, IDurableGrantStore
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

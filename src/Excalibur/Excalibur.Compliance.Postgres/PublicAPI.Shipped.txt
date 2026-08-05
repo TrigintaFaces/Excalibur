@@ -1,5 +1,6 @@
 #nullable enable
 Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.Dispose() -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.FindRegistrationsForDataSubjectAsync(string! dataSubjectId, Excalibur.Compliance.DataSubjectIdType idType, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationRegistration!>!>!
 Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.GetAllRegistrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationRegistration!>!>!
 Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.GetDataMapEntriesAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataMapEntry!>!>!
@@ -28,6 +29,7 @@ Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.SchemaNa
 Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.Validate() -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.CleanupExpiredCertificatesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.Dispose() -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate?>!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetCertificateByIdAsync(System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate?>!
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetScheduledRequestsAsync(int maxResults, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureStatus!>!>!
@@ -58,6 +60,7 @@ Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.SchemaName.get
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.SchemaName.set -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.Validate() -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.Dispose() -> void
 Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetActiveHoldsForDataSubjectAsync(string! dataSubjectIdHash, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.LegalHold!>!>!
 Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetActiveHoldsForTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.LegalHold!>!>!
 Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetExpiredHoldsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.LegalHold!>!>!

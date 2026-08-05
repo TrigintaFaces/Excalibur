@@ -26,7 +26,15 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
 	private IMongoCollection<ActivityGroupDocument>? _collection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -169,6 +177,19 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -188,34 +209,49 @@ public sealed partial class MongoDbActivityGroupGrantStore : IActivityGroupGrant
 			return;
 		}
 
-		if (_client is null)
+
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			_client = new MongoClient(_options.ConnectionString);
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
+			{
+				return;
+			}
+			if (_client is null)
+			{
+				_client = new MongoClient(_options.ConnectionString);
+			}
+
+			_database ??= _client.GetDatabase(_options.DatabaseName);
+			_collection ??= _database.GetCollection<ActivityGroupDocument>(_options.ActivityGroupsCollectionName);
+
+			// Create indexes
+			var compositeIndex = new CreateIndexModel<ActivityGroupDocument>(
+				Builders<ActivityGroupDocument>.IndexKeys
+					.Ascending(x => x.UserId)
+					.Ascending(x => x.TenantId)
+					.Ascending(x => x.GrantType)
+					.Ascending(x => x.Qualifier),
+				new CreateIndexOptions { Unique = true, Name = "ix_activity_groups_composite_unique" });
+
+			var userIdIndex = new CreateIndexModel<ActivityGroupDocument>(
+				Builders<ActivityGroupDocument>.IndexKeys.Ascending(x => x.UserId),
+				new CreateIndexOptions { Name = "ix_activity_groups_userId" });
+
+			var grantTypeIndex = new CreateIndexModel<ActivityGroupDocument>(
+				Builders<ActivityGroupDocument>.IndexKeys.Ascending(x => x.GrantType),
+				new CreateIndexOptions { Name = "ix_activity_groups_grantType" });
+
+			_ = await _collection.Indexes.CreateManyAsync([compositeIndex, userIdIndex, grantTypeIndex], cancellationToken).ConfigureAwait(false);
+
+			_initialized = true;
 		}
-
-		_database ??= _client.GetDatabase(_options.DatabaseName);
-		_collection ??= _database.GetCollection<ActivityGroupDocument>(_options.ActivityGroupsCollectionName);
-
-		// Create indexes
-		var compositeIndex = new CreateIndexModel<ActivityGroupDocument>(
-			Builders<ActivityGroupDocument>.IndexKeys
-				.Ascending(x => x.UserId)
-				.Ascending(x => x.TenantId)
-				.Ascending(x => x.GrantType)
-				.Ascending(x => x.Qualifier),
-			new CreateIndexOptions { Unique = true, Name = "ix_activity_groups_composite_unique" });
-
-		var userIdIndex = new CreateIndexModel<ActivityGroupDocument>(
-			Builders<ActivityGroupDocument>.IndexKeys.Ascending(x => x.UserId),
-			new CreateIndexOptions { Name = "ix_activity_groups_userId" });
-
-		var grantTypeIndex = new CreateIndexModel<ActivityGroupDocument>(
-			Builders<ActivityGroupDocument>.IndexKeys.Ascending(x => x.GrantType),
-			new CreateIndexOptions { Name = "ix_activity_groups_grantType" });
-
-		_ = await _collection.Indexes.CreateManyAsync([compositeIndex, userIdIndex, grantTypeIndex], cancellationToken).ConfigureAwait(false);
-
-		_initialized = true;
+		finally
+		{
+			_ = _initLock.Release();
+		}
 		LogInitialized(_options.DatabaseName, _options.ActivityGroupsCollectionName);
 	}
 

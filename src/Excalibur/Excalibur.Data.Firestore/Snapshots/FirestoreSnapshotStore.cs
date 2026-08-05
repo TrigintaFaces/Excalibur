@@ -42,7 +42,13 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 	private readonly ITenantContext? _tenantContext;
 	private FirestoreDb? _db;
 	private CollectionReference? _collection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it concurrent first callers each run the
+	// provisioning below, and where more than one field is assigned a second caller can observe
+	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: read on the fast path outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -109,7 +115,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(aggregateType, aggregateId);
 		var docRef = _collection!.Document(documentId);
@@ -158,7 +164,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(snapshot.AggregateType, snapshot.AggregateId);
 		var docRef = _collection!.Document(documentId);
@@ -298,7 +304,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var documentId = CreateDocumentId(aggregateType, aggregateId);
 		var docRef = _collection!.Document(documentId);
@@ -337,7 +343,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
 
-		await EnsureInitializedAsync().ConfigureAwait(false);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		// For Firestore's simple one-snapshot-per-aggregate model, we only delete
 		// if the current snapshot's version is older than the specified version
@@ -386,6 +392,19 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		}
 
 		_disposed = true;
+
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock.Dispose();
 		// FirestoreDb doesn't implement IDisposable - connections are managed internally
 		return ValueTask.CompletedTask;
 	}
@@ -479,7 +498,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		};
 	}
 
-	private async Task EnsureInitializedAsync()
+	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -488,6 +507,23 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 			return;
 		}
 
+
+
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+
+		{
+
+			// Re-check inside the lock: the winner finished while this caller waited.
+
+			if (_initialized)
+
+			{
+
+				return;
+
+			}
 		var builder = new FirestoreDbBuilder { ProjectId = _options.ProjectId };
 
 		if (!string.IsNullOrEmpty(_options.EmulatorHost))
@@ -510,6 +546,16 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		_db = await builder.BuildAsync().ConfigureAwait(false);
 		_collection = _db.Collection(_options.CollectionName);
 		_initialized = true;
+
+		}
+
+		finally
+
+		{
+
+			_ = _initLock.Release();
+
+		}
 	}
 
 	// Logging methods using LoggerMessage source generator

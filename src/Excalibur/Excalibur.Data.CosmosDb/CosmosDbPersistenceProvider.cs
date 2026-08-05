@@ -54,7 +54,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Database? _database;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

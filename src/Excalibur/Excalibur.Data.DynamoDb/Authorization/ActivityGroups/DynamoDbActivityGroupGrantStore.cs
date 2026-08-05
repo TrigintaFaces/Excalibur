@@ -33,7 +33,7 @@ public sealed partial class DynamoDbActivityGroupGrantStore : IActivityGroupGran
 	private readonly ILogger<DynamoDbActivityGroupGrantStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

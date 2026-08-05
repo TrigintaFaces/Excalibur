@@ -25,7 +25,7 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 /// <item>Automatic expiration detection for hold lifecycle management</item>
 /// </list>
 /// </remarks>
-public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHoldQueryStore
+public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHoldQueryStore, IDisposable
 {
 	/// <summary>SQL Server error 2627 — PRIMARY KEY / UNIQUE constraint violation.</summary>
 	private const int DuplicateKeyError = 2627;
@@ -35,6 +35,8 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 
 	private readonly SqlServerLegalHoldStoreOptions _options;
 	private readonly ILogger<SqlServerLegalHoldStore> _logger;
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+	private bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
@@ -374,13 +376,64 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 	[LoggerMessage(LogLevel.Debug, "Ensured SQL Server legal hold schema and tables exist")]
 	private partial void LogSchemaEnsured();
 
+	/// <summary>
+	/// Provisions the schema once, however many callers arrive together.
+	/// </summary>
+	/// <remarks>
+	/// Without the lock every concurrent first caller ran the provisioning body: the flag is only
+	/// set after the work completes, so each of them reads it as false and proceeds. The DDL is
+	/// written to be idempotent, but concurrent CREATE ... IF NOT EXISTS statements can still
+	/// collide in the catalog, and a body that assigns more than one field would leave a later
+	/// caller reading a field its predecessor had not reached yet. The re-check inside the lock is
+	/// what makes it exactly once rather than merely serialised.
+	/// </remarks>
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
 		if (_initialized)
 		{
 			return;
 		}
 
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			if (_initialized)
+			{
+				return;
+			}
+
+			await InitializeCoreAsync(cancellationToken).ConfigureAwait(false);
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
+	}
+
+	/// <summary>
+	/// Releases the initialisation lock.
+	/// </summary>
+	/// <remarks>
+	/// The flag is set before anything is released, so a caller that races disposal is refused by
+	/// the guard above rather than reaching a half-torn-down store. This mirrors how the framework
+	/// disposes its own lazily-connected caches.
+	/// </remarks>
+	public void Dispose()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		_initLock.Dispose();
+	}
+
+	private async Task InitializeCoreAsync(CancellationToken cancellationToken)
+	{
 		if (_options.AutoCreateSchema)
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
@@ -390,7 +443,6 @@ public sealed partial class SqlServerLegalHoldStore : ILegalHoldStore, ILegalHol
 			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
 
-		_initialized = true;
 	}
 
 	/// <summary>

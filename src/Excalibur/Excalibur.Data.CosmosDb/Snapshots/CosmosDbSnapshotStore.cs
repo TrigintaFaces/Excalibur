@@ -53,7 +53,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private CosmosClient? _client;
 	private Container? _container;
-	private bool _initialized;
+	private volatile bool _initialized;
 	/// <summary>Whether this instance CREATED the client and may therefore dispose it.</summary>
 	/// <remarks>
 	/// A type disposes what it creates and never what it is handed. An injected client is owned by the

@@ -62,7 +62,7 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private IAmazonDynamoDB? _client;
 	private IAmazonDynamoDBStreams? _streamsClient;
-	private bool _initialized;
+	private volatile bool _initialized;
 
 	private volatile bool _disposed;
 

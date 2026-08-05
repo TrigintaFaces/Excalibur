@@ -39,7 +39,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 	private CosmosClient? _client;
 	private Database? _database;
 	private Container? _container;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

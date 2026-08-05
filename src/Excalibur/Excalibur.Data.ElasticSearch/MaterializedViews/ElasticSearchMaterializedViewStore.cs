@@ -43,7 +43,13 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	private readonly ILogger<ElasticSearchMaterializedViewStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
 	private ElasticsearchClient? _client;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it concurrent first callers each run the
+	// provisioning below, and where more than one field is assigned a second caller can observe
+	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: read on the fast path outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -295,6 +301,19 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 		}
 
 		_disposed = true;
+
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock.Dispose();
 		// ElasticsearchClient doesn't implement IDisposable - it manages connections internally
 		return ValueTask.CompletedTask;
 	}
@@ -313,35 +332,49 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 			return;
 		}
 
-		if (_client == null)
+
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			var settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
-				.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
-
-			if (!string.IsNullOrWhiteSpace(_options.Auth.Username) && !string.IsNullOrWhiteSpace(_options.Auth.Password))
+			// Re-check inside the lock: the winner finished while this caller waited.
+			if (_initialized)
 			{
-				settings = settings.Authentication(new BasicAuthentication(_options.Auth.Username, _options.Auth.Password));
+				return;
 			}
-			else if (!string.IsNullOrWhiteSpace(_options.Auth.ApiKey))
+			if (_client == null)
 			{
-				settings = settings.Authentication(new ApiKey(_options.Auth.ApiKey));
+				var settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
+					.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+
+				if (!string.IsNullOrWhiteSpace(_options.Auth.Username) && !string.IsNullOrWhiteSpace(_options.Auth.Password))
+				{
+					settings = settings.Authentication(new BasicAuthentication(_options.Auth.Username, _options.Auth.Password));
+				}
+				else if (!string.IsNullOrWhiteSpace(_options.Auth.ApiKey))
+				{
+					settings = settings.Authentication(new ApiKey(_options.Auth.ApiKey));
+				}
+
+				if (_options.EnableDebugMode)
+				{
+					settings = settings.DisableDirectStreaming();
+				}
+
+				_client = new ElasticsearchClient(settings);
 			}
 
-			if (_options.EnableDebugMode)
+			if (_options.CreateIndexOnInitialize)
 			{
-				settings = settings.DisableDirectStreaming();
+				await EnsureViewsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
+				await EnsurePositionsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
 			}
 
-			_client = new ElasticsearchClient(settings);
+			_initialized = true;
 		}
-
-		if (_options.CreateIndexOnInitialize)
+		finally
 		{
-			await EnsureViewsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
-			await EnsurePositionsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
+			_ = _initLock.Release();
 		}
-
-		_initialized = true;
 	}
 
 	private async Task EnsureViewsIndexExistsAsync(CancellationToken cancellationToken)

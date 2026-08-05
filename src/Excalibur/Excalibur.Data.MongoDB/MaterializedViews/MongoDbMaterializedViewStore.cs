@@ -43,7 +43,15 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	private IMongoDatabase? _database;
 	private IMongoCollection<MongoDbMaterializedViewDocument>? _viewsCollection;
 	private IMongoCollection<MongoDbMaterializedViewPositionDocument>? _positionsCollection;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it two concurrent first callers race:
+	// one assigns the client and is still assigning the collection when the other observes a
+	// non-null client, skips the whole block, and dereferences a collection that is still null.
+	// That is a NullReferenceException a few instructions wide, so it is intermittent and
+	// load-dependent -- it was observed in CI on two different stores in a single run.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: the fast path reads this outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -327,6 +335,19 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 
 		_disposed = true;
 
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock.Dispose();
+
 		if (_ownsClient && _client is IDisposable disposableClient)
 		{
 			disposableClient.Dispose();
@@ -342,53 +363,68 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 			return;
 		}
 
-		if (_client == null)
-		{
-			var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
-			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
-			settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
-			settings.MaxConnectionPoolSize = _options.MaxPoolSize;
 
-			if (_options.UseSsl)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// Re-check under the lock: the winner of the race above completed initialisation
+			// while this caller was waiting, and repeating the work would be wrong as well as wasteful.
+			if (_initialized)
 			{
-				settings.UseTls = true;
+				return;
+			}
+			if (_client == null)
+			{
+				var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
+				settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeoutSeconds);
+				settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds);
+				settings.MaxConnectionPoolSize = _options.MaxPoolSize;
+
+				if (_options.UseSsl)
+				{
+					settings.UseTls = true;
+				}
+
+				_client = new MongoClient(settings);
+				_database = _client.GetDatabase(_options.DatabaseName);
+				_viewsCollection = _database.GetCollection<MongoDbMaterializedViewDocument>(_options.ViewsCollectionName);
+				_positionsCollection = _database.GetCollection<MongoDbMaterializedViewPositionDocument>(_options.PositionsCollectionName);
 			}
 
-			_client = new MongoClient(settings);
-			_database = _client.GetDatabase(_options.DatabaseName);
-			_viewsCollection = _database.GetCollection<MongoDbMaterializedViewDocument>(_options.ViewsCollectionName);
-			_positionsCollection = _database.GetCollection<MongoDbMaterializedViewPositionDocument>(_options.PositionsCollectionName);
-		}
+			// Create indexes for views collection
+			var viewIndexBuilder = Builders<MongoDbMaterializedViewDocument>.IndexKeys;
 
-		// Create indexes for views collection
-		var viewIndexBuilder = Builders<MongoDbMaterializedViewDocument>.IndexKeys;
-
-		var viewNameIndex = new CreateIndexModel<MongoDbMaterializedViewDocument>(
-			viewIndexBuilder.Ascending(d => d.ViewName),
-			new CreateIndexOptions { Name = "ix_view_name" });
-
-		var viewIdIndex = new CreateIndexModel<MongoDbMaterializedViewDocument>(
-			viewIndexBuilder.Combine(
+			var viewNameIndex = new CreateIndexModel<MongoDbMaterializedViewDocument>(
 				viewIndexBuilder.Ascending(d => d.ViewName),
-				viewIndexBuilder.Ascending(d => d.ViewId)),
-			new CreateIndexOptions { Name = "ix_view_name_id" });
+				new CreateIndexOptions { Name = "ix_view_name" });
 
-		_ = await _viewsCollection!.Indexes.CreateManyAsync(
-			[viewNameIndex, viewIdIndex],
-			cancellationToken).ConfigureAwait(false);
+			var viewIdIndex = new CreateIndexModel<MongoDbMaterializedViewDocument>(
+				viewIndexBuilder.Combine(
+					viewIndexBuilder.Ascending(d => d.ViewName),
+					viewIndexBuilder.Ascending(d => d.ViewId)),
+				new CreateIndexOptions { Name = "ix_view_name_id" });
 
-		// Create indexes for positions collection
-		var positionIndexBuilder = Builders<MongoDbMaterializedViewPositionDocument>.IndexKeys;
+			_ = await _viewsCollection!.Indexes.CreateManyAsync(
+				[viewNameIndex, viewIdIndex],
+				cancellationToken).ConfigureAwait(false);
 
-		var positionViewNameIndex = new CreateIndexModel<MongoDbMaterializedViewPositionDocument>(
-			positionIndexBuilder.Ascending(d => d.ViewName),
-			new CreateIndexOptions { Name = "ix_view_name" });
+			// Create indexes for positions collection
+			var positionIndexBuilder = Builders<MongoDbMaterializedViewPositionDocument>.IndexKeys;
 
-		_ = await _positionsCollection!.Indexes.CreateManyAsync(
-			[positionViewNameIndex],
-			cancellationToken).ConfigureAwait(false);
+			var positionViewNameIndex = new CreateIndexModel<MongoDbMaterializedViewPositionDocument>(
+				positionIndexBuilder.Ascending(d => d.ViewName),
+				new CreateIndexOptions { Name = "ix_view_name" });
 
-		_initialized = true;
+			_ = await _positionsCollection!.Indexes.CreateManyAsync(
+				[positionViewNameIndex],
+				cancellationToken).ConfigureAwait(false);
+
+			_initialized = true;
+		}
+		finally
+		{
+			_ = _initLock.Release();
+		}
 	}
 
 	#region Logging

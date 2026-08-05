@@ -50,7 +50,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 	/// </remarks>
 	private readonly bool _ownsClient;
 
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

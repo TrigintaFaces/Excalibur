@@ -29,7 +29,13 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 	private readonly IChangeFeedCheckpointStore? _checkpointStore;
 
 	private Container? _container;
-	private bool _initialized;
+	// Serialises first-time initialisation. Without it concurrent first callers each run the
+	// provisioning below, and where more than one field is assigned a second caller can observe
+	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
+	private readonly SemaphoreSlim _initLock = new(1, 1);
+
+	// volatile: read on the fast path outside the lock.
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -470,6 +476,19 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 		}
 
 		_disposed = true;
+
+		// Disposed AFTER _disposed is set, and the ordering is the whole point. _disposed is what
+		// stops a caller reaching WaitAsync/Release, so destroying the semaphore first creates an
+		// interval where the guard is gone but callers are still admitted. In that interval an
+		// in-flight initialiser's Release() throws ObjectDisposedException from its finally --
+		// replacing whatever the try produced, including the real diagnostic -- and any caller
+		// already blocked in WaitAsync is never signalled at all.
+		//
+		// The earlier comment here claimed disposing first meant "a throw later still frees the
+		// handle". That was backwards: it does not protect against a later throw, it maximises the
+		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
+		// frees a handle on a throw.
+		_initLock.Dispose();
 		await Task.CompletedTask.ConfigureAwait(false);
 	}
 
@@ -571,32 +590,46 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			return;
 		}
 
-		var database = _cosmosClient.GetDatabase("events");
 
-		if (_options.Value.CreateContainerIfNotExists)
+		await _initLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
 		{
-			var containerProperties = new ContainerProperties(
-				_options.Value.EventsContainerName,
-				_options.Value.PartitionKeyPath);
-
-			if (_options.Value.DefaultTimeToLiveSeconds > 0)
+			// Re-check inside the lock: the winner finished while this caller waited.
+			if (_initialized)
 			{
-				containerProperties.DefaultTimeToLive = _options.Value.DefaultTimeToLiveSeconds;
+				return;
+			}
+			var database = _cosmosClient.GetDatabase("events");
+
+			if (_options.Value.CreateContainerIfNotExists)
+			{
+				var containerProperties = new ContainerProperties(
+					_options.Value.EventsContainerName,
+					_options.Value.PartitionKeyPath);
+
+				if (_options.Value.DefaultTimeToLiveSeconds > 0)
+				{
+					containerProperties.DefaultTimeToLive = _options.Value.DefaultTimeToLiveSeconds;
+				}
+
+				var response = await database.CreateContainerIfNotExistsAsync(
+					containerProperties,
+					ThroughputProperties.CreateManualThroughput(_options.Value.ContainerThroughput),
+					cancellationToken: cancellationToken).ConfigureAwait(false);
+
+				_container = response.Container;
+			}
+			else
+			{
+				_container = database.GetContainer(_options.Value.EventsContainerName);
 			}
 
-			var response = await database.CreateContainerIfNotExistsAsync(
-				containerProperties,
-				ThroughputProperties.CreateManualThroughput(_options.Value.ContainerThroughput),
-				cancellationToken: cancellationToken).ConfigureAwait(false);
-
-			_container = response.Container;
+			_initialized = true;
 		}
-		else
+		finally
 		{
-			_container = database.GetContainer(_options.Value.EventsContainerName);
+			_ = _initLock.Release();
 		}
-
-		_initialized = true;
 	}
 
 	/// <summary>

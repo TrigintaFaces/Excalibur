@@ -44,7 +44,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 	private readonly ILogger<FirestorePersistenceProvider> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private FirestoreDb? _db;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>

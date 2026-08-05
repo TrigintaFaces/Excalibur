@@ -44,7 +44,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 	private IAmazonDynamoDB? _client;
 	private IAmazonDynamoDBStreams? _streamsClient;
-	private bool _initialized;
+	private volatile bool _initialized;
 	private volatile bool _disposed;
 
 	/// <summary>
