@@ -144,6 +144,27 @@ jobs:
       # count may fall freely and may not rise. Its own arms run first -- in particular the one
       # proving a LOCALLY BUILT :latest is not counted, since absorbing build outputs into the
       # baseline would make the number stop measuring supply-chain exposure at all.
+      # A required status check that nothing can satisfy does not fail a pull request -- it leaves
+      # it "Expected - waiting for status to be reported" forever, with every check green and the
+      # merge button greyed out. Nothing is running, so there is nothing to re-run, and the pipeline
+      # looks broken rather than misconfigured.
+      #
+      # Four instances of that shipped here and each hid behind the one in front: two required
+      # contexts named "Workflow / Job" when a check run is named after the JOB, one omitted a
+      # matrix dimension that is part of the name, and one workflow was path-filtered so its
+      # required context never arrived on a documentation-only change. All four are the same
+      # invariant and all four are checkable from the ruleset plus the workflow YAML.
+      #
+      # Needs no extra token: it reads branch protection with the default GITHUB_TOKEN and REFUSES
+      # rather than passing if it cannot read the required set at all.
+      - name: required-contexts-satisfiable self-test (non-vacuity)
+        run: python3 eng/ci/required-contexts-satisfiable.py --self-test
+
+      - name: required-contexts-satisfiable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 eng/ci/required-contexts-satisfiable.py --repo "${{ github.repository }}" --root .
+
       - name: mutable-image-tag ratchet self-test (non-vacuity)
         run: bash eng/ci/mutable-image-tag-gate.sh --self-test
 
