@@ -116,6 +116,25 @@ try {
             '-p:BuildExamplesAndTests=true')
         if ($NoIncremental) { $buildArgs += '--no-incremental' }
         if ($WarnAsError) { $buildArgs += '-warnaserror' }
+
+        # A binary log, on CI, always. This is the ONLY artifact that answers "what did the build
+        # actually do" after the fact: it records every target, property and skip decision, none of
+        # which a --verbosity quiet console log keeps. Without it a build that succeeded while doing
+        # the wrong thing is indistinguishable from one that did the right thing, and the evidence is
+        # gone when the runner is recycled.
+        #
+        # The composite action already did this for the jobs that use it, but the jobs that call this
+        # entry point -- roughly twice as many -- produced nothing. So "the build emits a binary log
+        # by default in CI" was true of the smaller half of the pipeline and false of the larger,
+        # which is the shape of a claim that reads as satisfied and is not.
+        #
+        # Named per project so parallel shards in one job cannot overwrite each other's log; the
+        # project path is flattened because it contains separators.
+        if ($CI) {
+            $logName = ($Project -replace '[\\/]', '_') -replace '[^A-Za-z0-9._-]', ''
+            $buildArgs += "-bl:$(Join-Path $artifacts "build.$logName.binlog")"
+        }
+
         Invoke-Step 'build' ($buildArgs + $commonArgs)
     }
 
