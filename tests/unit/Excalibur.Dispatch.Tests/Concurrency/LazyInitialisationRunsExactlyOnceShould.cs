@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
-using System.Diagnostics;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Tests.Concurrency;
 
@@ -85,32 +85,23 @@ public sealed class LazyInitialisationRunsExactlyOnceShould
 		// B has read _initialized as false and is committed to the lock. Whether it has physically
 		// reached WaitAsync yet does not change the outcome: once A releases, B acquires, and the
 		// only question left is whether B re-checks. That is the property under test.
-		await WaitUntilAsync(
+		//
+		// Polled through the shared helper rather than a hand-rolled loop. The first version of this
+		// was its own poller, which is how a fixed wall-clock wait gets reinvented one test at a
+		// time: the shared one already bounds the wait, cancels cleanly and returns the moment the
+		// condition holds. A short poll interval only because the condition becomes true almost
+		// immediately here -- it is the responsiveness of the check, not a duration being waited out.
+		var secondCallerArrived = await WaitHelpers.WaitUntilAsync(
 			() => subject.CallersPastTheOuterCheck == 2,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(5)).ConfigureAwait(false);
+
+		secondCallerArrived.ShouldBeTrue(
 			"the second caller never passed the outer check, so the window under test was never "
-			+ "entered and neither assertion means anything.").ConfigureAwait(false);
+			+ "entered and neither assertion means anything.");
 
 		subject.ReleaseBody();
 		await Task.WhenAll(first, second).ConfigureAwait(false);
-	}
-
-	private static async Task WaitUntilAsync(Func<bool> condition, string because)
-	{
-		// A bounded condition-poll rather than a fixed wait: it returns the instant the condition
-		// holds, so the test is not paced by a guessed duration, and it fails with a reason rather
-		// than hanging if the condition never holds.
-		var deadline = Stopwatch.StartNew();
-		while (deadline.Elapsed < TimeSpan.FromSeconds(10))
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			await Task.Delay(1).ConfigureAwait(false);
-		}
-
-		throw new InvalidOperationException($"Timed out after 10s: {because}");
 	}
 
 	private interface IInitialiser : IDisposable
