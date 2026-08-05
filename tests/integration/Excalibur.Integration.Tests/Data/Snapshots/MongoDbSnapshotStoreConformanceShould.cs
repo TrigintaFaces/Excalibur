@@ -79,6 +79,76 @@ public sealed class MongoDbSnapshotStoreConformanceShould : SnapshotConformanceT
 	}
 
 	/// <summary>
+	/// A concurrent save must never leave the store reporting a version it has already accepted a
+	/// higher one than, no matter which writer wins the race to create the document.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The inherited conformance fact asserts this property once, and once is not enough to hold it:
+	/// the defect it guards reproduced at roughly one run in thirty-five, so that fact passes over a
+	/// broken store about ninety-seven percent of the time. Sixty consecutive green runs were
+	/// measured against the FIXED store, and the same loop had earlier gone twenty green against the
+	/// BROKEN one -- a detector that weak cannot distinguish a fix from luck.
+	/// </para>
+	/// <para>
+	/// The window is narrow because it only opens before the document exists. Every concurrent writer
+	/// then evaluates the version guard against nothing, matches nothing, and the upsert becomes an
+	/// insert of the same id; one wins and the rest collide. Whether that loses data depends on
+	/// whether the winner happened to be the highest version, which is why it is rare and why it is
+	/// arbitrary when it happens.
+	/// </para>
+	/// <para>
+	/// So this repeats the race on a FRESH aggregate id each round, which re-opens that window every
+	/// time. Each round is an independent chance to catch the defect, making one invocation of this
+	/// fact a far stronger detector than one invocation of the inherited one.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	[Trait("Category", "Integration")]
+	public async Task Never_Report_A_Version_Lower_Than_One_It_Accepted_Under_Concurrency()
+	{
+		// Each round re-opens the create-the-document window, which is the only window the defect
+		// lives in. Rounds are cheap -- the container is already up and shared by the class.
+		const int rounds = 40;
+		const int writersPerRound = 10;
+
+		var store = await CreateSnapshotStoreAsync().ConfigureAwait(false);
+		var losses = new List<string>();
+
+		for (var round = 1; round <= rounds; round++)
+		{
+			var aggregateId = Guid.NewGuid().ToString();
+			var versions = Enumerable.Range(1, writersPerRound).Select(i => (long)(i * 10)).ToArray();
+
+			await Task.WhenAll(versions.Select(v =>
+				store.SaveSnapshotAsync(
+					CreateTestSnapshot(aggregateId, "ConcurrencyLock", v, new byte[] { (byte)(v / 10) }),
+					CancellationToken.None).AsTask())).ConfigureAwait(false);
+
+			var retrieved = await store.GetLatestSnapshotAsync(
+				aggregateId, "ConcurrencyLock", CancellationToken.None).ConfigureAwait(false);
+
+			var highest = versions.Max();
+			if (retrieved is null)
+			{
+				losses.Add($"round {round}: no snapshot at all, though {writersPerRound} saves completed");
+			}
+			else if (retrieved.Version != highest)
+			{
+				// Report the value, not just the mismatch: an arbitrary surviving version is the
+				// signature of an insert race, whereas a consistently low one would point elsewhere.
+				losses.Add($"round {round}: reported {retrieved.Version}, accepted {highest}");
+			}
+		}
+
+		losses.ShouldBeEmpty(
+			$"the store reported a version lower than one it had already accepted in {losses.Count} of "
+			+ $"{rounds} rounds. A save that is acknowledged and then silently discarded is data loss, "
+			+ "not a race that resolves itself: "
+			+ string.Join("; ", losses.Take(5)));
+	}
+
+	/// <summary>
 	/// Reads the tenant established by <see cref="TenantContextHolder.BeginScope"/>. The production
 	/// equivalent is internal to Excalibur.Dispatch, so a directly-constructed store needs this here.
 	/// </summary>
