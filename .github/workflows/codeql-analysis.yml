@@ -3,20 +3,36 @@ name: "CodeQL Security Analysis"
 on:
   push:
     branches: [ main, develop ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - '*.props'
-      - '*.targets'
-      - '.github/workflows/codeql-analysis.yml'
+    # NO paths filter, deliberately. This workflow's job is a REQUIRED status check on main, and a
+    # required check that never runs is not skipped -- it is reported as "Expected - waiting for
+    # status to be reported", forever. GitHub documents no way for a path-filtered workflow to
+    # satisfy a required context; the only sanctioned alternatives are a second workflow that
+    # reports the same name unconditionally, which manufactures a green for work that never happened,
+    # or simply running it. We run it.
+    #
+    # Measured, on the first documentation-only pull request: this filter excluded a docs change, the
+    # workflow never started, and the pull request was blocked with nothing running and nothing to
+    # re-run. The button was greyed out on a check that could not arrive.
+    #
+    # The cost is CodeQL minutes on changes that touch no code. That is the correct trade for a
+    # security gate: dotnet/efcore's build workflow, whose checks gate its merges, likewise declares
+    # no paths filter at all and runs on every pull request.
   pull_request:
     branches: [ main, develop ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - '*.props'
-      - '*.targets'
-      - '.github/workflows/codeql-analysis.yml'
+    # NO paths filter, deliberately. This workflow's job is a REQUIRED status check on main, and a
+    # required check that never runs is not skipped -- it is reported as "Expected - waiting for
+    # status to be reported", forever. GitHub documents no way for a path-filtered workflow to
+    # satisfy a required context; the only sanctioned alternatives are a second workflow that
+    # reports the same name unconditionally, which manufactures a green for work that never happened,
+    # or simply running it. We run it.
+    #
+    # Measured, on the first documentation-only pull request: this filter excluded a docs change, the
+    # workflow never started, and the pull request was blocked with nothing running and nothing to
+    # re-run. The button was greyed out on a check that could not arrive.
+    #
+    # The cost is CodeQL minutes on changes that touch no code. That is the correct trade for a
+    # security gate: dotnet/efcore's build workflow, whose checks gate its merges, likewise declares
+    # no paths filter at all and runs on every pull request.
   schedule:
     # Run weekly on Mondays at 02:00 UTC
     - cron: '0 2 * * 1'
