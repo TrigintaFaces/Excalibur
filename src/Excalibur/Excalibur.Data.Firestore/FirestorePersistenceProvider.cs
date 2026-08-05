@@ -838,7 +838,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 
 		// Do not block on _initLock.Wait() in sync Dispose -- use DisposeAsync for graceful cleanup.
 		// Direct disposal is safe because _disposed flag prevents concurrent init.
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -864,7 +864,7 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 			// Proceed with disposal even if lock acquisition times out
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]

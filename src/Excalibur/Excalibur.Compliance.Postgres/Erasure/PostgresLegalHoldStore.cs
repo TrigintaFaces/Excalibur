@@ -30,7 +30,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 	private readonly PostgresLegalHoldStoreOptions _options;
 	private readonly ILogger<PostgresLegalHoldStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private bool _disposed;
+	private volatile bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
@@ -417,7 +417,7 @@ public sealed partial class PostgresLegalHoldStore : ILegalHoldStore, ILegalHold
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	private async Task InitializeCoreAsync(CancellationToken cancellationToken)

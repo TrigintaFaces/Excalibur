@@ -362,7 +362,7 @@ public sealed partial class FirestoreGrantStore : IGrantStore, IDurableGrantStor
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		// FirestoreDb doesn't implement IDisposable - connections are managed internally
 		return ValueTask.CompletedTask;
 	}

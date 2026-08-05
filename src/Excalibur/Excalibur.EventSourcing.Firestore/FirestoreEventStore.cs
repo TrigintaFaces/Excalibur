@@ -554,7 +554,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

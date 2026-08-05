@@ -279,7 +279,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -291,7 +291,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		return ValueTask.CompletedTask;
 	}
 

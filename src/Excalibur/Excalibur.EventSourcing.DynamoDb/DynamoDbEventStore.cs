@@ -505,7 +505,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}
 

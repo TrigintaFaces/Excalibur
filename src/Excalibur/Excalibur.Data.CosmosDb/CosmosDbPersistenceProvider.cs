@@ -708,7 +708,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		LogDisposing(Name);
 
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -723,7 +723,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		LogDisposing(Name);
 
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

@@ -325,7 +325,7 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 		// handle". That was backwards: it does not protect against a later throw, it maximises the
 		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
 		// frees a handle on a throw.
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		// OpenSearchClient doesn't implement IDisposable - it manages connections internally
 		return ValueTask.CompletedTask;
 	}

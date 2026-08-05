@@ -404,7 +404,7 @@ public sealed partial class FirestoreSnapshotStore : ISnapshotStore, IAsyncDispo
 		// handle". That was backwards: it does not protect against a later throw, it maximises the
 		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
 		// frees a handle on a throw.
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		// FirestoreDb doesn't implement IDisposable - connections are managed internally
 		return ValueTask.CompletedTask;
 	}

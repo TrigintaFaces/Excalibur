@@ -577,7 +577,7 @@ public sealed partial class FirestoreOutboxStore : ICloudNativeOutboxStore, IClo
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		return ValueTask.CompletedTask;
 	}

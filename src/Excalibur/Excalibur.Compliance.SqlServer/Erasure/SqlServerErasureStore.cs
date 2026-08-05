@@ -33,7 +33,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<SqlServerErasureStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private bool _disposed;
+	private volatile bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
@@ -530,7 +530,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	private async Task InitializeCoreAsync(CancellationToken cancellationToken)

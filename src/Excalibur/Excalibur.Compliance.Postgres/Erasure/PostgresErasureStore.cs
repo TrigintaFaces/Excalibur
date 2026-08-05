@@ -33,7 +33,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<PostgresErasureStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private bool _disposed;
+	private volatile bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
@@ -525,7 +525,7 @@ public sealed partial class PostgresErasureStore : IErasureStore, IErasureCertif
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	private async Task InitializeCoreAsync(CancellationToken cancellationToken)

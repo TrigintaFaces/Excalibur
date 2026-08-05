@@ -696,7 +696,7 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IClou
 		_disposed = true;
 
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

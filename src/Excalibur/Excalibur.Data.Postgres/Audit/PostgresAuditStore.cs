@@ -361,7 +361,7 @@ public sealed partial class PostgresAuditStore : IAuditStore, IDurableAuditStore
 		// handle". That was backwards: it does not protect against a later throw, it maximises the
 		// window in which the initialiser's Release is guaranteed to throw. try/finally is what
 		// frees a handle on a throw.
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		return ValueTask.CompletedTask;
 	}
 

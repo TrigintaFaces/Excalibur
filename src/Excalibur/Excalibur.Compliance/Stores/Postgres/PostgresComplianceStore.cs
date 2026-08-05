@@ -101,7 +101,7 @@ public sealed partial class PostgresComplianceStore : IComplianceStore, IDisposa
 	private readonly ILogger<PostgresComplianceStore> _logger;
 	private readonly ITenantContext? _tenantContext;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
-	private bool _disposed;
+	private volatile bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
@@ -448,7 +448,7 @@ public sealed partial class PostgresComplianceStore : IComplianceStore, IDisposa
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	private async Task InitializeCoreAsync(NpgsqlConnection connection, CancellationToken cancellationToken)

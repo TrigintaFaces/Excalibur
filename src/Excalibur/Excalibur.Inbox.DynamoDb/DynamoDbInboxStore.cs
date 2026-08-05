@@ -874,7 +874,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -892,7 +892,7 @@ public sealed partial class DynamoDbInboxStore : IInboxStore, IProcessingTrackin
 			_client?.Dispose();
 		}
 
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

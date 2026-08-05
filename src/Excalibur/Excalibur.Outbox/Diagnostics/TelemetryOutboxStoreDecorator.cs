@@ -51,7 +51,7 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 	private Counter<long>? _operationsCounter;
 	private Histogram<double>? _operationDuration;
 	private Counter<long>? _messagesCounter;
-	private bool _disposed;
+	private volatile bool _disposed;
 
 	private Counter<long> Operations => _operationsCounter ??= _meter.CreateCounter<long>(
 		"excalibur.outbox.store.operations", "operations", "Total outbox store operations by type.");

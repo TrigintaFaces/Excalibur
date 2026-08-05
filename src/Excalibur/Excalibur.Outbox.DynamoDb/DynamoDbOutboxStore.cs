@@ -712,7 +712,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IClou
 
 		_client?.Dispose();
 		_streamsClient?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

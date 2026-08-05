@@ -557,7 +557,7 @@ public sealed partial class CosmosDbProjectionStore<
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 	}
 
 	/// <inheritdoc/>
@@ -570,7 +570,7 @@ public sealed partial class CosmosDbProjectionStore<
 
 		_disposed = true;
 		_client?.Dispose();
-		_initLock.Dispose();
+		_initLock?.Dispose();
 
 		await ValueTask.CompletedTask.ConfigureAwait(false);
 	}

@@ -248,7 +248,7 @@ public sealed partial class FirestoreActivityGroupGrantStore : IActivityGroupGra
 		}
 
 		_disposed = true;
-		_initLock.Dispose();
+		_initLock?.Dispose();
 		// FirestoreDb doesn't implement IDisposable - connections are managed internally
 		return ValueTask.CompletedTask;
 	}
