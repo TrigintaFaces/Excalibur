@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# task-delay-syncwait-gate — block NEW raw `await Task.Delay(...)` sync-waits in test code.
+# task-delay-syncwait-gate — block NEW clock dependence in test code.
+#
+# TWO shapes, because a test comes to depend on the clock in two ways and catching one leaves the
+# other free: a raw `await Task.Delay(...)` sync-wait, and a short deadline on a
+# CancellationTokenSource that the test must beat. Both were measured failing shards here.
 #
 # Enforces the determinism standard in .claude/rules/quality/testing-patterns.md
 # ("Tests MUST be deterministic ... Never depend on wall-clock timing. Poll for a
@@ -71,6 +75,34 @@ tds_line_is_violation() {
     return 0
 }
 
+# tds_line_is_short_deadline <line>  -> 0 (a short wall-clock deadline) / 1 (not)
+#
+# The SECOND way a test comes to depend on the clock, and the one Task.Delay does not cover. A
+# CancellationTokenSource built with a short duration is a deadline the test must beat, and when the
+# operation under test ends on that token it is the exit mechanism as well -- so the duration is
+# load-bearing rather than a safety net. On a busy agent the test loses the race and reports the
+# code as broken.
+#
+# Measured, twice in one day: a subscriber test gave itself 50ms to reach a park, and its timer
+# fired inside a setup call that sat outside the cancellation handling, so the call threw at the
+# caller. A health-check test inherited a 100ms threshold and was really asserting that the agent
+# had completed a crypto round-trip in a tenth of a second.
+#
+# THE BAR IS FIVE SECONDS, and it is a bar on NEW code only, like the rest of this gate. Under it,
+# say why. Generous bounds are the recommended shape and the majority here already: 58 use 30s.
+# A duration that IS the semantic under test -- a batch timeout, a lease TTL, a rate -- is
+# legitimate and carries the pragma rather than being contorted.
+tds_line_is_short_deadline() {
+    local line="$1"
+    printf '%s' "$line" | grep -qE 'new CancellationTokenSource\(TimeSpan\.From' || return 1
+    printf '%s' "$line" | grep -qE '^[[:space:]]*(//|///|\*)' && return 1
+    printf '%s' "$line" | grep -qE '//[[:space:]]*deadline-ok' && return 1
+    # Milliseconds is always under the bar. Seconds only below 5.
+    printf '%s' "$line" | grep -qE 'TimeSpan\.FromMilliseconds\(' && return 0
+    printf '%s' "$line" | grep -qE 'TimeSpan\.FromSeconds\([0-4]\)' && return 0
+    return 1
+}
+
 # ---------------------------------------------------------------------------
 # Diff plumbing
 # ---------------------------------------------------------------------------
@@ -107,6 +139,8 @@ tds_scan_diff() {
         if tds_is_allowlisted_file "$file"; then continue; fi
         if tds_line_is_violation "$line"; then
             printf '%s:%s\n' "$file" "$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//')"
+        elif tds_line_is_short_deadline "$line"; then
+            printf '%s:[deadline] %s\n' "$file" "$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//')"
         fi
     done
 }
@@ -147,11 +181,11 @@ run_gate() {
 
     echo "=== task-delay sync-wait gate (mode=$mode, base=$base) ==="
     if [ -z "$hits" ]; then
-        echo "✅ No NEW raw sync-wait Task.Delay added in test code. Determinism gate clean."
+        echo "✅ No NEW sync-wait or short deadline added in test code. Determinism gate clean."
         return 0
     fi
 
-    echo "❌ NEW raw sync-wait Task.Delay(...) added in test code:"
+    echo "❌ NEW clock dependence added in test code (sync-wait, or a [deadline] under five seconds):"
     printf '%s\n' "$hits" | sed 's/^/    /'
     echo ""
     echo "Tests MUST NOT synchronize on a fixed wall-clock delay before asserting a background"
@@ -159,7 +193,13 @@ run_gate() {
     echo "  Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync / AwaitSignalAsync"
     echo "with a generous bounded timeout. See docs/testing/async-test-standards.md."
     echo ""
-    echo "If this Task.Delay is a LEGITIMATE time-based semantic (lease-TTL expiry, distinct"
+    echo "A [deadline] line is a CancellationTokenSource the test must finish inside. Prefer a"
+echo "generous bound (30s is the shape most of this repo uses) or, better, cancel on the EVENT"
+echo "you are waiting for rather than after a duration. If the duration IS the semantic under"
+echo "test, say so:"
+echo "    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50)); // deadline-ok: the batch timeout under test"
+echo ""
+echo "If this Task.Delay is a LEGITIMATE time-based semantic (lease-TTL expiry, distinct"
     echo "timestamps, simulated work in a fake, throughput pacing), append a justification:"
     echo "    await Task.Delay(50); // delay-ok: distinct-timestamp ordering, not a sync-wait"
 
@@ -206,6 +246,26 @@ self_test() {
         echo "                A gate that cannot resolve its base has compared nothing, so a clean" >&2
         echo "                verdict from it is a green it did not earn." >&2
         pass=0
+    fi
+
+    # --- Predicate: short wall-clock deadlines -----------------------------
+    if ! tds_line_is_short_deadline '        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));'; then
+        echo "self-test FAIL: did not flag a 50ms deadline, the exact shape that failed a shard" >&2; pass=0
+    fi
+    if ! tds_line_is_short_deadline '  var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));'; then
+        echo "self-test FAIL: did not flag a 2s deadline (under the five-second bar)" >&2; pass=0
+    fi
+    if tds_line_is_short_deadline '        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));'; then
+        echo "self-test FAIL: flagged a generous 30s bound, which is the recommended shape" >&2; pass=0
+    fi
+    if tds_line_is_short_deadline '  var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(10)); // deadline-ok: batch timeout under test'; then
+        echo "self-test FAIL: flagged a line carrying the deadline-ok justification" >&2; pass=0
+    fi
+    if tds_line_is_short_deadline '        // new CancellationTokenSource(TimeSpan.FromMilliseconds(50)) replaced by a signal'; then
+        echo "self-test FAIL: flagged a comment" >&2; pass=0
+    fi
+    if tds_line_is_short_deadline '        var cts = new CancellationTokenSource();'; then
+        echo "self-test FAIL: flagged an untimed token source, which is the fix not the defect" >&2; pass=0
     fi
 
     # --- File allowlist ----------------------------------------------------
@@ -257,7 +317,7 @@ EOF
     fi
 
     if [ "$pass" -eq 1 ]; then
-        echo "✅ task-delay-syncwait-gate self-test PASSED (flags planted sync-wait; ignores allowlist/perf/pragma/WhenAny/comment; REFUSES an unresolvable base)."
+        echo "✅ task-delay-syncwait-gate self-test PASSED (flags planted sync-wait AND short deadline; ignores allowlist/perf/pragma/WhenAny/comment/generous-bound; REFUSES an unresolvable base)."
         return 0
     fi
     echo "❌ task-delay-syncwait-gate self-test FAILED." >&2
