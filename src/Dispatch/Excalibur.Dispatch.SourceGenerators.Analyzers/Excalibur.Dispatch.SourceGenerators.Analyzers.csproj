@@ -15,6 +15,10 @@
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <!-- Excalibur.Dispatch bundles this assembly into analyzers/dotnet/cs, and its comment there
+         already states the rule: ONE delivery path, because a second one means duplicate diagnostics.
+         Shipping this as a standalone package WAS that second path. -->
+    <IsPackable>false</IsPackable>
     <IncludeSymbols>false</IncludeSymbols>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <!-- RS2008: Disable release tracking for initial development -->

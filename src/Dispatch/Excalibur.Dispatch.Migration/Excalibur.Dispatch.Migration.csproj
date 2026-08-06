@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The migration tooling, as ONE package.
+
+    The analyzers and their code fixes previously shipped as two package identities. A consumer who
+    installed only the analyzers received EXMIG diagnostics with no way to apply them, which is the
+    split the framework itself avoids: Microsoft.CodeAnalysis.NetAnalyzers and StyleCop.Analyzers
+    each carry analyzer and fixer assemblies in a single package, because a diagnostic and its fix
+    are one deliverable from the consumer's side.
+
+    This project carries no source. It exists to pack both assemblies into analyzers/dotnet/cs, the
+    same delivery path Excalibur.Dispatch already uses for its own generator. The two contributing
+    projects are IsPackable=false: one delivery path, so a diagnostic cannot arrive twice.
+  -->
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Migration</PackageId>
+    <!-- Analyzers MUST target netstandard2.0 only. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
+
+    <!-- Deliberately NOT opting out of central package management. The analyzer projects opt out to
+         pin the Roslyn SDK, and that opt-out is what silently removed them from the version line:
+         MinVer arrives as a PackageReference that is conditioned on CPM being enabled. This project
+         pins nothing, so it stays on the shared version like every other shipping package. -->
+
+    <!-- Nothing in lib/. An analyzer package delivers through analyzers/dotnet/cs, and shipping an
+         empty assembly alongside would give consumers a reference that resolves to nothing.
+         NU5128 is the "no lib/ref assemblies" notice, which is the intended shape here. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+
+    <!-- Analyzers are a build-time concern: they must not flow to a consumer's own consumers. -->
+    <DevelopmentDependency>true</DevelopmentDependency>
+
+    <IncludeSymbols>false</IncludeSymbols>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <IsTrimmable>false</IsTrimmable>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+
+    <Description>Roslyn analyzers and code fixes for migrating off the now-commercial MediatR and MassTransit packages onto Excalibur.Dispatch. Flags mechanically-portable constructs as EXMIG diagnostics and supplies the automatic rewrites for them.</Description>
+    <PackageTags>excalibur;dispatch;migration;mediatr;masstransit;analyzers;codefixes;roslyn</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Build order only. ReferenceOutputAssembly=false because this project compiles nothing against
+         them; the assemblies are picked up by path below, exactly as Excalibur.Dispatch does. -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Migration.Analyzers\Excalibur.Dispatch.Migration.Analyzers.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Migration.CodeFixes\Excalibur.Dispatch.Migration.CodeFixes.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Excalibur.Dispatch.Migration.Analyzers\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.Migration.Analyzers.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="..\Excalibur.Dispatch.Migration.CodeFixes\bin\$(Configuration)\netstandard2.0\Excalibur.Dispatch.Migration.CodeFixes.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

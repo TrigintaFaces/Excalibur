@@ -15,6 +15,7 @@
       "src\\Dispatch\\Excalibur.Dispatch.Hosting.GoogleCloudFunctions\\Excalibur.Dispatch.Hosting.GoogleCloudFunctions.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Hosting.Serverless.Abstractions\\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.LeaderElection.Abstractions\\Excalibur.Dispatch.LeaderElection.Abstractions.csproj",
+      "src\\Dispatch\\Excalibur.Dispatch.Migration\\Excalibur.Dispatch.Migration.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Migration.Analyzers\\Excalibur.Dispatch.Migration.Analyzers.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Migration.CodeFixes\\Excalibur.Dispatch.Migration.CodeFixes.csproj",
       "src\\Dispatch\\Excalibur.Dispatch.Observability.Aws\\Excalibur.Dispatch.Observability.Aws.csproj",

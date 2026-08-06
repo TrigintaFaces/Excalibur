@@ -41,6 +41,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- BUNDLE the code fixes beside the diagnostics that raise them. Excalibur.Workflows.CodeFixes
+         references THIS project, so it is built by the time this packs; taking it by path avoids the
+         reference cycle a ProjectReference back to it would create. -->
+    <None Include="..\Excalibur.Workflows.CodeFixes\bin\$(Configuration)\netstandard2.0\Excalibur.Workflows.CodeFixes.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />

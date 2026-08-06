@@ -14,6 +14,10 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSymbols>false</IncludeSymbols>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <!-- Contributes its assembly to Excalibur.Workflows.Analyzers rather than shipping alone. A
+         consumer installing the analyzers previously received diagnostics with no way to apply
+         them; the fixes now travel with the diagnostics that raise them. -->
+    <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);NU5017;NU5128;RS2008</NoWarn>
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>

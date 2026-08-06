@@ -156,9 +156,31 @@
 	</ItemGroup>
 
 	<!-- MinVer: git-tag-driven versioning for shipping packages (Polly pattern).
-	     Excluded from projects that opt out of CPM (e.g., SourceGenerators which pins Roslyn SDK). -->
+	
+	     TWO groups, because a shipping package must not be able to fall off the version line.
+	     MinVer arrives as a PackageReference, and a versionless reference is an error when a
+	     project opts out of central package management, so the first group is conditioned on CPM
+	     being enabled. That condition used to be the whole story, and it quietly turned a build
+	     accommodation into a versioning decision: a packable project that pins its own dependencies
+	     received no MinVer at all and fell back to the SDK default. Four packages shipped at 1.0.0
+	     while the other 579 were on the 10.x line, and nothing said so, because tagged releases stamp every
+	     project alike, so the skew was only ever visible on builds nobody reads a version off.
+	
+	     The second group is the opt-out path, supplying the version inline. Both take it from one
+	     property: a literal in two files is a value that drifts, which is this same defect one level
+	     up. Note the MinVer PROPERTIES above are unconditional and always applied; only the
+	     reference was ever missing, which is why a project could look configured and still not be.
+	
+	     Enforced rather than remembered: the official build refuses to publish a package set
+	     carrying more than one version, which is how the 1.0.0 packages were found. -->
+	<PropertyGroup>
+		<MinVerPackageVersion>6.0.0</MinVerPackageVersion>
+	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And '$(ManagePackageVersionsCentrally)' != 'false'">
 		<PackageReference Include="MinVer" PrivateAssets="all" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(IsPackable)' != 'false' And '$(ManagePackageVersionsCentrally)' == 'false'">
+		<PackageReference Include="MinVer" Version="$(MinVerPackageVersion)" PrivateAssets="all" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true'">
