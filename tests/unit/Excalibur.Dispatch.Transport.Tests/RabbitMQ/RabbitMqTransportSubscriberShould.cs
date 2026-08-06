@@ -98,6 +98,19 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 	public async Task Apply_prefetch_qos_when_prefetch_is_configured()
 	{
 		var channel = A.Fake<IChannel>();
+
+		// SubscribeAsync does not return on its own: it registers the consumer and then parks on
+		// Task.Delay(Timeout.Infinite, token), so the token is how the call ends. Cancelling it on a
+		// wall-clock timer made that a race the test had to win. The subscription registering is the
+		// event we are actually waiting for, so cancel on THAT instead of after a fixed duration --
+		// no clock, nothing to lose under load.
+		//
+		// It also removes the failure mode that made this flaky rather than merely slow. A timer can
+		// fire during BasicQosAsync, which runs BEFORE the try block that treats cancellation as a
+		// clean stop, so the call threw TaskCanceledException at the caller instead of returning.
+		// Cancelling here cannot: by the time this runs, BasicQos has already completed.
+		using var cts = new CancellationTokenSource();
+
 		_ = A.CallTo(() => channel.BasicConsumeAsync(
 				A<string>._,
 				A<bool>._,
@@ -107,6 +120,7 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 				A<IDictionary<string, object?>>._,
 				A<IAsyncBasicConsumer>._,
 				A<CancellationToken>._))
+			.Invokes(() => cts.Cancel())
 			.Returns(Task.FromResult("consumer-tag"));
 		_ = A.CallTo(() => channel.BasicCancelAsync(
 				A<string>._,
@@ -122,7 +136,6 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 			prefetchCount: 25,
 			prefetchGlobal: false);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 		await sut.SubscribeAsync(static (_, _) => Task.FromResult(MessageAction.Acknowledge), cts.Token);
 
 		A.CallTo(() => channel.BasicQosAsync(
@@ -137,6 +150,19 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 	public async Task Skip_prefetch_qos_when_prefetch_is_zero()
 	{
 		var channel = A.Fake<IChannel>();
+
+		// SubscribeAsync does not return on its own: it registers the consumer and then parks on
+		// Task.Delay(Timeout.Infinite, token), so the token is how the call ends. Cancelling it on a
+		// wall-clock timer made that a race the test had to win. The subscription registering is the
+		// event we are actually waiting for, so cancel on THAT instead of after a fixed duration --
+		// no clock, nothing to lose under load.
+		//
+		// It also removes the failure mode that made this flaky rather than merely slow. A timer can
+		// fire during BasicQosAsync, which runs BEFORE the try block that treats cancellation as a
+		// clean stop, so the call threw TaskCanceledException at the caller instead of returning.
+		// Cancelling here cannot: by the time this runs, BasicQos has already completed.
+		using var cts = new CancellationTokenSource();
+
 		_ = A.CallTo(() => channel.BasicConsumeAsync(
 				A<string>._,
 				A<bool>._,
@@ -146,6 +172,7 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 				A<IDictionary<string, object?>>._,
 				A<IAsyncBasicConsumer>._,
 				A<CancellationToken>._))
+			.Invokes(() => cts.Cancel())
 			.Returns(Task.FromResult("consumer-tag"));
 		_ = A.CallTo(() => channel.BasicCancelAsync(
 				A<string>._,
@@ -159,7 +186,6 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 			TestQueueName,
 			NullLogger<RabbitMqTransportSubscriber>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 		await sut.SubscribeAsync(static (_, _) => Task.FromResult(MessageAction.Acknowledge), cts.Token);
 
 		A.CallTo(() => channel.BasicQosAsync(
