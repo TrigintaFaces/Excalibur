@@ -478,21 +478,38 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	{
 		// Arrange — apply delegate throws on first batch, succeeds on second
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
-		var callCount = 0;
+
+		// The store is faked on POSITION, not on how many times it is read, and that is the whole
+		// point of this arrangement.
+		//
+		// It used to ration events by call count -- the first two reads returned an event, everything
+		// after returned empty -- which made the test depend on the host reading exactly twice. Any
+		// third read, from a poll landing between operations on a loaded agent, spent the budget: the
+		// retry then received an empty batch, the second apply never happened, and the test failed
+		// having proved nothing about the host. That is what went red on CI while passing 20 times
+		// locally.
+		//
+		// It was also modelling the wrong behaviour. On an apply fault the host deliberately does NOT
+		// advance the checkpoint, so the next read returns THE SAME BATCH and the apply is retried --
+		// at-least-once reprocessing, which is the property this test exists to check. Handing the
+		// retry a different event instead tested "the host read again and got new data", which is not
+		// the same claim and is not the one in the test name.
+		//
+		// Keying on the position models the real store: the batch is served until the host advances
+		// past it, and then the stream is empty. The host reads as many or as few times as it likes.
+		var pendingEvent = new StoredEvent(
+			"e-1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UnixEpoch)
+		{
+			GlobalPosition = 1,
+		};
 
 		A.CallTo(() => fakeQuery.ReadAllAsync(
 				A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				var count = Interlocked.Increment(ref callCount);
-				return new ValueTask<IReadOnlyList<StoredEvent>>(
-					count <= 2
-						? new List<StoredEvent>
-						{
-							new($"e-{count}", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, count, DateTimeOffset.UtcNow),
-						}
-						: (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>());
-			});
+			.ReturnsLazily((GlobalStreamPosition position, int _, CancellationToken _) =>
+				new ValueTask<IReadOnlyList<StoredEvent>>(
+					position.Position <= pendingEvent.GlobalPosition
+						? new List<StoredEvent> { pendingEvent }
+						: (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>()));
 
 		var fakeSerializer = A.Fake<IEventSerializer>();
 		A.CallTo(() => fakeSerializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
@@ -536,8 +553,14 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		// Assert — the host continued after the first error and processed more batches
-		applyCallCount.ShouldBeGreaterThanOrEqualTo(2);
+		// Assert — the host retried the SAME batch after the fault and then advanced past it.
+		// Exactly two: the apply that threw, and the retry that succeeded. A lower bound would also
+		// pass if the host spun on the batch forever, which is the opposite of the behaviour claimed.
+		applyCallCount.ShouldBe(
+			2,
+			$"expected one faulting apply and one successful retry of the same batch, saw {applyCallCount}. "
+			+ "One means the host never reprocessed the unadvanced batch; more than two means it never "
+			+ "advanced past it and is reprocessing indefinitely.");
 	}
 
 	[Fact]
