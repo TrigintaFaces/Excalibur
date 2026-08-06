@@ -5,11 +5,20 @@
 # two real gates sat with zero callers behind a passing battery.
 #
 # WHAT COUNTS AS A GATE (enumerated, not sampled):
-#   every  eng/ci/*.sh  and  eng/hooks/*.sh  EXCEPT
-#     *.test.sh          — a self-test proves a gate is non-vacuous; it does not WIRE the gate.
-#     *.harness-lock.sh  — a lock, run by the orchestrator's lock battery, not a standalone gate.
-#     *.fixture.sh       — test scaffolding.
-#     harness-gates-ci.sh— the orchestrator itself (it is the top caller, named directly by the workflow).
+#   every  eng/ci/*.{sh,py,ps1}  and  eng/hooks/*.sh  EXCEPT
+#     *.test.{sh,py,ps1}     — a self-test proves a gate is non-vacuous; it does not WIRE the gate.
+#     *.harness-lock.sh      — a lock, run by the orchestrator's lock battery, not a standalone gate.
+#     *.fixture.{sh,py,ps1}  — test scaffolding.
+#     harness-gates-ci.sh    — the orchestrator itself (the top caller, named directly by the workflow).
+#
+#   ON THE EXTENSION SET. This enumerated '*.sh' alone until it was measured: eng/ci held 46 .sh, 9 .py
+#   and 27 .ps1 non-test gates, so 36 of 82 sat outside the population BY CONSTRUCTION and an unwired
+#   .py or .ps1 gate could not be detected at all. Enumerating by file extension is a proxy for "is an
+#   enforcement gate", and the proxy silently excluded the majority of them. Widening it found five real
+#   orphans, one release-critical: a validator asserting the shipping filter names every packable
+#   project, running nowhere, so a newly added package could have been built by nothing and shipped
+#   never. If a gate is ever written in a fourth language, add it here — the population must follow what
+#   a gate IS, not what it happens to be written in.
 #
 # WHAT COUNTS AS A CALLER (a surface that RUNS a gate):
 #     .github/workflows/*.yml           — CI entry points
@@ -45,11 +54,13 @@ BASELINE="${GW_BASELINE:-$GW_ROOT/eng/ci/gate-wiring-baseline.txt}"
 
 # ── Enumerate candidate gates (basenames) ──────────────────────────────────────────────────────────
 gates=()
-for f in "$GW_ROOT"/eng/ci/*.sh "$GW_ROOT"/eng/hooks/*.sh; do
+for f in "$GW_ROOT"/eng/ci/*.sh "$GW_ROOT"/eng/ci/*.py "$GW_ROOT"/eng/ci/*.ps1 "$GW_ROOT"/eng/hooks/*.sh; do
     [ -f "$f" ] || continue
     b="$(basename "$f")"
     case "$b" in
-        *.test.sh|*.harness-lock.sh|*.fixture.sh|harness-gates-ci.sh) continue ;;
+        *.test.sh|*.test.py|*.test.ps1) continue ;;
+        *.fixture.sh|*.fixture.py|*.fixture.ps1) continue ;;
+        *.harness-lock.sh|harness-gates-ci.sh) continue ;;
     esac
     gates+=("$b")
 done
@@ -74,32 +85,32 @@ done
 # falsely counted as wired because the stem happened to appear before the ".test.sh" suffix. The
 # whole-token boundary still stops "f5-sweep.sh" from matching inside "f5-sweep-extra.sh", and the ".sh"
 # anchor additionally stops it from matching inside "f5-sweep.test.sh"/"f5-sweep.fixture.sh".
+# PERFORMANCE. This used to grep every caller separately for every gate — O(gates x callers) greps,
+# which crossed two minutes once the gate population nearly doubled. The caller surfaces are identical
+# for every gate, so they are flattened ONCE into two corpora and each gate costs two greps instead of
+# one per caller (measured: >120s -> ~14s). Semantics are preserved exactly: whole-line comments are
+# stripped from the code corpus up front, which is what the old per-file post-filter did.
+CORPUS_DIR="$(mktemp -d 2>/dev/null)" || { echo "::error::gate-wiring: cannot create temp dir" >&2; exit 64; }
+trap 'rm -rf "$CORPUS_DIR"' EXIT
+CODE_CORPUS="$CORPUS_DIR/code"; MD_CORPUS="$CORPUS_DIR/md"
+: >"$CODE_CORPUS"; : >"$MD_CORPUS"
+for cf in "${callers[@]:-}"; do
+    [ -n "$cf" ] || continue
+    case "$cf" in
+        *.md) cat "$cf" >>"$MD_CORPUS" 2>/dev/null ;;
+        *)    grep -vE '^[[:space:]]*#' "$cf" >>"$CODE_CORPUS" 2>/dev/null ;;
+    esac
+done
+
+# A skill IS a caller surface: the gates for the LOCAL runners (a full-suite shard completeness check,
+# a build-skip assert) are invoked from the procedure that runs them, not from a workflow — so omitting
+# skills reported those gates as orphans while they were being invoked on every run. Prose is not
+# invocation, though: in markdown the mention must be shaped like a command, for the same reason a
+# comment does not wire a gate.
 is_wired() {
-    local b="$1" cf esc="${1//./\\.}"   # escape '.' so the extension is matched literally, not as any-char
-    local re="(^|[^A-Za-z0-9_-])${esc}([^A-Za-z0-9_-]|\$)"
-    for cf in "${callers[@]:-}"; do
-        [ -n "$cf" ] || continue
-        case "$cf" in
-            *.md)
-                # A skill IS a caller surface: the gates for the LOCAL runners (a full-suite shard
-                # completeness check, a build-skip assert) are invoked from the procedure that runs
-                # them, not from a workflow — so omitting skills reported those gates as orphans
-                # while they were being invoked on every run.
-                #
-                # Prose is not invocation, though. In markdown, require the mention to be shaped like
-                # a command: `bash <gate>`, `pwsh <gate>`, `./<gate>`, or `sh <gate>`. A sentence that
-                # merely names the gate does not wire it, for the same reason a comment does not.
-                if grep -qE "(^|[^A-Za-z0-9_-])(bash|sh|pwsh|\./)[[:space:]]*[^[:space:]]*${esc}([^A-Za-z0-9_-]|\$)" "$cf" 2>/dev/null; then
-                    return 0
-                fi
-                ;;
-            *)
-                if grep -nE "$re" "$cf" 2>/dev/null | grep -qvE '^[0-9]+:[[:space:]]*#'; then
-                    return 0
-                fi
-                ;;
-        esac
-    done
+    local esc="${1//./\\.}"   # escape '.' so the extension is matched literally, not as any-char
+    grep -qE "(^|[^A-Za-z0-9_-])${esc}([^A-Za-z0-9_-]|\$)" "$CODE_CORPUS" 2>/dev/null && return 0
+    grep -qE "(^|[^A-Za-z0-9_-])(bash|sh|pwsh|python3?|\./)[[:space:]]*[^[:space:]]*${esc}([^A-Za-z0-9_-]|\$)" "$MD_CORPUS" 2>/dev/null && return 0
     return 1
 }
 

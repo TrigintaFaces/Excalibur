@@ -22,10 +22,28 @@ Its flake rate is failures / total observations. Tests seen only once cannot be 
 counted separately rather than silently dropped -- an unclassifiable population is a fact about the
 report's confidence, not a rounding error.
 
+BUDGETS
+-------
+--max-flaky-rate and --max-flaky-count declare what is acceptable. Until they were added this
+report computed a rate that nothing compared to anything, which is a measurement with no decision
+attached to it -- the number could double and no artifact anywhere would say so.
+
+They are BUDGETS, not a ratchet, and the difference decides what to do when one is breached. A
+coverage floor starts at the level already achieved, so it can only detect a fall. A flake budget
+starts at the level considered tolerable, so it can be breached on its first run. When it is, the
+response is to fix or quarantine the tests -- NOT to raise the budget to whatever was observed,
+which would convert the only line anyone might defend into a description of the status quo.
+
 EXIT CODES -- distinct on purpose.
-  0  report produced (flaky tests may or may not exist; this command reports, it does not gate)
+  0  report produced, and within budget (or no budget was declared)
+  1  report produced, and a declared budget was EXCEEDED
   2  REFUSE: no parseable input. An empty report and an unread one look identical, and the
      difference matters: "no flakes" and "no data" are opposite conclusions.
+
+Exit 1 and exit 2 must never be collapsed. "Too many flaky tests" and "the report could not be
+produced" call for opposite responses, and a budget that turned a REFUSE into either a pass or a
+breach would be reporting on a window it never read. The budget is therefore evaluated only after
+input has been parsed, never before.
 """
 from __future__ import annotations
 
@@ -37,6 +55,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 TRX_NS = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
+EXIT_OK = 0
+EXIT_OVER_BUDGET = 1
 EXIT_REFUSE = 2
 
 
@@ -67,13 +87,79 @@ def analyse(files: list[str]):
     return seen, parsed
 
 
+def evaluate_budget(flaky, max_rate, max_count):
+    """Compare the observed flake population against the declared budgets.
+
+    Returns (breaches, lines) -- breaches is a list of one-line reasons, empty when within budget.
+    `flaky` is the same (rate, failed, total, name) tuple list the report renders, so the verdict
+    and the table can never disagree about what was counted.
+    """
+    breaches, lines = [], []
+
+    if max_count is None and max_rate is None:
+        lines.append("_No flake budget was declared, so nothing was compared. "
+                     "Pass `--max-flaky-count` and/or `--max-flaky-rate` to make this report "
+                     "capable of a verdict._")
+        return breaches, lines
+
+    if max_count is not None:
+        verdict = "MET" if len(flaky) <= max_count else "EXCEEDED"
+        lines.append(f"- flaky test count: **{len(flaky)}** against a budget of "
+                     f"**{max_count}** -- **{verdict}**")
+        if verdict == "EXCEEDED":
+            breaches.append(f"{len(flaky)} flaky test(s) against a budget of {max_count}")
+
+    if max_rate is not None:
+        # Strictly greater. A test sitting exactly ON the budget is within it; an off-by-one here
+        # reports a breach for the population the budget was chosen to permit.
+        over = [f for f in flaky if f[0] > max_rate]
+        worst = max((f[0] for f in flaky), default=0.0)
+        verdict = "MET" if not over else "EXCEEDED"
+        lines.append(f"- worst individual flake rate: **{worst:.0%}** against a budget of "
+                     f"**{max_rate:.0%}** ({len(over)} test(s) over) -- **{verdict}**")
+        if over:
+            breaches.append(f"{len(over)} test(s) flake more often than {max_rate:.0%}")
+
+    return breaches, lines
+
+
+def render_budget(flaky, max_rate, max_count) -> int:
+    """Print the budget section and return the process exit code for it."""
+    breaches, lines = evaluate_budget(flaky, max_rate, max_count)
+    print()
+    print("### Budget")
+    print()
+    for line in lines:
+        print(line)
+    if not breaches:
+        return EXIT_OK
+    print()
+    print("**Over budget.** The fix is to repair or quarantine the tests named above. Raising the "
+          "budget to match what was observed would turn the only defensible line into a description "
+          "of the status quo.")
+    for b in breaches:
+        print(f"::error::Flake budget exceeded: {b}", file=sys.stderr)
+    return EXIT_OVER_BUDGET
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Report tests that both passed and failed across runs.")
     ap.add_argument("--glob", default="flake-input/**/*.trx",
                     help="glob for TRX files gathered from recent runs")
     ap.add_argument("--top", type=int, default=20, help="how many offenders to list")
+    ap.add_argument("--max-flaky-count", type=int, default=None,
+                    help="maximum tolerated number of flaky tests; exceeding it exits 1")
+    ap.add_argument("--max-flaky-rate", type=float, default=None,
+                    help="maximum tolerated per-test flake rate as a fraction (0.05 = 5%%); "
+                         "any test above it exits 1")
     ap.add_argument("--self-test", action="store_true", help="prove this report is non-vacuous")
     args = ap.parse_args()
+
+    if args.max_flaky_rate is not None and not 0.0 <= args.max_flaky_rate <= 1.0:
+        print(f"::error::--max-flaky-rate must be a fraction between 0 and 1, got "
+              f"{args.max_flaky_rate}. A budget of '5' would permit every test to fail every run.",
+              file=sys.stderr)
+        return EXIT_REFUSE
 
     if args.self_test:
         return self_test()
@@ -112,7 +198,10 @@ def main() -> int:
         print()
         print("_This is evidence of absence only to the extent the window is wide enough; "
               "a test that ran once cannot be seen to flake._")
-        return 0
+        # The budget is still rendered on a clean window. A verdict that appears only when there is
+        # bad news leaves a reader unable to tell "within budget" from "the budget was never
+        # evaluated", which is the gap this whole section exists to close.
+        return render_budget(flaky, args.max_flaky_rate, args.max_flaky_count)
 
     print(f"### Top {min(args.top, len(flaky))} by flake rate")
     print()
@@ -121,7 +210,7 @@ def main() -> int:
     for rate, failed, total, name in flaky[: args.top]:
         short = name if len(name) <= 90 else name[:87] + "..."
         print(f"| {rate:.0%} | {failed} | {total} | `{short}` |")
-    return 0
+    return render_budget(flaky, args.max_flaky_rate, args.max_flaky_count)
 
 
 def self_test() -> int:
@@ -168,6 +257,49 @@ def self_test() -> int:
               "'No data' would be reported as 'no flakes'.", file=sys.stderr)
         return 1
     print("SELF-TEST: PASS -- no input REFUSES rather than reporting a clean window (safety)")
+
+    # ---- budget arms ----
+    # The fixture window contains exactly one flaky test at a 50% rate (Wobbly: 1 pass, 1 fail).
+    # Every expectation below is derived from that, not from a remembered number.
+    glob_arg = ["--glob", os.path.join(d, "*.trx")]
+
+    budget_cases = [
+        # (description, extra args, expected exit)
+        ("no budget declared leaves the exit code at 0 (unchanged behaviour)",
+         [], EXIT_OK),
+        ("a count budget the window MEETS exits 0 (liveness)",
+         ["--max-flaky-count", "1"], EXIT_OK),
+        ("a count budget the window EXCEEDS exits 1 (safety)",
+         ["--max-flaky-count", "0"], EXIT_OVER_BUDGET),
+        ("a rate budget the window MEETS exits 0 (liveness)",
+         ["--max-flaky-rate", "0.5"], EXIT_OK),
+        ("a rate budget the window EXCEEDS exits 1 (safety)",
+         ["--max-flaky-rate", "0.4"], EXIT_OVER_BUDGET),
+        ("a rate exactly ON the budget is within it, not over",
+         ["--max-flaky-rate", "0.5", "--max-flaky-count", "1"], EXIT_OK),
+        ("a nonsensical rate budget REFUSES instead of permitting everything",
+         ["--max-flaky-rate", "5"], EXIT_REFUSE),
+    ]
+    for desc, extra, want in budget_cases:
+        got = main_with(glob_arg + extra)
+        if got != want:
+            print(f"SELF-TEST FAIL -- {desc}: expected exit {want}, got {got}", file=sys.stderr)
+            return 1
+        print(f"SELF-TEST: PASS -- {desc}")
+
+    # THE ARM THAT MATTERS MOST. A budget must not be able to turn "nothing was measured" into a
+    # verdict of any kind. If an unread window could exit 0 because zero flaky tests is within
+    # budget, the report would certify a clean window it had never opened -- and that is the exact
+    # failure this file's REFUSE code was introduced to prevent, re-entering through the budget.
+    rc = main_with(["--glob", os.path.join(empty, "*.trx"), "--max-flaky-count", "0",
+                    "--max-flaky-rate", "0.0"])
+    if rc != EXIT_REFUSE:
+        print(f"SELF-TEST FAIL -- an unreadable window with a budget returned {rc}, expected "
+              f"REFUSE ({EXIT_REFUSE}). A budget must never convert 'no data' into a verdict.",
+              file=sys.stderr)
+        return 1
+    print("SELF-TEST: PASS -- a budget does not convert REFUSE into a pass or a breach (safety)")
+
     print("SELF-TEST: the flake report is non-vacuous.")
     return 0
 

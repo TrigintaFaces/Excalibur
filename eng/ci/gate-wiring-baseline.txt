@@ -34,3 +34,23 @@ assert-binary-matches-source.sh
 # nothing on src/ and its name is a forbidden workflow token, so it is structurally un-wireable as a
 # committed-content gate.
 premise-triage.sh
+
+# --- non-.sh gates, visible since the enumeration widened to .py/.ps1 ---
+# These were always orphaned; the meta-gate could not see them, because it enumerated by file
+# extension rather than by what an enforcement gate is. Widening the population also WIRED three
+# others (the workflow-inventory check, the shipping-filter validator and the repository-link
+# validator), which is why they are absent from this list. The three below are not enforcement.
+
+# A doc-surface extractor used as a library by the docs validation flow, plus a diagnostic a human
+# runs. Already tracked as part of the wider set of gates that left the commit path and now run
+# nowhere; recorded here so the meta-gate stays live rather than red.
+docs-csharp-extract.py
+
+# Reads the P0 issue set on stdin and prints a machine-readable denominator. Its only caller is an
+# agent-mesh harness script, which is not a CI surface and does not run where CI runs. Wiring it into
+# a workflow would be wrong: it classifies issue-tracker state, not repository state.
+p0-classify.py
+
+# A generator, not a gate: it renders release notes from git history. It has no --check mode, so
+# there is no verdict for a caller to enforce. If it ever grows one, wire it and delete this line.
+generate-changelog.ps1

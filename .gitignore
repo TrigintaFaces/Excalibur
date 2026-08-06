@@ -533,3 +533,4 @@ certified-samples.slnf
 *.db
 .beads-credential-key
 .beads/proxieddb/
+eng/ci/ci-sli-history.jsonl

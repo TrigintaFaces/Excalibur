@@ -170,6 +170,30 @@ jobs:
 
       - name: mutable-image-tag ratchet
         run: bash eng/ci/mutable-image-tag-gate.sh
+
+      # The workflow inventory is GENERATED from the workflows, never hand-maintained, because a
+      # hand-written inventory drifts and a drifted inventory is worse than none — it is trusted.
+      # --check exits non-zero when the committed document no longer matches the workflows it
+      # describes. The generator existed with this mode for some time and nothing ran it, so the
+      # committed inventory was stale and the drift it exists to prevent had already happened.
+      - name: Install PyYAML (the inventory generator parses workflow YAML)
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: Workflow inventory is current (generated, not hand-maintained)
+        run: python3 eng/ci/generate-workflow-inventory.py --check
+
+      # Asserts the shipping filter names all and only the packable projects under src/. This ran
+      # nowhere. A newly added packable project that is missing from the filter is not built, not
+      # packed, and silently never ships — and nothing reports anything, because every other
+      # packaging gate checks what IS in the filter rather than what is absent from it. A missing
+      # artifact must fail rather than report success.
+      - name: Shipping filter names every packable project
+        run: pwsh -NoProfile -File eng/ci/validate-shipping-filter.ps1
+
+      # Blocks historical repository URL variants in tracked files. The canonical reference is part
+      # of the published surface, so a stale URL is consumer-visible.
+      - name: Repository links are canonical
+        run: pwsh -NoProfile -File eng/ci/validate-repository-links.ps1
   shell-gates:
     name: Committed-Content Shell Gates
     runs-on: ubuntu-latest

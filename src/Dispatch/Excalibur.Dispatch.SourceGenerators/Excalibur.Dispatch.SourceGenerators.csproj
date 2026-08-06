@@ -39,8 +39,15 @@
     <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" />
   </ItemGroup>
   <PropertyGroup>
+    <!-- These duplicate src/Directory.Build.props because this project opts out of central package
+         management, and a duplicated value is one that can drift. It did: the shared floor moved to
+         10.0 for the .NET 10 version-matched line and this copy stayed at 3.0. This project ships,
+         so an unoverridden build produced one package versioned off the 3.x line while every other
+         package in the same set was 10.x. A tagged release hid that, because the release passes
+         MinVerVersionOverride globally and it stamps every project alike, so the skew was only ever
+         visible on the builds nobody reads a version off. Keep in step with the shared floor. -->
     <MinVerTagPrefix>v</MinVerTagPrefix>
-    <MinVerMinimumMajorMinor>3.0</MinVerMinimumMajorMinor>
+    <MinVerMinimumMajorMinor>10.0</MinVerMinimumMajorMinor>
     <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
   </PropertyGroup>
   <ItemGroup>

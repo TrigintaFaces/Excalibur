@@ -5,6 +5,16 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # A merge queue re-validates each change against the tip it will actually land on, which is the
+  # one thing a pull_request run cannot do: it validated a merge with a base that may since have
+  # moved. The required context must therefore be produceable on this event too, or enabling the
+  # queue would leave every queued change with a check that never reports.
+  #
+  # This trigger is inert until the queue is enabled on the repository, which is a repository
+  # setting rather than repository content. It is committed first so that enabling the setting does
+  # not also require a workflow change to be correct.
+  merge_group:
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       run_performance_tests:
@@ -220,14 +230,18 @@ jobs:
           dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./packages
           echo "Package creation successful"
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: build-artifacts
-          path: |
-            ./packages/*.nupkg
-            ./packages/*.snupkg
-          retention-days: 1
+      # No artifact upload here, deliberately.
+      #
+      # The pack step above is VALIDATION -- it proves the shipping projects can be packed, and its
+      # value is entirely in whether it exits 0. The packages it produces are not shippable: this
+      # workflow runs on pull requests, so its output is built from untrusted code, carries no
+      # provenance attestation, and has no version anyone asked for.
+      #
+      # They were uploaded anyway, under a name nothing downloaded, for a day. That is a second
+      # nameable package set in the repository whose only distinguishing property is that no
+      # convention says not to use it -- exactly the ambiguity the single canonical `packages`
+      # artifact exists to remove. The canonical set comes from the official build and only from
+      # there.
 
   # Security scanning (reusable workflow)
   call-security:
@@ -517,11 +531,17 @@ jobs:
           retention-days: 30
 
   # ── Async-risk unit tests -- advisory on PRs, blocking on push to main ──
+  # ADVISORY BEFORE THE MERGE LANDS, blocking after it. "Before" is pull_request OR merge_group:
+  # a queued change is still pre-merge. Without the second event these jobs -- the async-risk legs and
+  # the integration suite, tolerated on a pull request precisely because they are the noisy ones --
+  # become blocking the moment a change enters the queue. A change that passed review would then fail
+  # at the last gate, on a finding its author was never shown, and the queue would be stricter than
+  # the review that approved it.
   unit-tests-async-risk:
     name: Unit Tests - Async Risk (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     needs: smoke-tests
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     # 20 for the same reason as unit-tests above: the 15-minute session timeout must be able to fire
     # before the job wall, or a wedged shard dies without writing a TRX. Keep strictly greater.
     timeout-minutes: 20
@@ -650,7 +670,7 @@ jobs:
     name: Unit Tests (Windows - Async Risk)
     runs-on: windows-latest
     needs: smoke-tests
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     timeout-minutes: 60
     env:
       VSTEST_CONNECTION_TIMEOUT: 600
@@ -715,7 +735,7 @@ jobs:
     name: Unit Tests (macOS - Async Risk)
     runs-on: macos-latest
     needs: unit-tests-macos
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     timeout-minutes: 60
     steps:
       - name: Checkout code
@@ -745,7 +765,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     timeout-minutes: 60
     steps:
       - name: Checkout code
@@ -849,8 +869,9 @@ jobs:
       - name: Run Integration Tests
         id: run-integration
         # No step-level continue-on-error. The JOB already declares
-        #   continue-on-error: ${{ github.event_name == 'pull_request' }}
-        # which is the intended contract: advisory on a PR, blocking on push.
+        #   continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+        # which is the intended contract: advisory before the merge lands — on a pull
+        # request and on a queued merge alike — and blocking on push.
         # An unconditional `continue-on-error: true` here meant this step could
         # never fail, so the job could never fail, so that job-level guard was
         # unreachable — a correct control nullified by a nested one eleven lines
@@ -1103,7 +1124,7 @@ jobs:
     name: Functional Tests
     runs-on: ubuntu-latest
     needs: integration-tests
-    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     timeout-minutes: 30
     steps:
       - name: Checkout code
@@ -2137,8 +2158,14 @@ jobs:
           #
           # The tolerance is deliberately narrow on BOTH axes. Only "skipped" is tolerated -- a
           # FAILED performance gate still fails the summary, on any event. And it is tolerated only
-          # when the event is pull_request -- on a push, where these gates are supposed to run, a
-          # skip is still a failure, because that would mean the gate silently stopped running.
+          # before the merge lands -- on a push, where these gates are supposed to run, a skip is
+          # still a failure, because that would mean the gate silently stopped running.
+          #
+          # "Before the merge lands" means pull_request OR merge_group. A queued change is still
+          # pre-merge: these gates skip there for exactly the reason they skip on a pull request,
+          # so counting that skip as a failure would make every queued change unmergeable and read
+          # as an infrastructure fault. That is the same shape as the defect that made this context
+          # red on every pull request by construction, arriving one event later.
           MAY_SKIP_ON_PR: "call-performance"
           EVENT_NAME: ${{ github.event_name }}
         shell: bash
@@ -2152,7 +2179,8 @@ jobs:
           docs_only = os.environ.get("DOCS_ONLY", "") == "true"
           always_required = {j for j in os.environ.get("ALWAYS_REQUIRED", "").split() if j}
           may_skip_on_pr = {j for j in os.environ.get("MAY_SKIP_ON_PR", "").split() if j}
-          is_pull_request = os.environ.get("EVENT_NAME", "") == "pull_request"
+          # pull_request and merge_group are both PRE-MERGE. See MAY_SKIP_ON_PR above.
+          is_pull_request = os.environ.get("EVENT_NAME", "") in ("pull_request", "merge_group")
 
           if not needs:
               print("::error::REFUSE: this job has no dependencies, so it can only ever pass. "

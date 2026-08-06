@@ -97,6 +97,44 @@ jobs:
           ./eng/ci/coverage-threshold.ps1 `
             -CoverageRoot "cov" `
             -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
+      # Its own arms first: a report nobody can see fail is not evidence.
+      - name: changed-code-coverage self-test (non-vacuity)
+        if: inputs.pr-base-sha != ''
+        run: python3 eng/ci/changed-code-coverage.py --self-test
+      # The baseline answers "how covered is the repository" -- a figure no single change can move
+      # and no author can act on. This answers "did this change bring its own coverage", which is
+      # the question a reviewer actually has. Both are shown together because either alone misleads:
+      # a repository can hold a steady baseline for months while every new line arrives untested.
+      #
+      # It reuses the reports downloaded above and a diff git already has. No extra collector, no
+      # second test run, no additional aggregation job -- the duplicate coverage run was removed
+      # deliberately and this must not reintroduce one.
+      #
+      # DISPLAY ONLY. No threshold is applied. A changed-code floor is a policy decision and is not
+      # taken here; the final `exit 0` below is that decision made explicit, not an oversight.
+      - name: Changed-code coverage (display only)
+        if: inputs.pr-base-sha != ''
+        shell: bash
+        run: |
+          set -uo pipefail
+          BASE='${{ inputs.pr-base-sha }}'
+          if ! git fetch --no-tags --depth=1 origin "$BASE" >/dev/null 2>&1; then
+            echo "::warning::Could not fetch base ${BASE}; changed-code coverage was NOT computed. That is 'not measured', which is not the same as '0% covered'."
+            exit 0
+          fi
+          git diff --unified=0 "$BASE" HEAD -- src/ > changed.diff
+          rc=0
+          python3 eng/ci/changed-code-coverage.py \
+            --coverage-root cov \
+            --diff-file changed.diff \
+            --baseline '${{ steps.coverage_threshold.outputs.coverage_combined_pct }}%' \
+            > changed-code-coverage.md || rc=$?
+          cat changed-code-coverage.md >> "$GITHUB_STEP_SUMMARY" || true
+          cat changed-code-coverage.md
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Changed-code coverage could not be produced: no parseable reports. This is 'no data', not 'nothing covered'."
+          fi
+          exit 0
       - name: Enforce coverage floor, report against target
         shell: bash
         run: |

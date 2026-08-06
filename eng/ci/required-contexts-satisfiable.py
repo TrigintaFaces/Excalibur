@@ -110,11 +110,21 @@ def workflow_jobs(root: Path):
         runs_on_pr = pr is not None or (isinstance(triggers, list) and "pull_request" in triggers)
         pr_paths = (pr or {}).get("paths") if isinstance(pr, dict) else None
 
+        # A merge queue re-validates each change against the tip it will actually land on, and it
+        # gates the merge exactly as a pull request does. So a required context has to be produceable
+        # on merge_group too. A workflow without the trigger simply never starts for a queued change,
+        # and the check then reports "Expected - waiting for status to be reported" forever -- the
+        # same dead-end this file exists to prevent, arriving through a different event.
+        mg = triggers.get("merge_group") if isinstance(triggers, dict) else None
+        runs_on_merge_group = mg is not None or (
+            isinstance(triggers, list) and "merge_group" in triggers)
+
         for key, job in (doc.get("jobs") or {}).items():
             job = job or {}
             name = job.get("name") or key
             docs_gated = "docs_only" in str(job.get("if") or "")
-            yield path, doc.get("name") or path.stem, key, str(name), runs_on_pr, pr_paths, docs_gated
+            yield (path, doc.get("name") or path.stem, key, str(name),
+                   runs_on_pr, pr_paths, docs_gated, runs_on_merge_group)
 
 
 def name_can_equal(declared: str, context: str) -> bool:
@@ -194,6 +204,19 @@ def main() -> int:
             print(f"  UNREACHABLE    {context}   [{source}]")
             continue
 
+        # The queue is a second gate, and it is checked even while it is switched off. The trigger is
+        # repository CONTENT and the queue is a repository SETTING; if the content is only made correct
+        # at the moment someone flips the setting, the first queued change is the one that discovers it.
+        if not any(m[7] for m in matches):
+            problems.append(
+                f"[{source}] '{context}' is reachable on pull_request but its workflow has no "
+                f"merge_group trigger. Enabling the merge queue would leave every queued change "
+                f"waiting on a check that never reports. Add:\n"
+                f"      merge_group:\n"
+                f"        branches: [ main, develop ]")
+            print(f"  NO MERGE QUEUE {context}   [{source}]")
+            continue
+
         print(f"  ok             {context}   [{source}] -> {reachable[0][0].name}")
 
     if problems:
@@ -202,7 +225,7 @@ def main() -> int:
             print(f"  {p}", file=sys.stderr)
         return EXIT_UNSATISFIABLE
 
-    print("\nevery required context is named by a real job and reachable on every pull request.")
+    print("\nevery required context is named by a real job and reachable on every pull request and queued merge.")
     return 0
 
 
