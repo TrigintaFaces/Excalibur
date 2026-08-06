@@ -352,9 +352,25 @@ jobs:
           # REFUSE (exit 2) means nothing was measured, which is NOT the same as no flakes. Surface
           # it as a warning rather than silence -- but do not fail, because this job is advisory.
           rc=0
-          python3 eng/ci/flake-report.py --glob 'flake-input/**/*.trx' > flake-report.md || rc=$?
+          # The budgets make the report capable of a verdict; the `|| rc=$?` below keeps the JOB
+          # advisory. Exit 1 (over budget) is surfaced as a warning rather than failing the build,
+          # deliberately: a flake report that can go red becomes a thing people route around, and
+          # then it stops being read at all. Making it blocking is a policy decision, not this
+          # step's to take.
+          #
+          # These are BUDGETS, not a ratchet: they say what is tolerable, not what was measured, so
+          # they can be breached on the first real window. When that happens the fix is to repair or
+          # quarantine the named tests. Raising the numbers to match the observation would turn the
+          # only defensible line into a description of the status quo.
+          python3 eng/ci/flake-report.py --glob 'flake-input/**/*.trx' \
+            --max-flaky-count 5 \
+            --max-flaky-rate 0.10 \
+            > flake-report.md || rc=$?
           cat flake-report.md >> "$GITHUB_STEP_SUMMARY" || true
           cat flake-report.md
+          if [ "$rc" -eq 1 ]; then
+            echo "::warning::Flake budget exceeded. Advisory for now: this job reports and does not gate."
+          fi
           if [ "$rc" -eq 2 ]; then
             echo "::warning::Flake report could not be produced: no parseable test results in the window. This is 'no data', not 'no flakes'."
           fi
@@ -398,12 +414,28 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          python3 eng/ci/ci-sli-report.py --repo "${GITHUB_REPOSITORY}" --limit 30 > ci-sli.md || rc=$?
+          # --history-file appends one dated row per objective to a small committed series, so the
+          # trend is readable from one file instead of by downloading and diffing thirty nightly
+          # artifacts. --fail-on-missed is deliberately NOT passed: this job reports.
+          python3 eng/ci/ci-sli-report.py --repo "${GITHUB_REPOSITORY}" --limit 30 \
+            --history-file eng/ci/ci-sli-history.jsonl \
+            > ci-sli.md || rc=$?
           cat ci-sli.md >> "$GITHUB_STEP_SUMMARY" || true
           cat ci-sli.md
           if [ "$rc" -eq 2 ]; then
             echo "::warning::SLI report could not be produced: no runs retrieved. This is 'no data', not 'CI is healthy'."
           fi
+
+      # The appended row is uploaded rather than committed: this job holds contents:read, and
+      # widening it to push to the default branch is a permissions decision, not a reporting one.
+      - name: Upload SLI history series
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-sli-history
+          path: eng/ci/ci-sli-history.jsonl
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Upload SLI report
         if: always()

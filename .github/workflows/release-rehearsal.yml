@@ -10,11 +10,14 @@ on:
       - '*.targets'
       - 'Directory.Packages.props'
       - '.github/workflows/release-rehearsal.yml'
-      # The rehearsal asserts properties of release.yml's job graph -- that the GitHub release stays
-      # a draft until packages are uploaded, and that publish-nuget is gated on staged validation.
-      # Without this path it would not run when release.yml CHANGES, so the one edit each assertion
-      # exists to catch is the one edit that would not trigger it.
+      # The rehearsal asserts properties of the release job graph -- that the GitHub release stays a
+      # draft until packages are uploaded, that publish-nuget is gated on staged validation, and that
+      # the release workflow can only ADMIT a package set built by the official build rather than
+      # build one itself. Both workflows are listed: without these paths the rehearsal would not run
+      # when either CHANGES, so the one edit each assertion exists to catch is the one edit that
+      # would not trigger it.
       - '.github/workflows/release.yml'
+      - '.github/workflows/official-build.yml'
   pull_request:
     branches: [main]
     paths:
@@ -24,11 +27,14 @@ on:
       - '*.targets'
       - 'Directory.Packages.props'
       - '.github/workflows/release-rehearsal.yml'
-      # The rehearsal asserts properties of release.yml's job graph -- that the GitHub release stays
-      # a draft until packages are uploaded, and that publish-nuget is gated on staged validation.
-      # Without this path it would not run when release.yml CHANGES, so the one edit each assertion
-      # exists to catch is the one edit that would not trigger it.
+      # The rehearsal asserts properties of the release job graph -- that the GitHub release stays a
+      # draft until packages are uploaded, that publish-nuget is gated on staged validation, and that
+      # the release workflow can only ADMIT a package set built by the official build rather than
+      # build one itself. Both workflows are listed: without these paths the rehearsal would not run
+      # when either CHANGES, so the one edit each assertion exists to catch is the one edit that
+      # would not trigger it.
       - '.github/workflows/release.yml'
+      - '.github/workflows/official-build.yml'
   workflow_dispatch:
 
 # Least privilege, declared explicitly. GITHUB_TOKEN otherwise inherits the repository
@@ -90,6 +96,17 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
+
+      # Runs BEFORE the gate it proves, on every rehearsal. A gate whose own self-test is only run by
+      # hand is a gate nobody has checked lately, and this one is the sole structural guard on the
+      # promotion contract -- the property that the release workflow publishes a build it did not
+      # make. The self-test constructs mutated workflow fixtures that violate each assertion in turn
+      # and proves the gate goes RED on every one, and GREEN on a compliant tree: a gate proven only
+      # to fail is satisfied by one that rejects everything, and a gate proven only to pass is
+      # satisfied by one that asserts nothing.
+      - name: Prove the promotion-contract gate can fail
+        shell: bash
+        run: python3 ./eng/ci/promotion-contract-gate.py --self-test
 
       - name: Run release rehearsal
         shell: pwsh

@@ -14,9 +14,18 @@
     4. Validate package composition
     5. Validate NuSpec dependencies
     6. Public API baseline audit
-    7. Validate governance stack
+    7. Release ordering: draft precedes publish
+    8. Promotion contract: the release workflow cannot rebuild what it publishes
+    9. Publication state of the version this commit would ship
+    10. Validate governance stack
 
-    Sprint 639 C.1 (bd-bvc8e).
+    Steps 7 and 8 assert properties of the release JOB GRAPH rather than of the packages. They
+    are listed here because this block was previously stale: it enumerated only the packaging
+    steps, so a reader checking whether the rehearsal examines the release workflow at all would
+    conclude from the documentation that it does not, while the body did. A description that
+    under-reports its own coverage is the same defect these assertions exist to catch, one level
+    up -- and it is the more dangerous direction, because an absent capability prompts nobody to
+    look for the code that provides it.
 
 .PARAMETER OutDir
     Output directory for rehearsal artifacts and report. Defaults to ReleaseRehearsalReport.
@@ -274,6 +283,33 @@ print("checked: create-release drafts; finalize-release publishes only after pub
     $out = & python3 $pyFile $releaseYml 2>&1
     $out | ForEach-Object { Write-Host "  $_" }
     if ($LASTEXITCODE -ne 0) { throw 'Release ordering invariant violated -- see above.' }
+}
+
+# The ordering step above proves the release is announced in the right ORDER. It says nothing about
+# whether the thing announced was built somewhere it can be checked against.
+#
+# A release workflow that BUILDS the packages it publishes has not promoted anything: the hashes, the
+# SBOM and the provenance it emits all describe bytes that existed only inside the run that shipped
+# them, so nothing outside that run can contradict them -- which is another way of saying nothing can
+# check them. The gate below asserts the packages arrive from a separate official build and are
+# admitted only after their hashes, attestation and version have been verified.
+#
+# Assertions live in their own script rather than another heredoc here because they carry a self-test
+# that mutates workflow fixtures, and that self-test is wired into the rehearsal workflow ahead of
+# this step. Run it by hand with: python3 eng/ci/promotion-contract-gate.py --self-test
+Run-Step 'Promotion contract: the release workflow cannot rebuild what it publishes' {
+    $gate = Join-Path $RepoRoot 'eng/ci/promotion-contract-gate.py'
+    if (-not (Test-Path $gate)) { throw "promotion-contract-gate.py not found at: $gate" }
+
+    $workflows = Join-Path $RepoRoot '.github/workflows'
+    $out = & python3 $gate --workflows $workflows 2>&1
+    $code = $LASTEXITCODE
+    $out | ForEach-Object { Write-Host "  $_" }
+
+    # Exit 3 is REFUSE: the gate could not read its subject, so nothing was measured. That is not a
+    # pass and must not be reported as one -- a gate that cannot see what it guards has to say so.
+    if ($code -eq 3) { throw 'Promotion contract UNMEASURED (REFUSE) -- the workflows could not be read.' }
+    if ($code -ne 0) { throw 'Promotion contract violated -- see above.' }
 }
 
 # Report-only. Answers "if we released from THIS commit, would the version collide?" before anyone

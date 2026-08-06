@@ -36,6 +36,15 @@ on:
   schedule:
     # Run weekly on Mondays at 02:00 UTC
     - cron: '0 2 * * 1'
+  # A required context must be produceable on EVERY event that gates a merge, and the queue is one of
+  # them. Without this trigger the workflow simply never starts for a queued change, and a required
+  # check that never runs is not skipped -- it reports "Expected - waiting for status to be reported",
+  # forever, exactly as the push/pull_request notes above describe. The queue would hang on a check
+  # that cannot arrive, with nothing to re-run.
+  #
+  # Inert until the queue is enabled on the repository, which is a setting rather than content.
+  merge_group:
+    branches: [ main, develop ]
   workflow_dispatch:
 
 concurrency:

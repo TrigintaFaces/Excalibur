@@ -1,0 +1,72 @@
+{
+  "$comment": [
+    "SERVICE-LEVEL OBJECTIVES for the CI pipeline, as DATA.",
+    "",
+    "These existed only as prose in a planning document, which meant the SLI report computed",
+    "success rates and p95 durations and compared them to nothing. A measurement with no objective",
+    "attached to it cannot be missed: the number could double and no artifact anywhere would say so.",
+    "",
+    "Encoded here rather than as literals in eng/ci/ci-sli-report.py so that changing what we promise",
+    "is a reviewable edit to a policy file, not a code change buried in a formatting function.",
+    "",
+    "THREE VERDICTS, NOT TWO. An objective is MET, MISSED, or UNMEASURABLE, and the third is not a",
+    "polite form of the second. MISSED means we measured and fell short. UNMEASURABLE means no",
+    "number exists to compare -- the window was empty, or the pipeline does not produce the quantity",
+    "the objective names. Collapsing them would let a workflow that stopped running entirely report",
+    "the same verdict as one that is merely slow, and those have opposite fixes.",
+    "",
+    "An objective with metric: null is unmeasurable BY CONSTRUCTION and must carry an",
+    "unmeasurable-because explaining what is missing. It is kept in this file on purpose: an",
+    "objective we cannot yet evaluate is a known gap, and deleting it would turn a gap into a",
+    "silence.",
+    "",
+    "FIELDS",
+    "  id                    stable identifier, used in the history series",
+    "  description           what is promised, in words",
+    "  workflow              the workflow file the objective is about",
+    "  metric                key produced by the SLI summariser, or null if not produced at all",
+    "  comparison            at-most | at-least",
+    "  value, unit           the threshold and how to print it"
+  ],
+  "version": 1,
+  "objectives": [
+    {
+      "id": "required-pr-validation-p95",
+      "description": "Required PR validation completes within 20 minutes at p95",
+      "workflow": "ci.yml",
+      "metric": "p95_min",
+      "comparison": "at-most",
+      "value": 20,
+      "unit": "m"
+    },
+    {
+      "id": "official-build-reliability",
+      "description": "The official build succeeds at least 95% of the time",
+      "workflow": "official-build.yml",
+      "metric": "success_rate",
+      "comparison": "at-least",
+      "value": 95,
+      "unit": "%"
+    },
+    {
+      "id": "pr-preflight-p95",
+      "description": "PR preflight completes within 5 minutes at p95",
+      "workflow": null,
+      "metric": null,
+      "comparison": "at-most",
+      "value": 5,
+      "unit": "m",
+      "unmeasurable-because": "No workflow in this repository is designated 'PR preflight'. Fifteen workflows trigger on pull_request, so any single one chosen here would be an assumption reported as a measurement. Name the preflight workflow to make this objective evaluable."
+    },
+    {
+      "id": "infrastructure-induced-reruns",
+      "description": "Fewer than 2% of runs are rerun because of infrastructure, not product failures",
+      "workflow": "ci.yml",
+      "metric": null,
+      "comparison": "at-most",
+      "value": 2,
+      "unit": "%",
+      "unmeasurable-because": "The pipeline records THAT a run was reattempted but not WHY, so infrastructure-induced reruns cannot be separated from reruns of genuine product failures. The rerun rate is reported in the indicator table and is deliberately NOT compared against this objective: it counts a strictly larger population, and scoring it here would report a different quantity under this objective's name."
+    }
+  ]
+}

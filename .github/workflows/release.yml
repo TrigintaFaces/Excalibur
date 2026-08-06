@@ -20,6 +20,16 @@ on:
         required: false
         default: true
         type: boolean
+      official_build_run_id:
+        # A manual release has no tag yet -- `create-release` creates it -- so nothing has produced
+        # an official build carrying this version for this commit. There is nothing to search for,
+        # and searching harder would only find the branch build, which carries a development
+        # version. The operator runs the official build with the intended version and names the
+        # run here. Required for a manual release, and unused by a tag-triggered one, which
+        # resolves its own official build from the tag.
+        description: "Official Build run id to promote (required for a manual release)"
+        required: false
+        type: string
 
 # Deny by default at workflow scope; each job below grants only what it needs. This workflow
 # pushes tags, creates releases and publishes packages, so inheriting the repository default
@@ -527,35 +537,42 @@ jobs:
           path: "**/pre-tag-unit-soak-*.trx"
           retention-days: 30
 
-  # ONE canonical package set, built ONCE on the canonical agent.
+  # ONE canonical package set, ADMITTED -- not built.
   #
-  # This job used to pack on a [ubuntu-latest, windows-latest] matrix, producing two artifacts of
-  # identically-named .nupkg files from the same sources. What consumed them made that worse, not
-  # academic: `publish-nuget` took `packages-ubuntu-latest` BY NAME -- an arbitrary pick by filename
-  # convention -- while `create-release` downloaded `packages-*` with merge-multiple, collapsing both
-  # sets into one directory where same-named files overwrite each other non-deterministically. So the
-  # GitHub release could attach one OS's build and NuGet.org receive the other's, with nothing
-  # comparing them.
+  # This job used to build, pack, hash, generate the SBOM and attest, at tag time. That made the
+  # release its own producer, and a producer cannot verify itself: whatever it built was by
+  # definition what it shipped, so "is this the artifact that was validated?" had no answer other
+  # than "yes, because I just made it."
   #
-  # .NET NuGet packages are platform-neutral: the same sources produce the same package regardless of
-  # which OS packed them. Building them twice creates two candidates and an unanswerable question
-  # about which is authoritative. Microsoft's repositories build shipping packages once on the
-  # official-build agent and use other platforms to VALIDATE, not to produce shipping artifacts.
+  # It now resolves the official build for THIS EXACT COMMIT, downloads that immutable artifact, and
+  # tries to disprove it four ways -- hashes, attestation, version, completeness. Every one of those
+  # checks can fail. That is the difference between a promotion and a rebuild wearing its clothes.
   #
-  # Cross-platform build coverage is not lost: `pre-tag-soak-build` still builds on ubuntu, windows
-  # AND macos, and gates this job through `pre-tag-unit-soak`.
+  # It cannot fall back to building. A fallback would mean the promotion path is optional, and an
+  # optional verification is one that silently stops happening the first time it is inconvenient.
+  # No official build for this commit is a REFUSAL, and the operator's fix is to produce one.
+  #
+  # The job id, `needs:` and every artifact name below are unchanged on purpose: four downstream
+  # jobs read `packages` and one reads `release-cyclonedx-sbom`, and none of them should be able to
+  # tell that the bytes now arrive from another run.
   build-packages:
     permissions:
       contents: read
-      # Provenance is a SIGNED statement about these bytes, so this job needs an OIDC identity to
-      # sign with and permission to record the attestation. Both are scoped to this job alone --
-      # nothing else in this workflow can mint an attestation, which is the point: an attestation
-      # that anything could produce attests to nothing.
-      id-token: write
-      attestations: write
-    name: Build Release Packages
+      # Cross-run artifact download and workflow-run listing both read the Actions API. This is a
+      # READ scope: this job resolves and downloads, and has no authority to start, cancel or
+      # re-run anything.
+      actions: read
+      # `gh attestation verify` reads the repository's attestations. Read, not write -- an
+      # admission gate that could mint an attestation could manufacture its own evidence, which is
+      # exactly the property the attestation exists to deny.
+      attestations: read
+    name: Admit Official Build Packages
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 75 = the 50-minute resolution wait below, plus 25 for the work after it: downloading the full
+    # package set, re-checking every hash, verifying provenance per package, and reading each
+    # nuspec. This cap must exceed the wait or the job dies mid-wait and GitHub reports a
+    # `cancelled` job -- which reads as a policy decision rather than as a bound expiring.
+    timeout-minutes: 75
     needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
       - name: Checkout code
@@ -563,162 +580,355 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
-        with:
-          dotnet-version: |
-            10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore shipping projects
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-
-      - name: Build shipping projects
-        run: |
-          VERSION="${{ needs.pre-release-validation.outputs.version }}"
-          echo "Building with version: $VERSION"
-          # MinVer auto-detects version from git tags. MinVerVersionOverride ensures
-          # the correct version when workflow_dispatch is used without a matching tag.
-          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal \
-            -p:MinVerVersionOverride="$VERSION"
+      # Resolve WHICH official-build run produced the packages for this release, and wait for it if
+      # it has not finished.
+      #
+      # A commit SHA alone does NOT identify one run, and assuming it does is the trap here. A tag
+      # normally points at a commit already on the default branch, so that SHA has TWO successful
+      # official builds: the branch one, carrying a height-based development version, and the tag
+      # one, carrying the release version. Selecting on "this SHA, conclusion success" picks
+      # whichever the API lists first. Both are legitimate builds; only one of them is this
+      # release. The version assertion further down would eventually catch the wrong choice, but a
+      # release that succeeds or fails depending on list ordering is not a gate, it is a coin.
+      #
+      # So the run is identified by SHA *and* by the ref that produced it -- the tag itself, which
+      # is the only official build that stamped this version. A manual dispatch has no such tag
+      # (the tag is created later, by `create-release`), so it must be told which run to promote.
+      #
+      # The wait is not optional either: a tag push starts this workflow and the official build at
+      # the same instant, so at the moment this step first looks, the run it needs is typically
+      # still in progress. Refusing on "not finished yet" would refuse every tag release.
+      - name: Resolve the official build for this commit
+        id: official
         shell: bash
-
-      - name: Create release packages
-        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPLICIT_RUN_ID: ${{ github.event.inputs.official_build_run_id }}
         run: |
+          set -euo pipefail
           VERSION="${{ needs.pre-release-validation.outputs.version }}"
-          # PRERELEASE was assigned here and never read. Removed rather than quoted: an unused
-          # assignment in a packaging step reads as "prerelease affects packing" to anyone editing
-          # it, and it does not. The output itself is still produced and consumed where it matters.
+          SHA="$(git rev-parse HEAD)"
+          WORKFLOW="official-build.yml"
 
-          echo "Creating packages for version: $VERSION"
+          # 50 minutes, derived rather than picked: the official build's packaging job caps itself
+          # at 45, so any bound below that can expire while a perfectly healthy build is still
+          # legitimately running -- turning this gate into a refusal of good releases on a slow
+          # runner. The remaining 5 covers queueing before that cap starts counting. A tag push
+          # starts both workflows at once, but this job also waits on the pre-tag soak, so in the
+          # normal case the official build is long finished and the wait costs one poll.
+          WAIT_SECONDS=3000
+          POLL_SECONDS=20
+          DEADLINE=$(( SECONDS + WAIT_SECONDS ))
 
-          # Version is already baked into assemblies by MinVer during build.
-          # PackageVersion override kept as defense-in-depth for the NuGet metadata.
-          dotnet pack eng/ci/shards/ShippingOnly.slnf \
-            --configuration Release \
-            --no-build \
-            --verbosity minimal \
-            --include-symbols \
-            --include-source \
-            -p:PackageVersion="$VERSION" \
-            --output ./packages/
+          echo "commit: ${SHA}"
+          echo "version: ${VERSION}"
 
-      - name: Validate packages
-        shell: pwsh
-        run: |
-          Write-Host "📦 Package Validation Summary" -ForegroundColor Green
-
-          $packages = Get-ChildItem ./packages/*.nupkg
-          if ($packages.Count -eq 0) {
-            Write-Error "No packages created!"
-            exit 1
-          }
-
-          foreach ($package in $packages) {
-            Write-Host "✅ $($package.Name)" -ForegroundColor Green
-
-            # Basic package validation
-            $size = [math]::Round($package.Length / 1KB, 2)
-            Write-Host "   Size: $size KB"
-
-            # Verify package can be opened (basic integrity check)
-            try {
-              Add-Type -AssemblyName System.IO.Compression.FileSystem
-              $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
-              $entryCount = $zip.Entries.Count
-              $zip.Dispose()
-              Write-Host "   Entries: $entryCount"
-            } catch {
-              Write-Error "Package integrity check failed: $($package.Name)"
+          # A run id supplied by hand is an instruction, not a search. It is still checked -- it must
+          # be a run of the official build, for this commit, that succeeded -- but it is never
+          # silently replaced by something the search liked better.
+          if [ -n "${EXPLICIT_RUN_ID}" ]; then
+            echo "explicit official build run id: ${EXPLICIT_RUN_ID}"
+            # Exit status captured directly off the command, on the very next line. Wrapping this in
+            # `|| true` (or reading only whether the output was empty) makes an auth failure, a rate
+            # limit and a genuinely absent run all look identical -- and the first two would then be
+            # reported as "no such run", sending the operator to look for the wrong problem.
+            set +e
+            run_line="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXPLICIT_RUN_ID}" \
+              --jq '"\(.path) \(.head_sha) \(.status) \(.conclusion // "pending")"')"
+            api_rc=$?
+            set -e
+            if [ "$api_rc" -ne 0 ]; then
+              echo "::error::REFUSE: could not read run ${EXPLICIT_RUN_ID} from ${GITHUB_REPOSITORY} (gh api exit ${api_rc}). An unanswered question is not a clear answer, and this is not evidence the run is absent."
               exit 1
-            }
-          }
+            fi
+            if [ -z "$run_line" ]; then
+              echo "::error::REFUSE: run ${EXPLICIT_RUN_ID} does not resolve in ${GITHUB_REPOSITORY}. An unreadable run is not an approved one."
+              exit 1
+            fi
+            read -r r_path r_sha r_status r_conclusion <<< "$run_line"
+            if [ "$r_path" != ".github/workflows/${WORKFLOW}" ]; then
+              echo "::error::REFUSE: run ${EXPLICIT_RUN_ID} is '${r_path}', not the official build. Only the official build produces a promotable package set."
+              exit 1
+            fi
+            if [ "$r_sha" != "$SHA" ]; then
+              echo "::error::REFUSE: run ${EXPLICIT_RUN_ID} built ${r_sha}, but this release is for ${SHA}. Promoting it would ship a different tree than the one this release identifies."
+              exit 1
+            fi
+            if [ "$r_status" != "completed" ] || [ "$r_conclusion" != "success" ]; then
+              echo "::error::REFUSE: run ${EXPLICIT_RUN_ID} is ${r_status}/${r_conclusion}. Only a successful official build may be promoted."
+              exit 1
+            fi
+            echo "run_id=${EXPLICIT_RUN_ID}" >> "$GITHUB_OUTPUT"
+            echo "resolved by explicit run id: ${EXPLICIT_RUN_ID}"
+            exit 0
+          fi
 
-          Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "::error::REFUSE: a manual release must name the official build to promote."
+            echo "::error::There is no tag yet on a manual dispatch, so no official build carries version ${VERSION} for ${SHA}. Run the official build with version ${VERSION}, then re-dispatch this release with its run id in 'official_build_run_id'."
+            exit 1
+          fi
 
-      # A hash manifest, computed over the packages that are ABOUT TO BE UPLOADED -- not recomputed
-      # later from a download, which would attest to whatever arrived rather than to what was built.
-      # This is the "hash manifest" half of mapping a released package back to its official build,
-      # and it is what makes divergence detectable at all: without it, "the same packages" is an
-      # assertion nobody can check after the fact.
-      - name: Record package hashes
+          # Tag-triggered: the promotable run is the official build of the SAME tag ref. That is the
+          # one -- and the only one -- that stamped this version.
+          want_branch="v${VERSION}"
+          echo "waiting for official build of ${SHA} on ref ${want_branch} (up to $(( WAIT_SECONDS / 60 ))m)"
+
+          # Which terminal state we end in has to be distinguishable, because the three of them send
+          # the operator to three different places: a build that failed, a build that never
+          # appeared, and an API that would not answer. Tracked as we go -- at the deadline there is
+          # no way to reconstruct which one it was.
+          ever_seen=0
+          last_seen_id=""
+          api_failures=0
+          last_api_rc=0
+
+          while :; do
+            # Status captured directly, on the very next line. `|| true` here would convert an
+            # unreadable Actions API into an empty result, and an empty result reads as "no official
+            # build exists for this commit" -- a confident, wrong diagnosis that would then be
+            # repeated for the full 50 minutes and reported as fact.
+            #
+            # The ref is passed through the environment and read as $ENV inside the filter, never
+            # interpolated into the filter text. The filter emits an explicit placeholder for a null
+            # conclusion, because an in-progress run reports conclusion null: rendered as an empty
+            # field and re-split on whitespace, that silently shifts every column left and the ref
+            # lands where the conclusion should be. That bug stays invisible for exactly as long as
+            # the branch it corrupts is the one that does nothing.
+            set +e
+            match="$(WANT_BRANCH="$want_branch" gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW}/runs?head_sha=${SHA}&per_page=100" \
+              --jq '[ .workflow_runs[] | select(.head_branch == $ENV.WANT_BRANCH) ] | .[0]
+                    | if . == null then "none none none"
+                      else "\(.id) \(.status) \(.conclusion // "pending")" end')"
+            api_rc=$?
+            set -e
+
+            if [ "$api_rc" -ne 0 ]; then
+              api_failures=$(( api_failures + 1 ))
+              last_api_rc=$api_rc
+              echo "Actions API did not answer (gh api exit ${api_rc}); attempt ${api_failures}. Not treating this as 'no run'."
+            else
+              read -r m_id m_status m_conclusion <<< "${match:-none none none}"
+
+              if [ "$m_id" != "none" ]; then
+                ever_seen=1
+                last_seen_id="$m_id"
+                if [ "$m_status" = "completed" ]; then
+                  if [ "$m_conclusion" = "success" ]; then
+                    echo "run_id=${m_id}" >> "$GITHUB_OUTPUT"
+                    echo "resolved official build run ${m_id} (${want_branch} @ ${SHA})"
+                    exit 0
+                  fi
+                  echo "::error::REFUSE: the official build for ${SHA} on ${want_branch} concluded '${m_conclusion}' (run ${m_id}). A release must not promote packages from a build that did not pass, and must not build its own replacement."
+                  exit 1
+                fi
+                echo "official build run ${m_id} is ${m_status}; waiting..."
+              else
+                echo "no official build for ${SHA} on ${want_branch} yet; waiting..."
+              fi
+            fi
+
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              mins=$(( WAIT_SECONDS / 60 ))
+              # A timeout is THIS JOB'S bound expiring. It is not a verdict about the official build,
+              # and the message must not let it be read as one.
+              if [ "$api_failures" -gt 0 ] && [ "$ever_seen" -eq 0 ]; then
+                echo "::error::REFUSE: could not read the Actions API for ${GITHUB_REPOSITORY} in ${mins}m (${api_failures} failed attempts, last gh api exit ${last_api_rc})."
+                echo "::error::So it is UNKNOWN whether an official build of ${SHA} exists. Not measured is not the same as absent, and neither is a reason to build here."
+              elif [ "$ever_seen" -eq 1 ]; then
+                echo "::error::REFUSE: official build run ${last_seen_id} (workflow ${WORKFLOW}, commit ${SHA}, ref ${want_branch}) had not reached a conclusion when this job's ${mins}m wait expired."
+                echo "::error::That is THIS JOB'S bound speaking, not a verdict about that build -- it may still be running and may still succeed. Look at run ${last_seen_id}; if it passes, re-run this release."
+              else
+                echo "::error::REFUSE: no run of ${WORKFLOW} for commit ${SHA} on ref ${want_branch} appeared within ${mins}m."
+                echo "::error::This release has nothing to promote. Timing out is not a reason to build here -- that would make the promotion path optional, and an optional verification is one that stops happening the first time it is inconvenient."
+              fi
+              exit 1
+            fi
+            sleep "$POLL_SECONDS"
+          done
+
+      # The immutable artifact, fetched from the run that produced it. Not rebuilt, not repacked --
+      # these are the bytes the official build hashed and attested, or the checks below will say so.
+      - name: Download the canonical package set from the official build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages
+          path: packages
+          run-id: ${{ steps.official.outputs.run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      - name: Download the SBOM from the official build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-cyclonedx-sbom
+          path: sbom
+          run-id: ${{ steps.official.outputs.run_id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
+      # Hashes first, because every later check is a statement about these bytes and is worthless if
+      # the bytes are not the ones that were hashed at the origin.
+      #
+      # `sha256sum -c` is the whole check and it is deliberately not reimplemented: it fails on a
+      # changed file AND on a missing one. The extra assertions around it cover what it cannot see
+      # -- an empty or absent manifest, which checks nothing and exits 0 while doing so.
+      - name: Verify the package hashes against the official manifest
         shell: bash
         working-directory: packages
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          files=( *.nupkg *.snupkg )
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "::error::REFUSE: no packages to hash. Nothing was built, so nothing can be attested."
+          if [ ! -f SHA256SUMS.txt ]; then
+            echo "::error::REFUSE: the downloaded artifact carries no SHA256SUMS.txt. Without the origin's manifest there is nothing to compare these bytes to."
             exit 1
           fi
-          sha256sum "${files[@]}" | tee SHA256SUMS.txt
-          echo "hashed ${#files[@]} file(s)"
+          listed="$(grep -c . SHA256SUMS.txt || true)"
+          if [ "${listed:-0}" -eq 0 ]; then
+            echo "::error::REFUSE: SHA256SUMS.txt is empty. A manifest that checks nothing passes everything."
+            exit 1
+          fi
+          sha256sum -c SHA256SUMS.txt
+          echo "verified ${listed} file(s) against the official build's manifest"
 
-      # The SBOM is generated HERE, next to the packages it describes, rather than in a parallel job.
-      #
-      # It was produced by a separate job running its own restore of the solution. Same commit, so
-      # the CONTENT was right -- measured: the source tree and the shipping set differ by exactly one
-      # project. The problem was never scope. It was that nothing connected the SBOM to the packages
-      # except the fact that two jobs happened to run on the same commit, which is an argument, not
-      # evidence. A consumer holding a .nupkg and an SBOM had no way to tell whether the second
-      # describes the first.
-      - name: Generate CycloneDX SBOM for the shipping set
+          shopt -s nullglob
+          present=( *.nupkg )
+          if [ "${#present[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: no .nupkg in the promoted artifact. An empty package set satisfies every downstream job by giving each of them nothing to object to."
+            exit 1
+          fi
+          echo "packages present: ${#present[@]}"
+
+      # Provenance: these bytes were produced by this repository's official build, and the signature
+      # says so independently of the Actions API that told us where to find them. The hash check
+      # above proves the artifact matches its own manifest; that manifest travelled with the
+      # artifact, so on its own it proves only internal consistency. This is the check that binds
+      # the set to an origin an attacker would have to forge rather than merely rewrite.
+      - name: Verify build provenance for the promoted packages
+        shell: bash
+        working-directory: packages
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Pinned in .config/dotnet-tools.json rather than installed at whatever version is
-          # newest today. `|| dotnet tool update` previously meant this step could silently change
-          # the SBOM generator between runs, which is a poor property for the tool that produces our
-          # supply-chain evidence.
-          dotnet tool restore
-          dotnet CycloneDX ./src -o ./sbom -F Json -t
+          set -euo pipefail
+          shopt -s nullglob
+          pkgs=( *.nupkg )
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "::error::REFUSE: nothing to verify. Zero subjects is not zero findings."
+            exit 1
+          fi
+          for p in "${pkgs[@]}"; do
+            echo "verifying provenance: ${p}"
+            gh attestation verify "$p" --repo "${GITHUB_REPOSITORY}"
+          done
+          echo "provenance verified for ${#pkgs[@]} package(s)"
 
-      - name: Assert the SBOM exists
+      # The version is read out of each package, not off its filename. A filename is a label anyone
+      # can write; the nuspec is what the feed will publish and what a consumer will resolve.
+      #
+      # This is the check that catches the release promoting the WRONG official build of the right
+      # commit -- the branch build, carrying a development version, instead of the tag build.
+      - name: Assert every package carries the release version
+        shell: pwsh
+        working-directory: packages
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $version = $env:RELEASE_VERSION
+
+          $packages = @(Get-ChildItem -Filter '*.nupkg')
+          if ($packages.Count -eq 0) {
+            Write-Host "::error::REFUSE: no packages to check, so this assertion would prove nothing. Zero subjects is not zero findings."
+            exit 1
+          }
+
+          $bad = 0
+          foreach ($pkg in $packages) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+            try {
+              $nuspec = $zip.Entries |
+                Where-Object { $_.FullName -like '*.nuspec' -and $_.FullName -notmatch '/' } |
+                Select-Object -First 1
+              if ($null -eq $nuspec) {
+                Write-Host "::error::$($pkg.Name) contains no root .nuspec, so the version it would publish under cannot be read."
+                $bad++
+                continue
+              }
+              $reader = New-Object System.IO.StreamReader($nuspec.Open())
+              try { $xml = [xml]$reader.ReadToEnd() } finally { $reader.Dispose() }
+            } finally { $zip.Dispose() }
+
+            $v = $xml.package.metadata.version
+            if ([string]::IsNullOrWhiteSpace($v)) {
+              Write-Host "::error::$($pkg.Name) carries no <version>. A package whose version cannot be read cannot be released under one."
+              $bad++
+            }
+            elseif ($v -ne $version) {
+              Write-Host "::error::$($pkg.Name) carries version $v, but this release is $version."
+              $bad++
+            }
+          }
+
+          if ($bad -ne 0) {
+            Write-Host "::error::REFUSE: $bad of $($packages.Count) package(s) do not carry $version. This is what a promotion of the WRONG official build of the right commit looks like -- the branch build carries a development version. Publishing it would put different bytes behind this release's name."
+            exit 1
+          }
+          Write-Host "all $($packages.Count) package(s) carry $version"
+
+      # The receipt is not load-bearing for admission -- the checks above are -- but it is the
+      # record that lets someone months from now map a published package back to the run that made
+      # it without re-deriving anything. Its absence is reported and not fatal, because an older
+      # official build predating the receipt is a promotable artifact; a receipt that DISAGREES with
+      # this release is not.
+      - name: Reconcile the build receipt
+        shell: pwsh
+        working-directory: packages
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
+          RESOLVED_RUN_ID: ${{ steps.official.outputs.run_id }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path 'build-receipt.json')) {
+            Write-Host "::warning::the promoted artifact carries no build-receipt.json; admission stands on the hash, attestation and version checks above."
+            exit 0
+          }
+
+          $receipt = Get-Content -Raw 'build-receipt.json' | ConvertFrom-Json
+          $headSha = (git -C $env:GITHUB_WORKSPACE rev-parse HEAD).Trim()
+          Write-Host "receipt: run $($receipt.official_build_run_id), commit $($receipt.commit_sha), version $($receipt.version)"
+
+          if ($receipt.commit_sha -ne $headSha) {
+            Write-Host "::error::REFUSE: the receipt names commit $($receipt.commit_sha); this release is building $headSha."
+            exit 1
+          }
+          if ($receipt.version -ne $env:RELEASE_VERSION) {
+            Write-Host "::error::REFUSE: the receipt names version $($receipt.version); this release is $($env:RELEASE_VERSION)."
+            exit 1
+          }
+          if ($receipt.official_build_run_id -ne $env:RESOLVED_RUN_ID) {
+            Write-Host "::error::REFUSE: the receipt names official build run $($receipt.official_build_run_id), but this artifact was downloaded from run $($env:RESOLVED_RUN_ID)."
+            exit 1
+          }
+          Write-Host "receipt reconciles with this release"
+
+      - name: Summarise the admission
         shell: bash
         run: |
           set -euo pipefail
-          count=$(find ./sbom -name 'bom.json' -o -name 'bom.xml' | wc -l)
-          if [ "$count" -eq 0 ]; then
-            echo "::error::REFUSE: no SBOM generated. An absent SBOM is not an empty one, and the attestation below would have nothing to bind."
-            exit 1
-          fi
-          echo "SBOM file(s): $count"
+          {
+            echo "### Admitted official build"
+            echo ""
+            echo "| item | value |"
+            echo "| --- | --- |"
+            echo "| official build run | \`${{ steps.official.outputs.run_id }}\` |"
+            echo "| commit | \`$(git rev-parse HEAD)\` |"
+            echo "| version | \`${{ needs.pre-release-validation.outputs.version }}\` |"
+            echo "| packages | $(find packages -name '*.nupkg' | wc -l) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      # Build provenance: a signed, verifiable statement binding these exact bytes to this
-      # repository, this workflow, and this commit. Consumers verify with `gh attestation verify`.
-      #
-      # Only .nupkg is attested, not .snupkg: the shipping artifact is what a consumer installs, and
-      # attesting symbol packages adds subjects without adding assurance about what runs.
-      #
-      # This runs in build-packages ON PURPOSE. Attesting anywhere later would attest to a
-      # downloaded copy -- provenance describing an artifact's journey rather than its origin, which
-      # is the opposite of the point. It also cannot be produced from untrusted PR code: this
-      # workflow runs only on tags.
-      - name: Attest build provenance for the canonical package set
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
-        with:
-          subject-path: packages/*.nupkg
-
-      # Binds the SBOM to the packages cryptographically, so "this SBOM describes these packages" is
-      # verifiable rather than inferred from two artifacts sitting in the same release. Without it a
-      # consumer can check that a package came from us (provenance, above) and can read a dependency
-      # list, but cannot establish that the list is that package's.
-      - name: Attest the SBOM against the packages it describes
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4
-        with:
-          subject-path: packages/*.nupkg
-          sbom-path: sbom/bom.json
-
-      # Same artifact name the release job already downloads, so moving generation here changes where
-      # the SBOM comes from without changing what consumes it.
-      - name: Upload release SBOM
+      - name: Re-publish the SBOM for this release run
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-cyclonedx-sbom
@@ -726,21 +936,24 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Upload packages
+      - name: Re-publish the canonical package set for this release run
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          # Deliberately NOT `packages-<os>`. The OS suffix is what made two candidate package sets
-          # nameable and therefore pickable; a single unsuffixed name means there is exactly one
-          # artifact any consumer can ask for, and no convention by which to choose between rivals.
+          # Same name, same path lines as the official build uploaded, so every downstream consumer
+          # -- validation, staging, release, publish -- reads exactly what it read before. Moving
+          # production out of this workflow must not be observable to anything that consumes it.
+          #
+          # Re-uploaded rather than left to be fetched cross-run by each consumer: one resolution
+          # per release, done here where it is checked, instead of four unchecked copies of the
+          # same lookup. (This comment sits OUTSIDE the block scalar below deliberately -- inside
+          # `path: |`, a `#` is literal text, not a comment, and would become a path pattern.)
           name: packages
-          # SHA256SUMS.txt ships WITH the packages or it may as well not exist: computed on the
-          # runner and left there, it would answer the divergence question only during the one run
-          # that cannot ask it. (This comment sits OUTSIDE the block scalar below deliberately --
-          # inside `path: |`, a `#` is literal text, not a comment, and becomes a path pattern.)
           path: |
             packages/*.nupkg
             packages/*.snupkg
             packages/SHA256SUMS.txt
+            packages/build-receipt.json
+          if-no-files-found: error
           retention-days: 90
 
 
