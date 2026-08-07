@@ -45,7 +45,13 @@ public sealed class MigrationToolingCiSyncTests
             .Select(path => new ToolingProject(Path.GetFileNameWithoutExtension(path) ?? string.Empty, path))
             .Where(p =>
                 p.Name.StartsWith("Excalibur.Dispatch.Compat.", StringComparison.Ordinal)
-                || p.Name.StartsWith("Excalibur.Dispatch.Migration.", StringComparison.Ordinal))
+                || p.Name.StartsWith("Excalibur.Dispatch.Migration.", StringComparison.Ordinal)
+                // The trailing dot above matches sub-projects and nothing else, so the package that
+                // actually SHIPS the migration tooling -- named without one -- was invisible here.
+                // Everything this file asserts is enumeration: in the solution, in the manifest, in
+                // the pack filter. A build target the enumeration cannot see is a build target none
+                // of it protects, and this one is the shipping package.
+                || string.Equals(p.Name, "Excalibur.Dispatch.Migration", StringComparison.Ordinal))
             .DistinctBy(p => p.Name, StringComparer.Ordinal)
             .OrderBy(p => p.Name, StringComparer.Ordinal)
             .ToList();
@@ -71,9 +77,15 @@ public sealed class MigrationToolingCiSyncTests
         // enumeration assertion below pass vacuously).
         var projects = DiscoverMigrationToolingProjects();
 
-        projects.Count.ShouldBeGreaterThanOrEqualTo(5,
-            "Expected at least the 5 known migration-tooling projects (Compat.MediatR, "
-            + "Compat.MediatR.SourceGenerators, Compat.MassTransit, Migration.Analyzers, Migration.CodeFixes). "
+        // SIX, not five, and the difference is the point. The floor was five against a population of
+        // exactly five, so it could not fail: a project disappearing left the count on the boundary
+        // and every enumeration below still passed, over a smaller set. A floor calibrated to the
+        // population is a floor that cannot fire.
+        projects.Count.ShouldBeGreaterThanOrEqualTo(6,
+            "Expected the six known migration-tooling build targets (Compat.MediatR, "
+            + "Compat.MediatR.SourceGenerators, Compat.MassTransit, Migration, Migration.Analyzers, "
+            + "Migration.CodeFixes). Fewer means the discovery pattern has stopped matching something, "
+            + "and every assertion in this file would then pass over whatever is left. "
             + $"Discovered: {string.Join(", ", projects.Select(p => p.Name))}");
     }
 
@@ -95,6 +107,63 @@ public sealed class MigrationToolingCiSyncTests
             names: DiscoverMigrationToolingProjects().Select(p => p.Name).ToList(),
             relativeFile: "management/governance/project-manifest.yaml",
             siteDescription: "the governance manifest (project-manifest.yaml)");
+    }
+
+    /// <summary>
+    /// Every non-packable analyzer assembly must be carried by exactly one package.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule is already written down, in a comment beside one of the bundling sites: ONE delivery
+    /// path, because a second means a consumer receives the same diagnostic twice. The other half is
+    /// worse and unwritten -- zero delivery paths. A project marked non-packable that nothing bundles
+    /// does not fail to build, does not fail to pack, and does not fail any test. It simply stops
+    /// reaching consumers, and the analyzer it contains silently never runs again.
+    /// </para>
+    /// <para>
+    /// That is the shape this repository keeps finding by other means: something advertised, wired to
+    /// nothing, behind a passing build. Making a project non-packable is one line, and the line that
+    /// carries its output into a package lives in a different file.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryNonPackableAnalyzer_IsCarriedBy_ExactlyOnePackage()
+    {
+        var all = DiscoverMigrationToolingProjects();
+        var nonPackable = all.Where(p => !IsPackable(p.CsprojPath)).ToList();
+
+        nonPackable.ShouldNotBeEmpty(
+            "No non-packable migration-tooling project was found, so this test is asserting nothing. "
+            + "Either the convention changed or the discovery pattern has stopped matching.");
+
+        var allCsproj = TestHelpers.GetCsprojFiles(_repoRoot, "src").ToList();
+
+        foreach (var orphan in nonPackable)
+        {
+            // A carrier names the assembly in a Pack=true item. Searching the raw text rather than the
+            // XML because the reference is a path, assembled from properties, and the point is only
+            // whether some packable project mentions this assembly on a packing item at all.
+            var carriers = allCsproj
+                .Where(c => !string.Equals(
+                    Path.GetFileNameWithoutExtension(c), orphan.Name, StringComparison.Ordinal))
+                .Where(c => IsPackable(c))
+                .Where(c =>
+                {
+                    var text = File.ReadAllText(c);
+                    return text.Contains(orphan.Name + ".dll", StringComparison.Ordinal)
+                        && text.Contains("PackagePath=\"analyzers/dotnet/cs\"", StringComparison.Ordinal);
+                })
+                .Select(c => Path.GetFileNameWithoutExtension(c))
+                .ToList();
+
+            carriers.Count.ShouldBe(
+                1,
+                $"{orphan.Name} is IsPackable=false and is carried by {carriers.Count} package(s): "
+                + $"[{string.Join(", ", carriers)}]. Zero means the assembly ships nowhere -- it builds, "
+                + "it packs nothing, no test fails, and the analyzer inside it simply stops reaching "
+                + "consumers. More than one means a consumer receives the same diagnostic twice. "
+                + "Exactly one package must carry it.");
+        }
     }
 
     [Fact]

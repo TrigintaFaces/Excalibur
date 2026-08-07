@@ -158,6 +158,7 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.Compat.MediatR/Excalibur.Dispatch.Compat.MediatR.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Compat.MediatR.SourceGenerators/Excalibur.Dispatch.Compat.MediatR.SourceGenerators.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Compat.MassTransit/Excalibur.Dispatch.Compat.MassTransit.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Migration/Excalibur.Dispatch.Migration.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Migration.Analyzers/Excalibur.Dispatch.Migration.Analyzers.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Migration.CodeFixes/Excalibur.Dispatch.Migration.CodeFixes.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Testing.Shouldly/Excalibur.Dispatch.Testing.Shouldly.csproj

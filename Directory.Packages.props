@@ -251,7 +251,7 @@
 		<PackageVersion Include="Google.Api.Gax.Grpc" Version="4.13.1" />
 		<PackageVersion Include="Google.Apis.Auth" Version="1.73.0" />
 		<!-- Versioning (Polly pattern: git-tag-driven, sets all 4 version properties) -->
-		<PackageVersion Include="MinVer" Version="6.0.0" />
+		<PackageVersion Include="MinVer" Version="$(MinVerPackageVersion)" />
 		<!-- Resilience / Misc -->
 		<PackageVersion Include="Polly.RateLimiting" Version="8.6.6" />
 		<PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" />

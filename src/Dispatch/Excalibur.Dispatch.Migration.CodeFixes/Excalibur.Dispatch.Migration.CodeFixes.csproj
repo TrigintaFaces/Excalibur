@@ -12,6 +12,10 @@
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <!-- Contributes its assembly to the Excalibur.Dispatch.Migration package; does not ship as a
+         package of its own. A diagnostic and its fix are one deliverable, so they travel together,
+         and one delivery path means a diagnostic cannot arrive twice. -->
+    <IsPackable>false</IsPackable>
     <IncludeSymbols>false</IncludeSymbols>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <NoWarn>$(NoWarn);NU5017;NU5128;RS2008</NoWarn>

@@ -196,6 +196,13 @@ public sealed class EncryptionHealthCheckShould
 		var options = new EncryptionHealthCheckOptions
 		{
 			VerifyKeyManagement = false,
+			// The subject here is that key management is NOT consulted when it is switched off.
+			// Timing is a different axis, and it is switched off too: the round-trip check still runs
+			// and reports Slow past DegradedThreshold, which defaults to 100ms. A crypto round-trip on
+			// a loaded agent exceeds that, so the check returned Degraded and this failed in CI while
+			// passing on an idle machine. Left at the default, the assertion below is really asserting
+			// that the runner was fast enough, which is not a property of the code under test.
+			DegradedThreshold = TimeSpan.FromSeconds(5),
 		};
 
 		var sut = CreateSut(options: options);
@@ -300,7 +307,13 @@ public sealed class EncryptionHealthCheckShould
 			keyProvider ?? _keyManagementProvider,
 			_telemetry,
 			_logger,
-			options ?? EncryptionHealthCheckOptions.Default);
+			// Timing neutralised for every test that does not set its own options. The production
+			// default degrades past 100ms, which is right for production and wrong as a test fixture:
+			// it makes any assertion of Healthy depend on the agent completing a crypto round-trip in
+			// under a tenth of a second. One such test failed in CI while passing locally; the others
+			// were exposed and had not been unlucky yet. Tests that care about the threshold set it
+			// explicitly, and the default value itself is asserted separately.
+			options ?? EncryptionHealthCheckOptions.Default with { DegradedThreshold = TimeSpan.FromSeconds(5) });
 	}
 }
 

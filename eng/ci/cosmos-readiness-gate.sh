@@ -68,6 +68,16 @@ if [ "${1:-}" = "--self-test" ]; then
         echo "  safety:   gate passes on a port answering, which was measured insufficient — FAIL"; st_fail=1
     fi
 
+    # SAFETY: the data-plane check must RETRY. It was a single request, and one attempt at an endpoint
+    # that becomes reachable a moment later refused a working emulator and failed the nightly shard.
+    # Structural, for the same reason as the arm above: proving it by timing a real emulator would make
+    # this unrunnable without docker.
+    if grep -q 'while \[ "$(date +%s)" -lt "$data_deadline" \]' "$0"; then
+        echo "  safety:   the data plane is polled, not asked once — PASS"
+    else
+        echo "  safety:   the data-plane check does not retry; one attempt decides the shard — FAIL"; st_fail=1
+    fi
+
     if [ "$st_fail" -eq 0 ]; then echo "SELF-TEST PASS (safety + liveness, non-vacuous)"; exit 0; fi
     echo "SELF-TEST FAIL"; exit 2
 fi
@@ -91,6 +101,12 @@ NAME="cosmosdb-readiness-gate-$$"
 # it reports that as an emulator problem. Whatever budget the fixtures use, this must not be less.
 # (The integration-tests job wall is 60 minutes, so 10 is comfortably inside it.)
 READY_TIMEOUT="${COSMOS_READY_TIMEOUT:-600}"
+
+# The data plane gets its OWN budget, because becoming ready and accepting a request are two events
+# and the second trails the first. This image publishes readiness from a control endpoint that flips
+# before the gateway will answer; that is how it behaves, not a fault. 120s clears the gap observed
+# on a hosted runner while staying far inside the job wall.
+DATA_PLANE_TIMEOUT="${COSMOS_DATA_PLANE_TIMEOUT:-120}"
 
 refuse() { echo "::error::REFUSE — $*" >&2; cleanup; exit 3; }
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
@@ -168,8 +184,38 @@ if [ "$ready" -ne 1 ]; then
 fi
 
 # The account document is what the SDK reads first, and what a mis-advertised endpoint breaks.
-if ! curl -fsS --max-time 15 "http://127.0.0.1:${gw_port}/" >/dev/null 2>&1; then
-    refuse "the emulator reported ready but its gateway did not serve the account document — readiness without a usable data plane is exactly the case this gate exists to catch."
+#
+# POLLED, not asked once. Readiness above is polled for ten minutes; this was a single request with
+# no retry, so the verdict for the whole shard rested on one attempt at an endpoint that is reachable
+# EVENTUALLY rather than immediately. The loop above can exit on the health endpoint alone, and that
+# endpoint flips ready before the gateway serves -- so the gate refused a working emulator, reported
+# it as "the runner could not host the emulator", and took the nightly integration shard with it.
+# Observed 2026-08-06; the same shard passed the day before, which is the signature of a race rather
+# than a runner that cannot host the image.
+#
+# Asking once is also less patient than the suite this clears the way for: the fixtures reach the
+# emulator through Testcontainers CosmosDbBuilder, which probes until it answers. A pre-flight check
+# that gives up sooner than the thing it gates will block runs that would have succeeded.
+data_deadline=$(( $(date +%s) + DATA_PLANE_TIMEOUT ))
+served=0
+while [ "$(date +%s)" -lt "$data_deadline" ]; do
+    if curl -fsS --max-time 5 "http://127.0.0.1:${gw_port}/" >/dev/null 2>&1; then
+        served=1; break
+    fi
+    # A container that died while waiting is a different condition from a slow data plane, and it
+    # deserves its own message rather than being reported as a timeout.
+    if ! docker ps -q --filter "name=$NAME" | grep -q .; then
+        echo "--- emulator exited while waiting for its data plane; last 40 log lines ---" >&2
+        docker logs --tail 40 "$NAME" 2>&1 >&2 || true
+        refuse "the Cosmos emulator container exited after reporting ready, before its gateway served."
+    fi
+    sleep 3
+done
+
+if [ "$served" -ne 1 ]; then
+    echo "--- gateway never served the account document; last 40 log lines ---" >&2
+    docker logs --tail 40 "$NAME" 2>&1 >&2 || true
+    refuse "the emulator reported ready but its gateway did not serve the account document within ${DATA_PLANE_TIMEOUT}s — readiness without a usable data plane is exactly the case this gate exists to catch."
 fi
 
 echo "INFRASTRUCTURE OK: the runner started the emulator and its gateway serves the account document (port ${gw_port})."
