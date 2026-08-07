@@ -97,9 +97,18 @@ tds_line_is_short_deadline() {
     printf '%s' "$line" | grep -qE 'new CancellationTokenSource\(TimeSpan\.From' || return 1
     printf '%s' "$line" | grep -qE '^[[:space:]]*(//|///|\*)' && return 1
     printf '%s' "$line" | grep -qE '//[[:space:]]*deadline-ok' && return 1
-    # Milliseconds is always under the bar. Seconds only below 5.
+    # Milliseconds is always under the bar. Seconds: any SINGLE-DIGIT value.
+    #
+    # This was below 5, and 5 is exactly what got through. A subscription token carrying
+    # FromSeconds(5) sat inside a test that then waited 30s scaled -- 90s on CI -- for a signal that
+    # token had already made impossible. The polling interval was 50ms, so the window was ~100x what
+    # it needed, and it still lost once on a loaded runner and took main red with it.
+    #
+    # Moving the bound to 5 would only relocate the same argument to 6. Under ten seconds is the
+    # line, because the defect is not the specific number: it is an unexplained wall-clock deadline
+    # in a test, and anything genuinely deliberate says so with `// deadline-ok:` and passes.
     printf '%s' "$line" | grep -qE 'TimeSpan\.FromMilliseconds\(' && return 0
-    printf '%s' "$line" | grep -qE 'TimeSpan\.FromSeconds\([0-4]\)' && return 0
+    printf '%s' "$line" | grep -qE 'TimeSpan\.FromSeconds\([0-9]\)' && return 0
     return 1
 }
 
@@ -253,7 +262,21 @@ self_test() {
         echo "self-test FAIL: did not flag a 50ms deadline, the exact shape that failed a shard" >&2; pass=0
     fi
     if ! tds_line_is_short_deadline '  var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));'; then
-        echo "self-test FAIL: did not flag a 2s deadline (under the five-second bar)" >&2; pass=0
+        echo "self-test FAIL: did not flag a 2s deadline" >&2; pass=0
+    fi
+    # The one that got through: 5s was one second outside the old bound and it took main red.
+    if ! tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));'; then
+        echo "self-test FAIL: did not flag the 5s deadline that escaped the previous bound" >&2; pass=0
+    fi
+    if ! tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(9));'; then
+        echo "self-test FAIL: did not flag a 9s deadline (single-digit seconds is the bar)" >&2; pass=0
+    fi
+    # LIVENESS at the boundary: ten seconds and above must still pass, or the bar is meaningless.
+    if tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));'; then
+        echo "self-test FAIL: flagged a 10s deadline; the bar is single-digit seconds, not all seconds" >&2; pass=0
+    fi
+    if tds_line_is_short_deadline '  using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: the timeout under test'; then
+        echo "self-test FAIL: flagged a justified 5s deadline; the escape hatch must still work" >&2; pass=0
     fi
     if tds_line_is_short_deadline '        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));'; then
         echo "self-test FAIL: flagged a generous 30s bound, which is the recommended shape" >&2; pass=0

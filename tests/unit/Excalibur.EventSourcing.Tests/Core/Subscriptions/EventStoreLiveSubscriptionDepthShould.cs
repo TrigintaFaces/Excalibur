@@ -143,7 +143,18 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
 			});
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		// No deadline on this token, matching every other test in this file.
+		//
+		// It carried TimeSpan.FromSeconds(5) and that made the test racy BY CONSTRUCTION rather than
+		// by bad luck: the token cancelled the subscription after 5s, while the wait below allows 30s
+		// scaled -- 90s on CI. Miss the 5s window and the first poll can never happen, so the signal
+		// can never arrive, and the test then burns the full 90s before failing with a timeout that
+		// describes the symptom and hides the cause.
+		//
+		// The polling interval is 50ms, so the window was ~100x the interval and it still lost, once,
+		// on a loaded runner -- which is what an inner deadline nested inside an outer wait does.
+		// Nothing here needs it: the test unsubscribes explicitly and teardown disposes the subject.
+		using var cts = new CancellationTokenSource();
 
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
