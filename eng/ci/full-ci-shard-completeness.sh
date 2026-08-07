@@ -50,13 +50,22 @@ CI_YML="$CI_WORKFLOWS"   # retained name for the REFUSE messages below
 AGGREGATES="TestsOnly UnitTests ShippingOnly CoreOnly ReleaseBlocking SamplesOnly BenchmarksOnly"
 
 # A per-shard filter is one CI runs tests against individually. Recognised families, as data:
-#   UnitTests-*        the unit shards
-#   ConformanceTests   conformance kit
-#   PerformanceTests   perf + benchmarks
-#   IntegrationTests   real-infra shard  <- the one that was omitted
+#   UnitTests-*          the unit shards
+#   ConformanceTests     conformance kit
+#   PerformanceTests     perf + benchmarks
+#   IntegrationTests     real-infra shard  <- the one that was omitted
+#   IntegrationTests-*   the real-infra shard, split; see below
+#
+# IntegrationTests-* was added when the integration suite was split across per-shard filters to get it
+# off the critical path. The parent IntegrationTests filter still exists and is still built by nightly
+# and the committed-content gates, so both forms are legitimate and both must be recognised.
+#
+# This gate REFUSED rather than dropping the two new names, which is the behaviour it was written for:
+# it named them and said to classify them here. Recorded because the refusal is the gate working, not
+# the gate being in the way -- a silent drop is exactly how IntegrationTests went missing originally.
 is_known_shard() {
   case "$1" in
-    UnitTests-*|ConformanceTests|PerformanceTests|IntegrationTests) return 0 ;;
+    UnitTests-*|IntegrationTests-*|ConformanceTests|PerformanceTests|IntegrationTests) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -96,7 +105,7 @@ normalise_reported() {
       -e 's#eng/ci/shards/##g' \
       -e 's/\.slnf//g' \
       | tr -s ' \t' '\n' \
-      | grep -oE '^(UnitTests-[A-Za-z0-9-]+|ConformanceTests|PerformanceTests|IntegrationTests)$' \
+      | grep -oE '^(UnitTests-[A-Za-z0-9-]+|IntegrationTests-[A-Za-z0-9-]+|ConformanceTests|PerformanceTests|IntegrationTests)$' \
       | sort -u
 }
 

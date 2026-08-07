@@ -46,7 +46,11 @@ readonly E_PARTITION=1
 readonly E_ENV=2
 
 if [ "${1:-}" = "--self-test" ]; then
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/integration-shard-partition-gate.test.sh"
+    # `bash <path>` rather than executing it directly: the executable bit is not reliably carried
+    # by a checkout authored on a filesystem that does not track it, and a self-test that dies with
+    # "Permission denied" (exit 126) is indistinguishable, to a reader of the job list, from a gate
+    # that ran and found something. The mode is set correctly too; this makes it not load-bearing.
+    exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/integration-shard-partition-gate.test.sh"
 fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
