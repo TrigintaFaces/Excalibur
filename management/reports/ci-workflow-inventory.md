@@ -17,19 +17,19 @@ permit `timeout-minutes`; the called workflow's own job timeouts apply.
 | api-docs.yml | generate-api-docs | push,workflow_dispatch | 30 | ubuntu-latest | - |  | workflow |  |
 | ci.yml | aot-build-analysis | push,pull_request,merge_group,workflow_dispatch | 30 | ubuntu-latest | package |  | workflow |  |
 | ci.yml | aot-sample-validation | push,pull_request,merge_group,workflow_dispatch | 15 | ubuntu-latest | package,sample-validation |  | workflow |  |
-| ci.yml | architecture-tests | push,pull_request,merge_group,workflow_dispatch | 15 | ubuntu-latest | integration-tests | yes | workflow |  |
+| ci.yml | architecture-tests | push,pull_request,merge_group,workflow_dispatch | 15 | ubuntu-latest | unit-tests | yes | workflow |  |
 | ci.yml | call-coverage | push,pull_request,merge_group,workflow_dispatch | - |  | unit-tests,integration-tests,funct |  | workflow |  |
 | ci.yml | call-governance | push,pull_request,merge_group,workflow_dispatch | - |  | package |  | workflow |  |
 | ci.yml | call-performance | push,pull_request,merge_group,workflow_dispatch | - |  | package |  | workflow |  |
 | ci.yml | call-security | push,pull_request,merge_group,workflow_dispatch | - |  | package |  | workflow |  |
 | ci.yml | changes | push,pull_request,merge_group,workflow_dispatch | 5 | ubuntu-latest | - |  | workflow |  |
-| ci.yml | contract-tests | push,pull_request,merge_group,workflow_dispatch | 10 | ubuntu-latest | integration-tests | yes | workflow |  |
+| ci.yml | contract-tests | push,pull_request,merge_group,workflow_dispatch | 10 | ubuntu-latest | unit-tests | yes | workflow |  |
 | ci.yml | dashboard-spa | push,pull_request,merge_group,workflow_dispatch | 10 | ubuntu-latest | - |  | workflow |  |
 | ci.yml | documentation-validation | push,pull_request,merge_group,workflow_dispatch | 10 | ubuntu-latest | - |  | workflow |  |
 | ci.yml | flaky-quarantine-governance | push,pull_request,merge_group,workflow_dispatch | 10 | ubuntu-latest | package |  | workflow |  |
 | ci.yml | flaky-tests-quarantine | push,pull_request,merge_group,workflow_dispatch | 30 | ubuntu-latest | flaky-quarantine-governance | yes | workflow | yes |
-| ci.yml | functional-tests | push,pull_request,merge_group,workflow_dispatch | 30 | ubuntu-latest | integration-tests | yes | workflow | yes |
-| ci.yml | integration-tests | push,pull_request,merge_group,workflow_dispatch | 60 | ubuntu-latest | unit-tests | yes | workflow | yes |
+| ci.yml | functional-tests | push,pull_request,merge_group,workflow_dispatch | 30 | ubuntu-latest | unit-tests | yes | workflow | yes |
+| ci.yml | integration-tests | push,pull_request,merge_group,workflow_dispatch | 60 | ubuntu-latest | smoke-tests | yes | workflow | yes |
 | ci.yml | pack-quality | push,pull_request,merge_group,workflow_dispatch | 20 | ubuntu-latest | package |  | workflow |  |
 | ci.yml | package | push,pull_request,merge_group,workflow_dispatch | 30 | ubuntu-latest | changes |  | workflow |  |
 | ci.yml | packaging-smoke-tests | push,pull_request,merge_group,workflow_dispatch | 10 | ubuntu-latest | package |  | workflow |  |
