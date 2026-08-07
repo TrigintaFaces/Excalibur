@@ -748,6 +748,31 @@ jobs:
             sleep "$POLL_SECONDS"
           done
 
+      # A successful official build is NOT evidence that the code passed its tests, and until this
+      # step existed nothing in the release path checked that it had.
+      #
+      # official-build.yml packs, validates, hashes, attests and uploads. It has no test step, no
+      # path filter, and no dependency on ci.yml -- on a recent commit both workflows started in the
+      # same second. ci.yml is the only thing that runs tests, and it skips the entire matrix on a
+      # documentation-only commit, reporting success for the documentation rather than the code.
+      #
+      # So this was reachable: let a source change go red, push any *.md or docs/ change, and that
+      # commit skips the matrix, reports success, gets a green official build because nothing there
+      # tests anything, and becomes releasable. A documentation commit laundering a red parent.
+      #
+      # The gate resolves the verdict for THIS commit, inheriting from the nearest ancestor that
+      # actually ran tests when this one did not. Exit 1 is a real failure; exit 2 is REFUSE -- no
+      # verdict could be established, which is not a pass. Its self-test runs first, because a gate
+      # nobody can see fail is not evidence.
+      - name: Prove the promoted commit actually passed its tests (self-test)
+        run: bash eng/ci/release-test-verdict-gate.sh --self-test
+
+      - name: Prove the promoted commit actually passed its tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash eng/ci/release-test-verdict-gate.sh --sha "$(git rev-parse HEAD)"
+
       # The immutable artifact, fetched from the run that produced it. Not rebuilt, not repacked --
       # these are the bytes the official build hashed and attested, or the checks below will say so.
       - name: Download the canonical package set from the official build
