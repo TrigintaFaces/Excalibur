@@ -25,11 +25,20 @@
          MinVer arrives as a PackageReference that is conditioned on CPM being enabled. This project
          pins nothing, so it stays on the shared version like every other shipping package. -->
 
-    <!-- Nothing in lib/. An analyzer package delivers through analyzers/dotnet/cs, and shipping an
-         empty assembly alongside would give consumers a reference that resolves to nothing.
-         NU5128 is the "no lib/ref assemblies" notice, which is the intended shape here. -->
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- Build output IS included, and the reason is CI rather than taste. The delivery path is
+         analyzers/dotnet/cs, so lib/ carries nothing a consumer uses. But the official build packs
+         with the include-symbols flag, which produces a SECOND, symbols package, and with no build
+         output that package has nothing in it, so it fails NU5017 and takes the build down with it.
+         The real package is created successfully first; the failure is entirely the empty symbols
+         package. The analyzer projects alongside this one carry the same setting for the same
+         reason, and say so. -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <!-- NU5128 is the "no lib/ref assemblies" notice, which is the intended shape here.
+         NU5017 is "package has no content", and it is here because CI packs with the include-symbols flag:
+         that builds a SECOND, symbols package, and with no build output there is nothing to put in
+         it. The real package is created fine and then the empty symbols package fails the build.
+         The analyzer projects alongside this one carry the same suppression for the same reason. -->
+    <NoWarn>$(NoWarn);NU5017;NU5128</NoWarn>
 
     <!-- Analyzers are a build-time concern: they must not flow to a consumer's own consumers. -->
     <DevelopmentDependency>true</DevelopmentDependency>
