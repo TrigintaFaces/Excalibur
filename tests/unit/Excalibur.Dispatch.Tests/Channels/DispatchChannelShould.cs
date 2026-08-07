@@ -126,11 +126,21 @@ public sealed class DispatchChannelShould : IDisposable
 		await channel.Writer.WriteAsync(2, _cts.Token).ConfigureAwait(false);
 		await channel.Writer.WriteAsync(3, _cts.Token).ConfigureAwait(false);
 
-		// Next write should block (channel is full with capacity 3). The token is only a hang-guard:
-		// the read below deterministically frees a slot, so the write completes. Use a very generous
-		// timeout so thread-pool starvation under heavy CI parallelism cannot cancel it prematurely.
-		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-		var writeTask = channel.Writer.WriteAsync(4, timeoutCts.Token).AsTask();
+		// Next write should block (channel is full with capacity 3). The read below deterministically
+		// frees a slot, so the write completes -- there is nothing here for a per-test deadline to
+		// protect against.
+		//
+		// It carried a 60-second hang-guard, raised to 60 precisely because starvation had cancelled
+		// it before, and it was STILL cancelled: the write had not resumed 60 seconds after a slot was
+		// freed, on the Windows leg that runs 64 test assemblies in one job while Linux spreads the
+		// same set across six shards. Raising it again would only move the number.
+		//
+		// The guard is also redundant. The harness already passes --blame-hang-timeout and a session
+		// timeout, so a write that genuinely never completes is caught there -- and caught far better,
+		// with a hang dump naming what was stuck, instead of an OperationCanceledException that says
+		// only that a stopwatch expired. Deleting the inner deadline turns a starved-but-correct run
+		// back into a pass and leaves a real hang detectable by the mechanism built for it.
+		var writeTask = channel.Writer.WriteAsync(4, _cts.Token).AsTask();
 
 		// Assert - The write should not complete immediately (backpressure)
 		var completedTask = await Task.WhenAny(writeTask, Task.Delay(200, _cts.Token)).ConfigureAwait(false);
