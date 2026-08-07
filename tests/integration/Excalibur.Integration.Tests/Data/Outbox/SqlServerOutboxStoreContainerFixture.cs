@@ -61,7 +61,7 @@ public sealed class SqlServerOutboxStoreContainerFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+			.WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
 			.WithName($"mssql-outboxstore-test-{Guid.NewGuid():N}")
 			.WithPassword("Test@Pass123")
 			.WithCleanUp(true)

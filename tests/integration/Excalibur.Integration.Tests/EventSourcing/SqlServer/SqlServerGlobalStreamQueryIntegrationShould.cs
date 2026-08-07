@@ -44,7 +44,7 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
         try
         {
             _container = new MsSqlBuilder()
-                .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+                .WithImage("mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04")
                 .Build();
 
             await _container.StartAsync().ConfigureAwait(false);

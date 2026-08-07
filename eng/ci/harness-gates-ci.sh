@@ -103,6 +103,14 @@ run "gate-wiring meta-gate" bash eng/ci/gate-wiring.sh
 run "wallclock-deadline-sweep self-test" python3 eng/ci/wallclock-deadline-sweep.py --self-test
 run "wallclock-deadline-sweep (real tree)" python3 eng/ci/wallclock-deadline-sweep.py --gate
 
+# ── 1c. CONTAINER IMAGE PINNING. A :latest tag, or no tag, means the image can change completely
+#       between two runs of the SAME commit -- and the resulting failure is indistinguishable from a
+#       flake, because nothing in the repository changed. Ratcheted rather than absolute: digests are
+#       the stronger pin but would ROT here, since dependabot's docker ecosystem reads Dockerfiles and
+#       compose files and cannot parse a C# string. The bar is a concrete tag.
+run "container-image-pinning self-test" python3 eng/ci/container-image-pinning-gate.py --self-test
+run "container-image-pinning (real tree)" python3 eng/ci/container-image-pinning-gate.py --gate
+
 # ── 3. Run the gate NON-VACUITY locks (authoritative in CI, not just pre-commit). All hermetic.
 for t in \
     "eng/ci/gate-wiring.test.sh" \
