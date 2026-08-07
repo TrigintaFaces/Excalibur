@@ -90,6 +90,29 @@ jobs:
             --workflow .github/workflows/ci.yml \
             --job unit-tests \
             --artifact-prefix code-coverage-unit-
+      # The set MEASURED must equal the set ENFORCED, and it did not. The download pattern above is
+      # code-coverage-unit-*, which also matches code-coverage-unit-async-risk-*: the two async-risk
+      # shards contribute roughly a quarter of the coverage data. The check above reads its expected
+      # set from ci.yml's unit-tests matrix, so those two shards were INVISIBLE to it -- their reports
+      # were counted in the percentage but never required to exist.
+      #
+      # That is a hole in the direction this gate exists to close. The async-risk tier is
+      # continue-on-error before a merge lands, so one tolerated failure removed its slice and the
+      # completeness check still reported PASS; the floor below then enforced a number computed from
+      # partial data. Nothing in the run said so, and re-baselining against such a run would bake the
+      # loss in permanently.
+      #
+      # Their upload is now unconditional, so this should not trigger. That is the point: it is the
+      # arm that fails distinctly (exit 3, INCOMPLETE) if it ever does, rather than letting a missing
+      # quarter of the measurement arrive as a coverage regression.
+      - name: Verify every async-risk shard reported
+        shell: bash
+        run: |
+          bash eng/ci/coverage-shard-reports-complete.sh \
+            --coverage-root cov \
+            --workflow .github/workflows/ci.yml \
+            --job unit-tests-async-risk \
+            --artifact-prefix code-coverage-unit-async-risk-
       - name: Measure coverage threshold (report-only)
         id: coverage_threshold
         shell: pwsh

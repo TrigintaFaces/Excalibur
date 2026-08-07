@@ -523,6 +523,12 @@ jobs:
           retention-days: 30
 
       - name: Upload code coverage
+        # Coverage from a shard whose tests failed is still valid coverage, and the aggregation's
+        # floor is BLOCKING. Without always(), a red shard silently withdraws its slice of the
+        # measurement and the enforced number is computed from whatever survived -- which reads as a
+        # coverage regression rather than as the test failure it actually is. Its sibling step above
+        # already uploads results unconditionally, for the same reason.
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
@@ -573,6 +579,12 @@ jobs:
           retention-days: 30
 
       - name: Upload code coverage
+        # This tier is continue-on-error before a merge lands, so its failures are tolerated BY
+        # DESIGN -- and without always() a tolerated failure also deleted this shard's coverage. The
+        # aggregation downloads code-coverage-unit-* , which matches these artifacts too, so the two
+        # async-risk shards carry roughly a quarter of the data behind a blocking floor. A tolerated
+        # failure must not be able to move a number that blocks.
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}

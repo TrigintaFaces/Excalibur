@@ -205,6 +205,22 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
+		await StopCoreAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// The stop sequence, without the disposed guard.
+	/// </summary>
+	/// <remarks>
+	/// Disposal must run this as well, and it runs it after marking the instance disposed, so it
+	/// cannot go through the public method: that method's first act is to reject a disposed instance,
+	/// and disposal's own catch was swallowing the rejection. The renewal loop was then never
+	/// cancelled and never awaited, so it kept renewing the lock — and holding its connection — for
+	/// the life of the process. Keeping the guard on the public entry point and the work in here
+	/// means disposal cannot be refused by the guard that exists to protect callers from it.
+	/// </remarks>
+	private async Task StopCoreAsync(CancellationToken cancellationToken)
+	{
 		bool wasLeader;
 
 		lock (_lock)
@@ -275,7 +291,7 @@ public sealed partial class PostgresLeaderElection : ILeaderElection, IAsyncDisp
 		{
 			try
 			{
-				await StopAsync(CancellationToken.None).ConfigureAwait(false);
+				await StopCoreAsync(CancellationToken.None).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
