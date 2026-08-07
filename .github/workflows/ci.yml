@@ -774,9 +774,43 @@ jobs:
 
   # ── Integration tests -- self-contained build, Docker pre-flight, -m:1 ──
   integration-tests:
-    name: Integration Tests
+    name: Integration Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    needs: unit-tests
+    # Split because this was the longest job in the workflow at ~37 minutes and, once the false
+    # ordering around it was removed, it WAS the critical path.
+    #
+    # The boundary is measured, not guessed. Per-assembly time from a real run's trx:
+    #   Excalibur.Integration.Tests      19.8 min  (1577 tests)
+    #   Excalibur.Dispatch.Integration   14.2 min  ( 945 tests)
+    #   Inbox.Oracle + Outbox.Oracle      0.6 min  ( 104 tests)
+    # which splits cleanly on project boundaries at 19.8 / 14.8 with no intra-assembly filtering.
+    #
+    # TWO is the right number, not a step toward more. functional-tests finishes around the 35-minute
+    # mark, so once this drops below ~26 minutes IT becomes the constraint and further splitting of
+    # this job buys nothing. Each additional shard also pays its own checkout, build and container
+    # startup. Split further only after the unit/functional legs move.
+    #
+    # fail-fast is off: these are independent suites, and cancelling one because the other failed
+    # would destroy exactly the diagnostic signal a red run needs.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          # probe: a test project that is a member of THIS shard, for the collector check below.
+          - name: excalibur
+            filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
+            probe: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
+          - name: dispatch
+            filter: eng/ci/shards/IntegrationTests-Dispatch.slnf
+            probe: tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj
+    # Gated on smoke rather than on the unit shards, which is what put this job -- the longest in the
+    # workflow at ~37 minutes -- at the 28-minute mark and everything downstream behind it.
+    #
+    # It never consumed anything the unit shards produce: no artifact download, no `needs` output.
+    # The edge was fail-fast economics, and that argument is weak here. Actions minutes are free on
+    # standard runners in a public repository, measured queue time is zero, so job-minutes are not
+    # the scarce resource -- wall clock is. Smoke tests still gate gross breakage at ~7 minutes.
+    needs: smoke-tests
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     timeout-minutes: 60
     steps:
@@ -788,7 +822,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
-          solution-filter: eng/ci/shards/IntegrationTests.slnf
+          solution-filter: ${{ matrix.shard.filter }}
 
       - name: Integration preflight diagnostics
         shell: pwsh
@@ -820,7 +854,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dotnet list tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj package --include-transitive | tee integration-packages.log
+          dotnet list "${{ matrix.shard.probe }}" package --include-transitive | tee integration-packages.log
           if ! grep -qi "coverlet\\.collector" integration-packages.log; then
             echo "::error::coverlet.collector package is unavailable for integration tests (XPlat Code Coverage collector)."
             exit 1
@@ -871,7 +905,7 @@ jobs:
           # failure that matters on this path, which is a Cosmos class drifting back onto the PR shard
           # and quietly costing every run ten minutes of container startup.
           bash eng/ci/cosmos-census.sh \
-            eng/ci/shards/IntegrationTests.slnf \
+            ${{ matrix.shard.filter }} \
             "${{ env.INTEGRATION_TEST_FILTER }}" \
             "$GITHUB_ENV" \
             out
@@ -891,7 +925,7 @@ jobs:
         run: |
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ env.INTEGRATION_TEST_FILTER }}" -- \
-            eng/ci/shards/IntegrationTests.slnf \
+            ${{ matrix.shard.filter }} \
             -m:1 \
             --configuration Release \
             --no-build \
@@ -1118,7 +1152,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: test-results-integration
+          name: test-results-integration-${{ matrix.shard.name }}
           path: TestResults/*.trx
           retention-days: 30
 
@@ -1126,7 +1160,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: code-coverage-integration
+          name: code-coverage-integration-${{ matrix.shard.name }}
           path: TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
           retention-days: 30
@@ -1135,7 +1169,11 @@ jobs:
   functional-tests:
     name: Functional Tests
     runs-on: ubuntu-latest
-    needs: integration-tests
+    # Was gated on integration-tests, which it neither reads an artifact from nor an output of. The
+    # cost was not only the wait: on `main`, where these are blocking, a failed integration run
+    # SKIPPED this suite entirely, so a run that most needed diagnosis produced no functional result
+    # at all. Running them alongside each other returns that signal.
+    needs: unit-tests
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     timeout-minutes: 30
     steps:
@@ -1191,7 +1229,9 @@ jobs:
   contract-tests:
     name: Contract Tests
     runs-on: ubuntu-latest
-    needs: integration-tests
+    # Independent of integration-tests: no artifact of theirs is read and no output consumed.
+    # Gating on it only delayed this suite and, on a failed integration run, skipped it.
+    needs: unit-tests
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -1237,7 +1277,9 @@ jobs:
   architecture-tests:
     name: Architecture Tests
     runs-on: ubuntu-latest
-    needs: integration-tests
+    # Independent of integration-tests: no artifact of theirs is read and no output consumed.
+    # Gating on it only delayed this suite and, on a failed integration run, skipped it.
+    needs: unit-tests
     timeout-minutes: 15
     steps:
       - name: Checkout code

@@ -210,6 +210,18 @@ jobs:
       - name: orphan-test-project-gate
         run: bash eng/ci/orphan-test-project-gate.sh
 
+      # Its own arms first: a gate nobody can see fail is not evidence.
+      - name: integration-shard-partition-gate self-test (non-vacuity)
+        run: bash eng/ci/integration-shard-partition-gate.sh --self-test
+
+      # BLOCKING — the gate above proves a project is a MEMBER of the integration filter; this proves it is
+      # also EXECUTED. The integration suite runs as shards, and a project added to the parent filter but to
+      # no shard passes the orphan gate, compiles in nightly, and still runs nowhere on a pull request while
+      # the suite reports green. Also catches the reverse (in a shard, unknown to the parent) and a project
+      # in two shards, which runs twice and counts its coverage twice in the combined number.
+      - name: integration-shard-partition-gate
+        run: bash eng/ci/integration-shard-partition-gate.sh
+
       # BLOCKING — a declared SQL predicate fragment that the SQL string never interpolates or concatenates
       # is a filter the query silently ignores (a dead WHERE clause). Pure git/grep over src/**/*.cs; passes
       # clean on committed content today.
