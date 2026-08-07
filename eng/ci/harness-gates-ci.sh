@@ -94,6 +94,15 @@ fi
 #       section 3) plants an unwired fixture gate and asserts this detector rejects it.
 run "gate-wiring meta-gate" bash eng/ci/gate-wiring.sh
 
+# ── 1b. WALL-CLOCK NESTED DEADLINES. Python, so it cannot live in the bash-only loop below.
+#       Blocks on ONE shape: an inner deadline shorter than a wait in the same method, which cannot
+#       be correct -- the deadline can stop that wait from ever completing, and the test then fails
+#       reporting a stopwatch rather than a defect. Two of those shipped red mains on 2026-08-07.
+#       Short and long deadlines are reported and NOT enforced: they are unreviewed candidates, and
+#       blocking on those would make this a gate people route around.
+run "wallclock-deadline-sweep self-test" python3 eng/ci/wallclock-deadline-sweep.py --self-test
+run "wallclock-deadline-sweep (real tree)" python3 eng/ci/wallclock-deadline-sweep.py --gate
+
 # ── 3. Run the gate NON-VACUITY locks (authoritative in CI, not just pre-commit). All hermetic.
 for t in \
     "eng/ci/gate-wiring.test.sh" \
