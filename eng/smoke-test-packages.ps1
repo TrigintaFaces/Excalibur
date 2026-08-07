@@ -47,6 +47,12 @@ $Script:PackagesDir = Join-Path $Script:TempDir 'packages'
 $Script:ConsumerDir = Join-Path $Script:TempDir 'consumer'
 $Script:SmokeTestVersion = "99.0.0-smoketest"  # Use prerelease version for all packages
 
+# Set by the SURFACE phase; read by the coverage ratchet. Initialised here because StrictMode makes
+# reading an unassigned variable a terminating error, and the ratchet must still be able to report
+# when the surface phase threw before reaching its assignment.
+$Script:SurfaceReferenced = @()
+$Script:SurfaceTools = @()
+
 # Dispatch packages to test (core packages, not Excalibur)
 # Note: Only include packages that are properly configured for packing
 # Other packages (Excalibur.Dispatch.Patterns.*, etc.) have packaging issues that
@@ -156,6 +162,41 @@ function Invoke-PackPhase {
 
         $packedCount++
         Write-Success "Packed $packageName"
+    }
+
+    # ------------------------------------------------------------------------------------------
+    # THE WHOLE SHIPPING SURFACE, packed in one command.
+    #
+    # The loop above packs four named packages, and the comment justifying that said the rest "have
+    # packaging issues that should be fixed separately". Measured 2026-08-07: that is stale. The
+    # shipping filter packs COMPLETELY -- 195 of 195, zero errors, in 54 seconds, which is faster
+    # than the four-package loop it sits beside.
+    #
+    # The four-package loop is deliberately kept rather than replaced. It feeds the isolation
+    # consumer, whose deps.json assertion is that Excalibur.Dispatch does NOT drag in Excalibur.*,
+    # and that assertion only means something while the consumer references the Dispatch core ALONE.
+    # Widening that consumer to the whole surface would raise the coverage number by destroying the
+    # architectural guard underneath it. Two consumers, two questions.
+    Write-Info "Packing the whole shipping surface..."
+    $shippingFilter = Join-Path $Script:RepoRoot 'eng/ci/shards/ShippingOnly.slnf'
+    if (Test-Path $shippingFilter) {
+        $surfaceResult = & dotnet pack $shippingFilter `
+            --configuration Release `
+            --output $Script:PackagesDir `
+            --verbosity quiet `
+            "-p:MinVerVersionOverride=$Script:SmokeTestVersion" `
+            "-p:ContinuousIntegrationBuild=false" `
+            2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Failure "Failed to pack the shipping surface"
+            Write-Host $surfaceResult
+            throw "Pack failed for $shippingFilter"
+        }
+        Write-Success "Packed the shipping surface"
+    }
+    else {
+        throw "Shipping filter not found at $shippingFilter -- the surface set is unknowable, and an unmeasured surface is not a covered one."
     }
 
     # List created packages
@@ -300,10 +341,30 @@ Environment.Exit(0);
 function Invoke-ValidationPhase {
     Write-StepHeader "VALIDATE" "Building and running consumer application"
 
+    # A FRESH PACKAGE CACHE, because the smoke version never changes.
+    #
+    # Every run packs 99.0.0-smoketest, and NuGet caches by id AND version -- so once a copy of that
+    # version is in the global cache, every later run resolves the CACHED bytes and never contacts
+    # the feed the test just built. The test then validates whatever was packed the first time it
+    # ever ran.
+    #
+    # Not hypothetical. Found 2026-08-07: the global cache held four 99.0.0-smoketest packages, one
+    # of them named excalibur.dispatch.compliance.abstractions -- an id from before a rename. Locally
+    # that surfaced as CS0246 on types the current assembly plainly has, because the assembly being
+    # compiled against was months old. It passed in CI only because a fresh runner has no cache.
+    #
+    # The failure direction that matters is the other one: a stale copy that still compiles would
+    # report a PASS about bytes nobody built. Redirecting the cache makes the run measure what it
+    # packed, and the emptiness check below is the positive control that it did.
+    $cacheDir = Join-Path $Script:TempDir 'consumer-cache'
+    if (Test-Path $cacheDir) { Remove-Item -Path $cacheDir -Recurse -Force }
+    $previousCache = $env:NUGET_PACKAGES
+    $env:NUGET_PACKAGES = $cacheDir
+
     Push-Location $Script:ConsumerDir
     try {
         # Restore packages from local feed
-        Write-Info "Restoring packages from local feed..."
+        Write-Info "Restoring packages from local feed (fresh cache)..."
         $restoreResult = & dotnet restore --verbosity quiet 2>&1
 
         if ($LASTEXITCODE -ne 0) {
@@ -311,7 +372,11 @@ function Invoke-ValidationPhase {
             Write-Host $restoreResult
             throw "Restore failed with exit code $LASTEXITCODE"
         }
-        Write-Success "Packages restored successfully"
+        $restoredCount = @(Get-ChildItem -Path $cacheDir -Directory -ErrorAction SilentlyContinue).Count
+        if ($restoredCount -eq 0) {
+            throw "Restore reported success but the fresh cache is EMPTY, so nothing was resolved from the feed. A restore that left no trace did not happen."
+        }
+        Write-Success "Packages restored successfully ($restoredCount into a fresh cache)"
 
         # Build consumer app
         Write-Info "Building consumer application..."
@@ -356,7 +421,152 @@ function Invoke-ValidationPhase {
     }
     finally {
         Pop-Location
+        $env:NUGET_PACKAGES = $previousCache
     }
+}
+
+# ============================================================================
+# Phase 3b: The whole shipping surface, consumed from the feed
+# ============================================================================
+
+<#
+.SYNOPSIS
+    Proves every shipping package can actually be consumed, not merely produced.
+
+.DESCRIPTION
+    The isolation consumer answers "does Dispatch stay free of Excalibur". This answers a different
+    question the suite never asked: can a consumer REFERENCE what we ship and compile against it.
+
+    Producing a .nupkg proves almost nothing about that. A package can pack cleanly and still be
+    unusable -- a dependency group naming a version that does not exist, a target framework nothing
+    can consume, a missing lib/ folder. None of that is visible at pack time and all of it is fatal
+    on the consumer's first restore, which is the worst place to discover it.
+
+    dotnet tool packages are excluded, by package type rather than by name. A DotnetTool is installed
+    with `dotnet tool install`, and NuGet refuses it as a PackageReference (NU1212) -- correctly. It
+    is excluded because it is a different KIND of artifact, not because it is inconvenient.
+
+    THE EMPTY CACHE IS THE POSITIVE CONTROL. With a warm cache a restore can succeed having never
+    contacted the feed, so it would pass over a feed serving nothing. NUGET_PACKAGES is redirected to
+    a fresh directory and the run fails if that directory is still empty afterwards: resolution that
+    left no trace did not happen.
+
+    Source mapping pins Excalibur.* to the local feed and everything else to nuget.org. Without it a
+    published package of the same name could satisfy the restore and the test would prove nothing
+    about the bytes just built. Third-party dependencies come from nuget.org because that is where a
+    real consumer gets them.
+#>
+function Invoke-SurfacePhase {
+    Write-StepHeader "SURFACE" "Consuming every shipping package from the local feed"
+
+    $surfaceDir = Join-Path $Script:TempDir 'surface'
+    $cacheDir = Join-Path $Script:TempDir 'surface-cache'
+    New-Item -ItemType Directory -Path $surfaceDir -Force | Out-Null
+
+    # Package id + version off the filename, with tool packages filtered out by nuspec package type.
+    $referenced = @()
+    $tools = @()
+    foreach ($pkg in Get-ChildItem -Path $Script:PackagesDir -Filter '*.nupkg') {
+        if ($pkg.Name -notmatch '^(.*?)\.(\d+\.\d+\.\d+.*)\.nupkg$') { continue }
+        $id = $Matches[1]
+        $version = $Matches[2]
+
+        $isTool = $false
+        try {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+            try {
+                $nuspec = $zip.Entries | Where-Object { $_.FullName -like '*.nuspec' } | Select-Object -First 1
+                if ($nuspec) {
+                    $reader = New-Object System.IO.StreamReader($nuspec.Open())
+                    try { $isTool = $reader.ReadToEnd() -match 'packageType\s+name="DotnetTool"' }
+                    finally { $reader.Dispose() }
+                }
+            }
+            finally { $zip.Dispose() }
+        }
+        catch {
+            throw "Could not read $($pkg.Name) to determine its package type. REFUSING rather than guessing: a package silently treated as unreferenceable is a coverage hole that reports as coverage."
+        }
+
+        if ($isTool) { $tools += $id } else { $referenced += [pscustomobject]@{ Id = $id; Version = $version } }
+    }
+
+    if ($referenced.Count -eq 0) {
+        throw "No referenceable packages found in the local feed -- nothing would be measured, and a run that measures nothing must not report a pass."
+    }
+
+    $refLines = ($referenced | Sort-Object Id | ForEach-Object {
+        "    <PackageReference Include=""$($_.Id)"" Version=""$($_.Version)"" />"
+    }) -join "`n"
+
+    # A consumer inherits nothing from this repository. Validating against our own build props would
+    # test the wrong thing: a consumer does not get our build.
+    Set-Content -Path (Join-Path $surfaceDir 'Directory.Build.props') -Value '<Project />' -Encoding UTF8
+    Set-Content -Path (Join-Path $surfaceDir 'Directory.Build.targets') -Value '<Project />' -Encoding UTF8
+    Set-Content -Path (Join-Path $surfaceDir 'Directory.Packages.props') `
+        -Value '<Project><PropertyGroup><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup></Project>' -Encoding UTF8
+
+    Set-Content -Path (Join-Path $surfaceDir 'Surface.csproj') -Encoding UTF8 -Value @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <NoWarn>`$(NoWarn);NU1701;NU1702;NU5104;CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+$refLines
+  </ItemGroup>
+</Project>
+"@
+
+    Set-Content -Path (Join-Path $surfaceDir 'nuget.config') -Encoding UTF8 -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="local" value="$Script:PackagesDir" />
+    <add key="nuget" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+  <packageSourceMapping>
+    <clear />
+    <packageSource key="local"><package pattern="Excalibur.*" /></packageSource>
+    <packageSource key="nuget"><package pattern="*" /></packageSource>
+  </packageSourceMapping>
+</configuration>
+"@
+
+    Write-Info "Referencing $($referenced.Count) shipping package(s); $($tools.Count) tool package(s) excluded by package type."
+
+    if (Test-Path $cacheDir) { Remove-Item -Path $cacheDir -Recurse -Force }
+    $previousCache = $env:NUGET_PACKAGES
+    $env:NUGET_PACKAGES = $cacheDir
+    Push-Location $surfaceDir
+    try {
+        $buildResult = & dotnet build --configuration Release --verbosity quiet --nologo 2>&1
+        $buildExit = $LASTEXITCODE
+
+        if ($buildExit -ne 0) {
+            Write-Failure "The shipping surface does not restore and compile from the feed"
+            Write-Host $buildResult
+            throw "Surface consumption failed with exit code $buildExit"
+        }
+
+        $restored = @(Get-ChildItem -Path $cacheDir -Directory -ErrorAction SilentlyContinue).Count
+        if ($restored -eq 0) {
+            throw "The build succeeded but the package cache is EMPTY, so nothing was resolved from the feed. A restore that left no trace did not happen, and this pass would be about nothing."
+        }
+
+        Write-Success "$($referenced.Count) package(s) restored from the feed and compiled together ($restored cache entries)"
+        # Published for the coverage ratchet below: what was REFERENCED AND COMPILED, so the number
+        # it reports is derived from the run rather than restated beside it.
+        $Script:SurfaceReferenced = @($referenced | ForEach-Object { $_.Id })
+        $Script:SurfaceTools = @($tools)
+    }
+    finally {
+        Pop-Location
+        $env:NUGET_PACKAGES = $previousCache
+    }
+
+    return $referenced.Count
 }
 
 # ============================================================================
@@ -408,6 +618,7 @@ try {
     $packedCount = Invoke-PackPhase
     Invoke-ConsumerPhase
     Invoke-ValidationPhase
+    $Script:SurfaceCovered = Invoke-SurfacePhase
 
     $Script:TestPassed = $true
 }
@@ -446,7 +657,15 @@ if (Test-Path $shippingFilter) {
     $shipping = ([regex]::Matches((Get-Content $shippingFilter -Raw), '"([^"]*\.csproj)"') |
         ForEach-Object { ($_.Groups[1].Value -split '[\\/]')[-1] -replace '\.csproj$', '' } |
         Sort-Object -Unique)
-    $covered   = @($Script:DispatchPackages)
+    # COVERED is now what the SURFACE phase actually referenced and compiled, not a hand-maintained
+    # list. That is the whole point of the change: the previous list was four names and a comment
+    # asserting the rest could not be packed, which measurement disproved -- the shipping filter
+    # packs completely.
+    #
+    # Derived from the feed rather than restated, so the number cannot drift from the thing it
+    # describes. If the surface phase did not run (an early throw), this falls back to the isolation
+    # list, which reports LESS coverage than was achieved -- the safe direction for a ratchet.
+    $covered = if ($Script:SurfaceReferenced.Count -gt 0) { @($Script:SurfaceReferenced) } else { @($Script:DispatchPackages) }
     $uncovered = @($shipping | Where-Object { $covered -notcontains $_ })
 
     # CONTROL on the ratchet's own inputs. The count above is only meaningful if the two lists are

@@ -19,7 +19,18 @@ public sealed class EventDrivenWaitPatternShould
 		var semaphore = new SemaphoreSlim(0, int.MaxValue);
 		var signalReceived = false;
 		var consumerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		// No deadline. The consumer below waits on this token, and the wait after it allows 30 seconds
+		// scaled -- 90 on CI -- for the consumer to become ready. A 5-second deadline here therefore
+		// cancelled the consumer while the test was still waiting for it, faulting consumerTask and
+		// failing on the final await. The inner deadline wins and the outer wait becomes decoration.
+		//
+		// The comment below already notes this test was made robust "to avoid flakiness under load" by
+		// replacing a Task.Delay. That fixed one source and left this one, which is the same defect
+		// wearing a different primitive.
+		//
+		// Nothing needs a deadline: semaphore.Release() frees the consumer deterministically, and the
+		// harness's --blame-hang-timeout catches a genuine hang with a dump that names what is stuck.
+		using var cts = new CancellationTokenSource();
 
 		// Act - consumer waits, producer signals
 		var consumerTask = Task.Run(async () =>
