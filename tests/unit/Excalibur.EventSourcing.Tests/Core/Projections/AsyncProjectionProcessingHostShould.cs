@@ -535,7 +535,11 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(fakeQuery);
 		var sp = _services.BuildServiceProvider();
 
-		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+		// No deadline on this token. It is handed to StartAsync, and a token that expires part-way
+		// through the wait below can only ever add a second failure mode to a test that already has
+		// its own bound. A genuine hang is caught by the harness's --blame-hang-timeout, with a dump
+		// naming what is stuck rather than a stopwatch expiring.
+		using var cts = new CancellationTokenSource();
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
 		{
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
@@ -544,12 +548,33 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Act
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 
-		// Poll until we see at least 2 apply calls (first throws, second succeeds)
-		// — avoids fragile fixed-delay timing on CI runners.
-		await WaitHelpers.WaitUntilAsync(
+		// Wait GENEROUSLY, because the bound costs nothing when the test passes.
+		//
+		// WaitUntilAsync returns the moment the condition holds, so on a healthy run this returns in
+		// milliseconds whether the bound is four seconds or forty. The bound is therefore a
+		// failure-detection timeout, not a performance assertion, and sizing it tightly buys nothing
+		// while making the test fail on a loaded agent.
+		//
+		// It failed on CI at the previous bound: one apply seen instead of two. The host's fault path
+		// waits IdlePollingInterval -- 50ms here -- before re-reading, so the retry is milliseconds
+		// away, and missing it for twelve seconds means the loop's continuation was never scheduled.
+		// That is thread-pool starvation on a busy agent, not the behaviour under test.
+		//
+		// The RESULT IS NOW CHECKED, which it was not. A timed-out wait used to fall through to the
+		// assertion below, so starvation was reported as "saw 1 apply" -- a statement about the host,
+		// blamed on the host, when the test had simply stopped waiting. The two failures need
+		// different fixes and must not read alike.
+		var sawRetry = await WaitHelpers.WaitUntilAsync(
 			() => Volatile.Read(ref applyCallCount) >= 2,
-			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
+			TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
 			TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+
+		sawRetry.ShouldBeTrue(
+			$"the retry never arrived within the wait; applyCallCount was {Volatile.Read(ref applyCallCount)}. "
+			+ "The host re-reads IdlePollingInterval (50ms) after an apply fault, so on a healthy agent "
+			+ "the second apply is milliseconds away. Waiting this long and seeing nothing means either "
+			+ "the loop stopped after the fault -- the defect this test exists to catch -- or the agent "
+			+ "never scheduled its continuation.");
 
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
