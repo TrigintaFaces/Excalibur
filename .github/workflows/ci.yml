@@ -949,6 +949,30 @@ jobs:
           CENSUS_EXIT=$?
           if [ "$CENSUS_EXIT" -ne 0 ]; then exit "$CENSUS_EXIT"; fi
 
+      # Download the shard's images BEFORE any fixture is on the clock.
+      #
+      # Container fixtures run under a total initialization budget that is deliberately tight: it
+      # sits below the shortest --blame-hang-timeout so a slow container throws a NAMED error while
+      # the host is still alive, instead of the host being killed and its unrun tests vanishing from
+      # the results entirely. That trade is correct and is not being touched here.
+      #
+      # What is wrong is what the budget gets spent ON. This runner is ephemeral, so the Docker cache
+      # is cold every time and the SQL Server image alone is over a gigabyte -- so the DOWNLOAD
+      # happens inside the budget, and a slow registry can consume all 240s before the container is
+      # even asked to start. Measured 2026-08-08: twelve tests failed across SQL Server and Cosmos
+      # fixtures, every one of them that same budget-exhausted message, on a run with nothing else
+      # wrong. The image tag had been unchanged and green on the run before it.
+      #
+      # Pulling first, and CONCURRENTLY, makes the wall clock the slowest single image rather than
+      # the sum of them -- fixtures pull one at a time. The budget then covers startup, which is what
+      # it was sized for. No timeout changes and no race re-opens.
+      #
+      # A failed pull WARNS and does not fail the job: the fixture would then pull it later exactly
+      # as it does today, so the run is no worse off than before this step existed. This is a
+      # warm-up, and a warm-up that can break a build has invented a new way to fail.
+      - name: Pre-pull container images
+        run: python3 eng/ci/prepull-test-images.py --filter "${{ matrix.shard.filter }}"
+
       - name: Run Integration Tests
         id: run-integration
         # No step-level continue-on-error. The JOB already declares
