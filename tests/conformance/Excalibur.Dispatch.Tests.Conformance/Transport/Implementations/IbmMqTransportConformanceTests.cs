@@ -169,7 +169,7 @@ public sealed class IbmMqContainerFixture : IAsyncLifetime
         try
         {
             _container = new ContainerBuilder()
-                .WithImage("icr.io/ibm-messaging/mq:latest")
+                .WithImage("icr.io/ibm-messaging/mq:10.0.0.0-r3")
                 .WithPortBinding(1414, assignRandomHostPort: true)
                 .WithEnvironment("LICENSE", "accept")
                 .WithEnvironment("MQ_QMGR_NAME", QueueManagerName)

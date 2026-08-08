@@ -41,7 +41,7 @@ public class AzuriteContainerFixture : ContainerFixtureBase
 		// It relaxes only the version GATE, not blob semantics, so conditional writes and ETag
 		// behaviour remain enforced.
 		_container = new AzuriteBuilder()
-			.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+			.WithImage("mcr.microsoft.com/azure-storage/azurite:3.36.0")
 			.WithName($"azurite-compliance-test-{Guid.NewGuid():N}")
 			.WithCommand("--skipApiVersionCheck")
 			.WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(10000))

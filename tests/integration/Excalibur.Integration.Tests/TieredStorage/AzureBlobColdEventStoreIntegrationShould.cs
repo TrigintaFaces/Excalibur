@@ -51,7 +51,7 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 			// It relaxes only the version GATE, not blob semantics -- conditional writes and ETag
 			// behaviour remain enforced -- so the arms below still test what they claim to test.
 			_container = new AzuriteBuilder()
-				.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+				.WithImage("mcr.microsoft.com/azure-storage/azurite:3.36.0")
 				.WithCommand("--skipApiVersionCheck")
 				.Build();
 

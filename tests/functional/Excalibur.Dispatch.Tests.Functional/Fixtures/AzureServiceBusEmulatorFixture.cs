@@ -21,7 +21,7 @@ public sealed class AzureServiceBusEmulatorFixture : ContainerFixtureBase
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new ContainerBuilder()
-			.WithImage("mcr.microsoft.com/azure-service-bus/emulator")
+			.WithImage("mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1")
 			.WithName($"asb-emulator-{Guid.NewGuid():N}")
 			.WithPortBinding(5672, true)
 			.WithWaitStrategy(DotNet.Testcontainers.Builders.Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))

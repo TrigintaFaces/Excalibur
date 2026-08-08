@@ -62,7 +62,7 @@ public sealed class AzureBlobColdEventStoreLostUpdateShould : IAsyncLifetime
 			// property this lock actually exercises, are still enforced by Azurite. Skipping the check is
 			// therefore sound here; skipping the TEST would not be.
 			_container = new AzuriteBuilder()
-				.WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+				.WithImage("mcr.microsoft.com/azure-storage/azurite:3.36.0")
 				.WithCommand("--skipApiVersionCheck")
 				.Build();
 			await _container.StartAsync().ConfigureAwait(false);
