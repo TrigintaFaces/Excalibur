@@ -669,6 +669,43 @@ jobs:
           results-prefix: unit-tests-windows-deterministic
           test-session-timeout: '1500000'
 
+      # An assembly can VANISH from this leg without a failing assertion anywhere.
+      #
+      # Measured 2026-08-07: Excalibur.Tests.dll started, hit a runner-level catastrophic failure,
+      # produced no pass/fail line, and its 441 tests did not run. Every assembly that DID report was
+      # green, so the job's only signal was a bare "exit code 1" with nothing indicating something was
+      # missing. Finding it meant hand-parsing the console log for starts without finishes.
+      #
+      # The cause is upstream and not fixable here (xunit/xunit#3576): the runner probes each assembly
+      # with -assemblyInfo and expects one JSON object on stdout, while a queued task writes
+      # "Waiting 10 seconds for foreground threads to exit..." after a one-second delay. If the probe
+      # takes longer than that second, the message lands inside the JSON and parsing dies. We are on
+      # the latest stable and no release carries the fix, so this WILL recur -- and it is likelier
+      # here than anywhere else, because this leg runs 64 test projects in one job while Linux spreads
+      # the same set across six shards, which is exactly what makes a probe slow.
+      #
+      # What is being closed is NOT the upstream bug. It is that losing a whole assembly on this leg
+      # was diagnosable only by hand. The Linux shards already have this check -- they feed
+      # unit-shard-aggregation, which runs this same script. This leg fed nothing.
+      - name: Verify every expected assembly reported
+        if: always()
+        shell: pwsh
+        run: |
+          $det = Get-Content eng/ci/shards/UnitTests-Deterministic.slnf -Raw | ConvertFrom-Json
+          $expected = @($det.solution.projects |
+            Where-Object { $_ -like 'tests\unit\*' } |
+            ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) + '.dll' } |
+            Sort-Object -Unique)
+          Write-Host "Enforcing $($expected.Count) deterministic-tier assemblies on this leg."
+          # Same non-vacuity floor as the aggregation job: if the derivation ever yields far fewer
+          # than the tier really holds, REFUSE rather than pass a shrunken set.
+          ./eng/ci/validate-shard-results.ps1 `
+            -TrxDir TestResults `
+            -ExpectedAssemblies $expected `
+            -Enforce $true `
+            -MinExpectedAssemblies 40 `
+            -OutDir management/reports/WindowsShardAggregation
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
