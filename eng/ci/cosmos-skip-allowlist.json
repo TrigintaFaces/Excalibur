@@ -24,16 +24,6 @@
   ],
   "entries": [
     {
-      "test": "Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing.CosmosDbEventStoreTelemetryShould",
-      "id": "cosmos-telemetry-linux-ci-selfskip",
-      "match": "class",
-      "count": 14,
-      "reason": "The class self-skips on any Linux CI runner (Assert.SkipWhen on isLinuxRunner && isCi). The guard's stated justification is 'unstable on Linux CI runners'.",
-      "evidence": "NOT YET MEASURED ON THE PLATFORM IT GUARDS. Every observation held is from a Windows developer box (RUNNER_OS unset, CI unset); the suite passes there 14/14 in 68-294ms. The instability claim has never been reproduced on a Linux CI runner, so this entry records an UNVERIFIED premise, deliberately, rather than presenting it as established.",
-      "owner": "TestsDeveloper",
-      "expires": "2026-09-15"
-    },
-    {
       "test": "Excalibur.Dispatch.Integration.Tests.Compliance.Azure.AzureKeyVaultProviderIntegrationShould",
       "id": "azure-keyvault-no-emulator-uri-unset",
       "match": "class",
