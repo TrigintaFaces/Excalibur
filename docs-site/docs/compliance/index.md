@@ -235,6 +235,33 @@ Automated scripts for collecting compliance evidence from CI/CD pipelines:
 - **Audit Logs:** Sample templates (anonymized)
 - **Requirements Traceability:** RTM validation results
 
+### What the Manifest Asserts
+
+`MANIFEST.json` states only what the package can substantiate. Its control figures are counted from the
+files collected into that package; they are not fixed totals, and a package that collected nothing
+reports zero controls documented.
+
+- **`ControlsDocumented`** counts in-scope controls whose every mapped evidence category has at least one
+  collected file. Expect it to be well below `ControlsInScope`: many controls are satisfied by
+  documentation, configuration or a business process that no pipeline produces, and those are mapped so
+  they can never be counted from a download. A shortfall here is not a finding against you — it tells you
+  which controls you evidence by other means.
+- **`ControlsDocumentedIds`** names them, so the count can be checked rather than taken on trust.
+- **`ControlCoverage.Source`** names the file the control identifiers and their evidence categories are
+  read from. Editing that file changes the reported figures.
+- **`ManifestStatus` and `RefusalReasons`** — read these before submitting a package. `REFUSED` means at
+  least one figure could not be derived (typically a missing evidence directory), and the collector exits
+  with status `2`. A category the collector could not measure is `null`, never `0`: "we found none" and
+  "we never looked" are different facts.
+
+Placeholder templates the script writes for you (`*.template.json`) are excluded from every count, so a
+blank form never counts as evidence.
+
+:::note PowerShell collector
+`collect-evidence.ps1` still emits fixed control totals rather than derived ones. Prefer
+`collect-evidence.sh` for any package you intend to hand to an auditor.
+:::
+
 ## Certification Roadmap
 
 Typical timelines for achieving compliance certification:

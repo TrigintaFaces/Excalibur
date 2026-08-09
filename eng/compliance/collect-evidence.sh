@@ -12,6 +12,21 @@
 #
 # Evidence is organized by compliance framework (FedRAMP, GDPR, SOC 2, HIPAA).
 #
+# WHAT THE MANIFEST MAY ASSERT
+#
+#   Every compliance figure in MANIFEST.json is DERIVED from the evidence actually collected into the
+#   package, or it is not emitted. There are no coverage constants in the manifest template. A run that
+#   downloads nothing reports zero controls documented, because the number is computed from the files
+#   present — not from a literal that no input can change.
+#
+#   Control identifiers and their evidence categories come from control-evidence-map.tsv, next to this
+#   script; the manifest names that file as its source so a reader can check the arithmetic. Controls
+#   whose evidence is documentation or a business process rather than a pipeline artifact are mapped
+#   `none` and never count as documented, however full the package is.
+#
+#   A missing evidence directory is REFUSED, not reported as zero. "The directory is not there" and
+#   "the directory is empty" are different facts, and only one of them is a measurement.
+#
 # Usage:
 #   ./collect-evidence.sh [OPTIONS]
 #
@@ -33,8 +48,33 @@
 #   - GitHub CLI (gh) installed and authenticated: gh auth login
 #   - jq for JSON processing: apt-get install jq (or brew install jq)
 #
+# Exit codes (three states — a REFUSE is not a pass):
+#   0  evidence collected and every reported figure was derived
+#   1  error (missing prerequisite, no successful workflow run)
+#   2  REFUSE — the package was written, but at least one figure could not be derived (a missing
+#      evidence directory, a missing or malformed control map, an unknown framework). The manifest
+#      says so in ManifestStatus/RefusalReasons rather than printing a number nobody measured.
+#
 
 set -euo pipefail
+
+# Location of the control map (source of truth for control identifiers and their evidence categories).
+# Overridable so the self-test can point at a fixture map without touching the committed one.
+CONTROL_MAP="${CONTROL_EVIDENCE_MAP:-$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/control-evidence-map.tsv}"
+
+# The evidence categories that exist in a package. A category in the map outside this set is a typo or
+# a layout change, and scoring its control as "not met" would quietly under-report coverage while
+# looking like a measurement — so an unrecognised category REFUSES instead.
+EVIDENCE_CATEGORIES="test-results security-scans sbom audit-logs rtm"
+
+# Reasons the manifest could not derive something. Non-empty => exit 2.
+REFUSAL_REASONS=()
+
+# Coverage the manifest derived, as `framework<TAB>in_scope<TAB>documented` lines. The README is
+# rendered from this rather than from its own constants: two documents in one package that state
+# coverage independently will eventually state it differently, and a reader has no way to tell which
+# of them was computed.
+COVERAGE_SUMMARY=""
 
 # Colors
 RED='\033[0;31m'
@@ -224,7 +264,12 @@ export_audit_log_samples() {
     # NOTE: In production, this would connect to your IAuditStore implementation
     # For now, create a sample template showing the expected format
 
-    local sample_path="$output_path/audit-logs/sample-audit-logs.json"
+    # The `.template.json` suffix is load-bearing, not cosmetic. This file is a blank form the script
+    # writes on every run, including a run that downloaded no artifacts at all. Counting it as evidence
+    # would make an empty package report audit-log coverage — the manifest asserting a control on the
+    # strength of a document that contains no audit records. Everything the collector counts skips
+    # `*.template.json`, so a placeholder can never substantiate a control.
+    local sample_path="$output_path/audit-logs/sample-audit-logs.template.json"
 
     cat > "$sample_path" <<'EOF'
 {
@@ -274,23 +319,186 @@ EOF
     echo -e "${YELLOW}  NOTE: Replace with actual audit log queries in production${NC}"
 }
 
-# Generate evidence manifest
+# Record a reason the manifest could not derive a figure. A refusal is never fatal to writing the
+# package — the manifest states it — but it is always fatal to the exit code.
+refuse() {
+    REFUSAL_REASONS+=("$1")
+    echo -e "${YELLOW}⚠ REFUSE: $1${NC}" >&2
+}
+
+# count_evidence_files <package_root> <category>
+#
+# Prints the number of collected evidence files in the category, and returns 0. Returns 2 WITHOUT
+# printing when the category directory does not exist.
+#
+# The distinction is the whole point. The previous form was
+#     find "$dir" -type f 2>/dev/null | wc -l
+# which prints 0 for a directory that is absent exactly as it does for one that is empty, with find's
+# complaint discarded. So a package that had lost — or never created — its test-results directory
+# reported "0 test results" in the same characters as one that had genuinely collected none, and the
+# reader could not tell a measurement from a failure to measure.
+#
+# Placeholders (`*.template.json`) are blank forms this script writes on every run; they are not
+# evidence and are excluded here so an empty package cannot count one toward a control.
+count_evidence_files() {
+    local package_root=$1 category=$2
+    local dir="$package_root/$category"
+
+    [[ -d "$dir" ]] || return 2
+
+    find "$dir" -type f ! -name '*.template.json' 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+# read_control_map <framework>
+#
+# Prints the map rows for one framework as `ControlId<TAB>categories`, and returns 0. Returns 2 when
+# the map is unreadable or names no control for that framework — an empty control set would otherwise
+# score as "0 of 0 controls", which reads as a clean bill of health for a framework we never assessed.
+read_control_map() {
+    local framework=$1
+
+    [[ -r "$CONTROL_MAP" ]] || return 2
+
+    local rows
+    rows=$(awk -F'\t' -v fw="$framework" '
+        /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+        $1 == fw { print $2 "\t" $3 }
+    ' "$CONTROL_MAP")
+
+    [[ -n "$rows" ]] || return 2
+
+    printf '%s\n' "$rows"
+}
+
+# frameworks_requested — resolves the -f/--frameworks selection against the map.
+# "All" expands to every framework the map defines, so adding one to the map adds it here.
+frameworks_requested() {
+    if [[ "${FRAMEWORKS,,}" == "all" ]]; then
+        awk -F'\t' '!/^[[:space:]]*#/ && NF >= 3 && $1 != "" { print $1 }' "$CONTROL_MAP" 2>/dev/null | awk '!seen[$0]++'
+        return 0
+    fi
+    printf '%s\n' "${FRAMEWORKS//,/$'\n'}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true
+}
+
+# Generate evidence manifest — every compliance figure derived from the collected package.
 generate_evidence_manifest() {
     local output_path=$1
     local run_id=$2
 
     echo -e "${CYAN}Generating evidence manifest...${NC}"
 
+    # Reset the derived state, so a second call reports this package rather than this package plus
+    # whatever the last one refused.
+    REFUSAL_REASONS=()
+    COVERAGE_SUMMARY=""
+
     local manifest_path="$output_path/MANIFEST.json"
     local repo_name
-    repo_name=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "Unknown")
+    repo_name="${EVIDENCE_REPOSITORY:-$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "Unknown")}"
 
-    # Count files in each directory
-    local test_count security_count sbom_count audit_count
-    test_count=$(find "$output_path/test-results" -type f 2>/dev/null | wc -l)
-    security_count=$(find "$output_path/security-scans" -type f 2>/dev/null | wc -l)
-    sbom_count=$(find "$output_path/sbom" -type f 2>/dev/null | wc -l)
-    audit_count=$(find "$output_path/audit-logs" -type f 2>/dev/null | wc -l)
+    # ── Evidence counts, per category, refusing on an absent directory ─────────────────────────────
+    # COUNTS[category] is set only when the category was measurable; an unset entry means REFUSED, and
+    # every downstream consumer of it must treat "unset" as "unknown", never as zero.
+    declare -A COUNTS=()
+    local category count
+    local counts_json="" sep=""
+    for category in $EVIDENCE_CATEGORIES; do
+        if count=$(count_evidence_files "$output_path" "$category"); then
+            COUNTS["$category"]=$count
+            counts_json+="${sep}
+    \"$category\": $count"
+        else
+            refuse "evidence directory missing: $output_path/$category — cannot distinguish 'no evidence collected' from 'never looked'"
+            counts_json+="${sep}
+    \"$category\": null"
+        fi
+        sep=","
+    done
+
+    # ── Control coverage, per framework, derived from the map and the counts above ─────────────────
+    local frameworks_json="" fw_sep=""
+    local framework rows control categories cat in_scope documented documented_ids id_sep satisfied
+    local mapped_categories mapped_json
+
+    while IFS= read -r framework; do
+        [[ -n "$framework" ]] || continue
+
+        if ! rows=$(read_control_map "$framework"); then
+            refuse "no controls mapped for framework '$framework' in $CONTROL_MAP — cannot derive its coverage"
+            frameworks_json+="${fw_sep}
+    \"$framework\": {
+      \"Status\": \"REFUSED\",
+      \"Reason\": \"no controls for this framework in the control map; no coverage figure can be derived\"
+    }"
+            fw_sep=","
+            continue
+        fi
+
+        in_scope=0
+        documented=0
+        documented_ids=""
+        id_sep=""
+        mapped_categories=""
+
+        while IFS=$'\t' read -r control categories; do
+            [[ -n "$control" ]] || continue
+            in_scope=$((in_scope + 1))
+
+            # `none` — evidence lives outside the pipeline. Counted in scope, never documented.
+            [[ "$categories" == "none" ]] && continue
+
+            # ALL mapped categories must be present. A control needing a test result and a scan is
+            # not substantiated by whichever one happens to be there.
+            satisfied=1
+            for cat in ${categories//,/ }; do
+                case " $EVIDENCE_CATEGORIES " in
+                    *" $cat "*) ;;
+                    *)  refuse "control $framework/$control maps to unknown evidence category '$cat' — scoring it unmet would under-report coverage while looking measured"
+                        satisfied=0
+                        continue 2
+                        ;;
+                esac
+                mapped_categories+="$cat "
+                # An unset count is REFUSED, not zero: an unmeasurable category cannot satisfy anything.
+                if [[ -z "${COUNTS[$cat]:-}" ]] || [[ "${COUNTS[$cat]}" -eq 0 ]]; then
+                    satisfied=0
+                fi
+            done
+
+            if [[ $satisfied -eq 1 ]]; then
+                documented=$((documented + 1))
+                documented_ids+="${id_sep}\"$control\""
+                id_sep=", "
+            fi
+        done <<< "$rows"
+
+        mapped_json=$(printf '%s\n' $mapped_categories | awk 'NF' | sort -u | awk '{printf "%s\"%s\"", (NR>1 ? ", " : ""), $0}')
+
+        COVERAGE_SUMMARY+="$framework"$'\t'"$in_scope"$'\t'"$documented"$'\n'
+
+        frameworks_json+="${fw_sep}
+    \"$framework\": {
+      \"ControlsInScope\": $in_scope,
+      \"ControlsDocumented\": $documented,
+      \"ControlsDocumentedIds\": [$documented_ids],
+      \"EvidenceCategoriesMapped\": [$mapped_json]
+    }"
+        fw_sep=","
+    done <<< "$(frameworks_requested)"
+
+    # ── Refusals ──────────────────────────────────────────────────────────────────────────────────
+    local status reasons_json="" r_sep=""
+    local reason
+    if [[ ${#REFUSAL_REASONS[@]} -eq 0 ]]; then
+        status="COMPLETE"
+    else
+        status="REFUSED"
+        for reason in "${REFUSAL_REASONS[@]}"; do
+            reasons_json+="${r_sep}
+    \"${reason//\"/\\\"}\""
+            r_sep=","
+        done
+    fi
 
     cat > "$manifest_path" <<EOF
 {
@@ -299,38 +507,37 @@ generate_evidence_manifest() {
   "RunId": "$run_id",
   "Repository": "$repo_name",
   "Frameworks": "$FRAMEWORKS",
-  "FileCounts": {
-    "TestResults": $test_count,
-    "SecurityScans": $security_count,
-    "SBOM": $sbom_count,
-    "AuditLogs": $audit_count
+  "ManifestStatus": "$status",
+  "RefusalReasons": [$reasons_json
+  ],
+  "EvidenceCounts": {$counts_json
   },
-  "Compliance": {
-    "FedRAMP": {
-      "Controls": 14,
-      "ControlsDocumented": 14,
-      "EvidenceTypes": ["SBOM", "SecurityScans", "TestResults", "RTM"]
-    },
-    "GDPR": {
-      "Articles": [17, "17(3)", 25, 30, 32],
-      "ConformanceTests": 80,
-      "EvidenceTypes": ["AuditLogs", "ErasureCertificates", "DataInventory"]
-    },
-    "SOC2": {
-      "Categories": ["Security", "Availability", "ProcessingIntegrity", "Confidentiality"],
-      "Controls": 17,
-      "EvidenceTypes": ["ControlValidation", "AuditLogs", "Monitoring"]
-    },
-    "HIPAA": {
-      "Safeguards": ["Technical", "Administrative", "Physical"],
-      "TechnicalControls": 12,
-      "EvidenceTypes": ["AccessLogs", "EncryptionVerification", "AuditTrail"]
-    }
+  "EvidenceCountBasis": "Files collected into this package, excluding *.template.json placeholders. null means the category directory was absent and the count is unknown -- it does not mean zero.",
+  "ControlCoverage": {
+    "Source": "eng/compliance/control-evidence-map.tsv",
+    "Basis": "ControlsDocumented counts in-scope controls whose every mapped evidence category has at least one collected file in this package. Controls whose evidence is documentation or a business process are mapped 'none' and are never counted as documented. A package with no collected evidence therefore reports zero.",$frameworks_json
   }
 }
 EOF
 
     echo -e "${GREEN}✓ Evidence manifest created: $manifest_path${NC}"
+
+    [[ ${#REFUSAL_REASONS[@]} -eq 0 ]] || return 2
+    return 0
+}
+
+# Render the coverage table the package README shows, from the figures the manifest derived.
+# Emits an explicit "not derived" notice rather than a table of zeros when nothing was computed —
+# a table of zeros looks like a measurement of a package with no evidence, which is a different claim.
+render_coverage_table() {
+    if [[ -z "$COVERAGE_SUMMARY" ]]; then
+        printf 'No control coverage was derived for this package. See `MANIFEST.json` -> `RefusalReasons`.\n'
+        return 0
+    fi
+
+    printf '| Framework | Controls in scope | Documented by evidence in this package |\n'
+    printf '|---|---:|---:|\n'
+    printf '%s' "$COVERAGE_SUMMARY" | awk -F'\t' 'NF >= 3 { printf "| %s | %s | %s |\n", $1, $2, $3 }'
 }
 
 # Generate README
@@ -339,7 +546,7 @@ generate_evidence_readme() {
     local run_id=$2
 
     local repo_name
-    repo_name=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "Unknown")
+    repo_name="${EVIDENCE_REPOSITORY:-$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "Unknown")}"
 
     cat > "$output_path/README.md" <<EOF
 # Compliance Evidence Package
@@ -373,56 +580,19 @@ compliance-evidence/
 
 ---
 
-## Evidence Types by Framework
+## Control Coverage in This Package
 
-### FedRAMP (NIST 800-53 Rev 5)
+Counted from the files actually collected here, not asserted. A control is **documented** when every
+evidence category mapped to it in \`eng/compliance/control-evidence-map.tsv\` has at least one collected
+file in this package.
 
-**Controls Covered:** 14/14 (100% complete)
+$(render_coverage_table)
 
-| Control | Evidence Type | Location |
-|---------|---------------|----------|
-| SA-15 | CI/CD pipeline logs, test results | test-results/, security-scans/ |
-| CM-8 | SBOM (CycloneDX) | sbom/ |
-| SI-7 | Package signing, hash verification | sbom/ |
-| SI-4 | Security scan results | security-scans/ |
-| CC9 | Vulnerability scanning | security-scans/ |
-
-### GDPR
-
-**Articles Covered:** 17, 17(3), 25, 30, 32
-
-| Article | Evidence Type | Location |
-|---------|---------------|----------|
-| 17 | Erasure certificates (cryptographic erasure) | audit-logs/ |
-| 30 | Records of Processing Activities (RoPA) | audit-logs/ |
-| 32 | Audit logs, encryption verification | audit-logs/, security-scans/ |
-
-**Conformance Tests:** 80 tests (Audit, Erasure, LegalHold, DataInventory)
-
-### SOC 2
-
-**Categories:** Security, Availability, Processing Integrity, Confidentiality
-
-| Criterion | Evidence Type | Location |
-|-----------|---------------|----------|
-| CC4 | Audit logs (tamper-evident hash chain) | audit-logs/ |
-| CC6 | Encryption verification, access controls | security-scans/ |
-| CC8 | CI/CD pipeline, change management | test-results/, security-scans/ |
-| CC9 | Security scanning (SAST, DAST, container) | security-scans/ |
-
-**Automated Validators:** 6 validators, 17+ controls
-
-### HIPAA
-
-**Safeguards:** Technical (§164.312)
-
-| Standard | Evidence Type | Location |
-|----------|---------------|----------|
-| §164.312(a) | Access control logs | audit-logs/ |
-| §164.312(b) | Audit trail (PHI access) | audit-logs/ |
-| §164.312(c) | Integrity verification (hash chain) | audit-logs/ |
-| §164.312(d) | Authentication logs | audit-logs/ |
-| §164.312(e) | TLS verification, transmission logs | security-scans/ |
+**What the remainder means.** A control that is in scope but not documented here is not thereby
+non-compliant — most are substantiated by documentation, configuration, or a business process that a
+CI pipeline does not produce, and those are mapped so that they can never be counted as documented
+however complete the download was. Read \`MANIFEST.json\` for the per-control identifiers and for any
+figure the collector refused to derive.
 
 ---
 
@@ -528,8 +698,11 @@ main() {
     # Export audit logs
     export_audit_log_samples "$OUTPUT_PATH" "$MAX_AUDIT_SAMPLES"
 
-    # Generate manifest
-    generate_evidence_manifest "$OUTPUT_PATH" "$RUN_ID"
+    # Generate manifest. Capture the REAL exit directly on the next statement: a pipeline or a
+    # trailing command reports its own status, and a refusal that is swallowed here becomes a package
+    # that exits 0 while telling the reader it could not measure itself.
+    local manifest_rc=0
+    generate_evidence_manifest "$OUTPUT_PATH" "$RUN_ID" || manifest_rc=$?
 
     # Generate README
     generate_evidence_readme "$OUTPUT_PATH" "$RUN_ID"
@@ -540,6 +713,17 @@ main() {
     echo -e "${GRAY}  1. Review MANIFEST.json for evidence inventory${NC}"
     echo -e "${GRAY}  2. Verify security scan results in security-scans/${NC}"
     echo -e "${GRAY}  3. Generate evidence package: ./eng/compliance/generate-evidence-package.sh${NC}"
+
+    if [[ $manifest_rc -ne 0 ]]; then
+        echo -e "\n${YELLOW}⚠ REFUSED: at least one figure could not be derived. The package was written and${NC}"
+        echo -e "${YELLOW}  states which figures are unknown. This is not a clean evidence package.${NC}"
+        return 2
+    fi
+    return 0
 }
 
-main "$@"
+# Run only when executed, not when sourced. The self-test sources this file to exercise manifest
+# generation directly, without a GitHub token, a network, or a workflow run.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

@@ -140,7 +140,13 @@ jobs:
       - name: Run Integration Tests (-m:1)
         id: integration-tests
         continue-on-error: true
+        env:
+          # Emulator-backed suites append one record here per test that genuinely reached the emulator.
+          # A skipped test writes nothing, which is the entire point: this is the one signal a skip
+          # cannot produce, and the liveness gate below reads it.
+          COSMOS_EVIDENCE_FILE: ${{ github.workspace }}/TestResults/cosmos-execution-evidence.tsv
         run: |
+          mkdir -p ./TestResults
           bash eng/ci/run-filtered-tests.sh \
             --filter "Category=Integration|Category=EndToEnd" -- \
             eng/ci/shards/IntegrationTests.slnf \
@@ -152,6 +158,32 @@ jobs:
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=1800000
+
+      # The counter check below cannot see this failure, and that is not a flaw in it — it is the shape
+      # of the data. A dynamically skipped test is recorded in the TRX as executed AND passed, with
+      # notExecuted zero, so every counter-based comparison, including executed-versus-expected, is
+      # satisfied by a run that executed nothing. Counting harder cannot fix a count that is wrong.
+      #
+      # So this gate does not count test results at all. It reads records the suites append only on the
+      # path where the emulator was genuinely reached, and refuses when a run reports success having
+      # produced none. Scope is 'in': this job is the only place Cosmos is exercised, so evidence is
+      # required here and its absence is a refusal rather than a warning.
+      #
+      # It runs BEFORE the counter check so the diagnosis a human reads first is the accurate one:
+      # "nothing ran" rather than "everything passed".
+      - name: Verify the emulator was actually reached
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          bash eng/ci/cosmos-liveness-gate.sh \
+            "${{ github.workspace }}/TestResults/cosmos-execution-evidence.tsv" \
+            in
+          GATE_EXIT=$?
+          if [ "$GATE_EXIT" -ne 0 ]; then
+            echo "::error::The integration run produced no evidence of reaching the Cosmos emulator (exit $GATE_EXIT). A skipped suite reports as passed, so the test counters cannot show this. Treat any green from this job as unearned until this passes."
+            exit "$GATE_EXIT"
+          fi
 
       - name: Verify integration test results
         if: always()

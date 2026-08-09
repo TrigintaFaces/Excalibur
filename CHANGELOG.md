@@ -94,6 +94,69 @@ limits of that claim.
 
 ### Fixed
 
+- **A Cosmos DB test suite reported fourteen passes while executing nothing, and nothing could detect
+  it.** The event-store telemetry suite suppressed itself on Linux CI runners via an environment
+  override that was never set anywhere, and both of our CI paths are Linux. It therefore ran on no
+  runner at all, in the one job whose own documentation calls it the only place the Cosmos provider is
+  exercised. This did not merely go unnoticed — it was undetectable: a dynamically skipped test is
+  recorded in the results file as executed and passed with zero not-executed, so every counter-based
+  check, including comparing executed against expected, was satisfied by a run that executed nothing.
+  The suppression is removed. In CI an unavailable emulator now fails the suite with a named
+  diagnostic rather than skipping it, while outside CI it still skips so that a developer without a
+  container runtime does not get a spurious failure. That decision is a pure function of the
+  environment values passed into it, locked by a test that compiles the same source the suite uses
+  rather than a restatement of it. Detection no longer depends on counting: the suites append a record
+  only on the path where the emulator was genuinely reached, and a new check refuses the job when a run
+  reports success having produced none — a signal a skip cannot fabricate. It is wired in both
+  directions, so the per-change path, which deliberately excludes these tests, refuses if one ever
+  executes there. **We have not yet published a run in which these fourteen tests executed and passed**;
+  the removed suppression claimed they were unstable, and that claim is now testable rather than
+  assumed.
+
+- **The compliance evidence collector reported control coverage it had not measured.** If you run
+  `eng/compliance/collect-evidence.sh`, its output changes. Every compliance figure in the generated
+  `MANIFEST.json` was a constant written into the document template — 14 of 14 FedRAMP controls
+  documented, 80 GDPR conformance tests, 17 SOC 2 controls, 12 HIPAA technical controls — so no input
+  could make any of them print anything else. Only the file counts were computed, and a run that
+  downloaded no artifacts at all still asserted complete control documentation: the same document could
+  state `TestResults: 0` and `ControlsDocumented: 14`. The generated `README.md` repeated the claim as
+  "14/14 (100% complete)". These packages are assembled to be handed to an auditor, so the figures now
+  come from the evidence in the package or are not stated at all.
+
+  What changed for you, concretely. `ControlsDocumented` now counts in-scope controls whose every mapped
+  evidence category has at least one collected file, so an empty package reports zero and a full one
+  reports a real number that is normally well below the total — controls substantiated by documentation,
+  configuration or a business process are mapped so that they can never be counted from a download, and
+  the manifest names them. Control identifiers and their evidence categories are read from
+  `eng/compliance/control-evidence-map.tsv`; editing that file changes the reported numbers, which is the
+  intent. `ConformanceTests`, and the other figures with no derivation behind them, are gone rather than
+  recomputed. A missing evidence directory is now reported as `null` with a stated reason and the script
+  exits 2, instead of being counted as zero with the error discarded — "we found none" and "we never
+  looked" are different facts and only one of them is a measurement. The audit-log sample the script
+  writes on every run is now named `sample-audit-logs.template.json` and is excluded from every count, so
+  a blank form cannot substantiate a control. The manifest carries `ManifestStatus` and `RefusalReasons`;
+  read them before submitting a package. The PowerShell collector, `collect-evidence.ps1`, still contains
+  the original hardcoded figures and has not been repaired.
+
+- **Stores could throw `NullReferenceException` the first time two threads used them at once.** Every store
+  that connects on first use — across MongoDB, Cosmos DB, Firestore, DynamoDB, PostgreSQL, Elasticsearch and
+  OpenSearch — built its client, database handle and collection handle as separate assignments with no
+  synchronisation. A second caller arriving mid-sequence saw the client already set, skipped the remaining
+  setup, and used a handle that was still null. The window is a few instructions wide, so it appeared
+  intermittently and only under load — the ordinary shape of a web application serving concurrent requests
+  immediately after start-up, where it was most likely to strike and least likely to be reproduced. Two
+  stores were seen failing this way in a single continuous-integration run, one of them on operations
+  against unrelated records that could not otherwise contend. Initialisation is now serialised and runs
+  exactly once per store, so no caller can observe a partly-built store. No API changed and no
+  configuration is required.
+
+  Two further faults in the same area are fixed with it. Stores that had acquired a lock still published
+  their "ready" flag without a memory barrier, so a caller taking the fast path could see a store report
+  itself ready while the handles it was about to use were not yet visible to that thread — benign on x64,
+  observable on arm64 (AWS Graviton, Apple silicon, Windows on ARM). And where a lock was held without
+  re-checking that flag after acquiring it, a waiting caller repeated the whole of initialisation,
+  re-running index and schema creation rather than merely wasting a round trip.
+
 - **The Record-of-Processing-Activities data map failed on every call, on both SQL providers.** The query
   referenced a tenant parameter that was never supplied to the command, so the data-map read threw
   unconditionally on SQL Server and PostgreSQL alike — it could not succeed under any input. Every existing

@@ -983,7 +983,15 @@ jobs:
         # never fail, so the job could never fail, so that job-level guard was
         # unreachable — a correct control nullified by a nested one eleven lines
         # below it. Failures now propagate to the job, which decides by event.
+        env:
+          # Set here even though this shard is declared emulator-free, and BECAUSE it is. The suites
+          # append a record only when they genuinely reach an emulator, so on this path the file must
+          # stay empty. Leaving the variable unset would make that emptiness meaningless -- nothing
+          # would write records whether or not an emulator class ran -- and the check below would pass
+          # by measuring nothing. Setting it is what turns "no records" into evidence.
+          COSMOS_EVIDENCE_FILE: ${{ github.workspace }}/TestResults/cosmos-execution-evidence.tsv
         run: |
+          mkdir -p ./TestResults
           bash eng/ci/run-filtered-tests.sh \
             --filter "${{ env.INTEGRATION_TEST_FILTER }}" -- \
             ${{ matrix.shard.filter }} \
@@ -996,6 +1004,28 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      # The census already asserts no emulator-starting CLASS is admitted here. This asserts no
+      # emulator was actually REACHED, which is a different measurement of the same boundary: the
+      # census reads class declarations, this reads what the run did. Two instruments keyed on
+      # different evidence, so a trait edit that fools one cannot fool both.
+      #
+      # Scope 'out' inverts the gate rather than disabling it -- records appearing on a path declared
+      # emulator-free mean a class drifted back onto the pull-request path and is quietly costing every
+      # run its container startup. The gate fires in both directions, so neither scope can silence it.
+      - name: Verify no emulator was reached on the emulator-free path
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          bash eng/ci/cosmos-liveness-gate.sh \
+            "${{ github.workspace }}/TestResults/cosmos-execution-evidence.tsv" \
+            out
+          GATE_EXIT=$?
+          if [ "$GATE_EXIT" -ne 0 ]; then
+            echo "::error::An emulator-backed test executed on a shard declared emulator-free (exit $GATE_EXIT). Either a class drifted onto this path or the exclusion filter stopped matching it."
+            exit "$GATE_EXIT"
+          fi
 
       # BEFORE cleanup, and that ordering is the whole point.
       #

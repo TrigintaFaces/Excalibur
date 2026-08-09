@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Globalization;
+using System.Runtime.CompilerServices;
+
 using Excalibur.Dispatch;
 
 using Excalibur.EventSourcing;
@@ -14,8 +17,16 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 /// when executing actual database operations against a CosmosDb emulator.
 /// </summary>
 /// <remarks>
-/// Note: The CosmosDb Linux emulator has known limitations on CI environments (GitHub Actions, Azure DevOps).
-/// Tests may fail if the emulator is not available.
+/// <para>
+/// In CI the emulator is required, not optional: an unavailable emulator fails this suite with a named
+/// diagnostic rather than skipping it. A skipped test reports as a pass, so a suite that skips whenever
+/// its dependency is missing reports green precisely when it has verified nothing — and this is the only
+/// place the CosmosDb provider's telemetry is exercised.
+/// </para>
+/// <para>
+/// Outside CI the emulator remains optional, so a developer without a container runtime gets a skip
+/// rather than a spurious failure.
+/// </para>
 /// </remarks>
 [Collection("EventStore Telemetry Tests")]
 [Trait(TraitNames.Category, TestCategories.Integration)]
@@ -23,6 +34,12 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.EventSourcing;
 [Trait("Infrastructure", "CosmosEmulator")]
 public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEventStoreTelemetryTestFixture>, IAsyncLifetime
 {
+	/// <summary>
+	/// Names the environment variable holding the path of the evidence file. When unset, no evidence is
+	/// written.
+	/// </summary>
+	private const string EvidenceFileVariable = "COSMOS_EVIDENCE_FILE";
+
 	private readonly CosmosDbEventStoreTelemetryTestFixture _fixture;
 
 	public CosmosDbEventStoreTelemetryShould(CosmosDbEventStoreTelemetryTestFixture fixture)
@@ -48,7 +65,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task CreateActivitySpanForAppendOperation()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -73,7 +90,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task CreateActivitySpanForLoadOperation()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -102,7 +119,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task CreateActivitySpanForLoadWithFromVersion()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -134,7 +151,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task SetEventCountTagOnSuccessfulAppend()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -156,7 +173,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task SetVersionTagOnSuccessfulAppend()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -178,7 +195,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task SetEventCountTagOnSuccessfulLoad()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
 
@@ -209,7 +226,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task SetSuccessResultOnSuccessfulAppend()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -231,7 +248,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task SetSuccessResultOnSuccessfulLoad()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
 		var events = new List<IDomainEvent> { CreateTestEvent() };
@@ -256,7 +273,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task SetConcurrencyConflictResultOnVersionMismatch()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -290,7 +307,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		// Arrange
 		// This tests the case where CosmosDb returns HttpStatusCode.Conflict (409)
 		// which happens when there's a concurrency violation
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -328,7 +345,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task RecordMultipleOperationsInSequence()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -363,7 +380,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task MaintainTraceContextAcrossOperations()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -403,7 +420,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task HandleEmptyLoadResultGracefully()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var nonExistentAggregateId = Guid.NewGuid().ToString();
@@ -427,7 +444,7 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 	public async Task HandleEmptyAppendGracefully()
 	{
 		// Arrange
-		SkipIfEmulatorUnavailable();
+		RequireEmulator();
 		_fixture.ClearRecordedActivities();
 		var eventStore = _fixture.CreateEventStore();
 		var aggregateId = Guid.NewGuid().ToString();
@@ -463,23 +480,80 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 		};
 	}
 
-	private void SkipIfEmulatorUnavailable()
+	/// <summary>
+	/// Gates a test on emulator availability, failing in CI and skipping only outside it, then records
+	/// that the emulator was genuinely reached.
+	/// </summary>
+	/// <param name="testName">
+	/// The calling test method, supplied by the compiler. Written to the evidence file so a reader can
+	/// tell which tests executed rather than only how many.
+	/// </param>
+	private void RequireEmulator([CallerMemberName] string testName = "")
 	{
-		var forceRun = string.Equals(
-			Environment.GetEnvironmentVariable("COSMOS_TELEMETRY_FORCE_RUN"),
-			"true",
-			StringComparison.OrdinalIgnoreCase);
+		if (EmulatorRequirement.IsRequired(
+			Environment.GetEnvironmentVariable("CI"),
+			Environment.GetEnvironmentVariable("GITHUB_ACTIONS")))
+		{
+			_fixture.IsInitialized.ShouldBeTrue(
+				$"The CosmosDb emulator is REQUIRED in CI and was unavailable: " +
+				$"{nameof(CosmosDbEventStoreTelemetryTestFixture)} failed to initialize, so " +
+				$"{nameof(CosmosDbEventStoreTelemetryShould)} could verify nothing. This suite must not " +
+				$"skip in CI — a skip reports as a pass. Check that a container runtime is present and " +
+				$"that the emulator image started.");
+		}
+		else
+		{
+			Assert.SkipUnless(_fixture.IsInitialized, "CosmosDb emulator not available");
+		}
 
-		var isCi = string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase);
-		var isGithubActions = string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
-		var runnerOs = Environment.GetEnvironmentVariable("RUNNER_OS");
-		var isLinuxRunner = string.Equals(runnerOs, "Linux", StringComparison.OrdinalIgnoreCase) || OperatingSystem.IsLinux();
+		// Reached only when the emulator is genuinely available: both branches above throw otherwise, so a
+		// skipped or failed run cannot write the marker.
+		RecordEmulatorReached(testName);
+	}
 
-		Assert.SkipWhen(
-			!forceRun && isLinuxRunner && (isGithubActions || isCi),
-			"CosmosDb emulator telemetry tests are unstable on Linux CI runners. Set COSMOS_TELEMETRY_FORCE_RUN=true to override.");
+	/// <summary>
+	/// Appends one line of positive evidence that a test genuinely reached the emulator.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Contract: when the environment variable named by <see cref="EvidenceFileVariable"/> holds a path,
+	/// each genuinely-executed test appends exactly one line to that file, tab-separated as
+	/// <c>{UTC timestamp, round-trip format}\t{test class name}\t{test method name}</c>. When the
+	/// variable is unset or blank, nothing is written, so local development is unaffected.
+	/// </para>
+	/// <para>
+	/// The marker is positive evidence only. A lost line under-reports and can only make a reader
+	/// conclude less was verified than actually was; nothing here can fabricate a line for a test that
+	/// did not run. All failures are swallowed deliberately: evidence collection is diagnostic and must
+	/// never turn a passing test red.
+	/// </para>
+	/// </remarks>
+	/// <param name="testName">The test method that reached the emulator.</param>
+	private static void RecordEmulatorReached(string testName)
+	{
+		try
+		{
+			var path = Environment.GetEnvironmentVariable(EvidenceFileVariable);
+			if (string.IsNullOrWhiteSpace(path))
+			{
+				return;
+			}
 
-		Assert.SkipUnless(_fixture.IsInitialized, "CosmosDb emulator not available");
+			var line = string.Concat(
+				DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+				"\t",
+				nameof(CosmosDbEventStoreTelemetryShould),
+				"\t",
+				testName,
+				Environment.NewLine);
+
+			File.AppendAllText(path, line);
+		}
+		catch (Exception)
+		{
+			// Diagnostic only. An unwritable path, a racing append, or a missing directory must not
+			// convert a genuinely passing test into a failure.
+		}
 	}
 
 	#endregion Helper Methods

@@ -1,0 +1,93 @@
+# control-evidence-map.tsv — the SOURCE OF TRUTH for every control figure the evidence collector
+# reports. Tab-separated. Blank lines and #-comments are ignored.
+#
+# WHY THIS FILE EXISTS: the evidence manifest previously stated control coverage as literals baked
+# into the document template ("14 of 14 controls documented"), so there was no input that could make
+# it print anything else. An evidence package that collected nothing still asserted complete control
+# documentation. Numbers in a document handed to an auditor must be derived from the evidence in the
+# package, and a number nobody can change by changing the evidence is not derived from anything.
+#
+# COLUMNS
+#   1  Framework           FedRAMP | GDPR | SOC2 | HIPAA
+#   2  ControlId           the control/criterion/article identifier as the published checklist writes it
+#   3  EvidenceCategories  comma-separated evidence categories that substantiate this control INSIDE a
+#                          collected package, or the literal `none`
+#
+# `none` is not a gap in this file — it is a statement that the control's evidence is NOT a CI artifact
+# this collector gathers. Those controls are substantiated by documentation, configuration, or a
+# business process outside the pipeline. They are counted in ControlsInScope and can NEVER count toward
+# ControlsDocumented, whatever is in the package. That asymmetry is deliberate: it is what stops a full
+# artifact download from being reported as total control coverage.
+#
+# A control is reported as documented only when EVERY category on its row has at least one collected
+# file. All-not-any: a control needing both a test result and a scan is not substantiated by one of them.
+#
+# Valid categories are exactly the evidence directories the collector creates:
+#   test-results  security-scans  sbom  audit-logs  rtm
+# An unrecognised category makes the collector REFUSE rather than silently score the row as unmet.
+#
+# EDITING THIS FILE CHANGES THE REPORTED NUMBERS. That is the point. Each row is transcribed from the
+# published certification checklists and from the per-control evidence locations the generated package
+# README states; keep it in step with them. Adding a control raises ControlsInScope; mapping one to a
+# category that is genuinely collected raises ControlsDocumented.
+
+# ── FedRAMP — NIST 800-53 Rev 5, the 14 controls the published checklist enumerates ────────────────
+FedRAMP	AC-3	none
+FedRAMP	AC-6	none
+FedRAMP	AU-2	audit-logs
+FedRAMP	AU-3	audit-logs
+FedRAMP	AU-9	audit-logs
+FedRAMP	IA-5	none
+FedRAMP	SC-8	none
+FedRAMP	SC-13	none
+FedRAMP	SC-28	none
+FedRAMP	SI-4	security-scans
+FedRAMP	SI-7	sbom
+FedRAMP	PM-11	rtm
+FedRAMP	SA-15	test-results,security-scans
+FedRAMP	CM-8	sbom
+
+# ── GDPR — the articles the published checklist enumerates ─────────────────────────────────────────
+GDPR	Article 5	none
+GDPR	Article 6	none
+GDPR	Article 13-14	none
+GDPR	Article 17	audit-logs
+GDPR	Article 17(3)	audit-logs
+GDPR	Article 25	none
+GDPR	Article 30	audit-logs
+GDPR	Article 32	audit-logs,security-scans
+GDPR	Article 33-34	none
+
+# ── SOC 2 — Trust Services Criteria the published checklist enumerates ─────────────────────────────
+SOC2	CC1	none
+SOC2	CC2	none
+SOC2	CC3	none
+SOC2	CC4	audit-logs
+SOC2	CC5	none
+SOC2	CC6	security-scans
+SOC2	CC7	none
+SOC2	CC8	test-results,security-scans
+SOC2	CC9	security-scans
+SOC2	A1	none
+SOC2	A2	none
+SOC2	A3	none
+SOC2	PI1	none
+SOC2	PI2	none
+SOC2	PI3	none
+SOC2	C1	none
+SOC2	C2	none
+SOC2	C3	none
+
+# ── HIPAA — Technical Safeguards, the implementation specifications the checklist enumerates ───────
+HIPAA	§164.312(a)(1)	audit-logs
+HIPAA	§164.312(a)(2)(i)	audit-logs
+HIPAA	§164.312(a)(2)(ii)	none
+HIPAA	§164.312(a)(2)(iii)	none
+HIPAA	§164.312(a)(2)(iv)	none
+HIPAA	§164.312(b)	audit-logs
+HIPAA	§164.312(c)(1)	audit-logs
+HIPAA	§164.312(c)(2)	none
+HIPAA	§164.312(d)	audit-logs
+HIPAA	§164.312(e)(1)	security-scans
+HIPAA	§164.312(e)(2)(i)	none
+HIPAA	§164.312(e)(2)(ii)	security-scans

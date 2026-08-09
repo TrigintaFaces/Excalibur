@@ -154,6 +154,8 @@ for t in \
     "eng/ci/committed-sha-build-gate.test.sh" \
     "eng/ci/aot-publish-validation-exit.test.sh" \
     "eng/ci/assert-compiled-not-skipped.test.sh" \
+    "eng/compliance/collect-evidence.test.sh" \
+    "eng/ci/cosmos-liveness-gate.sh --self-test" \
     "eng/hooks/verify-hooks-current.test.sh" ; do
     # Two conditions before adding an entry here, both learned the hard way:
     #

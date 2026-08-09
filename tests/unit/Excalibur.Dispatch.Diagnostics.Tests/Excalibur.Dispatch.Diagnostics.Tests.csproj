@@ -16,6 +16,15 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
+    <!--
+      Shared source, not a project reference. The emulator skip-versus-fail decision must be locked by a
+      test that binds the same source the integration suite compiles; a restatement here would pass while
+      the shipped decision diverged. Linking the file keeps the type internal to each assembly and does
+      not drag this project's build onto the integration project's container dependencies.
+    -->
+    <Compile Include="..\..\integration\Excalibur.Dispatch.Integration.Tests\Observability\EventSourcing\EmulatorRequirement.cs" Link="Diagnostics\EmulatorRequirement.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
