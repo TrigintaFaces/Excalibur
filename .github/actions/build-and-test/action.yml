@@ -129,58 +129,34 @@ runs:
       shell: bash
       run: echo "TEST_FILTER=${{ inputs.test-filter }}" >> $GITHUB_ENV
 
+    # THE ENTRY POINT COMPOSES THIS, not the action.
+    #
+    # What was here built its own `dotnet test` argv, while eng/build.ps1 built a different one for
+    # the same purpose. Two implementations of one command is precisely the drift the entry point
+    # exists to prevent, and it would have been SILENT: every trap in that composition -- a second
+    # RunSettings separator swallowing later settings, `-m:N` landing after the separator where it
+    # parses as a setting name and does nothing, a session timeout scoped to the coverage branch --
+    # produces a run that still starts, still passes, and simply ignores the setting.
+    #
+    # So the composition now lives in one place, and a contributor reproducing a CI job runs the
+    # same code that CI runs rather than a lookalike. The traps are asserted against the composed
+    # argv by eng/ci/build-entrypoint-compose.test.sh, which is where a comment cannot help: these
+    # defects are invisible at runtime by construction.
     - name: Run tests
-      shell: bash
+      shell: pwsh
       run: |
-        # `dotnet test` accepts exactly ONE RunSettings separator, so every setting must be
-        # collected here and emitted after a single "--" at the end. A branch that emits its own
-        # separator silently swallows the settings every later branch would have added, and the
-        # loss is invisible: the run still starts, still passes, and simply ignores the setting.
-        ARGS=(
-          "dotnet" "test" "${{ inputs.solution-filter }}"
-          "--configuration" "Release"
-          "--no-build"
-          "--blame-hang-timeout" "${{ inputs.blame-timeout }}"
-          "--logger" "trx;LogFilePrefix=${{ inputs.results-prefix }}"
-          "--logger" "console;verbosity=minimal"
-          "--results-directory" "./TestResults"
-        )
-        RUNSETTINGS=()
-
-        if [ -n "$TEST_FILTER" ]; then
-          ARGS+=("--filter" "$TEST_FILTER")
-        fi
-
-        if [ "${{ inputs.collect-coverage }}" = "true" ]; then
-          ARGS+=("--collect:XPlat Code Coverage")
-          RUNSETTINGS+=("DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura")
-        fi
-
-        # -m:N is a dotnet-test argument, NOT a RunSetting: it must precede the separator or it
-        # is parsed as a setting name and silently does nothing.
-        if [ -n "${{ inputs.max-cpu-count }}" ]; then
-          ARGS+=("-m:${{ inputs.max-cpu-count }}")
-        fi
-
-        # Applies on every run, with or without coverage. The session timeout is what ends a
-        # wedged run itself, emitting a TRX that names how far it got; without it the job is
-        # killed by the workflow-level wall and reports nothing at all.
-        if [ -n "${{ inputs.test-session-timeout }}" ]; then
-          RUNSETTINGS+=("RunConfiguration.TestSessionTimeout=${{ inputs.test-session-timeout }}")
-        fi
-
-        # Extra RunSettings/xUnit args (e.g. serial execution for the transport shard, which
-        # avoids a concurrency-dependent native-thread leak that roots the host). Word-split
-        # intentionally.
-        if [ -n "${{ inputs.extra-run-settings }}" ]; then
-          RUNSETTINGS+=(${{ inputs.extra-run-settings }})
-        fi
-
-        if [ ${#RUNSETTINGS[@]} -gt 0 ]; then
-          ARGS+=("--" "${RUNSETTINGS[@]}")
-        fi
-
-        # Echo the composed command: a dropped or misplaced argument is otherwise invisible in
-        # the log, which is what let the session timeout stay inert across every coverage run.
-        printf '[build-and-test] %s\n' "${ARGS[*]}"
-        "${ARGS[@]}"
+        $params = @{
+          Test             = $true
+          NoRestore        = $true
+          NoBuild          = $true
+          Project          = '${{ inputs.solution-filter }}'
+          ResultsDirectory = './TestResults'
+          ResultsPrefix    = '${{ inputs.results-prefix }}'
+          BlameTimeout     = '${{ inputs.blame-timeout }}'
+        }
+        if ($env:TEST_FILTER)                         { $params.TestFilter         = $env:TEST_FILTER }
+        if ('${{ inputs.collect-coverage }}' -eq 'true') { $params.Coverage        = $true }
+        if ('${{ inputs.max-cpu-count }}')            { $params.MaxCpuCount        = '${{ inputs.max-cpu-count }}' }
+        if ('${{ inputs.test-session-timeout }}')     { $params.TestSessionTimeout = '${{ inputs.test-session-timeout }}' }
+        if ('${{ inputs.extra-run-settings }}')       { $params.ExtraRunSettings   = '${{ inputs.extra-run-settings }}' }
+        & "$env:GITHUB_WORKSPACE/eng/build.ps1" @params

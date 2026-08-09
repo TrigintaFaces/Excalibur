@@ -41,6 +41,12 @@ param(
     # Suppress the restore that -Build would otherwise imply, for callers that restored separately.
     [switch]$NoRestore,
 
+    # Suppress the build that -Test would otherwise imply, for callers that built separately -- which
+    # CI does, in its own step, so that one build can serve several test invocations. Without this a
+    # -Test call rebuilds what the caller just built, and rebuilds it with THESE flags rather than the
+    # caller's, which is a second build behaving differently from the first.
+    [switch]$NoBuild,
+
     # restore --locked-mode: fail rather than silently update a lock file.
     [switch]$LockedMode,
 
@@ -55,7 +61,42 @@ param(
     [switch]$WarnAsError,
 
     [ValidateSet('quiet', 'minimal', 'normal', 'detailed', 'diagnostic')]
-    [string]$Verbosity = 'minimal'
+    [string]$Verbosity = 'minimal',
+
+    # ---- CI-shaped test settings -------------------------------------------------------------------
+    # These exist so the composite action can call THIS script rather than composing its own
+    # `dotnet test`. Two implementations of that command is the drift this entry point exists to
+    # prevent, and the divergence would be silent: a swallowed RunSetting still runs, still passes,
+    # and simply ignores the setting.
+    #
+    # A contributor never needs to pass any of them; each is inert when unset.
+
+    # --blame-hang-timeout. Ends a wedged run and names what was stuck.
+    [string]$BlameTimeout,
+
+    # trx LogFilePrefix. Shards share a results directory, so a per-shard prefix keeps their trx apart.
+    [string]$ResultsPrefix,
+
+    # Where trx files land. CI uploads from the repo-root TestResults; the default here is under
+    # artifacts/ so a contributor's runs do not litter the tree.
+    [string]$ResultsDirectory,
+
+    # RunConfiguration.TestSessionTimeout, in milliseconds. Applies with or WITHOUT coverage: it is
+    # what ends a wedged run while emitting a trx that names how far it got. Without it the job is
+    # killed by the workflow wall and reports nothing at all.
+    [string]$TestSessionTimeout,
+
+    # dotnet test -m:N. A dotnet-test argument, NOT a RunSetting -- see the composition below.
+    [string]$MaxCpuCount,
+
+    # Extra RunSettings / xUnit args, space-separated (e.g. serial execution for a shard whose
+    # concurrency roots a native thread leak). Word-split deliberately.
+    [string]$ExtraRunSettings,
+
+    # Print the composed `dotnet test` argv and exit without running it. This is what makes the
+    # composition testable: the traps below are invisible at runtime -- a dropped setting produces a
+    # passing run -- so they are asserted against the printed argv instead.
+    [switch]$ShowTestCommand
 )
 
 # NOTE: there is deliberately no -Verbose parameter. [CmdletBinding()] already supplies one as a
@@ -74,7 +115,9 @@ try {
     }
 
     # -Test and -Pack need built output; asking for them alone should not silently test stale bits.
-    if (($Test -or $Pack) -and -not $Build) { $Build = $true }
+    # -NoBuild is the caller asserting they built already, which is what CI's separate build step is.
+    if (($Test -or $Pack) -and -not $Build -and -not $NoBuild) { $Build = $true }
+    if ($NoBuild) { $Build = $false }
     # Restore is implied by build, unless the caller ran it as its own step - which CI does, so that
     # one restore can carry --locked-mode and several builds can follow it.
     if ($Build -and -not $Restore -and -not $NoRestore) { $Restore = $true }
@@ -139,19 +182,70 @@ try {
     }
 
     if ($Test) {
+        # ONE RunSettings separator, and everything that must follow it collected first.
+        #
+        # `dotnet test` accepts exactly one `--`. A branch that emits its own silently swallows every
+        # setting a later branch would have added, and the loss is invisible: the run still starts,
+        # still passes, and simply ignores the setting. That is why the settings are accumulated and
+        # emitted once, at the end, rather than appended where they are decided.
         $testArgs = @('test', $Project, '--configuration', $Configuration, '--no-build', '--nologo')
+        $runSettings = @()
+
+        if ($BlameTimeout) { $testArgs += @('--blame-hang-timeout', $BlameTimeout) }
+
+        $results = if ($ResultsDirectory) { $ResultsDirectory } else { Join-Path $artifacts 'TestResults' }
+        $prefix = if ($ResultsPrefix) { $ResultsPrefix } else { 'build' }
+        $testArgs += @('--logger', "trx;LogFilePrefix=$prefix",
+                       '--logger', 'console;verbosity=minimal',
+                       '--results-directory', $results)
+
         if ($TestFilter) { $testArgs += @('--filter', $TestFilter) }
-        $results = Join-Path $artifacts 'TestResults'
-        $testArgs += @('--logger', 'trx;LogFilePrefix=build', '--results-directory', $results)
+
         if ($Coverage) {
-            $testArgs += @('--collect:XPlat Code Coverage', '--settings', 'tests/coverage.runsettings')
+            $testArgs += '--collect:XPlat Code Coverage'
+            $runSettings += 'DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
         }
+
+        # -m:N is a dotnet-test argument, NOT a RunSetting: after the separator it is parsed as a
+        # setting name and silently does nothing.
+        if ($MaxCpuCount) { $testArgs += "-m:$MaxCpuCount" }
+
+        # With or without coverage. This was once inside the coverage branch, which left it inert on
+        # every run that did not collect coverage -- the runs most likely to wedge.
+        if ($TestSessionTimeout) { $runSettings += "RunConfiguration.TestSessionTimeout=$TestSessionTimeout" }
+
+        # Word-split deliberately: the caller passes several settings as one string.
+        if ($ExtraRunSettings) {
+            $runSettings += ($ExtraRunSettings -split '\s+' | Where-Object { $_ })
+        }
+
+        if ($runSettings.Count -gt 0) { $testArgs += @('--') + $runSettings }
+
+        # Echoed always: a dropped or misplaced argument is otherwise invisible in the log, which is
+        # exactly what let a session timeout stay inert across every coverage run.
+        Write-Host "[build] dotnet $($testArgs -join ' ')"
+        if ($ShowTestCommand) {
+            Write-Host 'ShowTestCommand: composed only, nothing executed.'
+            return
+        }
+
+        # Stamped before the run, so the guard below counts only what this invocation produced.
+        # A second of slack absorbs filesystem timestamp granularity.
+        $testStartedUtc = (Get-Date).ToUniversalTime().AddSeconds(-1)
         Invoke-Step 'test' $testArgs
 
         # A filtered run that matched nothing exits 0. The count is the evidence, not the exit code.
+        #
+        # Counted from THIS RUN'S trx only, by write time. Summing every trx in the directory is the
+        # same guard with the same message and no meaning: results directories accumulate, so a run
+        # that executed nothing still sees six figures of historical executions and passes. Measured
+        # locally against a shared ./TestResults: 20 tests ran and the guard reported 404,902.
+        #
+        # That is a false green in the check whose entire purpose is to catch a false green.
         if ($TestFilter) {
             $executed = 0
             Get-ChildItem -Path $results -Filter '*.trx' -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTimeUtc -ge $testStartedUtc } |
                 ForEach-Object {
                     $xml = [xml](Get-Content $_.FullName)
                     $executed += [int]$xml.TestRun.ResultSummary.Counters.executed

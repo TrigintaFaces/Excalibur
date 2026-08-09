@@ -135,6 +135,7 @@ for t in \
     "eng/ci/inbox-decorator-seam-gate.test.sh" \
     "eng/ci/package-metadata-gate.test.sh" \
     "eng/ci/orphan-test-project-gate.test.sh" \
+    "eng/ci/build-entrypoint-compose.test.sh" \
     "eng/ci/integration-shard-partition-gate.sh --self-test" \
     "eng/ci/release-test-verdict-gate.sh --self-test" \
     "eng/ci/lockfile-drift-gate.test.sh" \
