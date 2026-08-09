@@ -25,13 +25,13 @@ NC='\033[0m'
 
 # ── Hook-drift check — runs on EVERY push, BEFORE the CHANGELOG bypass ────────────────────────────
 #
-# ckywco: `verify-hooks-current.sh --check` is a correct, working detector that NOTHING invokes.
+# `verify-hooks-current.sh --check` is a correct, working detector that NOTHING invoked.
 # Its only caller fired from pre-commit when the DETECTOR'S OWN SOURCE was among the staged paths —
 # so it detected drift exactly when someone edited the detector, and never for the drift class it
 # exists to catch (a stale install, an accidental --heal, a canonical hook edited without reinstall).
 # A detector whose trigger is its own source path is a smoke alarm wired to the smoke alarm.
 #
-# Pre-push is the right home (per the standing PM ruling on this bead): `--check`'s property is
+# Pre-push is the right home: `--check`'s property is
 # "the hook the developer will execute matches the canonical one", which is only evaluable where a
 # hook is actually installed. It is deliberately NOT wired into CI — a fresh clone has no installed
 # hook, so --check there would report MISSING and exit 1 forever. CI asserts the INSTALLER instead

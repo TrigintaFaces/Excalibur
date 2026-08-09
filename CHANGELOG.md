@@ -55,6 +55,30 @@ limits of that claim.
   need to change something if you construct the middleware yourself; resolving it from the container
   continues to work unchanged.
 
+- **Erasure requests and legal holds are now tenant-scoped.** All six stores (SQL Server, PostgreSQL and
+  in-memory, for both contracts) derive their tenant term from the ambient tenant context through a single
+  derivation point. A caller-supplied `tenantId` is now **ANDed onto** that term rather than replacing it,
+  so the argument can only narrow a result and never widen one. Both contracts joined the set
+  `AddMultiTenancy()` checks, so a multi-tenant host that registers an unscoped implementation **fails at
+  startup** instead of leaking at runtime.
+
+  This closes a case where a tenant-wide legal hold was not consulted **at all** when no tenant was
+  supplied — the hold could not be returned by the data-subject query either, so an irreversible erasure
+  proceeded past a preservation order with nothing reported.
+
+  Reading and mutating a hold are deliberately asymmetric: a tenant **sees** an estate-wide hold, because
+  it blocks that tenant's erasures, but cannot **modify** one. Background sweeps that expire holds and
+  drain scheduled erasure requests remain estate-wide by design.
+
+  **Upgrade note:** single-tenant deployments are unaffected and need no migration — the tenant term is
+  applied only when multi-tenancy is configured, so existing rows are untouched. If you registered a
+  custom `IErasureStore` or `ILegalHoldStore` **and** use `AddMultiTenancy()`, startup will now fail
+  unless that store is registered through the tenant-scoped registration path; that failure is the
+  intended behaviour and means the store was not honouring the ambient tenant.
+
+  **Not yet verified on PostgreSQL:** the structural fix is in place, but no test runs against a real
+  PostgreSQL server to detect a regression there.
+
 - **Cosmos DB integration tests now run, on a nightly schedule.** The build previously filtered them out
   entirely by topic, so a green build said nothing whatever about that provider's integration behaviour.
   That blanket filter is gone. **They do not run on every change, and that is deliberate:** the per-change

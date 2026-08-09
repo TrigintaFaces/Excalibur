@@ -66,7 +66,7 @@ services.AddDispatch(dispatch =>
 // Register validators
 services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
 
-// Register event types for secure-by-default resolution (c6wd6f). The default JsonEventSerializer
+// Register event types for secure-by-default resolution. The default JsonEventSerializer
 // (auto-registered by AddDispatch) resolves these registered types without the reflection scan.
 services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 

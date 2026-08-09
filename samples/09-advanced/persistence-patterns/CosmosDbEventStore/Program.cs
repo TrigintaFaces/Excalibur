@@ -75,7 +75,7 @@ var services = new ServiceCollection();
 services.AddLogging(builder =>
 	builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 
-// c6wd6f: register event types for secure-by-default resolution
+// Register event types so the serializer resolves them without an assembly scan.
 services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add Cosmos DB client

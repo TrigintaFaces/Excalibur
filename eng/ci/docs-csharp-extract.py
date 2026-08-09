@@ -6,7 +6,7 @@ Standalone, stdlib-only. Two jobs:
   1. Walk the doc surface (docs-site, docs, **/README*), extract every fenced C#
      code block, classify each as tier-1 (resolve) or tier-2 (compile), and (with
      --json) emit a JSON array of per-block records. That record IS the contract the
-     downstream tier-2 full-compile gate (4p2p6d) consumes.
+     downstream tier-2 full-compile gate consumes.
 
   2. Default (gate) mode: for every tier-1 block that establishes framework context
      (a `using Excalibur.*` / `using Dispatch.*`), flag any referenced framework type
@@ -19,7 +19,7 @@ appears anywhere in the real-symbol set or in the BCL denylist. A phantom detect
 cries wolf gets ignored, so when unsure it does NOT flag.
 
 Boundary: this tool does tier-1 *resolution* only. Tier-2 full compilation of `runnable`
-blocks is 4p2p6d's follow-on, not this tool.
+blocks is the tier-2 gate's follow-on, not this tool.
 """
 from __future__ import annotations
 

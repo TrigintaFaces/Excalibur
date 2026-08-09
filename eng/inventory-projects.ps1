@@ -10,8 +10,8 @@
 .PARAMETER Strict
     If true, exit with error code on any governance violations
 .NOTES
-    Originally Sprint 325 W0 Solution & Build Integrity (T0.1)
-    Updated Sprint 506 — v2.0 manifest schema (framework_owner, reason, load-tests governance)
+    Originated as the solution & build-integrity inventory.
+    Manifest schema v2.0 adds framework_owner, reason, and load-tests governance.
 #>
 param(
     [string]$ManifestPath = "management/governance/project-manifest.yaml",
@@ -205,7 +205,7 @@ if (-not (Test-Path $manifestDir)) {
 $yaml = @"
 # Project Manifest - Excalibur Governance
 # Generated: $(Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz")
-# Schema v2.0 — Sprint 506 (extends Sprint 325 v1.0)
+# Schema v2.0 (extends v1.0)
 
 version: "2.0"
 generated_at: "$(Get-Date -Format "yyyy-MM-ddTHH:mm:sszzz")"

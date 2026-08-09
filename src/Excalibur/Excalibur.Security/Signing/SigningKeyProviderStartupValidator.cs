@@ -14,7 +14,7 @@ namespace Excalibur.Security;
 /// Runs at host start (<see cref="IHostedService.StartAsync"/>) and throws
 /// <see cref="InvalidOperationException"/> with actionable guidance, so a missing key provider surfaces
 /// immediately rather than as a deferred first-resolve crash of the <see cref="IKeyProvider"/>-dependent
-/// signing service (FR-4 / <c>f9cn09</c>). The validated condition is a missing DI registration — not an
+/// signing service. The validated condition is a missing DI registration — not an
 /// invalid options value — so the idiomatic failure is the same <see cref="InvalidOperationException"/>
 /// that <c>GetRequiredService</c> raises, not an options-validation failure. An <see cref="IKeyProvider"/>
 /// is a required deployment decision the consumer must make explicitly; the framework never silently

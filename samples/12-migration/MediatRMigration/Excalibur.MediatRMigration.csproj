@@ -2,10 +2,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    EPIC w2zq7d / FR-18 / AC-13 — Ported MediatR sample (WS1 proof).
+    Ported MediatR sample — a swap-only, source-compatible migration.
 
     This is an ordinary incumbent-MediatR-style application. The ONLY changes required to migrate it
-    onto Excalibur.Dispatch were the mechanical ones the WS2 analyzer code-fixes perform:
+    onto Excalibur.Dispatch were the mechanical ones the compat analyzer code-fixes perform:
       1. `using MediatR;`            -> `using Excalibur.Dispatch.Compat.MediatR;`
       2. `services.AddMediatR(...)`  -> `services.AddMediatRCompat(...)`
     No handler/request/notification/behavior source changed (swap-only source compatibility).
@@ -18,7 +18,7 @@
     <RootNamespace>MediatRMigration</RootNamespace>
 
     <!--
- AOT validation gate (/ NFR-1 / AC-4). PublishAot is set HERE (per-project), never via a
+      AOT validation gate. PublishAot is set HERE (per-project), never via a
       global `-p:PublishAot=true` CLI flag — that cascades to the netstandard2.0 source-generator
       projects and fails with NETSDK1207 (see eng/ci/Invoke-AotPublishValidation.ps1). The compat
       dispatch path is reflection-free (source-gen registration + closed bridges), so the ported sample

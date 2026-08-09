@@ -15,7 +15,7 @@ internal interface ICompatStreamBridge
 }
 
 /// <summary>
-/// Closed-typed stream bridge. The generic element type keeps value-type items unboxed (EC-9) on the
+/// Closed-typed stream bridge. The generic element type keeps value-type items unboxed on the
 /// common <see cref="ISender.CreateStream{TResponse}(IStreamRequest{TResponse}, System.Threading.CancellationToken)"/>
 /// path. The source generator emits one per discovered stream-request type, mapped by runtime
 /// <see cref="System.Type"/> in the <see cref="CompatBridgeRegistry"/>.

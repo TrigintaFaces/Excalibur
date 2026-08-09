@@ -458,4 +458,93 @@ public sealed class LegalHoldServiceShould
 		// Assert
 		releasedCount.ShouldBe(0);
 	}
+	// ── Tenant-wide holds must be consulted even when no tenant is supplied ──────────
+	//
+	// These three lock a defect whose failure direction was the dangerous one: a legal
+	// hold silently NOT blocking an erasure that is irreversible.
+	//
+	// A tenant-wide hold carries no data-subject identifier, and the subject query matches
+	// on that identifier -- in SQL a null never equals a value -- so the subject path can
+	// never return one. The tenant-wide lookup that would was skipped whenever no tenant
+	// was passed. Net: no tenant, no tenant-wide holds seen, erasure proceeds.
+	//
+	// The fakes model the real stores faithfully: the subject query returns nothing for a
+	// tenant-wide hold, exactly as the SQL predicate would.
+
+	[Fact]
+	public async Task Block_erasure_on_a_tenant_wide_hold_when_no_tenant_is_supplied()
+	{
+		var tenantWide = new LegalHold
+		{
+			HoldId = Guid.NewGuid(),
+			DataSubjectIdHash = null,          // tenant-wide: no subject
+			TenantId = null,
+			Basis = LegalHoldBasis.LegalObligation,
+			CaseReference = "CASE-TENANT-WIDE",
+			Description = "Litigation hold covering every subject",
+			IsActive = true,
+			CreatedBy = "legal-team",
+			CreatedAt = DateTimeOffset.UtcNow
+		};
+
+		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<LegalHold>>([]);
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<LegalHold>>([tenantWide]);
+
+		var result = await _sut.CheckHoldsAsync(
+			"user-123", DataSubjectIdType.UserId, tenantId: null, CancellationToken.None);
+
+		result.HasActiveHolds.ShouldBeTrue("a tenant-wide hold must block erasure even when the caller omits the tenant");
+		result.ErasureBlocked.ShouldBeTrue();
+		result.ActiveHolds[0].CaseReference.ShouldBe("CASE-TENANT-WIDE");
+	}
+
+	[Fact]
+	public async Task Not_pull_in_another_subjects_hold_when_no_tenant_is_supplied()
+	{
+		// Liveness for the widening: consulting every active hold must not over-block by
+		// dragging in a hold that belongs to a DIFFERENT data subject. Only holds with no
+		// subject identifier are tenant-wide.
+		var otherSubject = new LegalHold
+		{
+			HoldId = Guid.NewGuid(),
+			DataSubjectIdHash = "hash-of-someone-else",
+			TenantId = null,
+			Basis = LegalHoldBasis.LegalObligation,
+			CaseReference = "CASE-OTHER-SUBJECT",
+			Description = "Hold on a different person",
+			IsActive = true,
+			CreatedBy = "legal-team",
+			CreatedAt = DateTimeOffset.UtcNow
+		};
+
+		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<LegalHold>>([]);
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<LegalHold>>([otherSubject]);
+
+		var result = await _sut.CheckHoldsAsync(
+			"user-123", DataSubjectIdType.UserId, tenantId: null, CancellationToken.None);
+
+		result.HasActiveHolds.ShouldBeFalse("another subject's hold is not tenant-wide and must not block this erasure");
+	}
+
+	[Fact]
+	public async Task Still_use_the_tenant_scoped_lookup_when_a_tenant_is_supplied()
+	{
+		// The supplied-tenant path must be unchanged: scoped lookup, not the whole estate.
+		A.CallTo(() => _queryStore.GetActiveHoldsForDataSubjectAsync(A<string>._, A<string?>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<LegalHold>>([]);
+		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync(A<string>._, A<CancellationToken>._))
+			.Returns<IReadOnlyList<LegalHold>>([]);
+
+		_ = await _sut.CheckHoldsAsync(
+			"user-123", DataSubjectIdType.UserId, tenantId: "tenant-a", CancellationToken.None);
+
+		A.CallTo(() => _queryStore.GetActiveHoldsForTenantAsync("tenant-a", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+		A.CallTo(() => _queryStore.ListActiveHoldsAsync(A<string?>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
 }

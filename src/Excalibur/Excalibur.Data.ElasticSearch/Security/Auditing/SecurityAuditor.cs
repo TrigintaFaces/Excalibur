@@ -95,7 +95,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 	/// <summary>
 	/// Gets a value indicating whether the audit flush is currently degraded — i.e. the sink has failed
 	/// repeatedly and events are accumulating in the in-memory retry buffer while producers apply
-	/// backpressure. Exposed so a health check can surface a sustained audit-sink outage (vbv0at-B); the
+	/// backpressure. Exposed so a health check can surface a sustained audit-sink outage; the
 	/// pipeline never silently drops audit events, it throttles callers instead.
 	/// </summary>
 	/// <value><see langword="true"/> when consecutive flush failures indicate a sustained outage.</value>

@@ -159,7 +159,6 @@ if ($GenerateFixPlan) {
     $fixPlan = @"
 # Package Metadata Fix Plan
 # Generated: $(Get-Date -Format "o")
-# Sprint 326 - T2.1 Packaging (AD-326-1)
 
 total_issues: $missingCount
 

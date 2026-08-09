@@ -87,8 +87,8 @@ internal sealed class MongoDbOutboxDocument
 	public DateTimeOffset? LastAttemptAt { get; set; }
 
 	/// <summary>
-	/// Gets or sets the earliest time the message may be re-claimed for retry after a failure with backoff
-	/// (mnq685). Distinct from <see cref="ScheduledAt"/> (the originally-requested send time): this is the
+	/// Gets or sets the earliest time the message may be re-claimed for retry after a failure with backoff.
+	/// Distinct from <see cref="ScheduledAt"/> (the originally-requested send time): this is the
 	/// per-message exponential-backoff gate. Null means no backoff gate is in effect.
 	/// </summary>
 	[BsonElement("nextAttemptAt")]

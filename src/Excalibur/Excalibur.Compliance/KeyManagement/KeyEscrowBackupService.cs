@@ -419,7 +419,7 @@ public sealed partial class KeyEscrowBackupService : IKeyEscrowService
 		/// <summary>The master-only encrypted DEK, present only BEFORE any recovery tokens are generated. Once a
 		/// token batch is generated the escrow is SEALED (this becomes <see langword="null"/>) and the key is
 		/// recoverable only via the per-batch quorum envelope in <see cref="BatchWraps"/> — the master key alone
-		/// can no longer unwrap it (closes the lone-holder bypass, e6batc).</summary>
+		/// can no longer unwrap it (closes the lone-holder bypass).</summary>
 		public EncryptedData? EncryptedKeyMaterial { get; init; }
 
 		public required DateTimeOffset EscrowedAt { get; init; }

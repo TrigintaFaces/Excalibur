@@ -12,7 +12,7 @@ namespace Excalibur.Cdc;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The FR-B2 / safety invariant — <em>a fatal (or transient) fault never advances the durable
+/// The safety invariant — <em>a fatal (or transient) fault never advances the durable
 /// checkpoint past the unprocessed change</em> — is enforced by the idiom native
 /// to each provider class (see <see cref="CdcFatalDecision"/>): <b>poll-batch</b> providers (Cosmos,
 /// DynamoDb) gate the durable advance literally on <see cref="CdcFatalDecision.AdvanceCheckpoint"/> at a

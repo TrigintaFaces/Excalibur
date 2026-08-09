@@ -1,12 +1,12 @@
 # MediatR → Excalibur.Dispatch Migration Sample
 
 Demonstrates **drop-in, source-compatible migration** off the now-commercial MediatR onto
-`Excalibur.Dispatch`, via the `Excalibur.Dispatch.Compat.MediatR` package (EPIC w2zq7d, FR-18 / AC-13).
+`Excalibur.Dispatch`, via the `Excalibur.Dispatch.Compat.MediatR` package.
 
 ## The migration is a namespace swap
 
 This is an ordinary MediatR application. Migrating it required **only** the two mechanical edits the
-WS2 Roslyn analyzer code-fixes apply automatically — no handler, request, notification, or behavior
+compat Roslyn analyzer code-fixes apply automatically — no handler, request, notification, or behavior
 source changed:
 
 | Before (MediatR) | After (compat) |
@@ -24,7 +24,7 @@ source changed:
 ## AOT-safe
 
 The compat surface registers handlers via an **AOT-safe source generator** (no reflection on the
-dispatch path); the sample passes `PublishAot=true` IL-trim validation (see the `c37y1v` AOT gate).
+dispatch path); the sample passes `PublishAot=true` IL-trim validation in CI.
 
 ## Run
 

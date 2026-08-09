@@ -795,7 +795,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 	/// <summary>
 	/// Re-arms the rotation timer for the clamped remaining time until the next rotation is due, supporting
-	/// configured intervals longer than <see cref="System.Threading.Timer"/>'s maximum dueTime (gucy1d).
+	/// configured intervals longer than <see cref="System.Threading.Timer"/>'s maximum dueTime.
 	/// </summary>
 	private void RearmKeyRotationTimer()
 	{

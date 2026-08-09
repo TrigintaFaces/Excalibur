@@ -171,12 +171,12 @@ is a no-op, so decorators are never double-wrapped.
 
 Tenant scoping applies to a **closed set of contracts** the framework declares tenant-owned. That set is:
 
-`IEventStore` · `IProjectionStore<T>` · `ISagaStore` · `IInboxStore` · `IOutboxStore` · `IEventStoreErasure`
+`IEventStore` · `IProjectionStore<T>` · `ISagaStore` · `IInboxStore` · `IOutboxStore` · `IEventStoreErasure` · `IErasureStore` · `ILegalHoldStore`
 
 A tiered **cold** store (`IColdEventStore`) is handled separately — see the note at the end of this block.
 
 **Any store outside that set is left unscoped by this call.** That includes the audit store, the
-compliance/data-inventory stores, and the dead-letter queue. Registering multi-tenancy does not make them
+data-inventory store, and the dead-letter queue. Registering multi-tenancy does not make them
 tenant-isolated, and no error is raised for the stores it does not cover — the fail-closed checks above
 concern the contracts in the set, not the ones outside it.
 

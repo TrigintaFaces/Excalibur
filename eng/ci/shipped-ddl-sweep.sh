@@ -34,11 +34,11 @@
 #   new shipped DDL therefore forces a deliberate mapping decision -- the gate cannot silently
 #   ignore a schema it was never taught about. (enforce-invariants-structurally.)
 #
-# WRITE/READ CLAUSES COVERED (SA 32694 hand-off — the FencingToken/LeasedAt break lived in
+# WRITE/READ CLAUSES COVERED (the FencingToken/LeasedAt break lived in
 # WHERE/SET/OUTPUT, so UPDATE-SET-only extraction misses it; cover every clause a column can hide in):
 #   - UPDATE ... SET col = @Param            (param-assignment form)
 #   - WHERE col = @Param                     (same param-assignment form, inside a read/write stmt)
-#   - INSERT INTO {tbl} (colA, colB, ...)    (parenthesised column list — folds in bead 5uhy2j)
+#   - INSERT INTO {tbl} (colA, colB, ...)    (parenthesised column list)
 #   - OUTPUT inserted.col / deleted.col      (SQL Server OUTPUT clause column refs)
 #
 # DELIBERATE NON-COVERAGE (documented, not silent — an unstated gap is the defect this gate stops):
@@ -49,7 +49,7 @@
 #     (WHERE) is already covered via those clauses; a read-ONLY column not otherwise touched is the
 #     residual gap. Tracked as a follow-up increment; raised to SA as a deliberate call, not an omission.
 #
-# EXIT CODES (declared; the call site maps every one -- s890 GUIDE SEAM 1; r4dzl2: a non-0/1 is NEVER
+# EXIT CODES (declared; the call site maps every one -- a non-0/1 exit is NEVER
 # a pass):
 #   0  PASS    evaluated, every written/read column is declared in the shipped DDL
 #   1  FAIL    evaluated, a written/read column is MISSING from a shipped DDL  -> block
@@ -58,10 +58,10 @@
 #   *  REFUSE  unknown == could-not-evaluate
 #
 # There is deliberately NO suppression cap. f5-sweep's F5_MAX_HITS_PER_TOKEN prints "clean" and
-# exits 0 when every token exceeds the cap (fmvdpg: 180 tokens suppressed, verdict clean). A gate
-# that mutes itself into a PASS is the bug this sprint exists to remove; do not add one here.
+# exits 0 when every token exceeds the cap (observed: 180 tokens suppressed, verdict "clean"). A gate
+# that mutes itself into a PASS is the bug this design exists to remove; do not add one here.
 #
-# TESTABILITY SEAM (Tests' independent author!=impl lock binds THIS surface — see the pin, s890):
+# TESTABILITY SEAM (the independent author!=impl lock binds THIS surface):
 #   SHIPPED_DDL_DOC_ROOTS   where shipped CREATE TABLE lives   (default: "docs-site samples")
 #   SHIPPED_DDL_SRC_ROOTS   bounds the find-fallback for src   (default: "src")
 #   SHIPPED_DDL_MAP_FILE    optional file of MAP rows (same pipe format); REPLACES the built-in MAP,
@@ -100,8 +100,9 @@ SHIPPED_DDL_MAP_FILE="${SHIPPED_DDL_MAP_FILE:-}"
 # which is worse than no gate.
 #
 # A shipped CREATE TABLE matching NO row here is a REFUSE. Add rows deliberately.
-# Rows 3-19 added with 48opzo: until the extractor could see delimited identifiers, every
-# bracketed T-SQL table below was INVISIBLE here, so their absence looked like coverage.
+# Rows 3-19 were added alongside delimited-identifier support: until the extractor could see
+# bracketed/quoted identifiers, every bracketed T-SQL table below was INVISIBLE here, so their
+# absence looked like coverage.
 #
 # GLOBS ARE FILENAME-SCOPED, NOT DIRECTORY-WIDE, WHERE ONE DIRECTORY WRITES TWO TABLES.
 # `EventSourcing.SqlServer/Requests/` writes BOTH Events and Snapshots through the same
@@ -184,7 +185,7 @@ load_map() {
 # REFUSE, not a PASS: the shipped outbox tables carry 20+ columns, so a 1-column extraction means
 # the PARSER missed the statement, not that the code writes one column. Without this floor the
 # gate reports "✓ ok — 1 written cols all declared" on a 24-column table and is worse than absent,
-# because it manufactures the belief that the schema was checked. (fmvdpg: f5-sweep prints "clean"
+# because it manufactures the belief that the schema was checked. (Same class: f5-sweep prints "clean"
 # and exits 0 when its suppression cap swallows every token; we answered the same class with
 # -MinExpectedAssemblies 40.) An empty enumeration is not a clean result.
 MIN_WRITTEN_COLS="${SHIPPED_DDL_MIN_COLS:-3}"
@@ -250,7 +251,7 @@ ddl_columns() {
 # ── parse: column names WRITTEN/READ by src SQL, SCOPED to one table ───────────────────────────
 # Enters a statement at UPDATE/INSERT INTO/DELETE FROM/MERGE INTO/FROM {var} where <var> matches
 # tvar, and leaves at the raw-string SQL block terminator. Inside, collects columns from FOUR
-# clauses (SA 32694): `col = @Param|:Param` (SET + WHERE), the INSERT paren-list (5uhy2j), and
+# clauses: `col = @Param|:Param` (SET + WHERE), the INSERT paren-list, and
 # OUTPUT inserted./deleted.col. Unscoped extraction unions sibling tables' columns and manufactures
 # false positives -- see the MAP note above, which is why entry is gated on the interpolated tvar.
 src_written_columns() {
@@ -275,7 +276,7 @@ src_written_columns() {
             | grep -oE '[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[@:][A-Za-z_]' \
             | sed -E 's/[[:space:]]*=.*$//'
 
-        # INSERT paren-list (bead 5uhy2j): INSERT INTO {tvar} ( a, b, c )  -- may span lines (joined)
+        # INSERT paren-list: INSERT INTO {tvar} ( a, b, c )  -- may span lines (joined)
         printf '%s' "$joined" \
             | grep -oiE "INSERT[[:space:]]+INTO[[:space:]]*\{$tvar\}[[:space:]]*\([^)]*\)" \
             | sed -E 's/^[^(]*\(//; s/\).*$//' \
@@ -313,7 +314,7 @@ sweep() {
     # Enumerate once (fast: git-ls-files for tracked roots, find for absolute fixture roots — see
     # _list_files), then run a SINGLE batched grep over the whole file set instead of spawning one
     # grep per file. The per-file loop cost O(files) grep processes, each AV-real-time-scanned, which
-    # made this sweep 11min+ in pre-commit over docs-site+samples (njpvkh). Batching via `xargs -0`
+    # made this sweep 11min+ in pre-commit over docs-site+samples. Batching via `xargs -0`
     # collapses that to ~one grep process — the same "one fast process" spirit as self-test ARM7 —
     # while preserving the EXACT file set (so the absolute-temp-root env-override self-test arms, which
     # `git grep` cannot see, stay green). `-r` (--no-run-if-empty) keeps an empty enumeration → REFUSE.
@@ -410,8 +411,9 @@ sweep() {
                         # not be left unquoted here: word-splitting feeds every column as a
                         # separate positional arg, printf recycles the format across them, and
                         # the result pairs unrelated column names and prints globs where columns
-                        # belong -- a drift report that misnames the drift. (Latent until 48opzo
-                        # made these tables visible; nothing reached this branch before.)
+                        # belong -- a drift report that misnames the drift. (Latent until
+                        # delimited-identifier support made these tables visible; nothing
+                        # reached this branch before.)
                         while IFS= read -r missing_col; do
                             [ -n "$missing_col" ] || continue
                             printf '            DRIFT %s.%s — named by src (%s), absent from shipped DDL %s\n' \
@@ -531,7 +533,7 @@ EOF
         echo "  ok  ARM3 refuse   — unmapped shipped DDL takes the REFUSE path, not PASS"
     fi
 
-    # ARM 4 (INSERT paren-list, bead 5uhy2j): a column present ONLY in an INSERT column list must be
+    # ARM 4 (INSERT paren-list): a column present ONLY in an INSERT column list must be
     # extracted — the seed's stated coverage gap, now closed.
     mkdir -p "$tmp/src4"
     cat > "$tmp/src4/i.cs" <<'EOF'
@@ -543,11 +545,11 @@ EOF
     local ic
     ic="$(src_written_columns "$tmp/src4/**" 't')"
     if ! printf '%s\n' "$ic" | grep -qx 'dispatched_at'; then
-        echo "self-test ARM4 FAIL: INSERT paren-list column 'dispatched_at' NOT extracted (5uhy2j arm)." >&2
+        echo "self-test ARM4 FAIL: INSERT paren-list column 'dispatched_at' NOT extracted." >&2
         echo "  src-cols=[$(echo "$ic")]" >&2
         bad=1
     else
-        echo "  ok  ARM4 insert   — INSERT paren-list column extracted (5uhy2j)"
+        echo "  ok  ARM4 insert   — INSERT paren-list column extracted"
     fi
 
     # ARM 5 (OUTPUT clause): an OUTPUT inserted.col reference must be extracted.

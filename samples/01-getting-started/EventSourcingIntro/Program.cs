@@ -42,7 +42,7 @@ services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Register event types for secure-by-default resolution (c6wd6f). The default JsonEventSerializer
+// Register event types for secure-by-default resolution. The default JsonEventSerializer
 // (auto-registered by AddDispatch) resolves these registered types WITHOUT the reflection scan — the
 // secure, production pattern. No allowAssemblyScan opt-in needed.
 services.AddEventTypesFromAssembly(typeof(Program).Assembly);

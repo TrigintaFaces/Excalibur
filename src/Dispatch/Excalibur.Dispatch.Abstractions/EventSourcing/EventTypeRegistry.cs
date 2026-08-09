@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch;
 
 /// <summary>
 /// Mutable, consumer-registrable <see cref="IEventTypeRegistry"/> that backs secure-by-default
-/// event-type resolution (c6wd6f).
+/// event-type resolution.
 /// </summary>
 /// <remarks>
 /// <para>

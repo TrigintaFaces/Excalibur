@@ -78,7 +78,7 @@ public abstract class SagaStoreConformanceTestKit
 	/// <see cref="StaleSave_ThrowsConcurrencyException_NoLostUpdate"/>,
 	/// <see cref="StaleSave_OnMissingSaga_DoesNotResurrect"/>, and
 	/// <see cref="LoadAsync_ReturnsAuthoritativeVersion_AndReloadMutateSaveSucceeds"/>. This is the
-	/// consumer-protection contract (FR-D5): the shipped kit must be able to FAIL a saga store that
+	/// consumer-protection contract: the shipped kit must be able to FAIL a saga store that
 	/// silently allows lost-updates or zombie-resurrection.
 	/// </remarks>
 	protected virtual bool SupportsOptimisticConcurrency => false;

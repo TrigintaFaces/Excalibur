@@ -12,13 +12,13 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Transport.Google;
 
 /// <summary>
-/// Startup validator (abyfxr, FR-A3) that fails loud when an advertised Pub/Sub delivery guarantee is
+/// Startup validator that fails loud when an advertised Pub/Sub delivery guarantee is
 /// configured but the target subscription does not actually provide it. When
 /// <see cref="PubSubSubscriberOptions.EnableMessageOrdering"/> and/or
 /// <see cref="PubSubSubscriberOptions.EnableExactlyOnceDelivery"/> is requested, this performs a
 /// <b>read-only</b> <see cref="SubscriberServiceApiClient.GetSubscriptionAsync(SubscriptionName, global::Google.Api.Gax.Grpc.CallSettings)"/>
 /// at startup and throws a clear configuration error if the existing subscription lacks the property —
-/// converting a silently-inert flag into a loud, actionable failure (NFR-3).
+/// converting a silently-inert flag into a loud, actionable failure.
 /// </summary>
 /// <remarks>
 /// This validator NEVER creates or mutates the subscription (no <c>CreateSubscription</c>); provisioning

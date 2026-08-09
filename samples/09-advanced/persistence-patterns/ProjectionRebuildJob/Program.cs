@@ -56,7 +56,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
         configurator.AddJob<ProjectionRebuildJob>("0/30 * * * * ?");
     }));
 
-// c6wd6f: register event types for secure-by-default resolution
+// Register event types so the serializer resolves them without an assembly scan.
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================================

@@ -191,11 +191,11 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 // - Dispatch messaging (handler discovery via ScanAssemblies)
 // - Quartz.NET job scheduling (CdcJob)
 // - Event sourcing (SQL Server + inline projections)
-// Canonical composition path per / (A13).
+// Canonical composition path for a Quartz-hosted CDC job.
 
 builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
 
-// c6wd6f: register event types so the FRAMEWORK's event-sourcing serializer (used by
+// Register event types so the FRAMEWORK's event-sourcing serializer (used by
 // IEventSourcedRepository load/replay) resolves them securely without the scan. The AddSingleton above
 // is this sample's OWN CDC IEventSerializer (CdcJobQuartz.Infrastructure) — a distinct type; both coexist.
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);

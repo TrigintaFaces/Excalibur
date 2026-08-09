@@ -80,7 +80,7 @@ public sealed partial class JobOptionsHostedWatcherService<TJob,
 	/// </summary>
 	[SuppressMessage("Design", "CA1031:DoNotCatchGeneralExceptionTypes",
 		Justification = "Top-level fault boundary for a fire-and-forget config-change callback: any fault " +
-			"MUST be caught and logged here, never rethrown or left unobserved (FR-J2) — rethrowing has no " +
+			"MUST be caught and logged here, never rethrown or left unobserved — rethrowing has no " +
 			"awaiter and would crash the host.")]
 	private async Task HandleConfigurationChangeAsync(JobKey jobKey, TOptions newConfig)
 	{

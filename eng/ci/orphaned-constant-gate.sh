@@ -11,7 +11,7 @@
 #   testable, and no other gate covers it — so "7200 ticks" outlives the code that made it true, and the
 #   next reader trusts a number the program no longer contains.
 #
-# WHY THIS SUBSET, AND NOT "ANY NUMBER IN A COMMENT" (the AC4 crux — read before widening):
+# WHY THIS SUBSET, AND NOT "ANY NUMBER IN A COMMENT" (the crux — read before widening):
 #
 #   "any comment number absent from the code" is UNUSABLY noisy: a healthy ops script's comments are full
 #   of legitimate prose numbers — measured counts ("~570 live pollers"), line deltas ("+125 lines"), a
@@ -23,17 +23,17 @@
 #   silent on every prose number in the same file. A cadence constant that IS still in the code (a log
 #   interval `300 ticks` where the code holds `300`) is correctly silent; only the absent one fires.
 #
-# EXCLUDED, with reason (AC4):
+# EXCLUDED, with reason:
 #   * a digit run NOT in `N *` / `* N` / `N tick(s)` context — narrative prose, out of scope by design;
 #   * < 3 digits            — 1-2 digit cadences (`10*30s`, `5 ticks`) are too weak a signal to net;
 #   * a 4-digit year        — 19xx / 20xx are dates even inside an expression;
 #   * a number the code contains — an in-code cadence constant is documentation, not an orphan.
 #
-# SCOPE (AC5): production scans SHELL scripts (`*.sh`) under `.claude/hooks`, `.claude/harness`, and `eng/`
+# SCOPE: production scans SHELL scripts (`*.sh`) under `.claude/hooks`, `.claude/harness`, and `eng/`
 # — the ops-script surface where cadence/cap prose actually lives (the real ghost was a `.claude/hooks`
 # cap comment; `eng/` shell scripts carry no cadence idiom, so an `eng/`-only scope would be VACUOUS —
 # proven by ARM8). Because it reads `.claude/**` it is a STAYS-LOCAL gate (private paths are not on the
-# public mirror): its CALLER (AC1) is the local pre-commit / local harness, NOT a mirror workflow. The
+# public mirror): its CALLER is the local pre-commit / local harness, NOT a mirror workflow. The
 # `.claude`-dependent self-test arms self-skip where that history is absent (a shallow/mirror clone), so
 # the lock stays green anywhere; the synthetic arms carry the class there. EXCLUDED from default scope:
 # C#/markdown (a comment number in prose docs is far likelier a legitimate cross-reference than a stale
@@ -196,7 +196,7 @@ self_test() {
 
     # ARM 2 (LIVENESS, the REPAIR + the prose-noise proof): current poll-opcom.sh — the cap comment now
     # states no number, and the file is FULL of legitimate prose numbers (~570 pollers, +125 lines, a
-    # sprint number) plus its own in-code cadence ticks. Must be SILENT. This is the AC3 + AC4 arm.
+    # sprint number) plus its own in-code cadence ticks. Must be SILENT. This is the repair + noise-bound arm.
     if git cat-file -e "HEAD:$GHOST_PATH" 2>/dev/null; then
         git show "HEAD:$GHOST_PATH" > "$tmp/fixed.sh" 2>/dev/null
         if [ "$(orphans_in "$tmp/fixed.sh")" -eq 0 ]; then
@@ -221,7 +221,7 @@ self_test() {
         echo "  ok  ARM4 in-code      — computed cadence present in code -> SILENT (no false positive)"
     else echo "self-test ARM4 FAIL: an in-code cadence number was flagged." >&2; bad=1; fi
 
-    # ARM 5 (AC4 EXCLUSIONS): a prose number NOT in a computation context, a year even inside `*`, a
+    # ARM 5 (EXCLUSIONS): a prose number NOT in a computation context, a year even inside `*`, a
     # sub-3-digit cadence, and a version — all SILENT even though none appears in the code. (Tokens are
     # deliberately generic, not real work-item ids, so this fixture stays mirror-clean.)
     cat > "$tmp/x.sh" <<'EOF'
@@ -232,7 +232,7 @@ EOF
     if [ "$(orphans_in "$tmp/x.sh")" -eq 0 ]; then
         echo "  ok  ARM5 ac4-bounds  — prose count/line-delta/sprint/version/year-in-expr/sub-3-digit all excluded"
     else
-        echo "self-test ARM5 FAIL: an AC4-excluded token was flagged (the gate is noisy)." >&2
+        echo "self-test ARM5 FAIL: an excluded token was flagged (the gate is noisy)." >&2
         _scan "$tmp/x.sh" | grep '^ORPHAN ' >&2; bad=1
     fi
 

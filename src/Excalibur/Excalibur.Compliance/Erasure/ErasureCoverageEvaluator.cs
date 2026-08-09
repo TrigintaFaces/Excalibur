@@ -28,14 +28,14 @@ internal static class ErasureCoverageEvaluator
 	/// Classifies each location: covered by (a) crypto-shred (its key was deleted), (b) a registered
 	/// contributor for its store-kind, or (c) a declared exemption. Uncovered locations (none of a/b/c)
 	/// must force a non-<c>Completed</c> outcome; exempt locations are non-blocking but are enumerated
-	/// (with legal basis) so the certificate is explicit about what it deliberately did not erase (FR-4a).
+	/// (with legal basis) so the certificate is explicit about what it deliberately did not erase.
 	/// </summary>
 	/// <param name="locations">The discovered personal-data locations.</param>
 	/// <param name="deletedKeyIds">The per-subject key IDs that were actually deleted (crypto-shred).</param>
 	/// <param name="contributors">The registered erasure contributors.</param>
 	/// <param name="annotatedCategories">
 	/// The <see cref="PersonalDataCategory"/> values present on <see cref="PersonalDataAttribute"/>-annotated
-	/// members in the domain (vxp56x). A category here that is NOT represented by any discovered/registered
+	/// members in the domain. A category here that is NOT represented by any discovered/registered
 	/// location is an <b>annotated-but-undiscovered</b> coverage gap — annotated personal data the inventory
 	/// never located, so erasure cannot be reported Completed. Correspondence is by category name
 	/// (case-insensitive): the only dimension <see cref="PersonalDataAttribute"/> and <see cref="DataLocation"/>
@@ -115,15 +115,15 @@ internal static class ErasureCoverageEvaluator
 		return new CoverageOutcome(uncovered, exemptions, uncoveredAnnotated);
 	}
 
-	/// <summary>The legal basis and reason for a default store-kind erasure exemption (FR-4a).</summary>
+	/// <summary>The legal basis and reason for a default store-kind erasure exemption.</summary>
 	private sealed record ExemptionPolicy(LegalHoldBasis Basis, string Reason);
 }
 
 /// <summary>The result of partitioning discovered locations by erasure coverage.</summary>
 /// <param name="UncoveredStoreKinds">Discovered locations not covered by crypto-shred, contributor, or exemption.</param>
-/// <param name="Exemptions">The declared exemptions actually in play for this erasure (FR-4a).</param>
+/// <param name="Exemptions">The declared exemptions actually in play for this erasure.</param>
 /// <param name="UncoveredAnnotatedCategories">
-/// [PersonalData]-annotated categories with no discovered/registered location (vxp56x) — annotated personal
+/// [PersonalData]-annotated categories with no discovered/registered location — annotated personal
 /// data the inventory never located. A non-empty set forces a non-Completed outcome.
 /// </param>
 internal sealed record CoverageOutcome(

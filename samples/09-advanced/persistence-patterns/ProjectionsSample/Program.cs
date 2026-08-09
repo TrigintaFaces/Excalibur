@@ -45,7 +45,7 @@ var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
 services.AddMetrics();
 
-// c6wd6f: register event types for secure-by-default resolution
+// Register event types so the serializer resolves them without an assembly scan.
 services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // Add Excalibur event sourcing with in-memory event store and inline projections.

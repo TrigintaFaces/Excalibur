@@ -1,0 +1,42 @@
+# bd- tokens that are TOOL NAMES, not tracker ids.
+#
+# The `bd-` arm cannot tell a random base36 tracker id from `bd-file` (one of our own scripts).
+# Both have the `bd-` prefix and three-to-six trailing characters; only one is a leak.
+# (No example id is written here on purpose -- an example would match the very pattern this
+# file exists to document, and the gate would flag its own allowlist.) Membership against the tracker distinguishes them perfectly -- and
+# is unavailable wherever the tracker is not present, which includes the public mirror where
+# this gate actually runs. A gate whose strictness depends on a file that is absent in the
+# environment it guards is two different gates, and the stricter one fires on false positives.
+#
+# So the discrimination is committed here instead: deterministic, identical everywhere, and
+# reviewable. Each entry is the token as the pattern captures it -- `bd-[a-z0-9]{3,6}` stops
+# at six characters, so `bd-harness` is captured as `bd-harnes` and `bd-flush-guard` as
+# `bd-flush`.
+#
+# ADD AN ENTRY ONLY FOR A REAL TOOL OR COMMAND NAME. A tracker id does not belong here; the
+# fix for one of those is to rewrite the line, not to allowlist it. Entries are matched
+# case-sensitively against the whole captured token.
+bd-file
+bd-flush
+bd-status
+bd-export
+bd-import
+bd-update
+bd-create
+bd-close
+bd-show
+bd-list
+bd-ready
+bd-prime
+bd-sync
+bd-doctor
+bd-daemon
+bd-comment
+bd-harnes
+bd-depend
+bd-verifi
+bd-single
+bd-dupche
+bd-clobbe
+bd-descri
+bd-tracke

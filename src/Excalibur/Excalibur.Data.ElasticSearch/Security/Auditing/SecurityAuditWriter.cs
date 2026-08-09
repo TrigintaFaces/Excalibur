@@ -80,13 +80,13 @@ internal sealed class SecurityAuditWriter
 	/// <see cref="AuditOptions.MaskPiiInAuditEvents"/> is enabled (the default). Source IP and user agent
 	/// are replaced with a non-reversible fingerprint; free-form detail values have secret-shaped content
 	/// redacted. Fail-closed: a masking error redacts the field, never emits it raw, and never throws on
-	/// the record path (FR-pbnn9g-4).
+	/// the record path.
 	/// </summary>
 	private void MaskPiiIfEnabled(SecurityAuditEvent securityEvent)
 	{
 		if (!_configuration.MaskPiiInAuditEvents)
 		{
-			return; // explicit opt-out — persist raw fields (FR-pbnn9g-3).
+			return; // explicit opt-out — persist raw fields.
 		}
 
 		securityEvent.SourceIpAddress = MaskTag("source.ip", securityEvent.SourceIpAddress);
@@ -124,7 +124,7 @@ internal sealed class SecurityAuditWriter
 	/// enabled the value is sanitized to a non-reversible fingerprint (or redacted on failure) before it can
 	/// reach the logger sink; when masking is opted out the raw value is returned (consistent with the
 	/// persisted record on opt-out). This prevents raw user identifiers / IP addresses from bypassing
-	/// masking via the diagnostic log — a second sink (d7ziag).
+	/// masking via the diagnostic log — a second sink.
 	/// </summary>
 	private string? MaskForLog(string tagName, string? rawValue) =>
 		_configuration.MaskPiiInAuditEvents ? MaskTag(tagName, rawValue) : rawValue;

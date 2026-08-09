@@ -69,7 +69,7 @@ F5_STOPLIST='^(Task|ValueTask|Async|CancellationToken|String|Boolean|Int32|Int64
 #           signatures that have no visibility modifier (e.g. GetAllGrantsAsync(...))
 #        c. an enum member: a leading PascalCase identifier followed by ',' or '='
 #   4. multi-line signature-opener recovery: a ctor/method name on an UNCHANGED context
-#      line whose parameter list has a changed line below it (the jv02p5+15sf7a miss — a
+#      line whose parameter list has a changed line below it (the miss this pass closes — a
 #      ctor-arity change whose type-name line is context, so target-typed `new(...)` call
 #      sites were never swept).
 # then drops the stoplist boilerplate.
@@ -107,7 +107,7 @@ f5_extract_tokens() {
             | grep -oE '^[[:space:]]*[A-Z][A-Za-z0-9_]{2,}[[:space:]]*[,=]' \
             | grep -oE '[A-Z][A-Za-z0-9_]{2,}'
 
-        # 4) multi-line signature opener recovery (root cause of the jv02p5+15sf7a misses).
+        # 4) multi-line signature opener recovery (root cause of a whole class of missed siblings).
         #    A ctor/method signature spanning multiple lines:
         #        public MyStore(            <- the TYPE/METHOD NAME line (often UNCHANGED context)
         #            IFoo foo,
@@ -196,7 +196,7 @@ f5_changed_src_files() {
 
 f5_changed_test_files() {
     # Test/benchmark files already touched in this change set — triaged by construction.
-    # yww81x (F-5 clause 5): benchmarks/** are consumers of the same src contract as tests/** — a
+    # F-5 clause 5: benchmarks/** are consumers of the same src contract as tests/** — a
     # benchmark that already flipped to the new contract is triaged too, so include it here.
     local mode="$1" base="$2"
     {
@@ -267,7 +267,7 @@ run_sweep() {
     fi
 
     # Single batched pass: grep ALL tokens across tests/** AND benchmarks/** at once (whole-word,
-    # fixed-strings). yww81x (F-5 clause 5): benchmark/load-test projects compile against the same
+    # fixed-strings). F-5 clause 5: benchmark/load-test projects compile against the same
     # src/** surface but sit outside tests/** — a benchmark referencing a changed contract token
     # (e.g. a renamed options property) is a stale sibling that only surfaces as a build break at
     # the full-CI gate; sweep it here. The file list comes from `git ls-files` (the git index — no
@@ -413,7 +413,7 @@ EOF
         echo "self-test FAIL: generic stoplisted token 'Source' leaked through" >&2; pass=0
     fi
 
-    # --- Fixture 1b: multi-line signature recovery (nwiqnp / jv02p5+15sf7a) -
+    # --- Fixture 1b: multi-line signature recovery --------------------------
     # A ctor whose NAME line is unchanged context and whose ONLY changed line is a parameter.
     # Passes 1-3 see no type token; pass 4 MUST recover 'MultiLineStore' so its (possibly
     # target-typed `new(...)`) construction sites get swept. A second signature wholly in
@@ -438,7 +438,7 @@ EOF
 )"
     ml_tokens="$(printf '%s\n' "$ml_fixture" | f5_extract_tokens)"
     if ! printf '%s\n' "$ml_tokens" | grep -qx 'MultiLineStore'; then
-        echo "self-test FAIL: pass 4 did not recover multi-line signature name 'MultiLineStore' from an unchanged-context opener (the jv02p5+15sf7a miss)" >&2; pass=0
+        echo "self-test FAIL: pass 4 did not recover multi-line signature name 'MultiLineStore' from an unchanged-context opener" >&2; pass=0
     fi
     if printf '%s\n' "$ml_tokens" | grep -qx 'UntouchedSignature'; then
         echo "self-test FAIL: pass 4 emitted 'UntouchedSignature' whose signature had NO changed line (vacuous over-emission)" >&2; pass=0
@@ -491,7 +491,7 @@ EOF
         echo "self-test FAIL: word 'GetAllGrantsAsync' matched substring 'GetAllGrantsAsyncCompat'" >&2; pass=0
     fi
 
-    # --- Fixture 4: benchmark sibling (yww81x / F-5 clause 5) --------------
+    # --- Fixture 4: benchmark sibling (F-5 clause 5) -----------------------
     # A benchmark project references a changed contract token — must be swept like a test project
     # (benchmarks/** compile against src/** and break the full-CI gate otherwise). BenchStale is a
     # stale sibling (not in changeset); BenchTriaged is already updated (in changeset) and must be
@@ -507,7 +507,7 @@ EOF
     local benchhits
     benchhits="$( cd "$tmp" && f5_find_siblings 'GetAllGrantsAsync' "$changed_list" 'benchmarks' )"
     if ! printf '%s\n' "$benchhits" | grep -q 'benchmarks/BenchStale/GrantBench.cs'; then
-        echo "self-test FAIL: did NOT flag the stale benchmark sibling benchmarks/BenchStale (yww81x F-5 clause 5)" >&2; pass=0
+        echo "self-test FAIL: did NOT flag the stale benchmark sibling benchmarks/BenchStale (F-5 clause 5)" >&2; pass=0
     fi
     if printf '%s\n' "$benchhits" | grep -q 'benchmarks/BenchTriaged/'; then
         echo "self-test FAIL: flagged the already-triaged benchmark sibling benchmarks/BenchTriaged (false positive)" >&2; pass=0

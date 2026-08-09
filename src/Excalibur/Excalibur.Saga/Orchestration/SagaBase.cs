@@ -51,10 +51,10 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 
 	/// <summary>
 	/// Gets the message dispatcher used to flush the buffered commands and events after the saga state is
-	/// persisted. Private by design (mxh44e): a saga subclass cannot reach the dispatcher, so it can ONLY emit
+	/// persisted. Private by design: a saga subclass cannot reach the dispatcher, so it can ONLY emit
 	/// via <see cref="SendCommandAsync{TCommand}"/>/<see cref="PublishEventAsync{TEvent}"/> (which buffer) and
 	/// dispatch happens solely on the coordinator-driven flush -- making "dispatch-before-save" structurally
-	/// inexpressible from saga code (completes GUIDE ruling #3, enforce-invariants-structurally).
+	/// inexpressible from saga code.
 	/// </summary>
 	/// <value>The current <see cref="Dispatcher"/> value.</value>
 	private IDispatcher Dispatcher { get; } = dispatcher;
@@ -295,7 +295,7 @@ public abstract partial class SagaBase<TSagaState>(TSagaState initialState, IDis
 	/// saga coordinator ONLY after the saga state has been durably persisted (save-then-dispatch), so a
 	/// persistence failure dispatches nothing and the emitted messages are replayed (re-buffered) on the next
 	/// delivery. Internal by design: a saga subclass cannot trigger dispatch, which makes "dispatch-before-save"
-	/// structurally inexpressible (lc178k).
+	/// structurally inexpressible.
 	/// </summary>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>A task that represents the asynchronous flush operation.</returns>

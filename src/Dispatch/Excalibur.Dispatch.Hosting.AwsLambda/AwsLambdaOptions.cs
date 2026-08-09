@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// Options for the AWS Lambda serverless host integration.
 /// </summary>
 /// <remarks>
-/// bfak2b (M11) — the "am I running on AWS Lambda?" decision is <b>configuration</b>, not a runtime
+/// The "am I running on AWS Lambda?" decision is <b>configuration</b>, not a runtime
 /// environment read on the hot path. <see cref="ColdStartOptimizationEnabled"/> is defaulted once, at the
 /// composition root, from the <c>AWS_LAMBDA_FUNCTION_NAME</c> environment variable (which AWS sets on every
 /// Lambda invocation). Consumers/tests set it directly through the Options primitive rather than mutating

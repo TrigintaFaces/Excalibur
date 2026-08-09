@@ -46,7 +46,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="JsonEventSerializer" /> class that consults a
-	/// consumer-registered event-type registry (c6wd6f) before any assembly scan.
+	/// consumer-registered event-type registry before any assembly scan.
 	/// </summary>
 	/// <param name="registry">
 	/// Optional event-type registry (populated via <c>AddEventTypes&lt;T&gt;()</c>). When provided,

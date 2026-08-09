@@ -2,7 +2,6 @@
 <#
 .SYNOPSIS
     Packaging Smoke Test Script for Excalibur.Dispatch
-    Sprint 309 - T5.2 - W5 Validation Phase 2
 
 .DESCRIPTION
     Validates that Dispatch NuGet packages work correctly in isolation without
@@ -608,7 +607,7 @@ function Invoke-CleanupPhase {
 $Script:TestPassed = $false
 
 try {
-    Write-Banner "Dispatch Packaging Smoke Test (Sprint 309 T5.2)"
+    Write-Banner "Dispatch Packaging Smoke Test"
 
     Write-Info "Repository root: $Script:RepoRoot"
     Write-Info "Temp directory: $Script:TempDir"

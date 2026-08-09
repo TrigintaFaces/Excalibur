@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Compat.MediatR.Routing;
 /// <summary>
 /// Closed-typed stream bridge. Resolves the consumer's compat
 /// <see cref="IStreamRequestHandler{TRequest,TResponse}"/> and yields its items with no reflection and no
-/// boxing of value-type elements (EC-9).
+/// boxing of value-type elements.
 /// </summary>
 /// <typeparam name="TRequest">The compat stream-request type.</typeparam>
 /// <typeparam name="TResponse">The stream element type.</typeparam>

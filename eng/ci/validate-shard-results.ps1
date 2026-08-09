@@ -6,10 +6,10 @@
   The prior aggregation (ci.yml integration verify) summed per-trx `failed` counters and
   treated "no trx" as zero failures. Two defects follow:
 
-    * ar6w5k / f37o9a — a project that does NOT compile (or is silently dropped from a run)
+    * A project that does NOT compile (or is silently dropped from a run)
       emits no trx, contributes 0 to the sum, and reads as CLEAN. The gate never asserts the
       EXPECTED assembly set actually compiled and produced results.
-    * 1ltu6f — an assembly that is a member of more than one shard .slnf produces a trx per
+    * An assembly that is a member of more than one shard .slnf produces a trx per
       shard; a naive sum double-counts it, so no cross-shard total is a count of DISTINCT tests.
 
   This gate fixes both by aggregating at ASSEMBLY granularity:
@@ -39,15 +39,15 @@ param(
   # The assemblies that MUST have run, as file names (e.g. "Excalibur.Outbox.Tests.dll" or
   # "Excalibur.Outbox.Tests"). Matched case-insensitively against trx <UnitTest storage="">.
   # Supply the union of the shard .slnf test projects. Empty = set assertion skipped (NOT
-  # recommended in CI — the set assertion is the f37o9a/ar6w5k guard).
+  # recommended in CI — the set assertion is the missing-assembly guard).
   [string[]]$ExpectedAssemblies = @(),
 
   # When true (default), a RED result throws (non-zero exit). When false, report only.
   [bool]$Enforce = $true,
 
-  # Non-vacuity floor (testing-patterns §3 / SA #28375): the gate REFUSES to evaluate (exit 2) when the
+  # Non-vacuity floor (testing-patterns §3): the gate REFUSES to evaluate (exit 2) when the
   # EXPECTED set is empty or smaller than this floor, so a mis-derived/empty EXPECTED cannot pass the
-  # subset check vacuously GREEN (the fmvdpg/tpu8m2 "gate that cannot fail" trap). CI passes the known
+  # subset check vacuously GREEN (the "gate that cannot fail" trap). CI passes the known
   # blocking-tier size; default 1 forbids an empty expected set outright.
   [int]$MinExpectedAssemblies = 1,
 
@@ -138,7 +138,7 @@ foreach ($trx in $trxFiles) {
     $testName = "$($res.testName)"
     $failed = ($res.outcome -ne "Passed" -and $res.outcome -ne "NotExecuted")
     if ($assemblies[$key].Tests.ContainsKey($testName)) {
-      # Same test seen in another shard — fail-closed: FAILED if it failed anywhere (1ltu6f edge).
+      # Same test seen in another shard — fail-closed: FAILED if it failed anywhere (multi-shard edge).
       if ($failed) { $assemblies[$key].Tests[$testName] = $true }
     }
     else {
@@ -171,7 +171,7 @@ foreach ($key in $distinctAssemblies) {
   }
 }
 
-# --- Expected-set assertion (f37o9a / ar6w5k). Invariant: PRODUCED ⊇ EXPECTED (every expected
+# --- Expected-set assertion. Invariant: PRODUCED ⊇ EXPECTED (every expected
 #     assembly must appear in the produced set; a missing/non-compiling one is absent → RED). ---
 $expectedKeys = @($ExpectedAssemblies | ForEach-Object { ConvertTo-AssemblyKey $_ } | Where-Object { $_ -ne "" } | Sort-Object -Unique)
 

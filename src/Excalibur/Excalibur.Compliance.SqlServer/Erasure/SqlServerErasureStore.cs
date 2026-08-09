@@ -8,6 +8,7 @@ using Dapper;
 
 using Excalibur.Compliance.Erasure;
 using Excalibur.Data.Validation;
+using Excalibur.Dispatch;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -33,20 +34,107 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	private readonly IDataSubjectHasher _dataSubjectHasher;
 	private readonly ILogger<SqlServerErasureStore> _logger;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
+	private readonly ITenantContext? _tenantContext;
+	private readonly bool _requireTenant;
 	private volatile bool _disposed;
 	private volatile bool _initialized;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="SqlServerErasureStore"/> class.
+	/// Gets the tenant scope bound to every tenant-facing statement, for both the write and the match.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the single place the tenant term is derived. Every tenant-facing statement in this class
+	/// reads it; none binds a tenant value by hand. That is what makes the leak inexpressible: the defect
+	/// was that each read <em>branched on a caller-supplied nullable</em>, so a caller who passed nothing
+	/// got no predicate at all and a caller who passed another tenant's identifier got that tenant's rows.
+	/// With the term derived here instead of from the argument, there is no per-call-site opportunity to
+	/// omit it, and a caller-supplied identifier can only ever be <em>added</em> to this one — narrowing
+	/// the result, never widening it.
+	/// </para>
+	/// <para>
+	/// Deployment mode decides the shape. A deployment that has not opted into multi-tenancy resolves
+	/// <see cref="TenantScope.None"/>: no predicate, no bound parameter, and rows keep whatever tenant
+	/// value the caller supplied — byte-identical to the single-tenant behaviour, so no stored row becomes
+	/// unreachable. A multi-tenant deployment resolves a scoped term that rides every tenant-facing path.
+	/// Mode is "did the consumer opt in", read from <see cref="TenantContextOptions.RequireTenant"/>, and
+	/// deliberately not "is an <see cref="ITenantContext"/> present" — the framework always registers a
+	/// single-tenant default, so presence would make every deployment look multi-tenant.
+	/// </para>
+	/// <para>
+	/// Multi-tenancy active with no resolved tenant fails closed: it throws rather than reaching a
+	/// predicate-less statement. A missing context is the same failure and is stated as such, because
+	/// degrading it to <see cref="TenantScope.None"/> would emit no predicate at all — the exact
+	/// cross-tenant read this property exists to remove.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="TenantRequiredException">
+	/// Multi-tenancy is active but no ambient tenant is established.
+	/// </exception>
+	private TenantScope AmbientScope
+	{
+		get
+		{
+			if (!_requireTenant)
+			{
+				return TenantScope.None;
+			}
+
+			return _tenantContext is null
+				? throw new TenantRequiredException()
+				: TenantScope.FromContext(_tenantContext);
+		}
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SqlServerErasureStore"/> class without an ambient tenant
+	/// context — the single-tenant deployment shape.
+	/// </summary>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <remarks>
+	/// Equivalent to supplying no tenant context and no tenant options: the store resolves
+	/// <see cref="TenantScope.None"/> and emits no tenant predicate. A multi-tenant host must use the
+	/// tenant-aware overload, which the tenant-scoped registration seam calls on its behalf.
+	/// </remarks>
 	public SqlServerErasureStore(
 		IOptions<SqlServerErasureStoreOptions> options,
 		IDataSubjectHasher dataSubjectHasher,
 		ILogger<SqlServerErasureStore> logger)
+		: this(options, dataSubjectHasher, logger, tenantContext: null, tenantContextOptions: null)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="SqlServerErasureStore"/> class.
+	/// </summary>
+	/// <param name="options">The configuration options.</param>
+	/// <param name="dataSubjectHasher">The keyed hasher used to pseudonymize data-subject identifiers.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">
+	/// Ambient tenant context. Under multi-tenancy every tenant-facing statement carries the resolved
+	/// tenant, and the write path stamps it rather than the value on the incoming request, so one tenant
+	/// cannot file a request into another tenant's partition. The estate-wide background surfaces
+	/// (<c>GetScheduledRequestsAsync</c>, <c>CleanupExpiredCertificatesAsync</c>) are deliberately
+	/// unscoped and documented as such at their call sites.
+	/// </param>
+	/// <param name="tenantContextOptions">
+	/// The tenant-context options. Its <see cref="TenantContextOptions.RequireTenant"/> (set by
+	/// <c>AddMultiTenancy()</c>) selects the deployment mode.
+	/// </param>
+	public SqlServerErasureStore(
+		IOptions<SqlServerErasureStoreOptions> options,
+		IDataSubjectHasher dataSubjectHasher,
+		ILogger<SqlServerErasureStore> logger,
+		ITenantContext? tenantContext,
+		IOptions<TenantContextOptions>? tenantContextOptions)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_dataSubjectHasher = dataSubjectHasher ?? throw new ArgumentNullException(nameof(dataSubjectHasher));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_tenantContext = tenantContext;
+		_requireTenant = tenantContextOptions?.Value.RequireTenant ?? false;
 
 		_options.Validate();
 
@@ -75,6 +163,11 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 				 @ExternalReference, @RequestedBy, @RequestedAt, @ScheduledExecutionAt,
 				 @Status, @DataCategories, @CreatedAt, @UpdatedAt)";
 
+		// The ambient term is authoritative on the write. Stamping the request's own TenantId would let a
+		// caller file a request into another tenant's partition — and, because every scoped read matches on
+		// the ambient term, that row would then be readable only by the tenant it was planted on.
+		var tenant = AmbientScope;
+
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
@@ -84,7 +177,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 			request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
-			request.TenantId,
+			TenantId = tenant.IsScoped ? tenant.TenantId : request.TenantId,
 			Scope = (int)request.Scope,
 			LegalBasis = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -111,19 +204,22 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		var tenant = AmbientScope;
+		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+
 		var sql = $@"
 			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasis,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
 			FROM {_options.FullRequestsTableName}
-			WHERE RequestId = @RequestId";
+			WHERE RequestId = @RequestId{tenantPredicate}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var row = await connection.QuerySingleOrDefaultAsync<ErasureRequestRow>(
-				new CommandDefinition(sql, new { RequestId = requestId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+				new CommandDefinition(sql, new { RequestId = requestId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		return row?.ToStatus();
@@ -138,19 +234,22 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		var tenant = AmbientScope;
+		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
 			SET Status = @Status,
 				ErrorMessage = @ErrorMessage,
 				ExecutedAt = CASE WHEN @Status = {(int)ErasureRequestStatus.InProgress} THEN @Now ELSE ExecutedAt END,
 				UpdatedAt = @Now
-			WHERE RequestId = @RequestId";
+			WHERE RequestId = @RequestId{tenantPredicate}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var affected = await connection.ExecuteAsync(new CommandDefinition(sql,
-			new { RequestId = requestId, Status = (int)status, ErrorMessage = errorMessage, Now = DateTimeOffset.UtcNow },
+			new { RequestId = requestId, Status = (int)status, ErrorMessage = errorMessage, Now = DateTimeOffset.UtcNow, AmbientTenantId = tenant.TenantId },
 			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return affected > 0;
@@ -166,6 +265,9 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		var tenant = AmbientScope;
+		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
 			SET Status = @Status,
@@ -174,7 +276,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 				CertificateId = @CertificateId,
 				CompletedAt = @Now,
 				UpdatedAt = @Now
-			WHERE RequestId = @RequestId";
+			WHERE RequestId = @RequestId{tenantPredicate}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -187,7 +289,8 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 				KeysDeleted = keysDeleted,
 				RecordsAffected = recordsAffected,
 				CertificateId = certificateId,
-				Now = DateTimeOffset.UtcNow
+				Now = DateTimeOffset.UtcNow,
+				AmbientTenantId = tenant.TenantId
 			}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 	}
 
@@ -200,6 +303,9 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		var tenant = AmbientScope;
+		var tenantPredicate = tenant.IsScoped ? " AND TenantId = @AmbientTenantId" : string.Empty;
+
 		var sql = $@"
 			UPDATE {_options.FullRequestsTableName}
 			SET Status = @Status,
@@ -208,7 +314,7 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 				CancelledAt = @Now,
 				UpdatedAt = @Now
 			WHERE RequestId = @RequestId
-			  AND Status IN ({(int)ErasureRequestStatus.Pending}, {(int)ErasureRequestStatus.Scheduled})";
+			  AND Status IN ({(int)ErasureRequestStatus.Pending}, {(int)ErasureRequestStatus.Scheduled}){tenantPredicate}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -220,13 +326,23 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 				Status = (int)ErasureRequestStatus.Cancelled,
 				Reason = reason,
 				CancelledBy = cancelledBy,
-				Now = DateTimeOffset.UtcNow
+				Now = DateTimeOffset.UtcNow,
+				AmbientTenantId = tenant.TenantId
 			}, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
 
 		return affected > 0;
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// ESTATE-WIDE BY DESIGN — deliberately not tenant-scoped, and the asymmetry is load-bearing. The
+	/// erasure scheduler drains every tenant's due requests in one background pass with no ambient tenant
+	/// established, exactly as the outbox drain does; scoping it would resolve the tenant as absent, return
+	/// the empty set, and stall erasure permanently while still satisfying a safety-only test. Each row
+	/// carries its own tenant, so the scheduler establishes a per-request scope as it drains. This surface
+	/// is reachable only through <see cref="IErasureQueryStore"/>, which a per-tenant caller does not take
+	/// a dependency on.
+	/// </remarks>
 	public async Task<IReadOnlyList<ErasureStatus>> GetScheduledRequestsAsync(
 		int maxResults,
 		CancellationToken cancellationToken)
@@ -272,6 +388,18 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 
 		var whereClauses = new List<string>();
 		var parameters = new DynamicParameters();
+
+		// The ambient term is added FIRST and unconditionally under multi-tenancy, so it is a floor rather
+		// than an alternative. The caller's own tenantId is then ANDed onto it below: two equality terms can
+		// only intersect, so asking for another tenant yields the empty set instead of that tenant's rows,
+		// and omitting the argument no longer removes the predicate. Widening is not expressible here — it
+		// would take changing this AND to an OR.
+		var tenant = AmbientScope;
+		if (tenant.IsScoped)
+		{
+			whereClauses.Add("TenantId = @AmbientTenantId");
+			parameters.Add("AmbientTenantId", tenant.TenantId);
+		}
 
 		if (status.HasValue)
 		{
@@ -373,17 +501,26 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		// The certificate table carries no tenant column of its own: a certificate belongs to the request it
+		// certifies, so its tenant is that request's. Scoping through the request is what keeps the join and
+		// the row in agreement — adding a second tenant column would let the two disagree.
+		var tenant = AmbientScope;
+		var tenantPredicate = tenant.IsScoped
+			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
+				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
+			: string.Empty;
+
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
 				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil
 			FROM {_options.FullCertificatesTableName}
-			WHERE RequestId = @RequestId";
+			WHERE RequestId = @RequestId{tenantPredicate}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var row = await connection.QuerySingleOrDefaultAsync<CertificateRow>(
-				new CommandDefinition(sql, new { RequestId = requestId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+				new CommandDefinition(sql, new { RequestId = requestId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		return row?.ToCertificate();
@@ -396,23 +533,36 @@ public sealed partial class SqlServerErasureStore : IErasureStore, IErasureCerti
 	{
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+		// Scoped through the certified request, for the same reason as the by-request lookup above.
+		var tenant = AmbientScope;
+		var tenantPredicate = tenant.IsScoped
+			? $@" AND EXISTS (SELECT 1 FROM {_options.FullRequestsTableName} r
+				  WHERE r.RequestId = {_options.FullCertificatesTableName}.RequestId AND r.TenantId = @AmbientTenantId)"
+			: string.Empty;
+
 		var sql = $@"
 			SELECT CertificateId, RequestId, DataSubjectReference, RequestReceivedAt, CompletedAt,
 				   Method, Summary, Verification, LegalBasis, Signature, RetainUntil
 			FROM {_options.FullCertificatesTableName}
-			WHERE CertificateId = @CertificateId";
+			WHERE CertificateId = @CertificateId{tenantPredicate}";
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		var row = await connection.QuerySingleOrDefaultAsync<CertificateRow>(
-				new CommandDefinition(sql, new { CertificateId = certificateId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
+				new CommandDefinition(sql, new { CertificateId = certificateId, AmbientTenantId = tenant.TenantId }, cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds))
 			.ConfigureAwait(false);
 
 		return row?.ToCertificate();
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// ESTATE-WIDE BY DESIGN, like <c>GetScheduledRequestsAsync</c>: a retention sweep that runs from a
+	/// background service with no ambient tenant and must delete every tenant's expired certificates in one
+	/// pass. Scoping it would silently stop honouring the retention limit for every tenant but one. It is
+	/// reachable only through <see cref="IErasureCertificateStore"/>, not the per-tenant request path.
+	/// </remarks>
 	public async Task<int> CleanupExpiredCertificatesAsync(
 		CancellationToken cancellationToken)
 	{

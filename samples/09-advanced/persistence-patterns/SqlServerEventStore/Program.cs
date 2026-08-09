@@ -45,7 +45,7 @@ builder.Services.AddLogging(logging =>
 // ============================================================
 builder.Services.AddDispatch(typeof(Program).Assembly);
 
-// c6wd6f: register event types for secure-by-default resolution
+// Register event types so the serializer resolves them without an assembly scan.
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================

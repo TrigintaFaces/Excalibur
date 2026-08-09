@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Adds missing projects to Excalibur.sln (Sprint 325 - T0.1)
+    Adds missing projects to Excalibur.sln
 .DESCRIPTION
     Reads the project manifest and adds any projects marked as in_solution=false
     to the solution file using dotnet sln add.

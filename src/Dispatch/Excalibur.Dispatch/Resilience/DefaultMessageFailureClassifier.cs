@@ -93,7 +93,7 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
         };
 
     /// <summary>
-    /// EC-2: unwraps a single-inner <see cref="AggregateException"/> chain to its root cause so the
+    /// Unwraps a single-inner <see cref="AggregateException"/> chain to its root cause so the
     /// classification reflects the real failure rather than the wrapper. A genuinely multi-fault
     /// aggregate is left flattened (and classified transient via the default arm).
     /// </summary>

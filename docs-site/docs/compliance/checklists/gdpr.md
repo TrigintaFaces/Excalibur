@@ -543,23 +543,34 @@ await _dataInventoryService.RegisterDataLocationAsync(new DataLocationRegistrati
 
 #### 4.3 Generate RoPA Report
 
-:::danger The `tenantId` argument does not restrict results
+:::warning The `tenantId` argument is inert — scope comes from the ambient tenant context
 
-**A scoped read returns the whole estate's registrations, not the querying tenant's.** This affects `DiscoverAsync` and `GetDataMapAsync` on the SQL Server and PostgreSQL stores.
+**Supplying a `tenantId` to `DiscoverAsync` or `GetDataMapAsync` does not select that tenant.** The
+parameter is accepted and deliberately never consulted. Passing `"tenant-a"` and passing `"tenant-b"`
+return **identical results**, and so does passing nothing at all.
 
-Supplying a `tenantId` does **not** filter to that tenant. The value is accepted and then never compared against anything; the query it produces selects every registration that merely *has* a tenant column configured, regardless of which tenant owns it. Passing `"tenant-a"` and passing `"tenant-b"` return **identical results**. Passing a tenant that owns nothing at all still returns other tenants' rows.
+**What you actually get is correct, which is why this is a warning and not a data-isolation defect.**
+The read is scoped by the **ambient tenant context**, and returns your tenant's registrations plus any
+registered as untenanted — the shared, estate-wide entries. It does not return another tenant's rows.
+The SQL Server, PostgreSQL and in-memory stores all behave this way; they agree.
 
-The in-memory store behaves differently again — it compares your `tenantId` against the configured column *name*, so it generally returns nothing rather than everything. **Do not use in-memory behaviour to predict SQL behaviour here.**
+**So to scope a read, set the ambient tenant, not the argument:**
 
-**Why this matters for Article 30:** a RoPA report generated per tenant from these calls will contain other controllers' processing records. If you export or hand that report to a tenant, an auditor, or a data subject, you are disclosing another tenant's data map.
+```csharp
+// The argument does nothing. This does.
+using var scope = tenantContext.BeginScope("tenant-a");
+var map = await dataInventory.GetDataMapAsync(tenantId: null, ct);
+```
 
-**What to do until this is resolved:**
+**For Article 30:** a RoPA report generated under a tenant's ambient scope contains that tenant's
+processing records and the shared ones — not another controller's. If you generate reports by varying
+the `tenantId` argument alone, every report will be identical and will reflect whichever tenant was
+ambient, so vary the scope instead.
 
-- **Do not generate per-tenant RoPA reports from a shared compliance store.** Use a separate store per tenant, or generate one estate-wide report and filter it yourself against your own record of tenant ownership.
-- If you must filter in application code, do it on data *you* control — the framework's returned rows carry no trustworthy owner field to filter on.
-- Single-tenant deployments are unaffected: there is only one tenant's data to return.
-
-**Verification is not covered by the shipped conformance kit.** The data-inventory conformance suite runs against the in-memory store only; neither SQL store is exercised by it. A green conformance run therefore does **not** demonstrate tenant isolation in your deployment. Test scoping directly against your real database before relying on it.
+**Verification is not covered by the shipped conformance kit.** The data-inventory conformance suite
+has only an in-memory derivation; neither SQL store is exercised by it. A green conformance run
+therefore does **not** demonstrate tenant isolation in your deployment. Test scoping directly against
+your real database before relying on it for a regulatory report.
 
 :::
 

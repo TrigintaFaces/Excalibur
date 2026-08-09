@@ -205,7 +205,7 @@ public static class CosmosDbServiceCollectionExtensions
 	/// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
 	/// <remarks>
 	/// The default <see cref="InMemoryChangeFeedCheckpointStore"/> emits a LOUD non-durable warning once on
-	/// construction, so "silently non-durable" cannot re-create the advertised-but-inert bug FR-B1 fixes.
+	/// construction, so a non-durable default can never pass silently for the advertised durable behavior.
 	/// Registering a durable store via <see cref="AddCosmosDbChangeFeedCheckpointStore"/> replaces this
 	/// default (so the in-memory store is never constructed and the warning never fires).
 	/// </remarks>

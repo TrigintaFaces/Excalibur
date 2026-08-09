@@ -19,7 +19,7 @@ internal sealed class SqsProcessorOptions
 
 	/// <summary>
 	/// The bounded drain timeout, in seconds, applied when the hosted service stops the processor on
-	/// shutdown (uco9lt). Ensures a stalled SQS drain cannot block process exit indefinitely — the stop
+	/// shutdown. Ensures a stalled SQS drain cannot block process exit indefinitely — the stop
 	/// path passes a deadline-bounded token instead of an uncancellable one. Defaults to 30 seconds.
 	/// </summary>
 	public int DrainTimeoutSeconds { get; set; } = 30;

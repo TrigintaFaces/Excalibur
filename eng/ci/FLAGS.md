@@ -2,7 +2,7 @@ CI Enforcement Flags
 
 These environment variables control report-only vs enforce modes for the checks that honor them.
 Defaults are report-only (unset or false). Each flag below is backed by real, non-vacuous enforcement
-code — there is no "appears-enforced but isn't" scaffolding here (see Sprint 849 / kc148w / FR-A2.5).
+code — there is no "appears-enforced but isn't" scaffolding here.
 
 **Enforced in CI by default** (the workflow sets the flag true):
 
@@ -26,7 +26,8 @@ code — there is no "appears-enforced but isn't" scaffolding here (see Sprint 8
     `.github/workflows/governance.yml`).
 
 > **Trim/AOT and coverage are enforced by dedicated mechanisms, NOT by an `_ENFORCE` env flag** — do not
-> add `TRIM_ENFORCE`/`COVERAGE_ENFORCE` flags (removed in kc148w as un-implemented scaffolding):
+> add `TRIM_ENFORCE`/`COVERAGE_ENFORCE` flags (both were removed as un-implemented scaffolding — they
+> read as enforcement while gating nothing):
 > - **Trim/AOT:** `.github/workflows/aot-validation.yml` (AOT suppression/warning baseline audits via
 >   `eng/ci/Invoke-Aot*.ps1` — fails on new unapproved suppressions/warnings).
 > - **Coverage:** `.github/workflows/coverage.yml` (`coverage-enforce` job, threshold via

@@ -542,10 +542,10 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 	/// <summary>
 	/// Restores the staged W3C <c>baggage</c> from the outbox message headers back onto the rebuilt publish
-	/// context (FR-D6, 4desh8), symmetric with <see cref="RestoreTraceParent" />. Without this the producer's
+	/// context, symmetric with <see cref="RestoreTraceParent" />. Without this the producer's
 	/// baggage is written into the staged envelope (<c>OutboxStagingMiddleware.GetBaggageHeader</c>) but silently
 	/// dropped on the outbox hop, so it never reaches the next consumer. Each <c>name=value</c> member is
-	/// percent-decoded (folds 7npc0q W3C percent-encoding) and written back into the context items keyed
+	/// percent-decoded (the W3C baggage percent-encoding is folded back) and written into the context items keyed
 	/// <c>baggage.{name}</c> — the exact slot the capture (<c>DispatchContextInitializer</c>) and stage-write read.
 	/// Malformed members are skipped rather than throwing (best-effort propagation).
 	/// </summary>

@@ -7,8 +7,6 @@
     This script replicates the CI package-composition job for local testing.
     Use this before pushing to catch composition issues early.
 
-    Sprint 328 T2.4: Package Composition Validation (AD-328-1)
-
 .PARAMETER Version
     Package version override. Defaults to 0.0.0-local.
     Passed to MinVer as MinVerVersionOverride so build + pack produce consistent metadata.
@@ -43,7 +41,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Sprint 328 T2.4: Package Composition Validation" -ForegroundColor Cyan
+Write-Host "Package Composition Validation" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 $stepNum = 0

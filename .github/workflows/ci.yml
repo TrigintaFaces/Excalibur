@@ -489,7 +489,7 @@ jobs:
       matrix:
         shard:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
-          # moe5g9: run the transport shard serial (xUnit.MaxParallelThreads=1 + no collection parallelism)
+          # Run the transport shard serial (xUnit.MaxParallelThreads=1 + no collection parallelism)
           # to avoid the concurrency-dependent librdkafka native-thread leak that roots the vstest host.
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", extra-run-settings: "xUnit.MaxParallelThreads=1 xUnit.ParallelizeTestCollections=false" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
@@ -630,7 +630,7 @@ jobs:
             Sort-Object -Unique)
           Write-Host "Enforcing $($expected.Count) blocking-tier assemblies."
           # Non-vacuity floor: if the slnf derivation ever yields far fewer than the tier really holds,
-          # the gate must refuse (exit 2) rather than pass a shrunken set (fmvdpg/tpu8m2 trap). 40 is a
+          # the gate must refuse (exit 2) rather than pass a shrunken set (the vacuous-pass trap). 40 is a
           # conservative floor well below the current ~53 blocking-tier assemblies.
           ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir management/reports/ShardAggregation
       - name: Upload aggregation report

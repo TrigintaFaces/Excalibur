@@ -16,7 +16,7 @@ namespace Excalibur.AuditLogging;
 /// the unambiguous, length-prefixed, version-stamped encoding to the shared
 /// <see cref="AuditRecordCanonicalizer"/> primitive. <see cref="AuditEvent.TenantId"/> is included, so a
 /// link's keyed MAC binds the tenant — cross-tenant chain-splicing fails verification without a separate
-/// tenant-seeded genesis (qa71t5: genesis = <see langword="null"/> prior tag).
+/// tenant-seeded genesis (a genesis link carries a <see langword="null"/> prior tag).
 /// <para>
 /// Public so every <c>IAuditStore</c> backend (across the AuditLogging provider packages) canonicalizes
 /// <see cref="AuditEvent"/> identically — a shared contract, replacing the former public <c>AuditHasher</c>.

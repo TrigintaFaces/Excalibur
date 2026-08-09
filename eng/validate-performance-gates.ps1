@@ -19,9 +19,9 @@ param(
     [double]$MediatRQueryMaxRatio = 2.20,
 
     # Transport queued path overhead vs Wolverine improved from 0.59x to 2.3x
-    # in Sprint 660 via 4 hot-path optimizations (lightweight context init,
-    # middleware bypass, single-bus pre-resolution, routing decision cache).
-    # Gate raised from 0.50 to 0.75 per Sprint 660 success criteria.
+    # via 4 hot-path optimizations (lightweight context init, middleware bypass,
+    # single-bus pre-resolution, routing decision cache).
+    # Gate raised from 0.50 to 0.75 to match that measured improvement.
     [Parameter(Mandatory = $false)]
     [double]$TransportWolverineSingleCommandMinAdvantageRatio = 0.75,
 

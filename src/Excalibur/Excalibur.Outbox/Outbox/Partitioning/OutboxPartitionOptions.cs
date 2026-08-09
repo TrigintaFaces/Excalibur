@@ -13,7 +13,7 @@ public enum OutboxPartitionStrategy
 	/// <summary>Single outbox table (current behavior, default).</summary>
 	None = 0,
 
-	/// <summary>One outbox table per tenant shard (when vpbunk sharding is active).</summary>
+	/// <summary>One outbox table per tenant shard (when tenant sharding is active).</summary>
 	PerShard = 1,
 
 	/// <summary>Hash(tenantId) % N partitions in same database.</summary>

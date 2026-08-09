@@ -70,6 +70,14 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         "Excalibur.EventSourcing",
         "Excalibur.Dispatch",
         "Excalibur.Dispatch.Messaging",
+
+        // Added when the erasure-request and legal-hold stores were manifested. Widening the oracle is what
+        // this guard's own failure message prescribes when a manifested contract lives outside the scanned
+        // set, and it is the direction that matters: the population must always be a superset of the
+        // manifest, or the guard cannot bound the manifest's completeness. Admitting this namespace also
+        // brings the rest of the compliance persistence contracts under classification, which is how the
+        // audit-store and consent-store gaps below became visible rather than assumed absent.
+        "Excalibur.Compliance",
     };
 
     /// <summary>The declared set of tenant-owned contracts — the manifest whose completeness this bounds.</summary>
@@ -148,6 +156,51 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
         ["ICdcStateStore"] =
             "Coordination state: change-data-capture cursor/position bookkeeping — how far a CDC processor " +
             "has read a source. Not tenant-owned domain rows.",
+
+        // --- Excalibur.Compliance (erasure/legal-hold facets, inventory, audit, consent) ----------------
+        ["IErasureQueryStore"] =
+            "Segregated query facet of the manifested IErasureStore, implemented on the same store instance " +
+            "and reached through GetService: its tenant-facing read applies the same ambient tenant " +
+            "predicate as the store, and its due-request drain is deliberately estate-wide (a background " +
+            "scheduler runs with no ambient tenant and must drain every tenant). Not a distinct store.",
+        ["IErasureCertificateStore"] =
+            "Segregated certificate facet of the manifested IErasureStore, on the same instance: certificate " +
+            "reads are tenant-scoped through the request they certify, and the retention sweep is " +
+            "deliberately estate-wide. Not a distinct store.",
+        ["ILegalHoldQueryStore"] =
+            "Segregated query facet of the manifested ILegalHoldStore, on the same instance: tenant-facing " +
+            "reads apply the same ambient tenant predicate, and the hold-expiry sweep is deliberately " +
+            "estate-wide. Not a distinct store.",
+        ["IDataInventoryStore"] =
+            "AMBIGUOUS (flagged for review). Records WHERE personal data lives — field and table " +
+            "registrations discovered from [PersonalData] annotations plus the processing-activities map. " +
+            "That is a description of the deployment's own schema rather than a tenant's rows, but " +
+            "per-data-subject registrations sit on the same contract. Excluded pending review.",
+        ["IDataInventoryQueryStore"] =
+            "AMBIGUOUS (flagged for review). Query facet of IDataInventoryStore on the same instance; same " +
+            "reasoning, and it inherits whatever classification that contract is given.",
+        ["IAuditStore"] =
+            "KNOWN OPEN tenant-classification gap. Audit events are tenant-derived and the provider stores " +
+            "do thread the ambient ITenantContext, but the contract is neither manifested nor gated, so no " +
+            "capability assertion rejects a tenant-unaware audit provider at startup. Surfaced by widening " +
+            "this guard's namespace oracle; carried as its own work rather than silently manifested here, " +
+            "because gating it without first auditing the provider read paths would fail hosts closed " +
+            "without proving isolation.",
+        ["IDurableAuditStore"] =
+            "Capability facet of IAuditStore (durable-write guarantees over the same audit rows); inherits " +
+            "that contract's classification and its KNOWN OPEN gap above.",
+        ["IAuditAnnotationStore"] =
+            "Annotations attached to audit events by event id, stored alongside them and reached on the " +
+            "same provider; inherits IAuditStore's classification and its KNOWN OPEN gap above.",
+        ["IComplianceStore"] =
+            "KNOWN OPEN tenant-classification gap. Holds consent records and subject-access-request " +
+            "tracking, which are tenant-owned by the same argument as erasure requests, but the contract is " +
+            "neither manifested nor gated. Surfaced by widening this guard's namespace oracle and carried " +
+            "as its own work.",
+        ["ISoc2ReportStore"] =
+            "Estate-level, not tenant-owned: SOC 2 reports describe the service organisation's own control " +
+            "environment over a reporting period, which is a property of the deployment rather than of any " +
+            "tenant's data. A per-tenant scope would fragment the evidence an auditor asks for as one set.",
     };
 
     private static readonly ConcurrentDictionary<string, Assembly?> AssemblyCache = new(StringComparer.OrdinalIgnoreCase);

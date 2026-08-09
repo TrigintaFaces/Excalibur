@@ -32,7 +32,7 @@ internal static class MigrationDiagnosticDescriptors
 	/// <remarks>
 	/// Informational diagnostic reported when the analyzer encounters a <c>services.AddMediatR(...)</c>
 	/// registration call, identifying it as mechanically portable to the Excalibur compat registration
-	/// entry point <c>AddMediatRCompat(...)</c>. A code-fix performs the rewrite (bead <c>wfh6e3</c>).
+	/// entry point <c>AddMediatRCompat(...)</c>. A code-fix performs the rewrite.
 	/// </remarks>
 	public static readonly DiagnosticDescriptor MediatRRegistrationPortable = new(
 		id: MigrationDiagnosticIds.MediatRRegistrationPortable,

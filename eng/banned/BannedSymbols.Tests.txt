@@ -1,15 +1,15 @@
-# Banned sync-over-async BLOCKING APIs in TEST code (1b54fe).
+# Banned sync-over-async BLOCKING APIs in TEST code.
 #
 # Sync-blocking waits in tests hide deadlocks and make suites flaky (dotnet-best-practices.md async
 # rules + testing-patterns §1 "never depend on wall-clock timing; poll"). Applied to test projects via
 # tests/Directory.Build.props (BannedApiAnalyzers, error severity).
 #
 # NOTE: `Task.Delay` is INTENTIONALLY NOT banned here — an *awaited* Task.Delay is non-blocking, and the
-# ~112 legitimate test uses stay green (SA ruling, S887). The separate Task.Delay-then-assert determinism
+# ~112 legitimate test uses stay green. The separate Task.Delay-then-assert determinism
 # smell is policed by eng/ci/task-delay-syncwait-gate.sh (a different concern), not this list.
 #
-# Projects with PRE-EXISTING violations are opted out in tests/Directory.Build.props until migrated
-# (tracked: bead c36hwe). New violations in the clean projects fail the build immediately.
+# Projects with PRE-EXISTING violations are opted out in tests/Directory.Build.props until migrated.
+# New violations in the clean projects fail the build immediately.
 #
 # Format: <Roslyn-DocId>;<message>  (Microsoft.CodeAnalysis.BannedApiAnalyzers RS0030).
 

@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 
 /// <summary>
 /// Detects registered dispatch pipeline middleware that the streaming, progress, and document-stream
-/// dispatch paths bypass, and surfaces the bypass <em>loudly</em> (ec132p).
+/// dispatch paths bypass, and surfaces the bypass <em>loudly</em>.
 /// </summary>
 /// <remarks>
 /// <para>

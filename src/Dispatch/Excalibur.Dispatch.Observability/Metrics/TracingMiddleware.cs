@@ -118,12 +118,12 @@ internal sealed class TracingMiddleware(IOptions<ObservabilityOptions> observabi
 	}
 
 	/// <summary>
-	/// Starts the dispatch span (FR-A3, 3wlvav). When a W3C <c>traceparent</c> was restored from an inbound
+	/// Starts the dispatch span. When a W3C <c>traceparent</c> was restored from an inbound
 	/// message (e.g. an outbox-published message round-tripped through staging → publish), the span continues
 	/// that distributed trace as an <see cref="ActivityKind.Consumer"/> child — mirroring
-	/// <c>W3CTraceContextMiddleware</c> — instead of starting a new trace root. Fail-open (FR-A5/EC-A2): an
+	/// <c>W3CTraceContextMiddleware</c> — instead of starting a new trace root. Fail-open: an
 	/// absent or malformed traceparent falls back to the default in-process <see cref="ActivityKind.Internal"/>
-	/// span. Returns <see langword="null"/> when no listener is registered (the no-overhead fast path, EC-A3).
+	/// span. Returns <see langword="null"/> when no listener is registered (the no-overhead fast path).
 	/// </summary>
 	private static Activity? StartDispatchActivity(Type messageType, IMessageContext context)
 	{

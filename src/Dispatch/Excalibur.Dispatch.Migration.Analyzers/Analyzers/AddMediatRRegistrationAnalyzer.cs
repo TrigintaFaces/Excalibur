@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Migration.Analyzers;
 /// now-commercial package.
 /// </para>
 /// <para>
-/// The companion code-fix (bead <c>wfh6e3</c>, in <c>Excalibur.Dispatch.Migration.CodeFixes</c>)
+/// The companion code-fix (in <c>Excalibur.Dispatch.Migration.CodeFixes</c>)
 /// rewrites the flagged call to <c>AddMediatRCompat(...)</c>, preserving assembly-scan arguments.
 /// </para>
 /// </remarks>

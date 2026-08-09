@@ -4,10 +4,13 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Compliance;
+using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.SqlServer.Erasure;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -43,7 +46,21 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 				SqlServerErasureStoreOptionsValidator>());
 
 		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
-		services.TryAddSingleton<SqlServerErasureStore>();
+		// The fail-closed single-tenant default guarantees a non-null ambient context; the multi-tenancy
+		// composition replaces it with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
+		// ITenantScopingCapability<IErasureStore> marker in the same act. The marker is not separately
+		// registerable, so a store that was never handed the context cannot carry a truthful-looking
+		// capability and pass the multi-tenancy gate.
+		_ = services.AddTenantScopedStore<IErasureStore, SqlServerErasureStore>((sp, tenantContext) =>
+			new SqlServerErasureStore(
+				sp.GetRequiredService<IOptions<SqlServerErasureStoreOptions>>(),
+				sp.GetRequiredService<IDataSubjectHasher>(),
+				sp.GetRequiredService<ILogger<SqlServerErasureStore>>(),
+				tenantContext,
+				sp.GetService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
@@ -104,7 +121,21 @@ public static class SqlServerErasureStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerErasureStoreOptions>,
 				SqlServerErasureStoreOptionsValidator>());
 
-		services.TryAddSingleton<SqlServerErasureStore>();
+		// The fail-closed single-tenant default guarantees a non-null ambient context; the multi-tenancy
+		// composition replaces it with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
+		// ITenantScopingCapability<IErasureStore> marker in the same act. The marker is not separately
+		// registerable, so a store that was never handed the context cannot carry a truthful-looking
+		// capability and pass the multi-tenancy gate.
+		_ = services.AddTenantScopedStore<IErasureStore, SqlServerErasureStore>((sp, tenantContext) =>
+			new SqlServerErasureStore(
+				sp.GetRequiredService<IOptions<SqlServerErasureStoreOptions>>(),
+				sp.GetRequiredService<IDataSubjectHasher>(),
+				sp.GetRequiredService<ILogger<SqlServerErasureStore>>(),
+				tenantContext,
+				sp.GetService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<IErasureStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureCertificateStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());
 		services.TryAddSingleton<IErasureQueryStore>(sp => sp.GetRequiredService<SqlServerErasureStore>());

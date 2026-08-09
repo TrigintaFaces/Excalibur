@@ -7,14 +7,14 @@
 
 .DESCRIPTION
     Covers the template acceptance criteria:
-    AC-1: CI step installs templates from local source (dotnet new install)
-    AC-2: CI step runs dotnet new for each template with default options and verifies structure
-    AC-3: CI step runs dotnet new dispatch-api with each --transport option
-    AC-4: CI step runs dotnet new excalibur-ddd with each --database option
-    AC-5: CI step runs dotnet new with --include-tests and verifies test project exists
-    AC-6: Template pack step (dotnet pack) produces Excalibur.Dispatch.Templates.nupkg
-    AC-7: CI fails if any template produces a project that does not compile (structure validation)
-    AC-8: CI runs on PRs that touch templates/ or src/ directories
+    - CI step installs templates from local source (dotnet new install)
+    - CI step runs dotnet new for each template with default options and verifies structure
+    - CI step runs dotnet new dispatch-api with each --transport option
+    - CI step runs dotnet new excalibur-ddd with each --database option
+    - CI step runs dotnet new with --include-tests and verifies test project exists
+    - Template pack step (dotnet pack) produces Excalibur.Dispatch.Templates.nupkg
+    - CI fails if any template produces a project that does not compile (structure validation)
+    - CI runs on PRs that touch templates/ or src/ directories
 
 .PARAMETER CleanUp
     Remove generated test projects after validation. Default: true.
@@ -156,7 +156,7 @@ function Write-TestResult {
 }
 
 function Test-TemplateInstallation {
-    Write-Host "`n=== AC-1: Template Installation ===" -ForegroundColor Cyan
+    Write-Host "`n=== Template Installation ===" -ForegroundColor Cyan
 
     foreach ($template in $Templates) {
         $shortName = $template.ShortName
@@ -185,7 +185,7 @@ function Test-TemplateInstallation {
 }
 
 function Test-DefaultInstantiation {
-    Write-Host "`n=== AC-2: Default Options Instantiation ===" -ForegroundColor Cyan
+    Write-Host "`n=== Default Options Instantiation ===" -ForegroundColor Cyan
 
     foreach ($template in $Templates) {
         $shortName = $template.ShortName
@@ -233,7 +233,7 @@ function Test-DefaultInstantiation {
 }
 
 function Test-TransportOptions {
-    Write-Host "`n=== AC-3: Transport Options (dispatch-api, dispatch-worker, excalibur-cqrs) ===" -ForegroundColor Cyan
+    Write-Host "`n=== Transport Options (dispatch-api, dispatch-worker, excalibur-cqrs) ===" -ForegroundColor Cyan
 
     foreach ($template in $Templates) {
         if ($template.Transports.Count -eq 0) { continue }
@@ -307,7 +307,7 @@ function Test-TransportOptions {
 }
 
 function Test-DatabaseOptions {
-    Write-Host "`n=== AC-4: Database Options (excalibur-ddd, excalibur-cqrs) ===" -ForegroundColor Cyan
+    Write-Host "`n=== Database Options (excalibur-ddd, excalibur-cqrs) ===" -ForegroundColor Cyan
 
     foreach ($template in $Templates) {
         if ($template.Databases.Count -eq 0) { continue }
@@ -356,7 +356,7 @@ function Test-DatabaseOptions {
 }
 
 function Test-IncludeTestsOption {
-    Write-Host "`n=== AC-5: --IncludeTests Option ===" -ForegroundColor Cyan
+    Write-Host "`n=== --IncludeTests Option ===" -ForegroundColor Cyan
 
     foreach ($template in $Templates) {
         if (-not $template.HasTests) { continue }
@@ -413,7 +413,7 @@ function Test-IncludeTestsOption {
 }
 
 function Test-IncludeDockerOption {
-    Write-Host "`n=== AC-5b: --IncludeDocker Option ===" -ForegroundColor Cyan
+    Write-Host "`n=== --IncludeDocker Option ===" -ForegroundColor Cyan
 
     foreach ($template in $Templates) {
         if (-not $template.HasDocker) { continue }
@@ -440,7 +440,7 @@ function Test-IncludeDockerOption {
 }
 
 function Test-FrameworkOption {
-    Write-Host "`n=== AC-2b: --Framework Option (net10.0 only) ===" -ForegroundColor Cyan
+    Write-Host "`n=== --Framework Option (net10.0 only) ===" -ForegroundColor Cyan
 
     # Framework=net10.0 is the only supported target since .NET 8/9 multi-target
     # was removed from templates. This test verifies the default behaviour.
@@ -466,7 +466,7 @@ function Test-FrameworkOption {
 }
 
 function Test-TemplatePack {
-    Write-Host "`n=== AC-6: Template Pack ===" -ForegroundColor Cyan
+    Write-Host "`n=== Template Pack ===" -ForegroundColor Cyan
 
     $packOutput = Join-Path $RepoRoot "artifacts" "template-pack"
     if (Test-Path $packOutput) { Remove-Item -Recurse -Force $packOutput }
@@ -565,7 +565,7 @@ function Test-CqrsCombinations {
 }
 
 function Test-DockerFrameworkTags {
-    Write-Host "`n=== AC-Docker: Dockerfile Framework Tag Validation (bd-5kjmq) ===" -ForegroundColor Cyan
+    Write-Host "`n=== AC-Docker: Dockerfile Framework Tag Validation ===" -ForegroundColor Cyan
 
     # Templates only target net10.0 since .NET 8/9 multi-target was dropped.
     $framework = "net10.0"

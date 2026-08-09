@@ -8,8 +8,6 @@
     by category (feat/fix/chore/refactor/test/docs/ci) using conventional commit prefixes.
     Extracts Beads task IDs (bd-XXXXX) from commit messages for cross-referencing.
 
-    Sprint 640 B.1 (bd-oio69).
-
 .PARAMETER OutDir
     Output directory for changelog artifacts. Defaults to ChangelogReport.
 

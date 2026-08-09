@@ -507,6 +507,13 @@ public static class ComplianceEventId
 	/// <summary>Legal hold auto-release partial failure summary.</summary>
 	public const int LegalHoldAutoReleasePartialFailure = 92795;
 
+	/// <summary>
+	/// A hold check ran without a tenant, so every active hold was consulted instead of one
+	/// tenant's. Emitted only when that widening actually returned a tenant-wide hold, because
+	/// then the result may be broader than the caller intended.
+	/// </summary>
+	public const int LegalHoldCheckedWithoutTenant = 92796;
+
 	// ========================================
 	// 92800-92899: Compliance Monitoring & Alerts
 	// ========================================

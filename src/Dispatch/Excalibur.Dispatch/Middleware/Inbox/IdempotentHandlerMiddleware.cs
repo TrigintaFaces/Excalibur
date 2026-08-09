@@ -40,7 +40,7 @@ namespace Excalibur.Dispatch.Middleware.Inbox;
 /// </list>
 /// </para>
 /// <para>
-/// <b>Delivery guarantee (honest contract — j8xcrn).</b> The claim is taken atomically <em>before</em> the
+/// <b>Delivery guarantee.</b> The claim is taken atomically <em>before</em> the
 /// handler runs and the message is marked processed <em>after</em> the handler succeeds — two separate steps,
 /// not a single transaction. Therefore the guarantee is:
 /// <list type="bullet">

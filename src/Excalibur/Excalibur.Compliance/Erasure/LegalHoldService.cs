@@ -152,21 +152,55 @@ public sealed partial class LegalHoldService : ILegalHoldService
 			cancellationToken).ConfigureAwait(false);
 		activeHolds.AddRange(subjectHolds);
 
-		// Check for tenant-wide holds
-		if (!string.IsNullOrEmpty(tenantId))
-		{
-			var tenantHolds = await _queryStore.GetActiveHoldsForTenantAsync(
-				tenantId,
-				cancellationToken).ConfigureAwait(false);
+		// Tenant-wide holds. A MISSING TENANT MUST NOT MEAN "NO HOLDS".
+		//
+		// This block used to be skipped entirely when no tenant was supplied, and the effect
+		// was the opposite of safe. A tenant-wide hold carries no data-subject identifier, and
+		// the subject query above matches on that identifier -- a null never equals a value --
+		// so the subject path can never return one either. With no tenant, the check therefore
+		// saw ZERO tenant-wide holds, reported nothing blocking, and the erasure proceeded.
+		//
+		// Erasure is irreversible, and a legal hold exists precisely to prevent it, so the
+		// failure was silent and unrecoverable in the direction that matters.
+		//
+		// When no tenant is supplied we now consult EVERY active hold instead of none. The
+		// data-subject filter below still restricts the result to genuinely tenant-wide holds,
+		// so the widening cannot pull in another subject's hold. The consequences are safe in
+		// both deployments:
+		//
+		//   single-tenant   holds are stored with no tenant, so they are found -- previously
+		//                   they were missed, which is the bug this fixes
+		//   multi-tenant    a caller who omits the tenant sees tenant-wide holds across
+		//                   tenants, so erasure is over-blocked rather than wrongly permitted
+		//
+		// Over-blocking is recoverable: release the hold, or pass the tenant. Under-blocking
+		// destroys data that a court order said to keep.
+		var tenantHolds = string.IsNullOrEmpty(tenantId)
+			? await _queryStore.ListActiveHoldsAsync(null, cancellationToken).ConfigureAwait(false)
+			: await _queryStore.GetActiveHoldsForTenantAsync(tenantId, cancellationToken).ConfigureAwait(false);
 
-			// Add tenant-wide holds (those without a specific data subject)
-			foreach (var hold in tenantHolds)
+		// Tenant-wide holds only -- those without a specific data subject.
+		var widened = 0;
+		foreach (var hold in tenantHolds)
+		{
+			if (hold.DataSubjectIdHash is null && !activeHolds.Any(h => h.HoldId == hold.HoldId))
 			{
-				if (hold.DataSubjectIdHash is null && !activeHolds.Any(h => h.HoldId == hold.HoldId))
-				{
-					activeHolds.Add(hold);
-				}
+				activeHolds.Add(hold);
+				widened++;
 			}
+		}
+
+		// SAY SO WHEN THE WIDENING ACTUALLY BROADENS THE ANSWER.
+		//
+		// Blocking more than the caller asked for is the safe direction, but doing it silently
+		// is not: an operator who meant to scope the check to one tenant and omitted the
+		// argument would see an erasure refused with nothing to explain why. So the widening
+		// is reported at Warning, and only when it CHANGED the outcome -- a single-tenant
+		// deployment, where no tenant is the normal case and this path is simply correct,
+		// stays quiet.
+		if (widened > 0 && string.IsNullOrEmpty(tenantId))
+		{
+			LogLegalHoldCheckedWithoutTenant(widened);
 		}
 
 		if (activeHolds.Count == 0)
@@ -289,6 +323,12 @@ public sealed partial class LegalHoldService : ILegalHoldService
 			LogLevel.Information,
 			"Released legal hold {HoldId} by {ReleasedBy}. Reason: {Reason}")]
 	private partial void LogLegalHoldReleased(Guid holdId, string releasedBy, string reason);
+
+	[LoggerMessage(
+			ComplianceEventId.LegalHoldCheckedWithoutTenant,
+			LogLevel.Warning,
+			"Legal-hold check ran without a tenant, so all active holds were consulted; {Count} tenant-wide hold(s) applied. Pass the tenant to scope this check.")]
+	private partial void LogLegalHoldCheckedWithoutTenant(int count);
 
 	[LoggerMessage(
 			ComplianceEventId.LegalHoldCheckCompleted,

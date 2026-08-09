@@ -12,7 +12,7 @@ references that do not exist in the repo's real public surface.
 > This tool is the extractor + tier-1 resolver. It is wired into CI (not `settings.json`,
 > not pre-commit) through the **diff-scoped** wrapper `docs-csharp-phantom-gate.sh`, which
 > gates only snippets a diff touched. Its `--json` output is also the contract the
-> downstream tier-2 full-compile gate (`4p2p6d`) consumes.
+> downstream tier-2 full-compile gate consumes.
 
 ---
 
@@ -22,7 +22,8 @@ references that do not exist in the repo's real public surface.
 # Gate mode (default): phantom-scan tier-1 blocks; exit 1 on any phantom, 0 when clean.
 python3 eng/ci/docs-csharp-extract.py
 
-# Emit the per-block JSON records array (no phantom gating). This is the 4p2p6d contract.
+# Emit the per-block JSON records array (no phantom gating). This is the contract the
+# tier-2 full-compile gate consumes.
 python3 eng/ci/docs-csharp-extract.py --json
 
 # Scope the DOC scan to a directory (e.g. a test fixture). The real public surface is
@@ -53,7 +54,7 @@ Every extracted C# block is classified into one of two tiers:
 | Tier | Meaning | How a block opts in |
 |------|---------|---------------------|
 | **tier-1 (`resolve`)** | Phantom-API resolution only (this tool). The **default** for any C# block. | (nothing — default) |
-| **tier-2 (`compile`)** | Full compilation. Owned by the downstream gate (`4p2p6d`), **not** this tool. | Info-string carries the whitespace-delimited token `runnable` (case-sensitive), e.g. ` ```csharp runnable `. Secondary signal: the first in-fence line is exactly `// compile-check`. |
+| **tier-2 (`compile`)** | Full compilation. Owned by the downstream full-compile gate, **not** this tool. | Info-string carries the whitespace-delimited token `runnable` (case-sensitive), e.g. ` ```csharp runnable `. Secondary signal: the first in-fence line is exactly `// compile-check`. |
 | **`ignore`** | Deliberate teaching placeholder — excluded from phantom gating by declaration. | Info-string carries `ignore` or `no-compile`, e.g. ` ```csharp ignore `. Secondary signal: first in-fence line `// no-compile`. Takes precedence over `runnable`. |
 
 A block is C# when its fence info-string language is `csharp` or `cs`.
@@ -67,13 +68,13 @@ var dispatcher = services.GetRequiredService<IDispatcher>();
 ````
 ```csharp runnable
 // This block is TIER-2 (compile). The `runnable` token opts it into full
-// compilation, which 4p2p6d performs — this tool only classifies it.
+// compilation, which the tier-2 gate performs — this tool only classifies it.
 ```
 ````
 
 ---
 
-## The JSON record contract (consumed by 4p2p6d)
+## The JSON record contract (consumed by the tier-2 compile gate)
 
 `--json` emits a single JSON array; one record per extracted C# block. **Field names are
 the contract — do not rename them.**
@@ -135,7 +136,7 @@ that the example references but declares elsewhere (`IOrderRepository`, `OrderCr
 `MyCommand`, `UnitTestBase`, or a third-party type such as `BsonBinaryReader`). These
 surface as flags and are **expected false positives** for a resolve-only pass. Treat the
 gate output as *candidates to triage*, not a hard build-breaker, until tier-2
-(`4p2p6d`, full compilation) provides real resolution. That is precisely the tier-1/tier-2
+(full compilation) provides real resolution. That is precisely the tier-1/tier-2
 boundary: tier-1 is a cheap smoke screen for obviously-nonexistent framework types; tier-2
 compiles `runnable` blocks and is the authoritative check.
 

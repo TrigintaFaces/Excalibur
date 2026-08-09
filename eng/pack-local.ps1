@@ -48,7 +48,7 @@ $MetapackagesSrc = Join-Path $RepoRoot "src/metapackages"
 $ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Sprint 327 T2.2: Pack Local Feed (AD-327-2)" -ForegroundColor Cyan
+Write-Host "Pack Local Feed" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Clean and create local feed

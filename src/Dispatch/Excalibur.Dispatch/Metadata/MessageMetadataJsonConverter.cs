@@ -525,8 +525,8 @@ public sealed class MessageMetadataJsonConverter : JsonConverter<MessageMetadata
 
 	/// <summary>
 	/// Reads a top-level typed object bag (<c>attributes</c> or <c>items</c>) back into the builder via
-	/// <see cref="MessageMetadataBuilder.AddAttributes"/> / <see cref="MessageMetadataBuilder.AddItems"/>
-	/// (az9u1e). Values are kept as <see cref="JsonElement"/> mirroring the properties-bag read path.
+	/// <see cref="MessageMetadataBuilder.AddAttributes"/> / <see cref="MessageMetadataBuilder.AddItems"/>.
+	/// Values are kept as <see cref="JsonElement"/> mirroring the properties-bag read path.
 	/// </summary>
 	private static void ReadObjectBag(MessageMetadataBuilder builder, ref Utf8JsonReader reader, bool isItems)
 	{
@@ -553,8 +553,8 @@ public sealed class MessageMetadataJsonConverter : JsonConverter<MessageMetadata
 
 	/// <summary>
 	/// Reads the top-level <c>claims</c> array of <c>{type,value,valueType?,issuer?}</c> objects and
-	/// reconstructs <see cref="Claim"/> instances via <see cref="MessageMetadataBuilder.WithClaims"/>
-	/// (az9u1e). Omitted optional fields fall back to the BCL defaults (<see cref="ClaimValueTypes.String"/>
+	/// reconstructs <see cref="Claim"/> instances via <see cref="MessageMetadataBuilder.WithClaims"/>.
+	/// Omitted optional fields fall back to the BCL defaults (<see cref="ClaimValueTypes.String"/>
 	/// / <see cref="ClaimsIdentity.DefaultIssuer"/>), symmetric with <c>Write</c>.
 	/// </summary>
 	private static void ReadClaims(MessageMetadataBuilder builder, ref Utf8JsonReader reader)
@@ -623,7 +623,7 @@ public sealed class MessageMetadataJsonConverter : JsonConverter<MessageMetadata
 	/// passed throughout this converter are already the framework's canonical <c>camelCase</c> wire
 	/// names, so with the default options (no naming policy) the serialized contract is camelCase-uniform
 	/// and the in-framework wire format is preserved byte-for-byte regardless of a consumer's ambient
-	/// naming policy (r5r7fe nit-6).
+	/// naming policy.
 	/// </summary>
 	private static void WritePropertyName(Utf8JsonWriter writer, JsonSerializerOptions options, string name)
 	{

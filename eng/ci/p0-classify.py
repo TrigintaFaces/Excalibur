@@ -2,7 +2,7 @@
 """Read `bd list -p 0 --json` on stdin; partition the P0 set into src/product vs
 tooling/process by a FIXED, documented rule, and print a machine-readable denominator.
 
-WHY THIS EXISTS (qc7mhv)
+WHY THIS EXISTS
   A "src P0" count used to be a HAND-classification: someone eyeballed each open P0 and
   decided whether it was a product bug or a tooling/process bug. That is neither
   reproducible nor auditable -- two people get two denominators, and the number carries no

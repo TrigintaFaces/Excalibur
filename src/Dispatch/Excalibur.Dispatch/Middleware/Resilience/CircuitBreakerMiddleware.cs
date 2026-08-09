@@ -194,7 +194,7 @@ public sealed partial class CircuitBreakerMiddleware(IOptions<CircuitBreakerOpti
 	private DateTimeOffset CreateTimestamp() => _timeProvider.GetUtcNow();
 
 	/// <summary>
-	/// Emits the circuit-breaker transition counter (FR-D1, p9w9vk) when the state actually changed, tagged
+	/// Emits the circuit-breaker transition counter when the state actually changed, tagged
 	/// with <c>circuit.key</c>, <c>from_state</c> and <c>to_state</c>. Additive to the existing logs/Activity
 	/// tags. A no-op when <paramref name="from"/> equals <paramref name="to"/> (no real transition).
 	/// </summary>

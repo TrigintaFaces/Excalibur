@@ -9,7 +9,7 @@ namespace Excalibur.Compliance.Erasure;
 /// <summary>
 /// Supplies the set of <see cref="PersonalDataCategory"/> values that are actually present on
 /// <see cref="PersonalDataAttribute"/>-annotated members in the domain model. Used by the erasure
-/// coverage gate (vxp56x) to detect annotated personal data that has no registered/discovered location —
+/// coverage gate to detect annotated personal data that has no registered/discovered location —
 /// so an erasure certificate is never reported "Completed" while annotated data was silently skipped.
 /// </summary>
 internal interface IPersonalDataAnnotationSource

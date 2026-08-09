@@ -40,10 +40,36 @@ set -uo pipefail
 #                        real distribution is 3/4/5/6-char, so a hardcoded {6} would
 #                        miss ~72% of ids; the `bd-` prefix disambiguates short ids)
 #   ADR-999 / ADR999     architecture-decision-record ref (needs a digit)
-#   S999                 sprint id (exactly 3 digits, word-bounded)
-#   Sprint 863           sprint prose prefix (needs a digit)
+#   S999 / s999          sprint id (exactly 3 digits, word-bounded). Case-insensitive: a lowercase
+#                        `s890` evaded the uppercase-only form and leaked. Measured at zero new hits
+#                        across the whole public surface when this was widened, so it costs nothing
+#                        today; the residual risk is a variable literally named `s400`, which would
+#                        need rewording or a line-level exemption.
+#   SA 32694 / SA #28375 inter-agent message ids. These matched NO pattern at all and leaked silently.
+#                        `SA ruling` and `USA 1234` still do not match -- four digits are required.
+#   Sprint 863           sprint prose prefix (needs a digit). The separator is deliberately loose:
+#                        it was a single optional space-or-hyphen, so `Sprint: 329` -- the form a
+#                        PowerShell .NOTES block writes -- was INVISIBLE to a gate whose whole job
+#                        is finding this token. Found by someone fixing a leak it never reported.
+#                        `sprints are useful` and `sprint to the finish` still do not match: a digit
+#                        is required.
 #   FORGE/ORACLE/...     phase callsigns / process nouns
 #   task-2314 / msg 19752  OPCOM/mission process refs
+#   FR-4a / NFR-3 / EC-P1 / AC-6 / AC4
+#                        MINI-SPEC REQUIREMENT IDS. A consumer cannot resolve any of these -- the
+#                        specs they index are not published -- so in an XML doc they are noise that
+#                        dates the code, exactly like a tracker id. They outnumbered the tracker ids
+#                        on the public surface and matched no pattern at all.
+#                        THE HYPHEN IS REQUIRED FOR `EC-`, and that is not cosmetic: bare `EC2` is
+#                        AWS EC2 and appears in samples and docs as an ordinary term. `AC` is matched
+#                        with or without the hyphen because `AC4`/`AC5` are used as acceptance-criteria
+#                        ids in gate comments; if a legitimate `AC<digit>` term ever appears, reword it
+#                        rather than loosening this -- a gate that reds on real prose gets disabled.
+#                        The letter and dotted forms (`AC-P1.4`, `FR-P1.5`) are covered because they
+#                        were NOT: the arm required a digit straight after the hyphen, so an id one
+#                        line away from a flagged one shipped unnoticed. Found by hand, again.
+#                        `EC-` keeps its REQUIRED hyphen while `AC`/`FR` do not -- making it optional
+#                        for all three re-matches AWS `EC2`, which was measured and rejected.
 #
 # HALF THE CALLSIGNS ARE ORDINARY ENGLISH, AND ONE IS A SHIPPED PROVIDER NAME.
 # ORACLE is a test oracle and a database we ship a provider for; SENTINEL is a sentinel
@@ -53,11 +79,15 @@ set -uo pipefail
 # `phase` to count. The five that are not English words keep their bare match.
 NIR_TOKEN_ERE='bd-[a-z0-9]{3,6}'\
 '|\bADR-?[0-9]+'\
-'|\bS[0-9]{3}\b'\
-'|\b[Ss]print[ -]?[0-9]+'\
+'|\b[Ss][0-9]{3}\b'\
+'|\bSA[ #-]*[0-9]{4,}'\
+'|\b[Ss]print[[:space:]]*[:#-]?[[:space:]]*[0-9]+'\
 '|\b(OVERWATCH|CRUCIBLE|BLUEPRINT|CHRONICLE|TRACEPOINT)\b'\
 '|\b(COMPASS|FORGE|ORACLE|SENTINEL|EXHIBIT)[ -](phase|PHASE)\b'\
 '|\b(phase|PHASE)[ -](COMPASS|FORGE|ORACLE|SENTINEL|EXHIBIT)\b'\
+'|\bN?FR-?[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
+'|\bEC-[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
+'|\bAC-?[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
 '|\btask-[0-9]{3,}'\
 '|\bmsg [0-9]{3,}'
 
@@ -234,7 +264,14 @@ nir_public_pathspecs() {
         ':(exclude,glob)docs/**' ':(exclude,glob)tests/**' \
         ':(exclude,glob)management/**' \
         ':(exclude,glob)**/*.test.sh' ':(exclude,glob)**/*.harness-lock.sh' \
-        ':(exclude,glob)**/*.fixture.sh' ':(exclude,glob)**/no-internal-refs-gate.sh'
+        ':(exclude,glob)**/*.fixture.sh' ':(exclude,glob)**/no-internal-refs-gate.sh' \
+        ':(exclude,glob)**/package-lock.json' ':(exclude,glob)**/packages.lock.json'
+        # GENERATED LOCKFILES ARE NOT PROSE, and scanning them as such is a category error.
+        # A lockfile is machine-written dependency metadata; nobody reads it for documentation and
+        # nothing in it is authored. Its base64 integrity hashes contain every letter-digit sequence
+        # eventually: `sha512-…/ACI4MEsnoD…` matched the acceptance-criteria arm as `ACI4`. Tightening
+        # the token pattern to dodge random base64 is unwinnable -- a long enough hash will collide
+        # with any shape -- so the surface is excluded instead, which is also what it is.
 }
 
 # nir_keep_line "path:lineno:content"
@@ -346,24 +383,75 @@ run_gate() {
     local ere_nobd="${NIR_TOKEN_ERE#bd-\[a-z0-9\]\{3,6\}|}"
     git grep -nIE "$ere_nobd" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
 
+    # 1b — the `bd-` arm, DETERMINISTIC AND IDENTICAL IN EVERY ENVIRONMENT.
+    #
+    # This was membership against the tracker, which discriminated perfectly and was wrong
+    # anyway: .beads/ is not mirrored, so on the public repository where this gate actually
+    # runs the membership set was empty and the code fell back to the loose pattern. The gate
+    # was therefore STRICTER on the mirror than locally -- it failed there on `bd-file`,
+    # `bd-harness` and `bd-flush-guard`, none of which is a tracker id.
+    #
+    # A gate whose strictness depends on a file absent from the environment it guards is two
+    # different gates. So the loose pattern runs everywhere and the tool names are excluded by
+    # a COMMITTED allowlist, which travels with the gate.
+    git grep -nIE 'bd-[a-z0-9]{3,6}' -- "${specs[@]}" 2>/dev/null >> "$raw" || true
+
+    # The bare-id arm still needs the tracker by its nature -- a bare six-character token is
+    # only distinguishable from an English word by membership. Where the tracker is absent
+    # that arm finds nothing, which is a stated reduction in coverage rather than a behaviour
+    # difference in the arm above.
     if [ -s "$idset_file" ]; then
         git grep -nIFw -f "$idset_file" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
-        # 1b — `bd-`-prefixed ids that are REAL tracked ids.
-        local prefixed_file; prefixed_file="$(mktemp)"
-        sed 's/^/bd-/' "$idset_file" > "$prefixed_file"
-        git grep -nIFw -f "$prefixed_file" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
-        rm -f "$prefixed_file"
-    else
-        # No readable tracker: fall back to the LOOSE arm rather than silently dropping the
-        # whole `bd-` class. More false positives is a worse gate; no `bd-` arm at all is a
-        # gate that cannot see the most common leak shape.
-        git grep -nIE 'bd-[a-z0-9]{3,6}' -- "${specs[@]}" 2>/dev/null >> "$raw" || true
+    fi
+
+    # Tool names (bd-file, bd-harness, …) are not tracker ids. A line survives only if it
+    # still carries an internal ref once every allowlisted token is removed from it.
+    local allow_file="${NIR_ALLOWLIST:-$(dirname "${BASH_SOURCE[0]}")/no-internal-refs-allowlist.txt}"
+    local allow_ere=""
+    if [ -f "$allow_file" ]; then
+        allow_ere="$(grep -vE '^[[:space:]]*(#|$)' "$allow_file" | paste -sd'|' -)"
     fi
 
     if [ -s "$raw" ]; then
         sort -u "$raw" | while IFS= read -r line; do
             [ -n "$line" ] || continue
             nir_keep_line "$line" || continue
+            # `AC-6` IS BOTH OURS AND NIST'S, AND ONLY THE DOCUMENT CAN TELL YOU WHICH.
+            #
+            # NIST 800-53 really has AC-2, AC-3, AC-4, AC-5 and AC-6 (Least Privilege, Access
+            # Enforcement, Information Flow Enforcement …). In a FedRAMP control mapping those are
+            # EXTERNAL references a consumer can resolve and must act on -- stripping them would
+            # corrupt a document submitted to an assessor. In one of our own comments the same
+            # token is an internal acceptance criterion and is a leak. Measured: `AC-6` appears in
+            # both senses in this repository.
+            #
+            # No pattern can separate them: the shapes are identical. The DOCUMENT's subject can --
+            # a file mapping the standard says so, repeatedly. Measured on the six affected files:
+            # 21, 12, 16, 16, 4 and 3 mentions of the standard; zero in the source files using the
+            # token as an acceptance criterion.
+            #
+            # So the AC arm alone is suspended in a file that declares the standard. Every other
+            # token class still applies there -- a tracker or sprint id in a compliance doc is still
+            # a leak. The tempting alternative, allowlisting AC-2…AC-6 globally, would have blinded
+            # the gate to real internal AC ids everywhere, including the one real leak found here.
+            local _path="${line%%:*}"
+            if grep -qiE 'NIST 800-53|FedRAMP' "$_path" 2>/dev/null; then
+                local _rest="${line#*:*:}"
+                _rest="$(printf '%s' "$_rest" | sed -E 's/\bAC-?[0-9]+[a-z]?//g')"
+                printf '%s' "$_rest" | grep -qE "$ere_nobd|bd-[a-z0-9]{3,6}" || continue
+            fi
+
+            if [ -n "$allow_ere" ]; then
+                local stripped="${line#*:*:}"
+                stripped="$(printf '%s' "$stripped" | sed -E "s/(${allow_ere})//g")"
+                printf '%s' "$stripped" | grep -qE "$ere_nobd|bd-[a-z0-9]{3,6}" || {
+                    if [ -s "$idset_file" ]; then
+                        printf '%s' "$stripped" | grep -qFwf "$idset_file" || continue
+                    else
+                        continue
+                    fi
+                }
+            fi
             if [ -n "$staged_set" ]; then
                 grep -qxF -- "${line%%:*}" "$staged_set" || continue
             fi

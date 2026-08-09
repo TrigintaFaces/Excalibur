@@ -94,7 +94,7 @@ case "$STOP_EPOCH" in (*[!0-9]*|'') die "stop epoch must be an integer epoch, go
 #
 # So: disable pipefail for exactly this pipeline, and compare the integers we asked for.
 V0="$(set +o pipefail; git log --format='%ct %H' | awk -v s="$STOP_EPOCH" '$1<=s {print $2; exit}')"
-[ -n "$V0" ] || die "no commit at or before stop epoch $STOP_EPOCH -- refusing to guess a baseline (EC-1)"
+[ -n "$V0" ] || die "no commit at or before stop epoch $STOP_EPOCH -- refusing to guess a baseline"
 
 V0_EPOCH="$(git log -1 --format='%ct' "$V0")"
 [ "$V0_EPOCH" -le "$STOP_EPOCH" ] || die "computed V0 $V0 is POST-stop -- the computation is broken, not the tree"
@@ -104,7 +104,7 @@ cleanup() { [ -n "$WT" ] && git worktree remove --force "$WT" >/dev/null 2>&1 ||
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# Evidence, printed on EVERY run before any decision (AC-4). A terminal with no
+# Evidence, printed on EVERY run before any decision. A terminal with no
 # forward set printed is a terminal nobody can check.
 # ---------------------------------------------------------------------------
 FORWARD="$(git log --format='%h %ct %s' "$V0"..HEAD -- "${SUBJECTS[@]}" 2>/dev/null || true)"
@@ -126,12 +126,12 @@ printf '\n'
 WT="$(mktemp -d -t premise-triage-v0-XXXXXX)"
 git worktree add --detach --quiet "$WT" "$V0" || die "could not materialise V0 worktree at $V0"
 
-# EC-2: a subject that does not exist at V0 cannot be evaluated there. Never close on it.
+# A subject that does not exist at V0 cannot be evaluated there. Never close on it.
 for s in "${SUBJECTS[@]}"; do
     if ! git cat-file -e "$V0:$s" 2>/dev/null && [ ! -e "$WT/$s" ]; then
         printf 'TERMINAL 4: CANNOT DETERMINE -- ESCALATE\n'
         printf 'reason: subject %s does not exist at V0 (%s); the premise cannot be evaluated on clean\n' "$s" "$V0"
-        printf '        ground, so "never real" is not a conclusion this evidence supports (EC-2).\n'
+        printf '        ground, so "never real" is not a conclusion this evidence supports.\n'
         exit 4
     fi
 done

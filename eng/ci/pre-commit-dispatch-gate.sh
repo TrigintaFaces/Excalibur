@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # pre-commit-dispatch-gate.sh — asserts eng/hooks/pre-commit reads every gate's exit code HONESTLY.
 #
-# THE INVARIANT (e5juti): a non-verdict exit (2 syntax-error, 124 timeout, 127 not-found, 143 killed)
+# THE INVARIANT: a non-verdict exit (2 syntax-error, 124 timeout, 127 not-found, 143 killed)
 # from a dispatched gate MUST NOT be read as PASS. The hook captures each gate's exit into a `_rc`
 # variable and branches on it; if that branch only blocks on `-eq 1`, then a gate that FAILED TO RUN
 # (any non-1 code) silently permits the commit it exists to block — the failure mode is inverted
-# exactly when the gate is most broken (r4dzl2 class).
+# exactly when the gate is most broken.
 #
 # No existing gate looks at this. gate-wiring checks a gate has a caller; f5-sweep checks siblings;
-# nothing checks that the HOOK reads its gates' exit codes honestly. That gap is why r4dzl2 needed a
-# human sweep and why the sweep missed a site 200 lines below the cluster it enumerated.
+# nothing checks that the HOOK reads its gates' exit codes honestly. That gap is why closing this hole
+# once needed a hand sweep — and why that sweep missed a site 200 lines below the cluster it enumerated.
 #
 # WHAT IT DOES
 #   1. Enumerate EVERY capture-then-branch site — every `<var>_rc=$?` — NOT the narrower

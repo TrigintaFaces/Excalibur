@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Compliance;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.EventSourcing;
@@ -269,6 +270,29 @@ public static class MultiTenancyServiceCollectionExtensions
 		if (services.Any(static d => d.ServiceType == typeof(IAggregateDataSubjectMapping)))
 		{
 			RequireTenantScopingCapability<IEventStoreErasure>(services, nameof(IEventStoreErasure));
+			gatedAny = true;
+		}
+
+		// Erasure requests and legal holds are gated and NOT decorated, on the same reasoning as the inbox:
+		// each provider store applies the ambient tenant predicate itself, on the row's own tenant column, so
+		// a decorator would add a second filter without repairing the first. It would also be unable to tell
+		// the tenant-facing surface from the estate-wide one — the erasure scheduler's due-request drain, the
+		// certificate retention sweep and the legal-hold expiry sweep all run from background services with
+		// no ambient tenant, and scoping those would not fail safe: an unswept expired hold blocks a tenant's
+		// erasure indefinitely, and an undrained request is a right-to-erasure that never executes.
+		//
+		// What both contracts need is the registration-time assertion: a provider that does not thread the
+		// ambient tenant must be rejected at startup rather than returning another tenant's erasure history,
+		// or another tenant's legal holds, to whoever asks.
+		if (services.Any(static d => d.ServiceType == typeof(IErasureStore)))
+		{
+			RequireTenantScopingCapability<IErasureStore>(services, nameof(IErasureStore));
+			gatedAny = true;
+		}
+
+		if (services.Any(static d => d.ServiceType == typeof(ILegalHoldStore)))
+		{
+			RequireTenantScopingCapability<ILegalHoldStore>(services, nameof(ILegalHoldStore));
 			gatedAny = true;
 		}
 

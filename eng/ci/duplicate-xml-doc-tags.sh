@@ -2,9 +2,9 @@
 # duplicate-xml-doc-tags.sh — fail on duplicate XML doc tags within one /// doc block.
 #
 # HOME: eng/ci/ (moved from .claude/harness — .claude is not published, so a gate living there
-#       can never run where CI runs). Bead: qcizyz (enforcement arm for b9dwlt).
+#       can never run where CI runs). This gate is the enforcement arm for the defect below.
 #
-# THE DEFECT (b9dwlt): the C# compiler emits BOTH tags and warns about NEITHER when a single
+# THE DEFECT: the C# compiler emits BOTH tags and warns about NEITHER when a single
 # documentation block carries two <summary>, two <remarks>, or two <value> elements. The XML doc
 # generator keeps only one, so half a member's documented contract silently never reaches the
 # shipped NuGet .xml / IntelliSense. `dotnet-best-practices.md` forbids it; nothing enforced it.

@@ -18,11 +18,11 @@ internal static class TypeResolver
 	/// </summary>
 	/// <param name="typeName">The type name to resolve.</param>
 	/// <param name="allowAssemblyScan">
-	/// 6v2z7q: when <see langword="true"/>, an unregistered type name falls back to an unbounded scan of all
+	/// When <see langword="true"/>, an unregistered type name falls back to an unbounded scan of all
 	/// loaded assemblies (JIT only). That scan is the gadget-chain vector, so it defaults to <see langword="false"/>:
 	/// the secure default resolves only registry-registered types. Pass <see langword="true"/> ONLY when the type
 	/// name is trusted (e.g. migrating the consumer's own store); untrusted names (e.g. a remote dead-letter
-	/// envelope) MUST leave it <see langword="false"/>. Mirrors the c6wd6f secure default.
+	/// envelope) MUST leave it <see langword="false"/>. Mirrors the event serializer's secure default.
 	/// </param>
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "RuntimeFeature check ensures AOT path avoids reflection")]

@@ -117,7 +117,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 	/// <summary>
 	/// Records an appended-but-not-yet-staged breadcrumb for the eventually-consistent path while bounding
-	/// the total number of tracked entries (FR-A5).
+	/// the total number of tracked entries.
 	/// </summary>
 	/// <remarks>
 	/// Mirrors the bounded skip-when-full policy of <see cref="TrackSnapshotState" />: an existing entry is
@@ -140,7 +140,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// </summary>
 	/// <remarks>
 	/// Used to confirm a retried <c>SaveAsync</c> is re-submitting the exact events a prior attempt already
-	/// appended (FR-A5) before skipping the re-append. A mismatch means the breadcrumb belongs to a
+	/// appended before skipping the re-append. A mismatch means the breadcrumb belongs to a
 	/// different unit of work, so the normal append path runs.
 	/// </remarks>
 	/// <param name="recorded"> The events recorded by the prior attempt. </param>
@@ -389,7 +389,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 	/// <summary>
 	/// Builds the defined erased sentinel returned when an aggregate's event stream has been GDPR-erased
-	/// (tombstoned). (FR-A7)
+	/// (tombstoned).
 	/// </summary>
 	/// <remarks>
 	/// The sentinel is a non-null aggregate in its initial state (Version 0) with no event or snapshot
@@ -722,7 +722,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// Attempts to upgrade snapshot data if auto-upgrading is enabled and the version differs.
 	/// </summary>
 	/// <remarks>
-	/// Fail-closed (FR-A1): when auto-snapshot-upgrade is enabled, the stored snapshot's schema version
+	/// Fail-closed: when auto-snapshot-upgrade is enabled, the stored snapshot's schema version
 	/// differs from the target, and no upgrader path exists, this throws an
 	/// <see cref="InvalidOperationException"/> rather than returning the stale snapshot -- applying a
 	/// snapshot from an unsupported schema would silently corrupt the rehydrated aggregate.

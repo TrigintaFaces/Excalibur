@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 
+using Excalibur.Compliance;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.EventSourcing;
@@ -69,6 +70,15 @@ internal static class TenantOwnedContracts
 	/// discriminator is null, tombstoning every tenant's copy of an aggregate in response to one tenant's
 	/// right-to-erasure request.
 	/// </para>
+	/// <para>
+	/// <see cref="IErasureStore"/> and <see cref="ILegalHoldStore"/> are gated and <b>not decorated</b>, for
+	/// the same reason as the inbox: each provider applies the ambient tenant predicate inside its own store,
+	/// so wrapping one that already filters would add a second filter without repairing the first. Their
+	/// estate-wide background surfaces — the erasure scheduler's due-request drain, the certificate retention
+	/// sweep, and the legal-hold expiry sweep — are deliberately unscoped and live on the separate query and
+	/// certificate contracts, which a per-tenant caller does not depend on. A decorator over the store
+	/// contract could not make that distinction and would either stall those sweeps or widen the reads.
+	/// </para>
 	/// </remarks>
 	internal static readonly ImmutableArray<Type> All =
 	[
@@ -78,5 +88,7 @@ internal static class TenantOwnedContracts
 		typeof(IInboxStore),
 		typeof(IOutboxStore),
 		typeof(IEventStoreErasure),
+		typeof(IErasureStore),
+		typeof(ILegalHoldStore),
 	];
 }

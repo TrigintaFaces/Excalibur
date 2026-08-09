@@ -515,7 +515,6 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 	/// Called only after every change in the transaction was successfully handed off, so a failing handler
 	/// (which aborts the loop before its transaction's commit) never advances the confirmed position past
 	/// unhandled work — Postgres re-sends from the last confirmed commit boundary (at-least-once).
-	/// FR-P1/P2/P3.
 	/// </remarks>
 	private async Task ConfirmCommitAsync(CommitMessage commit, CancellationToken cancellationToken)
 	{

@@ -30,7 +30,7 @@ NC='\033[0m' # No Color
 # fixed. It gets bypassed.
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# ── Operator freeze (79ssi6) — runs FIRST ────────────────────────────────────────────────────────
+# ── Operator freeze — runs FIRST ─────────────────────────────────────────────────────────────────
 # .claude/FREEZE.json present = frozen. Under a freeze, ONLY evidence/governance/tracker paths may
 # commit (forge clause 9); ANY other staged path blocks the commit (deny-by-default). The flag is
 # self-exempt, so the commit that SETS or LIFTS the freeze always passes. This runs before the
@@ -123,7 +123,7 @@ for entry in ".claude/harness:single-filing-path" \
 done
 
 
-# bd-file.test.sh locks bd-file.sh's transient-EOF retry (1rknoh, F1). bd-file.sh is the ONE
+# bd-file.test.sh locks bd-file.sh's transient-EOF retry. bd-file.sh is the ONE
 # mandated filing path; a single-attempt abort filed NOTHING on a daemon restart. This lock lives
 # in .claude/tools/beads/ (outside gate-wiring.sh's eng/ci|eng/hooks watch — it would otherwise rot
 # uncaught), so it is wired HERE and fires when you change the thing it guards. It drives a stub bd
@@ -153,7 +153,7 @@ case "$staged_paths" in
         ;;
 esac
 
-# ── gate self-tests (w0jt1b: relocated OUT of ci.yml) ────────────────────────────────────────────
+# ── gate self-tests (relocated OUT of ci.yml) ────────────────────────────────────────────────────
 # These gates (the gate-wiring meta-gate + its locks) used to run in a ci.yml `gate-selftests` job.
 # ci.yml is copied to a downstream repo and the operator ruled no beads reference may appear in a
 # SHIPPED workflow (a guarded `run: bash bd-status-tokens.sh` is still a reference). So the job was
@@ -264,7 +264,7 @@ for mguard in rewake-discriminator-guard.sh liveness-both-directions.test.sh; do
     esac
 done
 
-# (3) The live-hook write-path controls (qjrw6q), wired to THEIR subject the same way.
+# (3) The live-hook write-path controls, wired to THEIR subject the same way.
 #
 # Subject = anything that can reintroduce the partial-read window: a CLI hook itself, the deny gate
 # that protects them, or the atomic installer the gate routes to. Staging any of those re-proves the
@@ -288,7 +288,7 @@ case "$staged_paths" in
         ;;
 esac
 
-# (4) Tracker-export staleness — ADVISORY, and the advisory choice is deliberate (cbhnw1).
+# (4) Tracker-export staleness — ADVISORY, and the advisory choice is deliberate.
 #
 # clause-6 mandates verifying a close by reading `git show HEAD:.beads/issues.jsonl`. That read is
 # only sound while the committed export tracks the DB; when it lags, a genuinely closed bead reads
@@ -321,7 +321,7 @@ if [ -f "$TRACKER_STALENESS" ]; then
     esac
 fi
 
-# (5) Mail-integrity detector's own lock (mcoyyp). Subject-triggered like (2)-(4).
+# (5) Mail-integrity detector's own lock. Subject-triggered like (2)-(4).
 #
 # The DETECTOR itself is not run here — it inspects a live mailbox, which is a runtime property of
 # the mesh, not a property of the commit. Running it in the commit path would also make every
@@ -505,7 +505,7 @@ else
 fi
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-# ── committed-SHA coherence (k947g1) ────────────────────────────────────────────────────────────────
+# ── committed-SHA coherence ─────────────────────────────────────────────────────────────────────────
 # THE defect this catches: `dotnet build --no-incremental` compiles the WORKING TREE, not the committed
 # SHA. An under-staged coupled set leaves the missing file in your tree, the build goes GREEN, and the
 # commit does not compile for anyone who checks it out. Five commits in one night; THREE produced a
@@ -783,7 +783,7 @@ if [ -n "$STAGED_SRC_CS" ]; then
     fi
 fi
 
-# ── Duplicate XML doc tags (qcizyz — enforcement arm for b9dwlt) ──────────────────────────────────
+# ── Duplicate XML doc tags ────────────────────────────────────────────────────────────────────────
 # A single /// doc block carrying two <summary>/<remarks>/<value> ships HALF a member's documented
 # contract: the XML doc generator keeps one element and silently drops the rest, with ZERO compiler
 # warnings. Fail-CLOSED on the staged shipped src (.cs, excl tests/samples — the NuGet .xml surface)
@@ -803,8 +803,8 @@ if [ -n "$STAGED_SRC_CS" ]; then
     fi
 
     bash "$DUP_DOC_GATE" $STAGED_SRC_CS && dup_rc=0 || dup_rc=$?
-    # Three-state dispatch (r4dzl2's 6th site — named in its own bead as "L499 dup-doc" and missed
-    # by the sweep that closed it; reopened as mmatkv).
+    # Three-state dispatch — the 6th site of this class. It was NAMED in the original sweep's own
+    # enumeration ("L499 dup-doc") and still missed by that sweep: enumerating a site is not fixing it.
     #
     # The previous read was `-eq 1`, under a header declaring "Fail-CLOSED on the staged shipped
     # src". It was not fail-closed: 2 (syntax error), 127 (not executable), 143 (killed) all fell
@@ -821,7 +821,7 @@ if [ -n "$STAGED_SRC_CS" ]; then
     case "${dup_rc:-0}" in
         0) ;;  # PASS — evaluated, no duplicate doc tags in the staged shipped src.
         1)
-            echo -e "${RED}✗ COMMIT REJECTED by duplicate-xml-doc-tags (qcizyz): a staged .cs has two${NC}"
+            echo -e "${RED}✗ COMMIT REJECTED by duplicate-xml-doc-tags: a staged .cs has two${NC}"
             echo -e "${RED}  <summary>/<remarks>/<value> in one doc block — the generator drops all but one.${NC}"
             echo -e "${RED}  Merge into a single tag (use <para> for multiple paragraphs); see file:line above.${NC}"
             exit 1

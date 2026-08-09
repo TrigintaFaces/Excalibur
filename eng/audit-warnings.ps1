@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Audit warnings in shipping projects (Sprint 329 T2.5: AD-329)
+    Audit warnings in shipping projects
 
 .DESCRIPTION
     Builds eng/ci/shards/ShippingOnly.slnf and analyzes warnings to help maintain warning-free shipping code.
@@ -29,8 +29,8 @@
     Export all warnings to CSV for tracking
 
 .NOTES
-    Sprint: 329
-    Task: W2.T2.5 Re-enable Analyzer Warning Gates
+    Supports the analyzer warning gates: shipping projects are expected to build warning-free,
+    so this audit is the pre-commit check that no new warning is introduced.
 #>
 
 [CmdletBinding()]
@@ -50,7 +50,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $SlnFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Sprint 329 T2.5: Warning Audit Script" -ForegroundColor Cyan
+Write-Host "Warning Audit Script" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Verify solution filter exists

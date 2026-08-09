@@ -152,9 +152,9 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 
 	/// <summary>
 	/// Translates the filter dictionary into Firestore <c>Where*</c> clauses over the write-only flat
-	/// query index (<see cref="QueryFieldsKey"/>), AND-combining every key (EC-P1.1). A null/empty filter
-	/// leaves the query unchanged (AC-P1.4). A nested (dotted) or otherwise untranslatable key throws
-	/// <see cref="NotSupportedException"/> rather than silently returning unfiltered data (FR-P1.5).
+	/// query index (<see cref="QueryFieldsKey"/>), AND-combining every key. A null/empty filter
+	/// leaves the query unchanged. A nested (dotted) or otherwise untranslatable key throws
+	/// <see cref="NotSupportedException"/> rather than silently returning unfiltered data.
 	/// </summary>
 	private static Query ApplyFilters(Query query, IDictionary<string, object>? filters)
 	{
@@ -240,7 +240,7 @@ public sealed class FirestoreProjectionStore<TProjection> : IProjectionStore<TPr
 	/// <summary>
 	/// Converts a filter value to the Firestore-native type matching how the flat index stored it
 	/// (string → string, integral → long, floating → double, bool → bool). A null or otherwise
-	/// untranslatable value throws <see cref="NotSupportedException"/> (FR-P1.5).
+	/// untranslatable value throws <see cref="NotSupportedException"/>.
 	/// </summary>
 	private static object ToFirestoreValue(object? value)
 	{

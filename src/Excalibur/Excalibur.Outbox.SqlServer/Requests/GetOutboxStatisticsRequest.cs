@@ -32,7 +32,7 @@ public sealed class GetOutboxStatisticsRequest : DataRequestBase<IDbConnection, 
 		var sql = $"""
 			SELECT
 				SUM(CASE WHEN Status = 0 THEN 1 ELSE 0 END) AS StagedCount,
-				-- b64hci: "sending" = currently CLAIMED/in-flight (a dispatcher holds the lease), mirroring the
+				-- "sending" = currently CLAIMED/in-flight (a dispatcher holds the lease), mirroring the
 				-- Postgres provider's TotalReserved (COUNT WHERE dispatcher_id IS NOT NULL). OutboxStatus.Sending
 				-- (Status=1) is never persisted on the single-row outbox (concurrency is lease-guarded, not
 				-- status-guarded), so counting Status=1 reported a permanently-0 signal. LeasedAt is set on claim

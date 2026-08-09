@@ -45,7 +45,7 @@ builder.Services.AddDispatch(dispatch =>
 // 2. Event serializer — required for event sourcing (serializes domain events)
 // ============================================================================
 
-// c6wd6f: register event types for secure-by-default resolution (no allowAssemblyScan opt-in).
+// Register event types for secure-by-default resolution (no allowAssemblyScan opt-in).
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // ============================================================================

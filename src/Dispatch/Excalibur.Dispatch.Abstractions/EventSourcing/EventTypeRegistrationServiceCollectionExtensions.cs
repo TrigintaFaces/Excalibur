@@ -13,8 +13,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The default <c>JsonEventSerializer</c> rejects unregistered event types (the wpynky gadget-chain
-/// guard) unless the unbounded assembly scan is explicitly opted into. Registering your event types
+/// The default <c>JsonEventSerializer</c> rejects unregistered event types (the deserialization
+/// gadget-chain guard) unless the unbounded assembly scan is explicitly opted into. Registering your event types
 /// here gives the serializer a <em>secure and functional</em> resolution path: registered types resolve
 /// by name without any reflection scan, while an unregistered (attacker-chosen) type stays unresolvable.
 /// This mirrors the .NET model (<c>JsonSerializerContext</c> / <c>JsonPolymorphismOptions.DerivedTypes</c>).

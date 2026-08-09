@@ -5,9 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.SqlServer.Erasure;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -39,7 +41,19 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 				SqlServerLegalHoldStoreOptionsValidator>());
 
 		_ = services.AddDataSubjectHashing(); // store pseudonymizes data-subject ids (B3).
-		services.TryAddSingleton<SqlServerLegalHoldStore>();
+		// The fail-closed single-tenant default guarantees a non-null ambient context; the multi-tenancy
+		// composition replaces it with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
+		// ITenantScopingCapability<ILegalHoldStore> marker in the same act, so a store that was never
+		// handed the context cannot carry a truthful-looking capability and pass the multi-tenancy gate.
+		_ = services.AddTenantScopedStore<ILegalHoldStore, SqlServerLegalHoldStore>((sp, tenantContext) =>
+			new SqlServerLegalHoldStore(
+				sp.GetRequiredService<IOptions<SqlServerLegalHoldStoreOptions>>(),
+				sp.GetRequiredService<ILogger<SqlServerLegalHoldStore>>(),
+				tenantContext,
+				sp.GetService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 
@@ -85,7 +99,19 @@ public static class SqlServerLegalHoldStoreServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<SqlServerLegalHoldStoreOptions>,
 				SqlServerLegalHoldStoreOptionsValidator>());
 
-		services.TryAddSingleton<SqlServerLegalHoldStore>();
+		// The fail-closed single-tenant default guarantees a non-null ambient context; the multi-tenancy
+		// composition replaces it with the resolver-driven one.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantScopedStore builds the store WITH the ambient tenant context and emits the
+		// ITenantScopingCapability<ILegalHoldStore> marker in the same act, so a store that was never
+		// handed the context cannot carry a truthful-looking capability and pass the multi-tenancy gate.
+		_ = services.AddTenantScopedStore<ILegalHoldStore, SqlServerLegalHoldStore>((sp, tenantContext) =>
+			new SqlServerLegalHoldStore(
+				sp.GetRequiredService<IOptions<SqlServerLegalHoldStoreOptions>>(),
+				sp.GetRequiredService<ILogger<SqlServerLegalHoldStore>>(),
+				tenantContext,
+				sp.GetService<IOptions<TenantContextOptions>>()));
 		services.TryAddSingleton<ILegalHoldStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 		services.TryAddSingleton<ILegalHoldQueryStore>(sp => sp.GetRequiredService<SqlServerLegalHoldStore>());
 

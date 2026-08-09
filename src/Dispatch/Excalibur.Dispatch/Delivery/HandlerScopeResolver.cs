@@ -224,7 +224,7 @@ internal sealed class HandlerScopeResolver
     }
 
     /// <summary>
-    /// Selects the constructor the DI container would actually activate (FR-A3): the one marked
+    /// Selects the constructor the DI container would actually activate: the one marked
     /// <see cref="ActivatorUtilitiesConstructorAttribute"/> if present; otherwise the longest constructor
     /// whose parameters are all resolvable from the registry; otherwise the longest constructor (its
     /// unresolved parameters are treated as Unknown and bias the verdict to Scope). Mirrors

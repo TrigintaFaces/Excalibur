@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-gates-ci.sh — CI-authoritative orchestrator for the gate self-tests, harness locks, and the
-# gate-wiring meta-gate (jxp2yq / Seam-1). The shipped workflow calls ONLY this one generic-named
+# gate-wiring meta-gate. The shipped workflow calls ONLY this one generic-named
 # script: `run: bash eng/ci/harness-gates-ci.sh`.
 #
 # WHY A SCRIPT AND NOT INLINE WORKFLOW STEPS: `.github/workflows/**` is MIRRORED to a public repo and
@@ -8,8 +8,8 @@
 # `bd-*`, `.beads/`, `.claude/` in any shipped workflow (they name private tracker/gate machinery that
 # does not exist downstream). Naming those scripts directly in the YAML freezes EVERY commit (the gate
 # globs the working tree). So the private refs live HERE, in eng/ci/ — which is neither workflow-scanned
-# nor mirror-excluded — and the workflow names only this generic orchestrator. (tree-freeze
-# post-mortem: 2gzlvg; SA ruling 33070; the 3 REVIEW_ARCH guards are enforced below.)
+# nor mirror-excluded — and the workflow names only this generic orchestrator. (Learned from a
+# tree-freeze post-mortem; the 3 architectural-review guards it produced are enforced below.)
 #
 # WHY CI IS AUTHORITATIVE: these gates previously ran ONLY in eng/hooks/pre-commit — bypassable
 # (--no-verify), absent on a fresh clone, and a drift-prone installed COPY. Running them in CI makes an
@@ -39,7 +39,8 @@ run() {  # run <label> <command...> — captures the REAL exit (no pipe/;-mask),
     "$@"
     local rc=$?
     ran=$((ran + 1))
-    # THREE states, reported distinctly — but REFUSE stays NON-ZERO (ag9fpw AC2a, S890 arm C).
+    # THREE states, reported distinctly — but REFUSE stays NON-ZERO: a gate that could not be
+    # evaluated must never read as a pass.
     #
     # The defect was never fatality; it was DISTINGUISHABILITY. A gate that could not evaluate (exit 2:
     # missing tool, unreadable input, no baseline) was annotated ::error::RED, identical to a gate that
@@ -70,7 +71,7 @@ echo "==== harness-gates-ci: CI-authoritative gate wiring ===="
 # gate battery and propagate its outcome. This lets harness-gates-ci.test.sh prove the exit is HONEST
 # (a failing gate -> this script exits 1; a passing gate -> exit 0) hermetically, without the slow real
 # battery. Unset in production, so it never affects the real CI run. The real battery's completeness is
-# enforced by gate-wiring's nu00yn ARM (guard 2); its correctness by the dogfood full run.
+# enforced by gate-wiring's caller-of-record ARM (guard 2); its correctness by the dogfood full run.
 if [ -n "${HGCI_TEST_GATE:-}" ]; then
     run "self-test gate" bash -c "$HGCI_TEST_GATE"
     echo "==== harness-gates-ci (test mode): $ran check(s) EXECUTED, $((ran - refused)) reached a VERDICT, $fails FAILED, $refused REFUSED ===="
@@ -168,9 +169,9 @@ for t in \
     run "self-test: $t" bash $t
 done
 
-# ── 4. Run the HERMETIC harness locks (this orchestrator is their CI caller-of-record — nu00yn
-#       wire-half). Locks needing a live bd daemon are excluded (tracked nu00yn debt) so CI stays
-#       hermetic. The enumeration below is the point gate-wiring's nu00yn ARM verifies (guard 2).
+# ── 4. Run the HERMETIC harness locks (this orchestrator is their CI caller-of-record — the wire
+#       half of that pairing). Locks needing a live bd daemon are excluded (tracked debt) so CI stays
+#       hermetic. The enumeration below is the point gate-wiring's caller-of-record ARM verifies (guard 2).
 # SCOPE: only locks whose subject is PUBLISHED. This battery runs where CI runs, and CI runs on the
 # mirrored copy of this repository — which carries eng/** and .github/** but NOT .claude/**.
 #
@@ -233,8 +234,8 @@ _installer_assert() {
 }
 run "installer-assert (verify-hooks-current non-vacuity)" _installer_assert
 
-# ── 6. FUNCTIONAL audit (e5juti): run the dispatch-honesty gate against the REAL eng/hooks/pre-commit,
-#       not just its hermetic self-test. This is the anti-inert wiring (the 0iwn8h class: a gate wired
+# ── 6. FUNCTIONAL audit: run the dispatch-honesty gate against the REAL eng/hooks/pre-commit,
+#       not just its hermetic self-test. This is the anti-inert wiring (the self-test-only class: a gate wired
 #       only by a self-test trigger validates itself and nothing else, forever). If any capture-then-
 #       branch site in the real hook reads a non-verdict exit as PASS, the gate exits non-zero and this
 #       job goes red — CI-authoritative, un-bypassable.
@@ -242,7 +243,7 @@ run "pre-commit-dispatch-honesty (real hook)" bash eng/ci/pre-commit-dispatch-ga
 
 # FUNCTIONAL audit: run the tenant-range-op coverage gate against the REAL src/Excalibur tree, not
 # just its hermetic self-test above. Self-test-only wiring validates the gate's detection logic but
-# never casts the regression net over production source (the 0iwn8h class: a gate wired only by a
+# never casts the regression net over production source (the self-test-only class: a gate wired only by a
 # self-test trigger validates itself and nothing else, forever). This bare run scans src and fails
 # the job if any tenant-partitioned range DELETE/UPDATE is uncurated or flows no TenantScope.
 run "tenant-range-op coverage (real src tree)" bash eng/ci/tenant-range-op-coverage-gate.sh
@@ -259,7 +260,7 @@ run "shipped-ddl-sweep (real repo, set-baselined)" bash eng/ci/shipped-ddl-sweep
 
 # FUNCTIONAL: run the shard hang-timeout gate against the REAL tree. Self-test-only wiring would
 # validate the detector and never cast the net over the runners and documented commands that actually
-# wedge (the 0iwn8h class). The defect it guards is silent by construction: an unbounded
+# wedge (the self-test-only class). The defect it guards is silent by construction: an unbounded
 # `dotnet test <shard>.slnf` does not fail on a wedged MTP host, it consumes the phase forever, and the
 # orphan it leaks then poisons LATER shards with MSB3021 build breaks wearing a test-failure exit code.
 # Three states: 0 every invocation bounded · 1 an unbounded invocation exists · 2 REFUSE (scanned no
@@ -302,7 +303,7 @@ run "ddl-pack-completeness (real repo)" python3 eng/ci/ddl-pack-completeness.py
 # future edit silently shrinks the enumeration, this number drops and the drop is visible in the log.
 echo "==== harness-gates-ci: $ran check(s) EXECUTED, $((ran - refused)) reached a VERDICT, $fails FAILED, $refused REFUSED ===="
 [ "$ran" -gt 0 ] || { echo "::error::harness-gates-ci: 0 checks executed — an empty battery is not a pass"; exit 1; }
-# REFUSED is reported separately from FAILED (ag9fpw AC2c) so a run where several gates could not
+# REFUSED is reported separately from FAILED so a run where several gates could not
 # evaluate is visible as such, rather than reading as several discovered defects. It is still non-zero:
 # a battery that refused everything must never exit 0.
 [ "$refused" -eq 0 ] || { echo "::error::harness-gates-ci: $refused gate(s) COULD NOT EVALUATE — non-zero because an unevaluated gate is not a pass. These are NOT $refused defects."; exit 1; }

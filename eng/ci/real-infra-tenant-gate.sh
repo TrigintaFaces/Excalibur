@@ -16,7 +16,7 @@
 #                  * real infrastructure (Docker) is not provisioned, OR
 #                  * the trait filter matched ZERO tests (the curated set vanished / trait
 #                    was never stamped) — a filter that matches nothing must NOT exit 0
-#                    (the 885jxd / 9h66ez false-green class).
+#                    (the false-green class: an empty selection reporting success).
 # A REFUSE must surface NON-GREEN on the required check. The workflow step MUST NOT wrap this
 # in `|| true` or `continue-on-error: true`.
 #
@@ -116,7 +116,7 @@ printf '%s\n' "$output"
 #      protection instead of re-inventing it. This gate is that helper's real production consumer.
 _GATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! printf '%s' "$output" | bash "${_GATE_DIR}/assert-tests-executed.sh" --filter "${FILTER}"; then
-    err "REFUSE: the trait filter '${FILTER}' matched ZERO tests across the whole run (no project reported Total >= 1). The curated set is empty (trait not stamped, or the tests were removed). A gate that matches nothing must NOT pass (885jxd / 9h66ez)."
+    err "REFUSE: the trait filter '${FILTER}' matched ZERO tests across the whole run (no project reported Total >= 1). The curated set is empty (trait not stamped, or the tests were removed). A gate that matches nothing must NOT pass."
     exit $EXIT_REFUSE
 fi
 

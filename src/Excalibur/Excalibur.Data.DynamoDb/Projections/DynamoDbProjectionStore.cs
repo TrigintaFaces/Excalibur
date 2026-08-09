@@ -343,7 +343,7 @@ public sealed class DynamoDbProjectionStore<
 
 	/// <summary>
 	/// Counts the projections matching the predicate, following the COUNT scan's <c>LastEvaluatedKey</c>
-	/// to exhaustion so the result is the true total rather than a 1 MB-truncated partial (FR-P2.2).
+	/// to exhaustion so the result is the true total rather than a 1 MB-truncated partial.
 	/// </summary>
 	private async Task<long> ComputeTotalAsync(
 		string filterExpression,
@@ -402,10 +402,10 @@ public sealed class DynamoDbProjectionStore<
 
 	/// <summary>
 	/// Builds the DynamoDB <c>FilterExpression</c> combining the projection-type discriminator
-	/// (<c>#proj.#type = :projType</c>) with every supplied filter, AND-combined (FR-P1.3, EC-P1.1).
+	/// (<c>#proj.#type = :projType</c>) with every supplied filter, AND-combined.
 	/// Filter attribute names use a dedicated <c>#f{n}</c> prefix and values a <c>:v{n}</c> prefix, so
 	/// they never collide with the discriminator placeholders even when a filter key matches the
-	/// metadata field name (EC-P1.3). A null/empty filter yields the discriminator alone (AC-P1.4).
+	/// metadata field name. A null/empty filter yields the discriminator alone.
 	/// </summary>
 	private (string FilterExpression, Dictionary<string, string> Names, Dictionary<string, AttributeValue> Values) BuildScanFilter(
 		IDictionary<string, object>? filters)
@@ -502,9 +502,8 @@ public sealed class DynamoDbProjectionStore<
 
 	/// <summary>
 	/// Converts a filter value to the DynamoDB <see cref="AttributeValue"/> type matching how the
-	/// projection property was stored (string → S, bool → BOOL, number → N) (EC-P1.2). An untranslatable
-	/// value type throws <see cref="NotSupportedException"/> rather than silently dropping the predicate
-	/// (FR-P1.5).
+	/// projection property was stored (string → S, bool → BOOL, number → N). An untranslatable
+	/// value type throws <see cref="NotSupportedException"/> rather than silently dropping the predicate.
 	/// </summary>
 	private static AttributeValue ToAttributeValue(object? value)
 	{

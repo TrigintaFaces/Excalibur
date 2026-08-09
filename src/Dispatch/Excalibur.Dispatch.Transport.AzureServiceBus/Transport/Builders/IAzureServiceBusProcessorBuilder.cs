@@ -94,7 +94,7 @@ public interface IAzureServiceBusProcessorBuilder
 
 	/// <summary>
 	/// Enables consumption from a <b>session-enabled</b> entity with per-session ordered (FIFO)
-	/// delivery (ne79ro, FR-A2). When enabled, the transport wires a session-aware receiver that
+	/// delivery. When enabled, the transport wires a session-aware receiver that
 	/// accepts one session at a time so messages sharing a <c>SessionId</c> are delivered in order.
 	/// The target queue/subscription must itself be session-enabled in Azure Service Bus.
 	/// </summary>

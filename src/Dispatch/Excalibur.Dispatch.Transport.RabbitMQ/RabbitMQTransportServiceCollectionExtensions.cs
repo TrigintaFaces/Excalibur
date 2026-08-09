@@ -431,7 +431,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		// (SA ruling A, msg 16998/17000) so BasicPublishAsync awaits the broker ack = at-least-once —
 		// instead of the shared channel whose confirms are off-by-default (advertised-but-inert). The
 		// receiver/bus stay on the shared channel; this keyed channel is owned/disposed by the container.
-		var senderChannelKey = $"{name}:fjtok4-confirms";
+		var senderChannelKey = $"{name}:sender-confirms";
 		services.AddKeyedSingleton<IChannel>(senderChannelKey, (sp, _) =>
 		{
 			var connection = sp.GetRequiredService<IConnection>();

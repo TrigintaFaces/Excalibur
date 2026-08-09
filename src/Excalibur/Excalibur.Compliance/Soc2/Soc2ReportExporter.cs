@@ -30,7 +30,7 @@ namespace Excalibur.Compliance.Soc2;
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Export service necessarily couples to multiple export formats (PDF, Excel, CSV, JSON, XML), " +
 					"report models, QuestPDF document building APIs, and compression/hashing utilities. " +
-					"This coupling is inherent to the export aggregation responsibility per ADR-055.")]
+					"This coupling is inherent to the export aggregation responsibility.")]
 public sealed partial class Soc2ReportExporter : ISoc2ReportExporter
 {
 	private static readonly ExportFormat[] SupportedFormats =

@@ -21,30 +21,6 @@ Every entry is re-checked against the code before each update. Entries we have c
 
 ## Defects
 
-### Erasure and legal-hold reads are not tenant-scoped
-
-**What you see.** Nothing fails. If you run more than one tenant against shared erasure-request or legal-hold tables, a read can return records belonging to another tenant — and, in one direction, an erasure can proceed that should have been blocked.
-
-**What it means.** The erasure-request and legal-hold stores do not implement tenant scoping. There is no ambient tenant context in any of them, no tenant-scoping decorator, and — unlike the event, saga, inbox, outbox and projection stores — these two contracts are **not** covered by the fail-closed check in `AddMultiTenancy()`, so a multi-tenant host does not fail at startup either. The tenant value is recorded against each row; the read path does not reliably constrain queries to it.
-
-**The consequence is worse in one direction than the other, and our previous description of this had it backwards.** We said the failure mode was over-application — that omitting the tenant returned *more* holds rather than fewer, so erasure would be wrongly blocked rather than wrongly permitted, and that this direction was recoverable. **That is true only for holds placed against a specific data subject.** It is false, and unsafe, for tenant-wide holds:
-
-- A tenant-wide hold is stored with no data-subject identifier.
-- The subject-hold query matches on that identifier, and a null value never matches — so a tenant-wide hold can never be returned by it.
-- The tenant-wide lookup that *would* return it is skipped entirely when no tenant is supplied.
-
-So a hold check made without a tenant sees **none** of your tenant-wide holds, reports nothing blocking, and the erasure proceeds. **Erasure is irreversible.** A legal hold exists precisely to prevent that, and this defeats it silently.
-
-**Which versions.** Every published version up to and including the current pre-release.
-
-**We are not giving you a site count, deliberately.** Our own count of affected call sites moved five times while we investigated, and every revision was upward. A number here would be frozen at publication while the truth was not, and it would have understated the exposure. The boundary above is what we can state and stand behind: **these subsystems do not implement tenant scoping.** That is true regardless of how many call sites it turns out to be.
-
-**What you must do.**
-
-- **Always supply a tenant when checking or evaluating legal holds**, even where the API accepts none. An erasure request submitted without a tenant will not consult tenant-wide holds.
-- If you operate erasure or legal hold multi-tenant, do not rely on the store layer for isolation in this release. Apply tenant filtering in your own query path, or give each tenant its own database or schema.
-- If you run a single tenant, no action is needed.
-
 ### The bundled Cosmos DB emulator fixture cannot connect using its documented approach
 
 **What you see.** Calls made through a `CosmosClient` built against `CosmosDbContainerFixture` may never reach the emulator. Rather than failing quickly, requests repeat and hang.
@@ -129,6 +105,22 @@ Three separate things are true about Cosmos DB in this release, and they are eas
 
 Listed rather than deleted, so a fixed issue is distinguishable from a forgotten one.
 
+- **Erasure and legal-hold reads are now tenant-scoped.** Previously disclosed as unscoped, including a
+  case where a tenant-wide legal hold was not consulted at all when no tenant was supplied, so an
+  irreversible erasure could proceed past it. All six stores (SQL Server, PostgreSQL and in-memory, for
+  both erasure requests and legal holds) now derive their tenant term from the ambient tenant context
+  through a single derivation point, and a caller-supplied tenant is **ANDed onto** that term rather than
+  replacing it — so the argument can only narrow a result, never widen it. Both contracts are now in the
+  set `AddMultiTenancy()` checks, so a multi-tenant host that registers an unscoped implementation fails
+  at startup instead of leaking at runtime.
+  Reading and mutating a hold are deliberately asymmetric: a tenant **sees** an estate-wide hold, because
+  it blocks that tenant's erasures, but cannot **modify** one — otherwise a tenant could re-home an
+  estate-wide preservation order into its own partition and silently lift it for everyone else.
+  **Not yet proven on PostgreSQL:** the structural fix is in place there, but no test runs against a real
+  PostgreSQL server to detect a regression, so treat that provider as fixed-but-unverified.
+  Background sweeps that expire holds and drain scheduled erasure requests remain deliberately
+  estate-wide; scoping them to one tenant would stall erasure for every other tenant and make expired
+  holds permanent.
 - **Inbox reads are now tenant-scoped.** Previously disclosed as unscoped across the board. The relational stores (SQL Server, PostgreSQL, Oracle) now apply a tenant predicate to their read, claim and merge paths and fail closed when a tenant is active but unresolved; the document and cache stores (MongoDB, Cosmos DB, DynamoDB, Firestore, Redis, Elasticsearch) carry the tenant inside the stored key, so a keyed read cannot cross tenants. The in-memory store is the exception and is listed above.
 - **The unexplained not-found responses from the Cosmos DB snapshot store are explained, and were never a provider fault.** We disclosed seeing not-found responses for a database that should have existed, and said we did not know the cause and could not rule out the provider. We since determined it: our own test teardown deleted a database shared by the whole test class, so the first test destroyed it for every test that followed. It was our test harness. **Nothing about it affected consumers, and the previous entry implying the provider might be at fault was wrong.**
 

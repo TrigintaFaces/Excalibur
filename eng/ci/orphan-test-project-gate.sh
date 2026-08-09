@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # orphan-test-project-gate.sh — every integration test project on disk must be a member of the
-# integration solution filter, so CI actually BUILDS it (0he3g1).
+# integration solution filter, so CI actually BUILDS it.
 #
 # WHY THIS EXISTS
 #   A test project committed to disk but NOT listed in the solution filter CI builds is HEAD-INVISIBLE:
 #   nothing compiles it, so a missing <ProjectReference>, a broken using, or any compile error inside it
-#   never surfaces on a clean checkout of committed HEAD. The break ships green. (0he3g1: "tests
-#   committed without their ProjectReference → HEAD-invisible build breaks.")
+#   never surfaces on a clean checkout of committed HEAD. The break ships green. (Observed in
+#   practice: tests committed without their ProjectReference → HEAD-invisible build breaks.)
 #
 #   Membership in the built filter is the root fix: once CI builds the project, a missing ProjectReference
 #   becomes a normal compile error at CI time instead of an invisible one.

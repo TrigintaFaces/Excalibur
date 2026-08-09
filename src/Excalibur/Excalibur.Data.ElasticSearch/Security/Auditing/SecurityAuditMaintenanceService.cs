@@ -60,7 +60,7 @@ internal sealed class SecurityAuditMaintenanceService
 	/// token. The Elasticsearch audit stream is a concurrent, best-effort sink (overlapping writers,
 	/// re-queue-on-failure), so each record is tagged as a <b>genesis-null per-event keyed MAC</b>
 	/// (<c>priorTag: null</c>) — no write-time hash-chain, which would false-fail on the substrate's
-	/// legitimate reorder/re-queue (SA ruling 17568; ordering-detection carved to <c>nkz47q</c>).
+	/// legitimate reorder/re-queue. Detection of out-of-order writes is tracked separately.
 	/// </summary>
 	/// <remarks>
 	/// Fails closed: the strategy throws if the signing key cannot be obtained, rather than emitting an

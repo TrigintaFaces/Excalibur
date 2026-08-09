@@ -7,10 +7,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-// Ported MediatR application (EPIC w2zq7d / AC-13).
+// Ported MediatR application.
 //
 // The ONLY edits to migrate this app off the (now-commercial) MediatR were the two mechanical
-// changes the WS2 analyzer code-fixes apply automatically:
+// changes the compat analyzer code-fixes apply automatically:
 //   • `using MediatR;`           ->  `using Excalibur.Dispatch.Compat.MediatR;`  (this file)
 //   • `services.AddMediatR(...)` ->  `services.AddMediatRCompat(...)`            (below)
 // Every request, handler, notification, and pipeline behavior is source-identical to the original.

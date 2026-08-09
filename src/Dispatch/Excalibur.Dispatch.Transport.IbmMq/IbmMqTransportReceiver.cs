@@ -10,8 +10,8 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Transport.IbmMq;
 
 /// <summary>
-/// Receives messages from an IBM MQ queue under a unit of work per message (SA-ruled seam for
-/// <c>s8j0qx</c>): each received message holds its own queue-manager connection and syncpoint, so
+/// Receives messages from an IBM MQ queue under a unit of work per message: each received message holds its
+/// own queue-manager connection and syncpoint, so
 /// <see cref="AcknowledgeAsync"/> commits (removes) exactly that message and <see cref="RejectAsync"/>
 /// backs it out (redelivers) — true per-message ack/reject in any order. Outstanding units of work are
 /// bounded by the caller's <c>maxMessages</c> and are always committed or backed out (never leaked),

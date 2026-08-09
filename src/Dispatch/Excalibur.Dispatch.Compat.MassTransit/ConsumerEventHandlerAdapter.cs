@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Compat.MassTransit;
 /// through the Excalibur pipeline.
 /// </typeparam>
 /// <remarks>
-/// This is the deterministic half of the MassTransit consumer migration (FR-16): the
+/// This is the deterministic half of the MassTransit consumer migration: the
 /// <c>Consume(context)</c> → <c>HandleAsync(event, ct)</c> bridge. No reflection is used (generic,
 /// DI-resolved), so the adapter is AOT-safe.
 /// </remarks>

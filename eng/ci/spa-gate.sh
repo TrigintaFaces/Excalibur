@@ -100,7 +100,7 @@ run_drift_check() {
         exit "$EXIT_DRIFT"
     fi
 
-    # (2) index.html TEMPLATE drift (sthdvg). A template-only edit — a CSP <meta>, a <script>/<link>,
+    # (2) index.html TEMPLATE drift. A template-only edit — a CSP <meta>, a <script>/<link>,
     #     an inline config block — changes wwwroot/index.html WITHOUT renaming any hashed asset, so
     #     check (1) stays green while the shipped index.html is stale (e.g. an old CSP header ships).
     #     Compare CONTENT, line-ending-normalized: the checkout holds CRLF and vite writes LF, so a
