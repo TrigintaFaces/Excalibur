@@ -1418,6 +1418,19 @@ jobs:
 
           echo "✅ All ${#packages[@]} package(s) signed and verified"
 
+      # Record what is ALREADY on the registry, before anything is published.
+      #
+      # `dotnet nuget push --skip-duplicate` makes "published" and "already there" look identical,
+      # and they are not. A re-run of a completed publish SHOULD find everything present -- that is
+      # the resumed state working correctly. A FRESH release finding a package present is version
+      # reuse. Nothing can tell those apart after the fact, so the question is asked beforehand.
+      - name: Record pre-publish registry state
+        run: |
+          python3 eng/ci/release-receipt.py \
+            --packages-dir packages \
+            --version "${{ needs.pre-release-validation.outputs.version }}" \
+            --prestate push-prestate.tsv
+
       - name: Publish packages to NuGet
         run: |
           echo "📤 Publishing packages to NuGet.org..."
@@ -1436,12 +1449,14 @@ jobs:
                 --skip-duplicate || {
                   echo "❌ Failed to publish $package_name"
                   failed_count=$((failed_count + 1))
+                  printf '%s\t%s\n' "$package_name" "failed" >> push-outcomes.tsv
                   failed_packages="${failed_packages}\n- ${package_name}"
                   continue
                 }
 
               echo "✅ Published: $package_name"
               published_count=$((published_count + 1))
+              printf '%s\t%s\n' "$package_name" "pushed" >> push-outcomes.tsv
 
               # Rate limiting - wait between publishes
               sleep 5
@@ -1457,30 +1472,41 @@ jobs:
 
           echo "🎉 Package publishing completed without errors!"
 
-      - name: Verify publication
+      # THE RELEASE RECEIPT, replacing a sampled check.
+      #
+      # What was here verified THREE core packages out of the whole set and WARNED rather than failed
+      # when they were missing. A release could therefore report success while a package was absent,
+      # and nothing in the run would say so -- a pass reported wider than what was measured.
+      #
+      # Every package is now confirmed against the registry itself rather than inferred from the exit
+      # code of the command that pushed it. A push can succeed and the package still not be
+      # retrievable; that is exactly what a receipt exists to catch, and exactly what the pusher's
+      # own report cannot tell you.
+      #
+      # Propagation is waited out rather than papered over: absence is re-checked with backoff before
+      # it is called absence, because a receipt that cries wolf on propagation delay is one that gets
+      # ignored the first time it matters. An unanswerable registry is reported as UNKNOWN -- never
+      # as success, never as absence.
+      - name: Emit the release receipt
         run: |
-          echo "🔍 Verifying package publication..."
-          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+          python3 eng/ci/release-receipt.py \
+            --packages-dir packages \
+            --version "${{ needs.pre-release-validation.outputs.version }}" \
+            --outcomes push-outcomes.tsv \
+            --prestate-in push-prestate.tsv \
+            --out release-receipt.json
 
-          # Wait a bit for NuGet to process
-          sleep 30
-
-          # Check a few core packages
-          CORE_PACKAGES=("Excalibur.Dispatch" "Excalibur.Dispatch.Abstractions" "Excalibur.Dispatch.Caching")
-
-          for package in "${CORE_PACKAGES[@]}"; do
-            echo "Checking $package v$VERSION..."
-
-            # Use NuGet API to check if package version exists
-            package_lower=$(echo "$package" | tr '[:upper:]' '[:lower:]')
-            response=$(curl -s "https://api.nuget.org/v3-flatcontainer/$package_lower/$VERSION/$package_lower.$VERSION.nupkg" -o /dev/null -w "%{http_code}")
-
-            if [ "$response" = "200" ]; then
-              echo "✅ $package v$VERSION is available on NuGet"
-            else
-              echo "⚠️ $package v$VERSION not yet available (HTTP $response) - may need time to propagate"
-            fi
-          done
+      - name: Upload the release receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-receipt
+          path: |
+            release-receipt.json
+            push-outcomes.tsv
+            push-prestate.tsv
+          if-no-files-found: warn
+          retention-days: 90
 
   # Post-release tasks
   # The ONE step that makes the release public, and it runs last on purpose.

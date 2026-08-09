@@ -111,6 +111,11 @@ run "wallclock-deadline-sweep (real tree)" python3 eng/ci/wallclock-deadline-swe
 run "container-image-pinning self-test" python3 eng/ci/container-image-pinning-gate.py --self-test
 run "container-image-pinning (real tree)" python3 eng/ci/container-image-pinning-gate.py --gate
 
+# ── 1d. RELEASE RECEIPT non-vacuity. The receipt itself only runs during a release, which is rare
+#       enough that a self-test gated behind one would sit unproven for months. Its arms are
+#       hermetic, so they run here on every push instead.
+run "release-receipt self-test" python3 eng/ci/release-receipt.py --self-test
+
 # ── 3. Run the gate NON-VACUITY locks (authoritative in CI, not just pre-commit). All hermetic.
 for t in \
     "eng/ci/gate-wiring.test.sh" \

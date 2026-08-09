@@ -997,6 +997,32 @@ jobs:
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
+      # BEFORE cleanup, and that ordering is the whole point.
+      #
+      # A fixture that cannot start its container throws a clear, named error -- and that message
+      # describes the FIXTURE, not the container. An image that never pulled, a process that started
+      # and died, and a readiness probe watching the wrong port all produce the same sentence.
+      #
+      # Twelve tests were lost to exactly that on 2026-08-08. The diagnosis had to be rebuilt from
+      # step timings and a registry lookup, and the conclusion -- a slow pull rather than a broken
+      # image -- was inferred rather than read, because nothing in the run had asked the containers
+      # what they did.
+      #
+      # The cleanup step below is correct and stays: it kills containers that survived a crashed
+      # host. It also destroys the only evidence of why they were unhealthy. So capture first.
+      - name: Capture container diagnostics
+        if: failure()
+        run: bash eng/ci/capture-container-logs.sh container-diagnostics
+
+      - name: Upload container diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: container-diagnostics-${{ matrix.shard.name }}
+          path: container-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Cleanup orphaned Docker containers
         if: always()
         run: |
