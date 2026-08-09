@@ -44,11 +44,20 @@ set -uo pipefail
 #   Sprint 863           sprint prose prefix (needs a digit)
 #   FORGE/ORACLE/...     phase callsigns / process nouns
 #   task-2314 / msg 19752  OPCOM/mission process refs
+#
+# HALF THE CALLSIGNS ARE ORDINARY ENGLISH, AND ONE IS A SHIPPED PROVIDER NAME.
+# ORACLE is a test oracle and a database we ship a provider for; SENTINEL is a sentinel
+# value; COMPASS, FORGE and EXHIBIT are plain words. Matching those bare produced six hits
+# on one script's own prose ("THE ORACLE IS THE WORKFLOW DIRECTORY") and two on another's
+# ("SENTINEL-SHAPED") the moment eng/ came into scope. Those five now require an adjacent
+# `phase` to count. The five that are not English words keep their bare match.
 NIR_TOKEN_ERE='bd-[a-z0-9]{3,6}'\
 '|\bADR-?[0-9]+'\
 '|\bS[0-9]{3}\b'\
 '|\b[Ss]print[ -]?[0-9]+'\
-'|\b(COMPASS|OVERWATCH|CRUCIBLE|BLUEPRINT|FORGE|ORACLE|SENTINEL|CHRONICLE|EXHIBIT|TRACEPOINT)\b'\
+'|\b(OVERWATCH|CRUCIBLE|BLUEPRINT|CHRONICLE|TRACEPOINT)\b'\
+'|\b(COMPASS|FORGE|ORACLE|SENTINEL|EXHIBIT)[ -](phase|PHASE)\b'\
+'|\b(phase|PHASE)[ -](COMPASS|FORGE|ORACLE|SENTINEL|EXHIBIT)\b'\
 '|\btask-[0-9]{3,}'\
 '|\bmsg [0-9]{3,}'
 
@@ -133,8 +142,24 @@ nir_scannable_lines() {
 #   stdout: "file:lineno:content" for each public-surface line carrying an internal
 #           ref (a direct token OR a bare beads id). <bare_id_ere> may be empty.
 nir_hits_in_file() {
-    local f="$1" bare_ere="${2:-}"
+    local f="$1" bare_ere="${2:-}" prefixed_ere="${3:-}"
     local ere="$NIR_TOKEN_ERE"
+    # A MEMBERSHIP-BASED `bd-` ARM REPLACES THE LOOSE ONE WHEN THE TRACKER IS READABLE.
+    #
+    # `bd-[a-z0-9]{3,6}` matches our own CLI command names and ordinary hyphenated English:
+    # bd-file, bd-status, bd-export, bd-flush, bd-harness, bd-dependent. Measured on the
+    # scripts this gate newly covers, those were the majority of `bd-` hits — and a BLOCKING
+    # gate that reds on `bd-file` gets disabled, after which it enforces nothing.
+    #
+    # A digit requirement was tried and rejected on the data: 17.5% of real ids (1893 of
+    # 10809) contain no digit, so it would have dropped nearly a fifth of genuine leaks.
+    # Membership against the tracker discriminates exactly -- measured 12/12 command names
+    # excluded, 6/6 real ids still caught.
+    #
+    # RESIDUAL GAP, STATED: an id deleted from the tracker is no longer matched by this arm.
+    # That is the same trade the bare arm already makes, and it fails toward a missed leak
+    # rather than toward a gate nobody can leave enabled.
+    [ -n "$prefixed_ere" ] && ere="${ere//bd-\[a-z0-9\]\{3,6\}/$prefixed_ere}"
     [ -n "$bare_ere" ] && ere="${ere}|${bare_ere}"
 
     local lines
@@ -154,9 +179,34 @@ nir_is_exempt() {
         .beads/*|*/.beads/*) return 0 ;;
         .claude/*|*/.claude/*) return 0 ;;
         .dts/*|*/.dts/*) return 0 ;;
+
+        # GATE SELF-TEST FIXTURES ARE EXEMPT, AND THE RULE REQUIRES THEM TO BE.
+        #
+        # A gate proves it is non-vacuous by planting the very tokens it hunts. Stripping
+        # those planted tokens would close the leak by disabling its own detector -- so the
+        # rule names this exemption explicitly. Recognised by filename: a *.test.sh, a
+        # *.harness-lock.sh, or a *.fixture.sh exists only to feed a gate.
+        #
+        # This file is exempt for the same reason twice over: it DOCUMENTS the token shapes
+        # it catches (an ADR ref, a sprint ref) and it carries its own planted fixtures.
+        *.test.sh|*.harness-lock.sh|*.fixture.sh) return 0 ;;
+        */no-internal-refs-gate.sh|no-internal-refs-gate.sh) return 0 ;;
+
+        # eng/** and .github/workflows/** are NOT exempt -- they are PUBLIC SURFACE.
+        #
+        # They were exempt here, and that was the defect: the operator's recorded directive
+        # states that anything placed in eng/ci IS PUBLISHED TO A PUBLIC REPOSITORY, and the
+        # rule's own machine-readable surface list names `eng/**` and `.github/workflows/**`
+        # among its INCLUDES. So this gate excluded, by construction, two of the exact trees
+        # the rule it implements calls public -- it could not catch a leak there, only a
+        # human could, and four separate tracker items record leaks found exactly that way.
+        #
+        # The rest of .github/ (issue templates, config) stays exempt: the rule's list names
+        # the workflows subtree, not the whole directory.
+        .github/workflows/*) return 1 ;;
         .github/*) return 0 ;;
+
         management/*) return 0 ;;
-        eng/*) return 0 ;;
         docs/*) return 0 ;;                 # contributor-internal docs (not the published site)
         tests/*|*/tests/*) return 0 ;;
         */Internal/*) return 0 ;;           # internal-visibility seam XML docs
@@ -176,12 +226,15 @@ nir_is_exempt() {
 nir_public_pathspecs() {
     printf '%s\n' \
         'docs-site/' 'samples/' 'src/' 'CHANGELOG.md' 'README.md' \
+        'eng/' '.github/workflows/' \
         ':(exclude,glob)**/.claude/**' ':(exclude,glob)**/.dts/**' \
         ':(exclude,glob)**/bin/**' ':(exclude,glob)**/obj/**' \
         ':(exclude,glob)**/node_modules/**' ':(exclude,glob)**/.docusaurus/**' \
         ':(exclude,glob)**/Internal/**' ':(exclude,glob)**/PublicAPI*.txt' \
         ':(exclude,glob)docs/**' ':(exclude,glob)tests/**' \
-        ':(exclude,glob)management/**' ':(exclude,glob)eng/**' ':(exclude,glob).github/**'
+        ':(exclude,glob)management/**' \
+        ':(exclude,glob)**/*.test.sh' ':(exclude,glob)**/*.harness-lock.sh' \
+        ':(exclude,glob)**/*.fixture.sh' ':(exclude,glob)**/no-internal-refs-gate.sh'
 }
 
 # nir_keep_line "path:lineno:content"
@@ -284,9 +337,27 @@ run_gate() {
     # word-bounded, multi-pattern from the 8k-id set). Merge, then apply the src /// rule.
     local raw report total=0
     raw="$(mktemp)"; report="$(mktemp)"
-    git grep -nIE "$NIR_TOKEN_ERE" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
+
+    # Pass 1 drops the loose `bd-` arm and gets it back as a MEMBERSHIP pass (1b), for the
+    # reason recorded on nir_hits_in_file: `bd-[a-z0-9]{3,6}` matches our own command names
+    # (bd-file, bd-status, bd-export) and hyphenated English (bd-harness, bd-dependent),
+    # which were the majority of `bd-` hits once eng/ came into scope. Same fixed-string
+    # mechanism as the bare-id pass, so it costs one more grep and no new machinery.
+    local ere_nobd="${NIR_TOKEN_ERE#bd-\[a-z0-9\]\{3,6\}|}"
+    git grep -nIE "$ere_nobd" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
+
     if [ -s "$idset_file" ]; then
         git grep -nIFw -f "$idset_file" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
+        # 1b — `bd-`-prefixed ids that are REAL tracked ids.
+        local prefixed_file; prefixed_file="$(mktemp)"
+        sed 's/^/bd-/' "$idset_file" > "$prefixed_file"
+        git grep -nIFw -f "$prefixed_file" -- "${specs[@]}" 2>/dev/null >> "$raw" || true
+        rm -f "$prefixed_file"
+    else
+        # No readable tracker: fall back to the LOOSE arm rather than silently dropping the
+        # whole `bd-` class. More false positives is a worse gate; no `bd-` arm at all is a
+        # gate that cannot see the most common leak shape.
+        git grep -nIE 'bd-[a-z0-9]{3,6}' -- "${specs[@]}" 2>/dev/null >> "$raw" || true
     fi
 
     if [ -s "$raw" ]; then
@@ -313,6 +384,56 @@ run_gate() {
         echo "✅ no-internal-refs-gate: public surface clean (no tracker/sprint/ADR/process refs)."
         rm -f "$idset_file" "$report" "$raw" ${staged_set:+"$staged_set"}
         return 0
+    fi
+
+    # ---------------------------------------------------------------------------
+    # RATCHET — so this gate can be WIRED TODAY instead of after a whole-tree cleanup.
+    #
+    # Widening the scan to eng/ and .github/workflows/ (the two trees the rule calls public
+    # and this gate used to skip) surfaced a backlog that predates the gate being enforced.
+    # Demanding it be emptied before anything is wired is how a gate stays unwired -- which
+    # is exactly the state this one was in: written, correct, invoked by nothing, while four
+    # separate tracker items recorded leaks a human had to find by hand.
+    #
+    # So: the existing population is recorded PER FILE WITH A COUNT, and the gate fails when
+    # a file's count RISES or a file not in the baseline leaks at all. New leaks are blocked
+    # from today; the recorded ones shrink as they are fixed. Counts, not line numbers, so an
+    # unrelated edit above a leak does not fail the build.
+    #
+    # A baseline is a debt register, not an exemption: every entry is a leak we still owe.
+    local base_file="${NIR_BASELINE:-$(dirname "${BASH_SOURCE[0]}")/no-internal-refs-baseline.txt}"
+    if [ "$report_only" != "--report-only" ] && [ -f "$base_file" ]; then
+        local cur_counts new_over=0 over_report
+        cur_counts="$(mktemp)"; over_report="$(mktemp)"
+        cut -d: -f1 "$report" | sort | uniq -c | awk '{print $1" "$2}' > "$cur_counts"
+        while read -r cnt path; do
+            [ -n "$path" ] || continue
+            local allowed
+            allowed="$(awk -v p="$path" '$2==p {print $1; exit}' "$base_file")"
+            allowed="${allowed:-0}"
+            if [ "$cnt" -gt "$allowed" ]; then
+                printf '  %s — %s leak(s), baseline allows %s\n' "$path" "$cnt" "$allowed" >> "$over_report"
+                new_over=$((new_over + 1))
+            fi
+        done < "$cur_counts"
+        rm -f "$cur_counts"
+        if [ "$new_over" -eq 0 ]; then
+            local owed; owed="$(awk '{s+=$1} END{print s+0}' "$base_file")"
+            echo "✅ no-internal-refs-gate: no NEW public-surface leaks."
+            echo "   ${total} recorded leak(s) remain against a baseline of ${owed} — a debt register, not an exemption."
+            echo "   Shrink it with: $0 --update-baseline (only ever downward; the gate reds if a count rises)."
+            rm -f "$idset_file" "$report" "$raw" "$over_report" ${staged_set:+"$staged_set"}
+            return 0
+        fi
+        echo "❌ no-internal-refs-gate: NEW public-surface internal-ref leak(s) in ${new_over} file(s):"
+        echo ""
+        cat "$over_report"
+        echo ""
+        echo "Per .claude/rules/quality/no-internal-refs-in-public-surface.md: rewrite the"
+        echo "substance and DROP the internal ref. Document the contract/behavior, not the"
+        echo "work item. Do NOT raise the baseline to make this pass — it only moves down."
+        rm -f "$idset_file" "$report" "$raw" "$over_report" ${staged_set:+"$staged_set"}
+        return 1
     fi
 
     echo "❌ no-internal-refs-gate: ${total} public-surface internal-ref leak(s):"
@@ -606,6 +727,23 @@ main() {
             --self-test)   self_test; exit $? ;;
             --staged)      staged="--staged"; shift ;;
             --report-only) report_only="--report-only"; shift ;;
+            --update-baseline)
+                # Regenerate the debt register from the current tree. Only ever run this
+                # after FIXING leaks: it rewrites counts, so running it after introducing
+                # one would launder the new leak into the baseline. The gate cannot detect
+                # that for you -- the commit diff can, which is why the file is tracked.
+                base="${NIR_BASELINE:-$(dirname "${BASH_SOURCE[0]}")/no-internal-refs-baseline.txt}"
+                tmpr="$(mktemp)"
+                run_gate "" "--report-only" 2>/dev/null | grep -E '^[A-Za-z0-9_.][^ ]*:[0-9]+:' > "$tmpr" || true
+                {
+                    echo "# no-internal-refs debt register — <count> <path>, one per file."
+                    echo "# Every line is a public-surface leak we still owe. The gate fails when a"
+                    echo "# count RISES or an unlisted file leaks. It only moves down."
+                    cut -d: -f1 "$tmpr" | sort | uniq -c | awk '{print $1" "$2}' | sort -k2
+                } > "$base"
+                echo "baseline written: $base ($(grep -cE '^[0-9]' "$base") file(s), $(awk '/^[0-9]/{s+=$1} END{print s+0}' "$base") leak(s))"
+                rm -f "$tmpr"
+                exit 0 ;;
             -h|--help)     usage; exit 0 ;;
             *) echo "no-internal-refs-gate: unknown arg '$1'" >&2; usage; exit 2 ;;
         esac

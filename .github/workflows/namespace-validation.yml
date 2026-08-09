@@ -1,6 +1,6 @@
-name: ADR-050 Namespace Depth Validation
+name: Namespace Depth Validation
 
-# Enforces namespace depth requirements per ADR-050
+# Enforces the namespace-depth limit: a namespace may not exceed the documented segment budget.
 # Runs on all pushes and PRs to ensure violations cannot reach main branch
 
 on:
@@ -41,7 +41,7 @@ env:
 
 jobs:
   namespace-depth-validation:
-    name: Validate Namespace Depth (ADR-050)
+    name: Validate Namespace Depth
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -57,7 +57,7 @@ jobs:
         id: analyze
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "ADR-050 Namespace Depth Validation"
+          echo "Namespace Depth Validation"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
 
@@ -109,7 +109,7 @@ jobs:
           echo ""
           echo "Found ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5."
           echo ""
-          echo "Per ADR-050 NS-003:"
+          echo "Namespace depth limits:"
           echo "  • Depth 5 is acceptable with architectural justification"
           echo "  • See: management/reports/2025-11-17_depth5-justification_v1.0.0.md"
           echo "  • Recommendation: Reduce to depth ≤4 where possible"
@@ -127,15 +127,15 @@ jobs:
           echo ""
           echo "Found ${{ steps.analyze.outputs.depth6_count }} namespace(s) with depth ≥6"
           echo ""
-          echo "Per ADR-050 NS-003:"
+          echo "Namespace depth limits:"
           echo "  ✅ Depth ≤4: Preferred"
           echo "  ⚠️  Depth 5:  Acceptable with justification"
           echo "  ❌ Depth ≥6: PROHIBITED"
           echo ""
           echo "Required Actions:"
           echo "  1. Reduce namespace depth to ≤5 segments"
-          echo "  2. Consult ADR-050 for guidance:"
-          echo "     management/architecture/ADR-050-Namespace-Consolidation-Strategy.md"
+          echo "  2. See the namespace conventions in the contributor guide:"
+          echo "     https://github.com/TrigintaFaces/Excalibur#namespace-conventions"
           echo "  3. Consider using folders (not namespaces) for architectural layering"
           echo ""
           echo "Violations detected above. Please fix and push again."
@@ -157,13 +157,13 @@ jobs:
             echo "⚠️  ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5 (acceptable)"
           fi
           echo ""
-          echo "ADR-050 compliance verified ✓"
+          echo "Namespace depth verified ✓"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: 📊 Create job summary
         if: always()
         run: |
-          echo "# ADR-050 Namespace Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "# Namespace Validation Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -172,9 +172,9 @@ jobs:
           echo "| Depth ≥6 violations (PROHIBITED) | ${{ steps.analyze.outputs.depth6_count }} | ${{ steps.analyze.outputs.depth6_count == 0 && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Depth 5 violations (ACCEPTABLE) | ${{ steps.analyze.outputs.depth5_count }} | ⚠️  Warning |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ADR-050 Compliance Rules" >> $GITHUB_STEP_SUMMARY
+          echo "## Namespace Depth Rules" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Per [ADR-050 NS-003](../blob/main/management/architecture/ADR-050-Namespace-Consolidation-Strategy.md#ns-003-depth-limits):" >> $GITHUB_STEP_SUMMARY
+          echo "Namespace depth limits:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ **Depth ≤4**: Preferred (recommended)" >> $GITHUB_STEP_SUMMARY
           echo "- ⚠️  **Depth 5**: Acceptable with architectural justification" >> $GITHUB_STEP_SUMMARY
@@ -187,12 +187,12 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Required Actions:**" >> $GITHUB_STEP_SUMMARY
             echo "1. Reduce namespace depth to ≤5 segments" >> $GITHUB_STEP_SUMMARY
-            echo "2. Consult [ADR-050](../blob/main/management/architecture/ADR-050-Namespace-Consolidation-Strategy.md) for guidance" >> $GITHUB_STEP_SUMMARY
+            echo "2. See the namespace conventions in the contributor guide" >> $GITHUB_STEP_SUMMARY
             echo "3. Consider using folders (not namespaces) for architectural layering" >> $GITHUB_STEP_SUMMARY
           else
             echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "All namespaces comply with ADR-050 depth requirements." >> $GITHUB_STEP_SUMMARY
+            echo "All namespaces comply with the depth requirements." >> $GITHUB_STEP_SUMMARY
             if [ "${{ steps.analyze.outputs.depth5_count }}" -gt 0 ]; then
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "**Note**: ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5 (acceptable maximum). See [depth-5 justifications](../blob/main/management/reports/2025-11-17_depth5-justification_v1.0.0.md) for details." >> $GITHUB_STEP_SUMMARY

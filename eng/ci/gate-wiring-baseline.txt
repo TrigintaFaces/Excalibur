@@ -12,7 +12,6 @@
 # Format: one gate basename per line. Blank lines and #-comments ignored.
 
 # --- enforcement gates that exist but are not yet run by any CI job or hook ---
-no-internal-refs-gate.sh
 tracked-artifact-gate.sh
 # real committed-content enforcement gate that currently REFUSEs (cannot render a verdict, exit 2): its
 # shipped-DDL-table -> src-write-path map does not yet cover ~18 shipped-DDL blocks, and its column-count

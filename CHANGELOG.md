@@ -22,8 +22,8 @@ they are kept there rather than duplicated here so the two cannot drift apart.
   that can create a database, and the image is overridable without deriving a type. The earlier advice to
   *"pin it by digest"* is withdrawn: a digest is architecture-specific and would have broken arm64
   consumers, which a tag does not.
-- **Integration coverage has known failures.** Cosmos DB integration tests are **no longer excluded from
-  CI** (see *Changed*), but that change is newer than any run we have published — **we have not yet
+- **Integration coverage has known failures.** Cosmos DB integration tests now run nightly rather than
+  being excluded outright (see *Changed*), but that change is newer than any run we have published — **we have not yet
   published a build in which they executed and passed.** Until we do, treat the Cosmos DB provider as
   materially less proven than the others and validate the operations you depend on against your own
   infrastructure. When those tests are run manually, some do not pass, and we have not resolved those
@@ -55,9 +55,14 @@ limits of that claim.
   need to change something if you construct the middleware yourself; resolving it from the container
   continues to work unchanged.
 
-- **Cosmos DB integration tests are no longer excluded from CI.** The build previously filtered them out
-  entirely, so a green build said nothing whatever about that provider's integration behaviour. The filter
-  is removed, and an emulator readiness check now probes the data plane — creating a database rather than
+- **Cosmos DB integration tests now run, on a nightly schedule.** The build previously filtered them out
+  entirely by topic, so a green build said nothing whatever about that provider's integration behaviour.
+  That blanket filter is gone. **They do not run on every change, and that is deliberate:** the per-change
+  build excludes tests that need the emulator, because provisioning it costs roughly ten minutes on a
+  two-core runner, and the nightly build runs them with no such exclusion. The trade is stated plainly in
+  the workflow itself — a Cosmos regression is caught within a day rather than on the change that
+  introduces it, and a green per-change build is still not evidence about Cosmos. An emulator readiness
+  check now probes the data plane — creating a database rather than
   trusting a readiness endpoint — and **refuses** when the emulator is not genuinely usable, instead of
   quietly skipping. Any set of tests still skipped is enumerated in a reviewable allowlist rather than
   disappearing into a filter expression. **This does not yet mean the provider is verified**: it means a

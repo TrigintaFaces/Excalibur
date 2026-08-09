@@ -165,6 +165,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 eng/ci/required-contexts-satisfiable.py --repo "${{ github.repository }}" --root .
 
+      # THE PUBLIC-SURFACE LEAK GATE. It exists, it works, and until now nothing ran it.
+      #
+      # It scans the surfaces a consumer can see -- the shipped .xml docs, samples, the docs
+      # site, README/CHANGELOG -- plus eng/ and .github/workflows/, which are mirrored to a
+      # public repository and which this gate previously excluded by construction.
+      #
+      # Ratcheted: the pre-existing population is a recorded debt register, and this fails on
+      # any NEW leak or any rise in a recorded count. Proven both ways by the self-test.
+      - name: no-internal-refs self-test (non-vacuity)
+        run: bash eng/ci/no-internal-refs-gate.sh --self-test
+
+      - name: no-internal-refs (ratcheted -- fails on any NEW public-surface leak)
+        run: bash eng/ci/no-internal-refs-gate.sh
+
       - name: mutable-image-tag ratchet self-test (non-vacuity)
         run: bash eng/ci/mutable-image-tag-gate.sh --self-test
 
