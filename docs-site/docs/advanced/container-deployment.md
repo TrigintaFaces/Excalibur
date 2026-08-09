@@ -22,7 +22,7 @@ Pick the strategy that matches your workload:
 | **ReadyToRun** | APIs needing fast startup + full features | ~380 ms | Medium | All 170 packages |
 | **Native AOT** | Workers, jobs, event handlers, sidecars | &lt;100 ms | Lowest | 150/170 packages |
 
-150 of 170 packages are AOT-compatible. Core dispatch, pipeline, handlers, and most transports work fully in AOT. Packages depending on external SDKs without AOT support (Kafka/Confluent, AWS SDK) remain JIT-only -- see the [AOT Compatibility Matrix](./aot-compatibility.md).
+Most packages are AOT-compatible — core dispatch, pipeline, handlers, and most transports work fully in AOT. Packages depending on external SDKs without AOT support (Kafka/Confluent, AWS SDK) remain JIT-only -- see the [AOT Compatibility Matrix](./aot-compatibility.md).
 
 :::tip AOT deserialization trade-off
 

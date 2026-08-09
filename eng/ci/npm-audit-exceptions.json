@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "Advisories the npm audit gate will not fail on, each scoped to ONE advisory in ONE directory.",
+    "",
+    "This is not a suppression list. A suppression says 'ignore this'; every entry here is a claim",
+    "with a stated premise and an expiry date, and the gate FAILS when either stops holding:",
+    "",
+    "  expires       the entry is dead after this date. An expired entry is RED, never skipped --",
+    "                so a finding parked here resurfaces on its own instead of being parked forever.",
+    "  absent_globs  files whose ABSENCE the exception depends on. If any of these paths comes to",
+    "                exist, the premise is broken and the entry stops covering anything.",
+    "",
+    "An advisory that is not listed here is RED. An entry that no longer matches anything is also RED,",
+    "because a stale exception is one nobody is reading, and the correct response to a fixed advisory",
+    "is to delete its entry rather than leave it lying where the next reader will trust it.",
+    "",
+    "Adding an entry is a security decision. Justify reachability from evidence, not from intuition."
+  ],
+  "exceptions": [
+    {
+      "advisory": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "directory": "docs-site",
+      "expires": "2026-11-07",
+      "absent_globs": [
+        "docs-site/**/*.icns"
+      ],
+      "reason": "Infinite loop in the ICNS parser (CWE-835, denial of service). NO PATCHED VERSION EXISTS: the advisory covers <=2.0.2 and 2.0.2 is the newest release published, so there is nothing to upgrade to and no override that resolves it. The package is reached only by the documentation site's build-time image loader, which measures the intrinsic size of images referenced from markdown; the documentation site ships in no package and nothing in it runs on a consumer's machine. Its inputs are the files in this repository, and the format this parser mishandles is not among them -- hence the absence check above, which retires this entry the moment such a file appears."
+    },
+    {
+      "advisory": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "directory": "docs-site",
+      "expires": "2026-11-07",
+      "absent_globs": [
+        "docs-site/**/*.jxl",
+        "docs-site/**/*.heif",
+        "docs-site/**/*.heic"
+      ],
+      "reason": "Infinite loops in the JXL and HEIF parsers (CWE-835, denial of service), in the same package and with the same absence of any patched version. Same reachability: a build-time image loader for the documentation site, over images committed to this repository, and no image of these formats is present. Listed separately from the ICNS advisory rather than folded into it, so that fixing one does not silently carry the other."
+    }
+  ]
+}

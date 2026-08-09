@@ -8,7 +8,7 @@ description: Per-package Native AOT compatibility status for Excalibur
 
 This page documents the Native AOT compatibility status for every shipping package. Use this as a reference when planning AOT-published applications.
 
-**Summary:** 150 of 170 packages are AOT-compatible. 20 packages have documented blocking dependencies.
+**Summary:** the large majority of shipping packages are AOT-compatible. **The table below is the per-package authority** — read it rather than a headline count. A package marked *Not compatible* has a documented blocking dependency in an external SDK, not in framework code.
 
 For setup instructions and source generator usage, see the [Native AOT Guide](native-aot.md).
 

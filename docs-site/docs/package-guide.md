@@ -38,6 +38,58 @@ All packages share the `Excalibur.*` namespace. You never rewrite existing code 
 
 ---
 
+## Capabilities at a Glance
+
+What the framework provides, by area. Use this to decide *what you need*; the sections below map each
+need onto the packages that supply it.
+
+### Messaging and transports
+
+- **Six transport providers** — Kafka, RabbitMQ, Azure Service Bus, AWS SQS, Google Pub/Sub, and in-memory — plus MQTT, IBM MQ, and Apache Pulsar primitives.
+- **Multi-transport routing** — route different message types to different brokers in one application.
+- **A focused transport API** — `ITransportSender`, `ITransportReceiver`, and `ITransportSubscriber` with a decorator chain and builder pattern.
+
+### Reliability
+
+- **Outbox** — at-least-once delivery with per-partition ordering, retry backoff, and a terminal dead-letter state.
+- **Inbox and idempotency** — provider-native transactional processing where the store supports it, and a durable at-most-once guard where it does not.
+- **Dead-letter queue** — universal across transports, with configurable retry.
+- **Sagas** — event-driven coordination with optimistic concurrency, declarative timeouts, and retention purge on every store.
+- **Durable execution** — replayable workflows whose progress survives process restarts.
+- **Polly v8 resilience** — circuit breaker, retry, timeout, bulkhead, and graceful degradation.
+- **Leader election** — single-leader guarantees with strictly monotonic fencing tokens on every backend.
+
+### Event sourcing
+
+- **Event stores** across relational, document, and cloud providers, with optimistic concurrency.
+- **Snapshots** — time-based, count-based, and hybrid policies with version upgrading.
+- **Event upcasting** — schema evolution through type-safe transformers.
+- **Projections** — inline and asynchronous, with checkpointing, rebuilds, and server-side query filters.
+
+### Security and compliance
+
+- **Message encryption** — AES-256-GCM envelope encryption with pluggable key providers (Azure Key Vault, AWS KMS, HashiCorp Vault).
+- **Asymmetric message signing** — ECDSA P-256 for verifiable message integrity.
+- **PII-safe telemetry** — sanitization with hashed or keyed fingerprints, so identifiers do not leak into traces and metrics.
+- **GDPR** — right-to-erasure with a coverage gate, per-subject crypto-shredding, legal hold, and a data inventory.
+- **Compliance mapping** — FedRAMP, SOC 2, HIPAA, and GDPR checklists mapped to framework capabilities, plus SBOM generation and regulatory key escrow.
+
+### Operations and observability
+
+- **OpenTelemetry native** — `ActivitySource` and `Meter` instrumentation across packages, with W3C and B3 context propagation.
+- **Health checks** — readiness and liveness probes for transports, event stores, and background services.
+- **An operational dashboard** — live state for outbox, dead-letter, inbox, saga, projection lag, and leader election.
+- **Audit logging** — SIEM integration with Datadog, Splunk, and Microsoft Sentinel exporters.
+
+### Developer experience
+
+- **Native AOT** — 160 of 195 shipped projects declare AOT compatibility; the remainder are blocked by external SDK dependencies rather than by framework code.
+- **Roslyn analyzers** for common mistakes, and **source generators** for AOT-compatible registration, serialization, and saga coordination.
+- **`dotnet new` templates** — `excalibur-dispatch`, `excalibur-eventsourcing`, `excalibur-saga`.
+- **Startup validation everywhere** — `Add*` registrations validate their options at startup, so a misconfiguration surfaces before the first request rather than at first use.
+
+---
+
 ## Decision Flowchart
 
 ```mermaid

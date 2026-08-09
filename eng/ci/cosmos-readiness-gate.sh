@@ -128,9 +128,39 @@ echo "Starting Cosmos emulator ($NAME)..."
 #
 # No host port is pinned: `-p <container-port>` assigns a random free host port, which is what the
 # fixtures do and what keeps concurrent emulators from colliding on a shared runner.
-if ! docker run -d --name "$NAME" -p 8081 -p 8080 "$IMAGE" >/dev/null 2>&1; then
-    refuse "the Cosmos emulator container could not be started from the pinned image."
+# THE PULL IS ITS OWN STEP, WITH ITS OWN ERROR.
+#
+# `docker run` performs an implicit pull, so a registry/network/disk failure and a daemon/image
+# failure both surfaced here as the single message "could not be started from the pinned image".
+# Those are different conditions with different remedies and they were indistinguishable, because
+# the run below sent docker's stderr to /dev/null -- the gate refused, correctly, and then discarded
+# the only evidence that could say why. A nightly run refused exactly this way and the log named no
+# cause at all.
+#
+# That is the same defect the port check further down was already written to avoid: it measures
+# WHICH condition holds and prints the container state and logs. This does the same one step earlier.
+#
+# The image is ~0.7 GiB compressed across 29 layers, pulled onto a runner that has already restored
+# and built the solution, so exhausted disk is a live possibility and is reported alongside.
+pull_log="$(mktemp)"; run_log="$(mktemp)"
+_rm_logs() { rm -f "$pull_log" "$run_log" 2>/dev/null || true; }
+
+if ! docker pull "$IMAGE" >"$pull_log" 2>&1; then
+    echo "--- docker pull output ---" >&2
+    sed 's/^/    /' "$pull_log" >&2 || true
+    echo "--- filesystem free space ---" >&2
+    df -h / 2>/dev/null | sed 's/^/    /' >&2 || true
+    _rm_logs
+    refuse "the pinned Cosmos emulator image could not be PULLED (output above). This is a registry, network or disk condition, not a failure of the emulator to start."
 fi
+
+if ! docker run -d --name "$NAME" -p 8081 -p 8080 "$IMAGE" >"$run_log" 2>&1; then
+    echo "--- docker run output ---" >&2
+    sed 's/^/    /' "$run_log" >&2 || true
+    _rm_logs
+    refuse "the pinned image pulled successfully but the container could not be STARTED from it (output above)."
+fi
+_rm_logs
 
 # 8081 is the gateway / data plane; 8080 reports health. Poll health, then prove the data plane.
 health_port="$(docker port "$NAME" 8080/tcp 2>/dev/null | head -1 | sed 's/.*://')"
