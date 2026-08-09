@@ -829,6 +829,7 @@ const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleaseCom
 const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleaseFailed = 92793 -> int
 const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldAutoReleasePartialFailure = 92795 -> int
 const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldCheckCompleted = 92792 -> int
+const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldCheckedWithoutTenant = 92796 -> int
 const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldCreated = 92790 -> int
 const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationAutoReleased = 92786 -> int
 const Excalibur.Compliance.Diagnostics.ComplianceEventId.LegalHoldExpirationDisabled = 92780 -> int

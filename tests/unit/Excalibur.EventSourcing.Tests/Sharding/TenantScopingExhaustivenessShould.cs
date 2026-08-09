@@ -4,6 +4,7 @@
 using System.Collections.Immutable;
 using System.Reflection;
 
+using Excalibur.Compliance;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.EventSourcing;
@@ -38,7 +39,8 @@ namespace Excalibur.EventSourcing.Tests.Sharding;
 /// </item>
 /// <item>
 /// <b>Marker-only set</b> (<see cref="IInboxStore"/>, <see cref="IOutboxStore"/>,
-/// <see cref="IEventStoreErasure"/>): the marker is enforced at registration but the store is <em>not</em>
+/// <see cref="IEventStoreErasure"/>, <see cref="IErasureStore"/>, <see cref="ILegalHoldStore"/>): the marker
+/// is enforced at registration but the store is <em>not</em>
 /// decorated. A tenant decorator on the cross-tenant outbox drain would read the ambient tenant as absent,
 /// claim the empty set, and stall the drain — safe-looking, permanently broken. These are gated-but-undecorated
 /// by design, so the liveness arm asserts the resolved store is the exact registered instance (unwrapped).
@@ -63,8 +65,15 @@ public sealed class TenantScopingExhaustivenessShould
         [typeof(IEventStore), typeof(ISagaStore), typeof(IProjectionStore<object>)];
 
     /// <summary>The contracts the manifest gates but deliberately does NOT decorate.</summary>
+    /// <remarks>
+    /// The erasure and legal-hold stores belong here rather than in the decoratable set: they apply the
+    /// ambient tenant term inside the store, at a single derivation point, rather than through a wrapping
+    /// decorator. The gate still requires their capability marker, so a host registering an unscoped
+    /// implementation fails at startup — which is the property this tier asserts.
+    /// </remarks>
     private static readonly ImmutableHashSet<Type> MarkerOnlyContracts =
-        [typeof(IInboxStore), typeof(IOutboxStore), typeof(IEventStoreErasure)];
+        [typeof(IInboxStore), typeof(IOutboxStore), typeof(IEventStoreErasure),
+         typeof(IErasureStore), typeof(ILegalHoldStore)];
 
     /// <summary>
     /// Theory source: every contract in the committed <c>TenantOwnedContracts.All</c> manifest, read by
@@ -271,6 +280,14 @@ public sealed class TenantScopingExhaustivenessShould
         {
             // Erasure is gated via the erasure feature service, not an IEventStoreErasure registration.
             services.AddSingleton(A.Fake<IAggregateDataSubjectMapping>());
+        }
+        else if (contract == typeof(IErasureStore))
+        {
+            services.AddSingleton(A.Fake<IErasureStore>());
+        }
+        else if (contract == typeof(ILegalHoldStore))
+        {
+            services.AddSingleton(A.Fake<ILegalHoldStore>());
         }
         else
         {
