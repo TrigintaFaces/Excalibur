@@ -110,7 +110,7 @@ permit `timeout-minutes`; the called workflow's own job timeouts apply.
 | release.yml | pre-release-validation | push,workflow_dispatch | 20 | ubuntu-latest | - | yes | job |  |
 | release.yml | pre-tag-soak-build | push,workflow_dispatch | 45 | ${{ matrix.os }} | pre-release-validation |  | job |  |
 | release.yml | pre-tag-unit-soak | push,workflow_dispatch | 120 | ${{ matrix.os }} | pre-release-validation,pre-tag-soa | yes | job |  |
-| release.yml | publish-nuget | push,workflow_dispatch | 20 | ubuntu-latest | pre-release-validation,create-rele |  | job |  |
+| release.yml | publish-nuget | push,workflow_dispatch | 90 | ubuntu-latest | pre-release-validation,create-rele |  | job |  |
 | release.yml | release-quality-gates | push,workflow_dispatch | 20 | ubuntu-latest | pre-release-validation,build-packa |  | job |  |
 | release.yml | staging-validation | push,workflow_dispatch | 30 | ubuntu-latest | pre-release-validation,build-packa |  | job |  |
 | samples-ci.yml | build-samples | push,pull_request,workflow_dispatch | 10 | ubuntu-latest | enumerate-samples |  | workflow |  |
