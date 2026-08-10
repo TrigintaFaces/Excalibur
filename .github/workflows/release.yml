@@ -1316,6 +1316,10 @@ jobs:
     env:
       NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
       NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
+      # A repository VARIABLE, not a secret, and deliberately: it is a decision, not a credential,
+      # and a decision to ship unsigned should be readable by anyone looking at the repository
+      # rather than hidden among the secrets. Job scope for the reason stated directly above.
+      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE }}
     steps:
       # Was `packages-ubuntu-latest`: one OS's artifact, chosen by filename convention from two
       # candidates built from the same sources. Every consumer -- validation, release, publish -- must
@@ -1363,23 +1367,45 @@ jobs:
           fi
           echo "Short-lived publishing key issued (valid ~1 hour)."
 
-      # A release that cannot sign MUST NOT publish. This fails the job rather than
-      # falling through to an unsigned push: shipping unsigned packages to a public feed
-      # is not a degraded success, it is the defect. Mirrors the API-key guard above.
+      # A release that cannot sign MUST NOT publish -- unless someone has DECIDED otherwise, in
+      # writing, in a variable a human had to set. Missing secrets alone still refuse.
+      #
+      # THE DISTINCTION IS THE WHOLE CONTROL. "The certificate is absent" and "we have decided to
+      # ship unsigned" look identical at the moment of failure and are completely different
+      # statements. Treating absence as consent is a silent fail-open: the release would go green
+      # the first time a secret expired, rotated, or was renamed, and nobody would learn that the
+      # packages had stopped being signed. So absence keeps refusing, and only an explicit opt-out
+      # proceeds.
+      #
+      # WHY UNSIGNED IS PUBLISHABLE AT ALL, since the previous wording implied it was not: nuget.org
+      # accepts unsigned packages and applies its OWN repository signature to everything it serves,
+      # so consumers still get an authenticity guarantee from the registry. Author signing adds a
+      # second, publisher-level guarantee on top. It is worth having and it is not free -- a
+      # certificate must come from a public CA, because nuget.org REJECTS self-issued certificates.
+      # Shipping unsigned is a real reduction in guarantee, honestly stated, not a defect in disguise.
       - name: Validate signing certificate
         run: |
-          if [ -z "$NUGET_SIGNING_CERT_BASE64" ]; then
-            echo "❌ NUGET_SIGNING_CERT_BASE64 secret is not set — refusing to publish unsigned packages."
-            echo "   Configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD, or the release cannot proceed."
+          if [ -n "$NUGET_SIGNING_CERT_BASE64" ] && [ -n "$NUGET_SIGNING_CERT_PASSWORD" ]; then
+            echo "✅ Signing certificate is configured — packages will be author-signed."
+            exit 0
+          fi
+          if [ "$ALLOW_UNSIGNED_RELEASE" != "true" ]; then
+            echo "❌ Signing is not configured and no explicit opt-out is set — refusing to publish."
+            echo "   Either configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD,"
+            echo "   or set the repository variable ALLOW_UNSIGNED_RELEASE=true to publish unsigned"
+            echo "   deliberately. A missing secret is NOT taken as consent to ship unsigned."
             exit 1
           fi
-          if [ -z "$NUGET_SIGNING_CERT_PASSWORD" ]; then
-            echo "❌ NUGET_SIGNING_CERT_PASSWORD secret is not set — refusing to publish unsigned packages."
-            exit 1
-          fi
-          echo "✅ Signing certificate is configured"
+          echo "::warning::Publishing UNSIGNED packages by explicit opt-out (ALLOW_UNSIGNED_RELEASE=true)."
+          echo "⚠ These packages carry NO author signature. Consumers still get nuget.org's repository"
+          echo "  signature, which is what the registry applies to everything it serves, but they get no"
+          echo "  publisher-level guarantee from us. Remove this variable once a certificate is available."
 
+      # Skipped when signing is not configured. Reachable only after the guard above has either
+      # confirmed the certificate or recorded a deliberate opt-out, so a skip here can never be the
+      # first place the decision is made.
       - name: Sign packages
+        if: env.NUGET_SIGNING_CERT_BASE64 != ''
         run: |
           echo "🔏 Signing packages before publish..."
           cert_path="${RUNNER_TEMP}/nuget-signing.pfx"
