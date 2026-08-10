@@ -98,7 +98,7 @@ public sealed class MultiStreamProjectionFunctionalShould
 		var evt = new OrderPlacedEvent { CustomerName = "Alice", Amount = 99.99m };
 
 		// Act
-		var handled = projection.Apply(state, evt);
+		var handled = projection.Apply(state, evt, evt.AggregateId);
 
 		// Assert
 		handled.ShouldBeTrue();
@@ -118,7 +118,7 @@ public sealed class MultiStreamProjectionFunctionalShould
 		var evt = new UnhandledEvent();
 
 		// Act
-		var handled = projection.Apply(state, evt);
+		var handled = projection.Apply(state, evt, evt.AggregateId);
 
 		// Assert
 		handled.ShouldBeFalse();
@@ -133,9 +133,9 @@ public sealed class MultiStreamProjectionFunctionalShould
 		var state = new OrderSummary();
 
 		// Act
-		projection.Apply(state, new OrderPlacedEvent { Amount = 50m });
-		projection.Apply(state, new OrderPlacedEvent { Amount = 75m });
-		projection.Apply(state, new OrderCancelledEvent());
+		projection.Apply(state, new OrderPlacedEvent { Amount = 50m }, "order-1");
+		projection.Apply(state, new OrderPlacedEvent { Amount = 75m }, "order-1");
+		projection.Apply(state, new OrderCancelledEvent(), "order-1");
 
 		// Assert
 		state.TotalOrders.ShouldBe(1);
@@ -149,7 +149,7 @@ public sealed class MultiStreamProjectionFunctionalShould
 		projection.AddHandler<OrderPlacedEvent>((state, _) => { });
 
 		Should.Throw<ArgumentNullException>(() =>
-			projection.Apply(null!, new OrderPlacedEvent()));
+			projection.Apply(null!, new OrderPlacedEvent(), "order-1"));
 	}
 
 	[Fact]
@@ -159,6 +159,6 @@ public sealed class MultiStreamProjectionFunctionalShould
 		projection.AddHandler<OrderPlacedEvent>((state, _) => { });
 
 		Should.Throw<ArgumentNullException>(() =>
-			projection.Apply(new OrderSummary(), null!));
+			projection.Apply(new OrderSummary(), null!, "test-aggregate"));
 	}
 }

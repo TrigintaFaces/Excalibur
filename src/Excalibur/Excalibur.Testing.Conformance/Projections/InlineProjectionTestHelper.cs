@@ -39,15 +39,23 @@ public sealed class InlineProjectionTestHelper<TProjection>
 	/// </summary>
 	/// <param name="projection">The projection instance to update.</param>
 	/// <param name="events">The events to apply in order.</param>
+	/// <param name="aggregateId">
+	/// The aggregate identity handlers observe on the context. Defaults to a fixed placeholder, which is
+	/// appropriate here and nowhere else: this is a test helper, and no real aggregate is in scope.
+	/// Supply a value when the projection under test stamps or asserts on its own identity.
+	/// </param>
 	/// <returns>The same <paramref name="projection"/> instance for fluent assertion chaining.</returns>
-	public TProjection Apply(TProjection projection, IEnumerable<IDomainEvent> events)
+	public TProjection Apply(
+		TProjection projection,
+		IEnumerable<IDomainEvent> events,
+		string aggregateId = "test-aggregate")
 	{
 		ArgumentNullException.ThrowIfNull(projection);
 		ArgumentNullException.ThrowIfNull(events);
 
 		foreach (var evt in events)
 		{
-			_projection.Apply(projection, evt);
+			_projection.Apply(projection, evt, aggregateId);
 		}
 
 		return projection;

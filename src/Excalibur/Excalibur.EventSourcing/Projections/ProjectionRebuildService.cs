@@ -177,7 +177,13 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 
 						domainEvent = TryUpcastEvent(domainEvent);
 
-						projection.Apply(state, domainEvent);
+						// isReplay: true -- this IS the rebuild. A handler that skips notifications during
+						// replay depends on it, and the aggregate identity must survive a rebuild or the
+						// rebuilt projection loses the id a client needs to act on it.
+						projection.Apply(
+							state,
+							domainEvent,
+							new ProjectionContext(isReplay: true, globalPosition: null, storedEvent.AggregateId));
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{

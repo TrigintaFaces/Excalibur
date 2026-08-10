@@ -186,23 +186,32 @@ public sealed class MultiStreamProjectionCrossAggregateShould
 		var state = new CustomerDashboard();
 
 		// Act — apply events from different aggregates
-		var handled1 = projection.Apply(state, new OrderCreatedEvent
-		{
-			AggregateId = "order-111",
-			CustomerId = "cust-1",
-		});
-		var handled2 = projection.Apply(state, new PaymentReceivedEvent
-		{
-			AggregateId = "payment-222",
-			CustomerId = "cust-1",
-			Amount = 49.99m,
-		});
-		var handled3 = projection.Apply(state, new PaymentReceivedEvent
-		{
-			AggregateId = "payment-333",
-			CustomerId = "cust-1",
-			Amount = 25.00m,
-		});
+		var handled1 = projection.Apply(
+			state,
+			new OrderCreatedEvent
+			{
+				AggregateId = "order-111",
+				CustomerId = "cust-1",
+			},
+			"order-111");
+		var handled2 = projection.Apply(
+			state,
+			new PaymentReceivedEvent
+			{
+				AggregateId = "payment-222",
+				CustomerId = "cust-1",
+				Amount = 49.99m,
+			},
+			"payment-222");
+		var handled3 = projection.Apply(
+			state,
+			new PaymentReceivedEvent
+			{
+				AggregateId = "payment-333",
+				CustomerId = "cust-1",
+				Amount = 25.00m,
+			},
+			"payment-333");
 
 		// Assert — state accumulated from events across two different aggregate types
 		handled1.ShouldBeTrue();
@@ -312,7 +321,7 @@ public sealed class MultiStreamProjectionCrossAggregateShould
 		var state = new CustomerDashboard();
 
 		// Act
-		var result = projection.Apply(state, new OrderCreatedEvent());
+		var result = projection.Apply(state, new OrderCreatedEvent(), "order-123");
 
 		// Assert — Apply skips async-only entries (SyncAction is null)
 		result.ShouldBeFalse();

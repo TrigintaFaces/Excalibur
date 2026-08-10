@@ -51,7 +51,7 @@ public sealed class MultiStreamProjectionShould
 		var evt = new MultiStreamConcreteTestEvent();
 
 		// Act
-		var result = projection.Apply(state, evt);
+		var result = projection.Apply(state, evt, evt.AggregateId);
 
 		// Assert
 		result.ShouldBeTrue();
@@ -67,7 +67,7 @@ public sealed class MultiStreamProjectionShould
 		var evt = new MultiStreamConcreteTestEvent();
 
 		// Act
-		var result = projection.Apply(state, evt);
+		var result = projection.Apply(state, evt, evt.AggregateId);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -82,7 +82,7 @@ public sealed class MultiStreamProjectionShould
 		var evt = new MultiStreamConcreteTestEvent();
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => projection.Apply(null!, evt));
+		Should.Throw<ArgumentNullException>(() => projection.Apply(null!, evt, evt.AggregateId));
 	}
 
 	[Fact]
@@ -93,7 +93,7 @@ public sealed class MultiStreamProjectionShould
 		var state = new MultiStreamTestState();
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => projection.Apply(state, null!));
+		Should.Throw<ArgumentNullException>(() => projection.Apply(state, null!, "test-aggregate"));
 	}
 
 	[Fact]

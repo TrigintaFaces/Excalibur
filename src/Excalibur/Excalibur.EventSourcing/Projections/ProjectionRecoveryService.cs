@@ -78,7 +78,13 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		{
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
 			var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
-			projection.Apply(state, domainEvent);
+
+			// Recovery replays an aggregate's history, so isReplay is true and the identity is the
+			// aggregate being recovered -- a recovered projection that lost its id is not recovered.
+			projection.Apply(
+				state,
+				domainEvent,
+				new ProjectionContext(isReplay: true, globalPosition: null, aggregateId));
 		}
 
 		// Persist the recovered projection

@@ -116,10 +116,16 @@ internal sealed class MultiStreamProjection<TProjection>
 	/// </summary>
 	/// <param name="projection">The projection state to update.</param>
 	/// <param name="domainEvent">The domain event to apply.</param>
+	/// <param name="aggregateId">The identifier of the aggregate the event came from.</param>
 	/// <returns><see langword="true"/> if a handler was found and executed; otherwise, <see langword="false"/>.</returns>
-	public bool Apply(TProjection projection, IDomainEvent domainEvent)
+	/// <remarks>
+	/// The aggregate identifier is required rather than defaulted. This overload previously fabricated a
+	/// context with no identity, which is how a context handler could be handed nothing to stamp its
+	/// projection with.
+	/// </remarks>
+	public bool Apply(TProjection projection, IDomainEvent domainEvent, string aggregateId)
 	{
-		return Apply(projection, domainEvent, ProjectionContext.Live);
+		return Apply(projection, domainEvent, new ProjectionContext(isReplay: false, globalPosition: null, aggregateId));
 	}
 
 	/// <summary>

@@ -72,7 +72,7 @@ Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit
 Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.PersistenceProviderConformanceTestKit() -> void
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>
-Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.Apply(TProjection! projection, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events) -> TProjection!
+Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.Apply(TProjection! projection, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.IDomainEvent!>! events, string! aggregateId = "test-aggregate") -> TProjection!
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.Apply(TProjection! projection, params Excalibur.Dispatch.IDomainEvent![]! events) -> TProjection!
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.InlineProjectionTestHelper() -> void
 Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection>.When<TEvent>(System.Action<TProjection!, TEvent>! handler) -> Excalibur.Testing.Conformance.Projections.InlineProjectionTestHelper<TProjection!>!

@@ -382,7 +382,14 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				{
 					var state = await GetOrLoadAsync(projections, store, projectionId, cancellationToken)
 						.ConfigureAwait(false);
-					handlerEntry.SyncContextAction(state, @event, ProjectionContext.Live);
+					// Carries the aggregate identity, which the event itself does not have -- the stored
+					// envelope is authoritative for it. Without this a context handler cannot stamp the
+					// projection with its own id, and a client that reads the projection back has no
+					// identifier to send to an update command.
+					handlerEntry.SyncContextAction(
+						state,
+						@event,
+						new ProjectionContext(isReplay: false, globalPosition: null, context.AggregateId));
 				}
 				else if (handlerEntry.AsyncHandler is not null)
 				{
@@ -478,7 +485,12 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						projections[id] = state;
 					}
 
-					projection.Apply(state, @event);
+					// context.AggregateId, NOT id: with a KeyedBy selector registered, `id` is the
+					// projection key (a category, tenant, date...) and is deliberately not the aggregate.
+					projection.Apply(
+						state,
+						@event,
+						new ProjectionContext(isReplay: false, globalPosition: null, context.AggregateId));
 				}
 
 				// Compute search text once per projection instance (after all events applied)
@@ -519,7 +531,10 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				state ??= await store.GetByIdAsync(context.AggregateId, cancellationToken)
 					.ConfigureAwait(false) ?? new TProjection();
 
-				projection.Apply(state, @event);
+				projection.Apply(
+					state,
+					@event,
+					new ProjectionContext(isReplay: false, globalPosition: null, context.AggregateId));
 			}
 
 			if (state is not null)

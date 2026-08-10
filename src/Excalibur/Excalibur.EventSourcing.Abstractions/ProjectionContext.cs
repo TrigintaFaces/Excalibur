@@ -32,10 +32,24 @@ public sealed class ProjectionContext
 	/// </summary>
 	/// <param name="isReplay">Whether this event is being processed during a projection rebuild/replay.</param>
 	/// <param name="globalPosition">The global stream position of the event, if available.</param>
-	public ProjectionContext(bool isReplay, long? globalPosition)
+	/// <param name="aggregateId">The identifier of the aggregate whose event is being applied.</param>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="aggregateId"/> is null or empty.
+	/// </exception>
+	/// <remarks>
+	/// The aggregate identifier is required and there is no overload without it. Every event reaching a
+	/// projection came from exactly one aggregate, so a context without an identity does not describe
+	/// anything that can happen -- and a projection silently stamped with an empty id is the failure
+	/// this type exists to prevent. Making it required moves that from a convention to something the
+	/// compiler enforces.
+	/// </remarks>
+	public ProjectionContext(bool isReplay, long? globalPosition, string aggregateId)
 	{
+		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
+
 		IsReplay = isReplay;
 		GlobalPosition = globalPosition;
+		AggregateId = aggregateId;
 	}
 
 	/// <summary>
@@ -59,19 +73,44 @@ public sealed class ProjectionContext
 	public long? GlobalPosition { get; }
 
 	/// <summary>
-	/// Gets the default context for live (non-replay) event processing
-	/// without a known global position.
+	/// Gets the identifier of the aggregate whose event is being applied.
 	/// </summary>
-	public static ProjectionContext Live { get; } = new(isReplay: false, globalPosition: null);
+	/// <value>The identifier of the aggregate whose event is being applied. Never null or empty.</value>
+	/// <remarks>
+	/// <para>
+	/// Domain events do not carry the aggregate identifier; the stored envelope is authoritative for
+	/// it. This is how a projection reaches it.
+	/// </para>
+	/// <para>
+	/// <b>A projection read back by a client usually needs to store this.</b> Projection stores key the
+	/// stored document by the projection ID, but a read returns the document body alone, so an
+	/// identifier never written into the body is not available to the caller. A client loading a
+	/// projection to populate an edit screen then has nothing to send to an update command:
+	/// </para>
+	/// <code>
+	/// .When&lt;CustomerCreated&gt;((view, e, ctx) =>
+	/// {
+	///     view.Id = ctx.AggregateId;   // the read model's own identity
+	///     view.Name = e.Name;
+	/// })
+	/// </code>
+	/// <para>
+	/// Always populated. The constructor rejects a null or empty identifier, so a handler never has to
+	/// guard it: a projection whose identity silently became <c>""</c> is indistinguishable from one
+	/// that was never given an identity, and the type refuses to represent that state.
+	/// </para>
+	/// </remarks>
+	public string AggregateId { get; }
 
 	/// <summary>
-	/// Creates a replay context with the specified global position.
+	/// Creates a replay context for an event belonging to the specified aggregate.
 	/// </summary>
 	/// <param name="globalPosition">The global stream position of the event.</param>
+	/// <param name="aggregateId">The identifier of the aggregate whose event is being applied.</param>
 	/// <returns>A new <see cref="ProjectionContext"/> configured for replay.</returns>
-	public static ProjectionContext Replay(long globalPosition)
+	public static ProjectionContext Replay(long globalPosition, string aggregateId)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(globalPosition);
-		return new(isReplay: true, globalPosition);
+		return new(isReplay: true, globalPosition, aggregateId);
 	}
 }

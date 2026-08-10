@@ -94,6 +94,20 @@ limits of that claim.
 
 ### Fixed
 
+- **An inline projection could not learn which aggregate it was projecting.** Domain events no longer
+  carry the aggregate identifier — the stored envelope is authoritative — but the context handed to a
+  three-argument `When` handler did not carry it either, so the most ordinary thing a projection does,
+  stamping its own identity, became impossible to express inline. `ProjectionContext` now exposes
+  `AggregateId`, and every path that applies an event from a stream populates it. **This matters beyond
+  convenience:** a projection store keys the stored document by the projection ID but a read returns the
+  document body alone, so a projection that never wrote its identity into the body hands a client every
+  field except the one identifying what it loaded — and that client then has nothing to send to an update
+  command. The failure is silent; the read model looks correct until someone tries to change it.
+  Two further defects were found and fixed on the same paths while verifying it: the rebuild and recovery
+  services reported `IsReplay` as **false while replaying**, defeating the one thing that flag exists for,
+  and a projection using a `KeyedBy` selector risked being handed the projection key in place of the
+  aggregate ID, which are deliberately different values.
+
 - **A Cosmos DB test suite reported fourteen passes while executing nothing, and nothing could detect
   it.** The event-store telemetry suite suppressed itself on Linux CI runners via an environment
   override that was never set anywhere, and both of our CI paths are Linux. It therefore ran on no

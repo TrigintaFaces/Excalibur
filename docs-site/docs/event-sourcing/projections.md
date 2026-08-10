@@ -181,6 +181,52 @@ builder.AddProjection<OrderSummary>(p => p
     .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 ```
 
+### Giving a Projection Its Own Identity
+
+Domain events do not carry the aggregate identifier — the stored envelope is authoritative for it. A
+third handler parameter supplies it:
+
+```csharp
+builder.AddProjection<OrderSummary>(p => p
+    .Inline()
+    .When<OrderPlaced>((proj, e, ctx) =>
+    {
+        proj.Id = ctx.AggregateId ?? string.Empty;   // which order this projection describes
+        proj.Total = e.Total;
+    }));
+```
+
+`ProjectionContext` also exposes `IsReplay` and `GlobalPosition`, so the same overload is how you skip
+side effects during a rebuild.
+
+:::warning A projection that does not store its identity cannot be acted on
+Projection stores key the stored document by the projection ID, but **a read returns the document body
+alone**. An identifier that was never written into the body is not available to the caller.
+
+The symptom is not an error. A client loads a projection to populate an edit screen, gets every field
+except the one identifying what it loaded, and has nothing to send to an update command. If you assign
+`Id` from a property that no longer exists, you get an empty string and a read model that looks
+correct until someone tries to change it.
+:::
+
+#### Not Exposing Aggregate IDs to Clients
+
+Storing the identity in the projection does not mean publishing it. The projection is an internal read
+model, not a wire contract — map to a response DTO at the edge and expose whatever you choose.
+
+What you cannot do is omit identity altogether: an update command has to load *some* aggregate, so the
+round trip needs a stable correlator. Three workable shapes, and one to avoid:
+
+| approach | how the update handler resolves the aggregate |
+|---|---|
+| **Opaque handle** (recommended) | Return a signed or encrypted token instead of the raw ID; decode it server-side. Identity is preserved, never exposed, and tamper-evident. |
+| **Identity map** | Map an external reference to the internal aggregate ID via `Excalibur.Data.IdentityMap`, which exists for exactly this. |
+| **Natural key** | Look up by something the client legitimately knows — an order number. The key must be unique *and* immutable; email addresses and names are usually neither. |
+| ~~Match on several properties~~ | **Avoid.** It appears to work, and silently updates the wrong aggregate the first time two records share those values. |
+
+All three supported shapes still require the projection to know its own aggregate ID — the opaque
+handle and the identity map both need something to map *from*.
+
 ### Multi-Stream Projections (KeyedBy)
 
 By default, inline projections are keyed by aggregate ID -- each aggregate gets its own projection instance. Use `KeyedBy<TEvent>()` to derive the projection key from event data instead, enabling projections that aggregate across multiple streams:
@@ -220,6 +266,37 @@ All products in "Electronics" share one `CategorySummaryProjection` instance, au
 
 Use `KeyedBy` when the key can be derived purely from event data -- it works with all handler tiers and keeps registration declarative. Use `OverrideProjectionId` (Tier 3 only) when the key requires DI services, async lookups, or runtime logic beyond the event.
 :::
+
+#### Choosing a Key That Is Not the Aggregate ID
+
+The storage key and the aggregate identity are separate concepts, and a projection can carry both —
+key by whatever the read model is *about*, and keep the originating aggregate as an ordinary property:
+
+```csharp
+builder.AddProjection<RegionSummary>(p => p
+    .Inline()
+    .KeyedBy<CustomerCreated>(e => e.Region)
+    .When<CustomerCreated>((view, e, ctx) =>
+    {
+        view.Region       = e.Region;          // what this document is about (the key)
+        view.LastCustomer = ctx.AggregateId;   // where this event came from
+    }));
+```
+
+**Key by something the domain already means.** A region, a tenant, a date, an invoice number assigned
+by the aggregate — these are stable facts, and a rebuild reproduces exactly the same keys.
+
+**Avoid keying by insertion order.** An auto-incrementing counter is tempting as a "tidier" id, and it
+breaks in a specific way worth understanding: projections are rebuilt from the event stream, so on the
+next rebuild the counter restarts and every document lands under a different key than before. Anything
+that stored one of those ids now points at the wrong row. Ordinal position is a coincidence of when
+you happened to process something, and a rebuild does not preserve coincidences — whereas an aggregate
+ID, a region or an invoice number reproduces identically every time.
+
+If the motive for a synthetic key is to avoid exposing aggregate IDs to clients, that belongs at the
+API edge instead — see [Not Exposing Aggregate IDs to Clients](#not-exposing-aggregate-ids-to-clients).
+Changing the storage key to hide a value changes your persistence model to solve a serialization
+concern.
 
 ### DI-Resolved Handlers (Tier 3)
 

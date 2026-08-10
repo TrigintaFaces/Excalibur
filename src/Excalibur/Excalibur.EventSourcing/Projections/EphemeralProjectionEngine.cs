@@ -108,7 +108,12 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 				continue;
 			}
 
-			multiStreamProjection.Apply(projection, domainEvent);
+			// Built by replaying the aggregate's stored history, so isReplay is true and the identity is
+			// the aggregate being projected.
+			multiStreamProjection.Apply(
+				projection,
+				domainEvent,
+				new ProjectionContext(isReplay: true, globalPosition: null, aggregateId));
 		}
 
 		// Cache the result if caching is configured

@@ -249,9 +249,10 @@ Excalibur.EventSourcing.ParsedFilter.ParsedFilter(string! PropertyName, Excalibu
 Excalibur.EventSourcing.ParsedFilter.PropertyName.get -> string!
 Excalibur.EventSourcing.ParsedFilter.PropertyName.init -> void
 Excalibur.EventSourcing.ProjectionContext
+Excalibur.EventSourcing.ProjectionContext.AggregateId.get -> string!
 Excalibur.EventSourcing.ProjectionContext.GlobalPosition.get -> long?
 Excalibur.EventSourcing.ProjectionContext.IsReplay.get -> bool
-Excalibur.EventSourcing.ProjectionContext.ProjectionContext(bool isReplay, long? globalPosition) -> void
+Excalibur.EventSourcing.ProjectionContext.ProjectionContext(bool isReplay, long? globalPosition, string! aggregateId) -> void
 Excalibur.EventSourcing.ProjectionFilterBuilder
 Excalibur.EventSourcing.ProjectionFilterBuilder.Build() -> System.Collections.Generic.IDictionary<string!, object!>!
 Excalibur.EventSourcing.ProjectionFilterBuilder.ProjectionFilterBuilder() -> void
@@ -343,8 +344,7 @@ static Excalibur.EventSourcing.FilterParser.Parse(string! key) -> Excalibur.Even
 static Excalibur.EventSourcing.MigrationResult.Failed(string! errorMessage, System.Exception? exception = null) -> Excalibur.EventSourcing.MigrationResult!
 static Excalibur.EventSourcing.MigrationResult.NoMigrationsPending() -> Excalibur.EventSourcing.MigrationResult!
 static Excalibur.EventSourcing.MigrationResult.Succeeded(System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.AppliedMigration!>! appliedMigrations) -> Excalibur.EventSourcing.MigrationResult!
-static Excalibur.EventSourcing.ProjectionContext.Live.get -> Excalibur.EventSourcing.ProjectionContext!
-static Excalibur.EventSourcing.ProjectionContext.Replay(long globalPosition) -> Excalibur.EventSourcing.ProjectionContext!
+static Excalibur.EventSourcing.ProjectionContext.Replay(long globalPosition, string! aggregateId) -> Excalibur.EventSourcing.ProjectionContext!
 static Excalibur.EventSourcing.ProjectionStoreExtensions.DistinctValuesAsync<TProjection>(this Excalibur.EventSourcing.IProjectionStore<TProjection!>! store, string! propertyName, System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<object!>!>!
 static Excalibur.EventSourcing.ProjectionStoreExtensions.ExistsAsync<TProjection>(this Excalibur.EventSourcing.IProjectionStore<TProjection!>! store, string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 static Excalibur.EventSourcing.QueryOptions.Default.get -> Excalibur.EventSourcing.QueryOptions!

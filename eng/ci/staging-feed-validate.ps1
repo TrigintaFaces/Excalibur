@@ -272,11 +272,34 @@ Write-Section "Staging $($nupkgs.Count) package(s) to $FeedName"
 # --skip-duplicate is REQUIRED, not convenience: a resumed release re-runs this job, and a feed that
 # already holds the version must not turn a retry into a failure. It is the same idempotency the
 # release itself is required to have.
+#
+# THE OUTPUT IS KEPT, NOT DISCARDED. A failing push reports WHY -- a rejected package, an auth
+# refusal, a rate limit and a transient 5xx are four different problems with four different fixes,
+# and they are indistinguishable from a bare "the feed did not accept it". Pushing 195 artifacts
+# produces a lot of noise, so it is captured and printed ONLY on failure: quiet when healthy, and
+# fully diagnostic exactly when someone needs it.
+#
+# BOUNDED RETRY, because a long sequence of network pushes will meet transient failures that clear
+# on their own. The bound is what keeps this honest -- a retry that never gives up would turn a
+# genuine rejection into a hang, so exhaustion fails LOUD with the last error attached rather than
+# proceeding. Retry is for the transient; it must never launder a real refusal into a pass.
 $pushed = 0
+$pushAttempts = 3
 foreach ($pkg in $nupkgs) {
-    dotnet nuget push $pkg.FullName --source $FeedUrl --api-key $FeedToken --skip-duplicate 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "::error::push FAILED for $($pkg.Name). The staging feed did not accept the artifact."
+    $ok = $false
+    $lastOutput = ''
+    for ($attempt = 1; $attempt -le $pushAttempts; $attempt++) {
+        $lastOutput = (dotnet nuget push $pkg.FullName --source $FeedUrl --api-key $FeedToken --skip-duplicate 2>&1 | Out-String)
+        if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+        if ($attempt -lt $pushAttempts) {
+            Write-Host "  push attempt $attempt/$pushAttempts failed for $($pkg.Name); retrying..."
+            Start-Sleep -Seconds (2 * $attempt)
+        }
+    }
+    if (-not $ok) {
+        Write-Host "::error::push FAILED for $($pkg.Name) after $pushAttempts attempt(s). The staging feed did not accept the artifact."
+        Write-Host "--- the feed's own words, which is the part that identifies the cause ---"
+        Write-Host $lastOutput
         exit 1
     }
     $pushed++

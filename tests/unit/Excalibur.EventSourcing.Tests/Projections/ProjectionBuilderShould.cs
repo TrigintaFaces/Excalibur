@@ -725,7 +725,7 @@ public sealed class ProjectionBuilderShould
 		var @event = new TestOrderPlaced { Amount = 250m };
 
 		// Act -- Apply with Live context (IsReplay=false)
-		var applied = projection.Apply(state, @event, ProjectionContext.Live);
+		var applied = projection.Apply(state, @event, new ProjectionContext(isReplay: false, globalPosition: null, aggregateId: "a-1"));
 
 		// Assert
 		applied.ShouldBeTrue();
@@ -751,7 +751,7 @@ public sealed class ProjectionBuilderShould
 		var @event = new TestOrderPlaced { Amount = 500m };
 
 		// Act -- Apply with Replay context
-		var applied = projection.Apply(state, @event, ProjectionContext.Replay(42L));
+		var applied = projection.Apply(state, @event, ProjectionContext.Replay(42L, @event.AggregateId));
 
 		// Assert
 		applied.ShouldBeTrue();
@@ -779,7 +779,7 @@ public sealed class ProjectionBuilderShould
 		var @event = new TestOrderPlaced { Amount = 100m };
 
 		// Act -- Apply without context uses the overload that defaults to Live
-		projection.Apply(state, @event);
+		projection.Apply(state, @event, @event.AggregateId);
 
 		// Assert
 		capturedContext.ShouldNotBeNull();
@@ -803,7 +803,7 @@ public sealed class ProjectionBuilderShould
 		var unhandledEvent = new TestOrderCancelled();
 
 		// Act
-		var applied = projection.Apply(state, unhandledEvent, ProjectionContext.Live);
+		var applied = projection.Apply(state, unhandledEvent, new ProjectionContext(isReplay: false, globalPosition: null, aggregateId: "a-1"));
 
 		// Assert
 		applied.ShouldBeFalse();
@@ -867,11 +867,11 @@ public sealed class ProjectionBuilderShould
 
 		// Apply sync handler
 		var state = new OrderSummary();
-		projection.Apply(state, new TestOrderPlaced { Amount = 50m });
+		projection.Apply(state, new TestOrderPlaced { Amount = 50m }, "order-1");
 		state.Total.ShouldBe(50m);
 
 		// Apply context-aware handler with Replay
-		projection.Apply(state, new TestOrderShipped(), ProjectionContext.Replay(10L));
+		projection.Apply(state, new TestOrderShipped(), ProjectionContext.Replay(10L, "order-1"));
 		state.ShippedAt.ShouldBeNull(); // IsReplay=true, so set to null
 	}
 }

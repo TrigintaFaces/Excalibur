@@ -10,13 +10,49 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 [Trait("Component", "Core")]
 public sealed class ProjectionContextShould
 {
+	// --- AggregateId ---
+
+	[Fact]
+	public void StoreAggregateIdFromConstructor()
+	{
+		// Arrange & Act
+		var context = new ProjectionContext(isReplay: false, globalPosition: null, aggregateId: "customer-42");
+
+		// Assert
+		context.AggregateId.ShouldBe("customer-42");
+	}
+
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	public void RejectAnAbsentAggregateId(string? absent)
+	{
+		// The identity is required, not defaulted. A projection whose identity silently became "" is
+		// indistinguishable from one that was never given an identity, so the type refuses to represent
+		// that state rather than leaving every handler to guard it.
+		_ = Should.Throw<ArgumentException>(() =>
+			new ProjectionContext(isReplay: false, globalPosition: null, aggregateId: absent!));
+	}
+
+	[Fact]
+	public void PreserveAggregateIdAlongsideReplayAndPosition()
+	{
+		// Arrange & Act
+		var context = new ProjectionContext(isReplay: true, globalPosition: 7L, aggregateId: "order-1");
+
+		// Assert
+		context.IsReplay.ShouldBeTrue();
+		context.GlobalPosition.ShouldBe(7L);
+		context.AggregateId.ShouldBe("order-1");
+	}
+
 	// --- Constructor ---
 
 	[Fact]
 	public void StoreIsReplayFromConstructor()
 	{
 		// Arrange & Act
-		var context = new ProjectionContext(isReplay: true, globalPosition: 42L);
+		var context = new ProjectionContext(isReplay: true, globalPosition: 42L, aggregateId: "a-1");
 
 		// Assert
 		context.IsReplay.ShouldBeTrue();
@@ -26,7 +62,7 @@ public sealed class ProjectionContextShould
 	public void StoreGlobalPositionFromConstructor()
 	{
 		// Arrange & Act
-		var context = new ProjectionContext(isReplay: false, globalPosition: 100L);
+		var context = new ProjectionContext(isReplay: false, globalPosition: 100L, aggregateId: "a-1");
 
 		// Assert
 		context.GlobalPosition.ShouldBe(100L);
@@ -36,43 +72,24 @@ public sealed class ProjectionContextShould
 	public void AllowNullGlobalPosition()
 	{
 		// Arrange & Act
-		var context = new ProjectionContext(isReplay: false, globalPosition: null);
+		var context = new ProjectionContext(isReplay: false, globalPosition: null, aggregateId: "a-1");
 
 		// Assert
 		context.GlobalPosition.ShouldBeNull();
 	}
 
-	// --- Live singleton ---
+	// --- Live construction ---
 
 	[Fact]
-	public void ProvideLiveSingletonWithIsReplayFalse()
+	public void ReportNotReplayingForALiveContext()
 	{
-		// Act
-		var live = ProjectionContext.Live;
+		// Arrange & Act
+		var context = new ProjectionContext(isReplay: false, globalPosition: null, aggregateId: "a-1");
 
 		// Assert
-		live.IsReplay.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void ProvideLiveSingletonWithNullGlobalPosition()
-	{
-		// Act
-		var live = ProjectionContext.Live;
-
-		// Assert
-		live.GlobalPosition.ShouldBeNull();
-	}
-
-	[Fact]
-	public void ReturnSameLiveSingletonInstance()
-	{
-		// Act
-		var first = ProjectionContext.Live;
-		var second = ProjectionContext.Live;
-
-		// Assert
-		ReferenceEquals(first, second).ShouldBeTrue();
+		context.IsReplay.ShouldBeFalse();
+		context.GlobalPosition.ShouldBeNull();
+		context.AggregateId.ShouldBe("a-1");
 	}
 
 	// --- Replay factory ---
@@ -81,7 +98,7 @@ public sealed class ProjectionContextShould
 	public void CreateReplayContextWithIsReplayTrue()
 	{
 		// Act
-		var replay = ProjectionContext.Replay(500L);
+		var replay = ProjectionContext.Replay(500L, "a-1");
 
 		// Assert
 		replay.IsReplay.ShouldBeTrue();
@@ -91,7 +108,7 @@ public sealed class ProjectionContextShould
 	public void CreateReplayContextWithSpecifiedGlobalPosition()
 	{
 		// Act
-		var replay = ProjectionContext.Replay(12345L);
+		var replay = ProjectionContext.Replay(12345L, "a-1");
 
 		// Assert
 		replay.GlobalPosition.ShouldBe(12345L);
@@ -101,8 +118,8 @@ public sealed class ProjectionContextShould
 	public void CreateDistinctInstancesForEachReplayCall()
 	{
 		// Act
-		var first = ProjectionContext.Replay(1L);
-		var second = ProjectionContext.Replay(2L);
+		var first = ProjectionContext.Replay(1L, "a-1");
+		var second = ProjectionContext.Replay(2L, "a-1");
 
 		// Assert
 		ReferenceEquals(first, second).ShouldBeFalse();
@@ -114,7 +131,7 @@ public sealed class ProjectionContextShould
 	public void AcceptZeroGlobalPositionInReplay()
 	{
 		// Act
-		var replay = ProjectionContext.Replay(0L);
+		var replay = ProjectionContext.Replay(0L, "a-1");
 
 		// Assert
 		replay.IsReplay.ShouldBeTrue();
@@ -126,7 +143,7 @@ public sealed class ProjectionContextShould
 	{
 		// Regression test for bd-a1zvnv: Replay must guard against negative positions
 		// Act & Assert
-		Should.Throw<ArgumentOutOfRangeException>(() => ProjectionContext.Replay(-1L));
+		Should.Throw<ArgumentOutOfRangeException>(() => ProjectionContext.Replay(-1L, "a-1"));
 	}
 
 	[Theory]
@@ -137,7 +154,7 @@ public sealed class ProjectionContextShould
 	{
 		// Regression test for bd-a1zvnv: boundary coverage for negative positions
 		// Act & Assert
-		var ex = Should.Throw<ArgumentOutOfRangeException>(() => ProjectionContext.Replay(negativePosition));
+		var ex = Should.Throw<ArgumentOutOfRangeException>(() => ProjectionContext.Replay(negativePosition, "a-1"));
 		ex.ParamName.ShouldBe("globalPosition");
 	}
 }
