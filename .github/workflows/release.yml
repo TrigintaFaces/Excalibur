@@ -1321,6 +1321,16 @@ jobs:
       # rather than hidden among the secrets. Job scope for the reason stated directly above.
       ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE }}
     steps:
+      # This job does not build, but it runs repository scripts -- the release receipt, before and
+      # after the push -- so it needs the repository present.
+      #
+      # MUST STAY FIRST: checkout cleans the workspace, so placing it after the artifact download
+      # would delete the package set this job exists to publish.
+      #
+      # Checks out the tag that triggered the release, so the receipt is written by the code being
+      # released rather than by whatever main currently holds.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
       # Was `packages-ubuntu-latest`: one OS's artifact, chosen by filename convention from two
       # candidates built from the same sources. Every consumer -- validation, release, publish -- must
       # read the SAME artifact, and there is now exactly one for them to name.
@@ -1377,12 +1387,12 @@ jobs:
       # packages had stopped being signed. So absence keeps refusing, and only an explicit opt-out
       # proceeds.
       #
-      # WHY UNSIGNED IS PUBLISHABLE AT ALL, since the previous wording implied it was not: nuget.org
-      # accepts unsigned packages and applies its OWN repository signature to everything it serves,
-      # so consumers still get an authenticity guarantee from the registry. Author signing adds a
-      # second, publisher-level guarantee on top. It is worth having and it is not free -- a
-      # certificate must come from a public CA, because nuget.org REJECTS self-issued certificates.
-      # Shipping unsigned is a real reduction in guarantee, honestly stated, not a defect in disguise.
+      # WHAT UNSIGNED COSTS, so the opt-out stays a judgement rather than a shrug: nuget.org accepts
+      # unsigned packages and applies its own repository signature to everything it serves, so
+      # consumers keep an authenticity guarantee from the registry. Author signing adds a second,
+      # publisher-level guarantee on top, and it is not free -- the certificate must come from a
+      # public CA, since nuget.org rejects self-issued ones. Publishing unsigned is a real reduction
+      # in guarantee, not a formality.
       - name: Validate signing certificate
         run: |
           if [ -n "$NUGET_SIGNING_CERT_BASE64" ] && [ -n "$NUGET_SIGNING_CERT_PASSWORD" ]; then
