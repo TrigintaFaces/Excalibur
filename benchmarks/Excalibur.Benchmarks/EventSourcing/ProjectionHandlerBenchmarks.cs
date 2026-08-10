@@ -31,6 +31,12 @@ namespace Excalibur.Benchmarks.EventSourcing;
 public class ProjectionHandlerBenchmarks
 {
 	private MultiStreamProjection<BenchProjection> _syncProjection = null!;
+	/// <summary>
+	/// Fixed so the measurement is not perturbed by allocating or formatting an identifier per
+	/// iteration. The benchmark measures dispatch overhead, not identity handling.
+	/// </summary>
+	private const string BenchAggregateId = "bench-aggregate";
+
 	private BenchProjection _state = null!;
 	private BenchEvent _event = null!;
 	private ProjectionHandlerContext _context = null!;
@@ -84,7 +90,7 @@ public class ProjectionHandlerBenchmarks
 	[Benchmark(Baseline = true)]
 	public bool WhenLambdaSync()
 	{
-		return _syncProjection.Apply(_state, _event);
+		return _syncProjection.Apply(_state, _event, BenchAggregateId);
 	}
 
 	/// <summary>
