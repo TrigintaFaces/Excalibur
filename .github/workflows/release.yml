@@ -1290,7 +1290,17 @@ jobs:
       id-token: write
     name: Publish to NuGet
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Sized for the work rather than inherited from the other jobs. Pushing the whole package
+    # set to a public registry sequentially takes longer than the 20 minutes this used to allow,
+    # and the runner cancels mid-push when it runs out: two consecutive releases died that way,
+    # at 20m20s and 20m15s, each having already pushed most of the set.
+    #
+    # A CANCELLED PUBLISH IS THE WORST OUTCOME AVAILABLE HERE, which is why this is generous
+    # rather than tight. Registry versions are immutable, so a half-pushed release cannot be
+    # completed under the same version -- the remainder can only ever appear under a new one.
+    # An over-long timeout costs a job that hangs and gets noticed; a short one costs a
+    # permanently incomplete release.
+    timeout-minutes: 90
     # publish-nuget cannot begin until the packages have been proven to install from a real
     # remote feed. This is Item 5.3s load-bearing criterion: public publishing is gated on staged
     # validation, not merely preceded by it.
