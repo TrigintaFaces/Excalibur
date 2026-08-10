@@ -338,7 +338,7 @@ The `nuget-production` environment:
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 - [Directory.Build.props](Directory.Build.props) - Version and package metadata
 - [eng/ci/shards/ShippingOnly.slnf](eng/ci/shards/ShippingOnly.slnf) - Shipping package filter
-- [Compatibility Matrix](docs/compatibility-matrix.md) - Supported frameworks
+- [Versioning and release stages](https://docs.excalibur-dispatch.dev/docs/migration/version-upgrades) - Supported frameworks, release stages, and what each guarantees. Every shipping package single-targets `net10.0`.
 
 ---
 

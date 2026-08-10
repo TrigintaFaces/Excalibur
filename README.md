@@ -8,13 +8,12 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/TrigintaFaces/Excalibur/ci.yml?label=tests)](https://github.com/TrigintaFaces/Excalibur/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-excalibur--dispatch.dev-blue.svg)](https://docs.excalibur-dispatch.dev)
 
+[![NuGet](https://img.shields.io/nuget/vpre/Excalibur.Dispatch?logo=nuget&label=Excalibur.Dispatch)](https://www.nuget.org/packages/Excalibur.Dispatch/)
+[![Downloads](https://img.shields.io/nuget/dt/Excalibur.Dispatch?logo=nuget)](https://www.nuget.org/packages/Excalibur.Dispatch/)
 [![Release Date](https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
-[![Latest Release](https://img.shields.io/github/v/release/TrigintaFaces/Excalibur?sort=semver)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
-![Total Downloads](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/total?logo=github&style=flat-square)
-[![Latest Release](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
 <!-- badges -->
 
-**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 170 packages, Native AOT ready**
+**High-performance .NET messaging framework with CQRS, event sourcing, and production hosting — 195 packages, Native AOT ready**
 
 **[Read the full documentation](https://docs.excalibur-dispatch.dev/)**
 
@@ -26,7 +25,7 @@ This repository ships **two cooperating frameworks**:
 
 | Layer | Responsibilities | Primary Packages |
 |-------|------------------|------------------|
-| **Dispatch (Messaging Core)** | Message contracts, handlers, middleware pipeline, transports, diagnostics hooks, thin ASP.NET Core bridge | `Dispatch`, `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Hosting.AspNetCore`, `Excalibur.Dispatch.Transport.*`, `Excalibur.Dispatch.Observability` |
+| **Dispatch (Messaging Core)** | Message contracts, handlers, middleware pipeline, transports, diagnostics hooks, thin ASP.NET Core bridge | `Excalibur.Dispatch`, `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Hosting.AspNetCore`, `Excalibur.Dispatch.Transport.*`, `Excalibur.Dispatch.Observability` |
 | **Excalibur (CQRS + Hosting)** | Aggregates, repositories, event stores, sagas, leader election, compliance, ASP.NET Core & serverless hosting templates | `Excalibur.Domain`, `Excalibur.EventSourcing.*`, `Excalibur.Application`, `Excalibur.Hosting.*`, `Excalibur.Compliance.*`, `Excalibur.LeaderElection.*` |
 
 Start with Dispatch when you need a MediatR-class dispatcher. Layer Excalibur packages on later when you need full CQRS, event sourcing, or production hosting.
@@ -119,8 +118,10 @@ You continue to dispatch messages through `IDispatcher`; Excalibur layers domain
 
 | Sample | Purpose |
 |--------|---------|
-| [`DispatchMinimal`](samples/01-getting-started/DispatchMinimal/README.md) | Pure Dispatch usage with no Excalibur dependencies |
-| [`ExcaliburCqrs`](samples/01-getting-started/ExcaliburCqrs/README.md) | Full CQRS/Event Sourcing stack built on Dispatch + Excalibur |
+| [`HelloDispatch`](samples/01-getting-started/HelloDispatch/README.md) | The smallest thing that dispatches a message |
+| [`DispatchOnly`](samples/01-getting-started/DispatchOnly/README.md) | Pure Dispatch usage with no Excalibur dependencies |
+| [`WebApiQuickStart`](samples/01-getting-started/WebApiQuickStart/README.md) | Dispatch behind an ASP.NET Core Web API |
+| [`EventSourcingIntro`](samples/01-getting-started/EventSourcingIntro/README.md) | Aggregates and an event store, built on Dispatch |
 
 ---
 
@@ -134,7 +135,7 @@ You continue to dispatch messages through `IDispatcher`; Excalibur layers domain
 | **Excalibur Hosting** | `Excalibur.Hosting.Web`, `Excalibur.Hosting.AzureFunctions`, `Excalibur.Hosting.AwsLambda`, `Excalibur.Hosting.GoogleCloudFunctions` | Opinionated hosting templates that compose Dispatch + Excalibur. |
 | **Compliance & Coordination** | `Excalibur.Compliance.*`, `Excalibur.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
 
-The [`Directory.Packages.props`](Directory.Packages.props) file lists every published package and version.
+The table above names the entry points rather than the whole set; every package is published on NuGet under the `Excalibur.` prefix.
 
 ---
 

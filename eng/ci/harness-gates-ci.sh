@@ -282,6 +282,20 @@ else
     echo "::warning::reap-orphan-test-hosts self-test SKIPPED — pwsh not on PATH (a skip is not a pass)"
 fi
 
+# The staging gate's own self-test, here as well as in the release workflow, and the duplication is
+# the point: there it runs only when a tag is pushed, so an edit that breaks it stays invisible until
+# someone attempts a release and the release is what tells them. That is the same shape as a hook
+# that is committed but not live -- correct on disk, discovered at the worst moment. Running it on
+# every push moves the discovery to the change that caused it.
+#
+# It is hermetic: the arms exercise the decision logic that turns a feed's answer into a verdict, and
+# the empty-input arm, none of which touch a network.
+if command -v pwsh >/dev/null 2>&1; then
+    run "self-test: staging-feed-validate" pwsh -NoProfile -File eng/ci/staging-feed-validate.ps1 -SelfTest
+else
+    echo "::warning::staging-feed-validate self-test SKIPPED — pwsh not on PATH (a skip is not a pass)"
+fi
+
 # ddl-pack-completeness answers the INVERSE question to shipped-ddl-sweep, and neither can see the
 # other's class. The sweep asks "does the DDL we ship declare every column the code writes?" — it
 # compares DDL that IS shipped. This asks "can a consumer obtain the DDL at all?" A column-drift

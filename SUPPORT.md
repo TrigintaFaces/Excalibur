@@ -34,15 +34,22 @@ This document describes the support policy for Excalibur.
 
 ## Supported Versions
 
-| Framework | Status | Supported Until |
-|-----------|--------|-----------------|
-| .NET 10.0 | Current | .NET 11 release + 6 months |
-| .NET 9.0 STS | Supported | May 2026 |
-| .NET 8.0 LTS | Supported | November 2026 |
-| .NET 7.0 | EOL | Not supported |
-| .NET 6.0 | EOL | Not supported |
+| Framework | Status | Notes |
+|-----------|--------|-------|
+| .NET 10.0 | **Supported** | The only supported target |
+| .NET 9.0 | Not supported | Cannot install; upgrade to .NET 10 |
+| .NET 8.0 LTS | Not supported | Cannot install; upgrade to .NET 10 |
+| .NET 7.0 and earlier | Not supported | Cannot install; upgrade to .NET 10 |
 
-We follow the [.NET Support Policy](https://dotnet.microsoft.com/platform/support/policy).
+**Every shipping package single-targets `net10.0`.** Multi-targeting was dropped, so this is not a
+recommendation — a package cannot be installed into a project targeting an earlier .NET, and NuGet
+will refuse it at restore rather than failing later.
+
+If you are on .NET 8 LTS or .NET 9, you cannot adopt this framework without upgrading first. We would
+rather you learn that here than at restore.
+
+For the lifecycle of .NET itself, see the [.NET Support Policy](https://dotnet.microsoft.com/platform/support/policy) — those dates
+govern the runtime, not this framework's compatibility with it.
 
 ---
 

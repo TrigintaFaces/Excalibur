@@ -56,6 +56,12 @@ set -uo pipefail
 #   FORGE/ORACLE/...     phase callsigns / process nouns
 #   task-2314 / msg 19752  OPCOM/mission process refs
 #   FR-4a / NFR-3 / EC-P1 / AC-6 / AC4
+#   AD-326-1 / AD-520.1  decision-record ref. A SEPARATE PREFIX FROM `ADR-`, and that is the whole
+#                        reason it went unseen: `ADR-?[0-9]` cannot match `AD-326`, so nine of these
+#                        sat in mirrored build scripts while this gate reported the public surface
+#                        clean. Sub-parts join with either a dot or a hyphen, so both are accepted.
+#                        THE HYPHEN IS REQUIRED, on the same reasoning as `EC-`: without it the arm
+#                        would match any word ending in those two letters followed by a digit.
 #                        MINI-SPEC REQUIREMENT IDS. A consumer cannot resolve any of these -- the
 #                        specs they index are not published -- so in an XML doc they are noise that
 #                        dates the code, exactly like a tracker id. They outnumbered the tracker ids
@@ -88,6 +94,7 @@ NIR_TOKEN_ERE='bd-[a-z0-9]{3,6}'\
 '|\bN?FR-?[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
 '|\bEC-[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
 '|\bAC-?[A-Z]?[0-9]+(\.[0-9]+)*[a-z]?'\
+'|\bAD-[0-9]+([.-][0-9]+)*'\
 '|\btask-[0-9]{3,}'\
 '|\bmsg [0-9]{3,}'
 
@@ -565,13 +572,15 @@ Delivered under S861 by the FORGE phase, task-2314.
 Tracked in bare id zx9q7k as well.
 Short prefixed ids also leak: bd-ab12 (4-char) and bd-x7q (3-char).
 Short bare ids leak too: qz7k9 (5-char) and x7q (3-char).
+Decision records leak under their own prefix: AD-326-1 and AD-520.1.
 This line mentions a basket and a printout — no leak here.
+A road called BROAD-2 and a load balancer LOAD-3 are not decision records.
 EOF
     local h1
     h1="$(nir_hits_in_file "$pub_md" "$bare_ere")"
     # Covers every leak class AND the sub-6-char ids that the hardcoded {6} gate missed
     # (bd-ab12/bd-x7q prefixed via the ERE; qz7k9/x7q bare via the id set).
-    for tok in 'bd-abc123' 'bd-ab12' 'bd-x7q' 'Sprint 863' 'ADR-336' 'S861' 'FORGE' 'task-2314' 'zx9q7k' 'qz7k9'; do
+    for tok in 'bd-abc123' 'bd-ab12' 'bd-x7q' 'Sprint 863' 'ADR-336' 'S861' 'FORGE' 'task-2314' 'zx9q7k' 'qz7k9' 'AD-326-1' 'AD-520.1'; do
         if ! printf '%s\n' "$h1" | grep -qF "$tok"; then
             echo "self-test FAIL: did not flag public-surface leak '$tok'" >&2; pass=0
         fi
@@ -584,6 +593,14 @@ EOF
     if printf '%s\n' "$h1" | grep -q 'printout'; then
         echo "self-test FAIL: flagged 'printout' (contains 'print', not a sprint ref)" >&2; pass=0
     fi
+    # The decision-record arm requires its hyphen for the same reason `EC-` does: drop it and the
+    # pattern matches any word ending in those two letters before a digit. These are the words that
+    # would break first, so the boundary is asserted rather than assumed.
+    for word in 'BROAD-2' 'LOAD-3'; do
+        if printf '%s\n' "$h1" | grep -qF "$word"; then
+            echo "self-test FAIL: flagged '$word' — a word ending in AD is not a decision record" >&2; pass=0
+        fi
+    done
 
     # --- Fixture 2: .cs file — only /// XML docs are public ------------------
     local cs="$tmp/Widget.cs"

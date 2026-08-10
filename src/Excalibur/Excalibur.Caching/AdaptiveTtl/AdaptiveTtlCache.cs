@@ -107,7 +107,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 
 	/// <inheritdoc />
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "IDistributedCache.Get() is synchronous by interface contract. Prefer GetAsync when possible. (AD-221-3)")]
+		Justification = "IDistributedCache.Get() is synchronous by interface contract. Prefer GetAsync when possible.")]
 	public byte[]? Get(string key)
 	{
 		if (string.IsNullOrEmpty(key))
@@ -210,7 +210,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 
 	/// <inheritdoc />
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "IDistributedCache.Set() is synchronous by interface contract. Prefer SetAsync when possible. (AD-221-3)")]
+		Justification = "IDistributedCache.Set() is synchronous by interface contract. Prefer SetAsync when possible.")]
 	public void Set(string key, byte[] value, DistributedCacheEntryOptions options)
 	{
 		if (string.IsNullOrEmpty(key))
@@ -292,7 +292,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 
 	/// <inheritdoc />
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "IDistributedCache.Refresh() is synchronous by interface contract. Prefer RefreshAsync when possible. (AD-221-3)")]
+		Justification = "IDistributedCache.Refresh() is synchronous by interface contract. Prefer RefreshAsync when possible.")]
 	public void Refresh(string key)
 	{
 		if (string.IsNullOrEmpty(key))
@@ -323,7 +323,7 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 
 	/// <inheritdoc />
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "IDistributedCache.Remove() is synchronous by interface contract. Prefer RemoveAsync when possible. (AD-221-3)")]
+		Justification = "IDistributedCache.Remove() is synchronous by interface contract. Prefer RemoveAsync when possible.")]
 	public void Remove(string key)
 	{
 		if (string.IsNullOrEmpty(key))

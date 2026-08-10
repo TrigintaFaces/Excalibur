@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Audits shipping projects for required NuGet package metadata per AD-326-1.
+    Audits shipping projects for the NuGet package metadata a published package is required to carry.
 
 .DESCRIPTION
     Scans all src/**/*.csproj files and checks for required packaging metadata:
@@ -101,7 +101,7 @@ foreach ($project in $projects) {
 switch ($OutputFormat) {
     'Console' {
         Write-Host "`n========================================" -ForegroundColor Cyan
-        Write-Host "Package Metadata Audit Report (AD-326-1)" -ForegroundColor Cyan
+        Write-Host "Package Metadata Audit Report" -ForegroundColor Cyan
         Write-Host "========================================`n" -ForegroundColor Cyan
 
         Write-Host "Total shipping projects: $totalCount" -ForegroundColor White

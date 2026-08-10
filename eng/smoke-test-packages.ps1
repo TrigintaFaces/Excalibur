@@ -13,10 +13,12 @@
     4. CLEANUP PHASE: Always cleans up temp directory in finally block
 
 .NOTES
-    Architectural Decisions:
-    - AD-309-1: Single self-contained script (no external template files)
-    - AD-309-2: Uses temp directory with automatic cleanup
-    - AD-309-3: Designed for integration with .github/workflows/ci.yml
+    Design constraints, and why each one holds:
+    - Self-contained: the consumer project is generated inline rather than copied from template
+      files, so the script cannot drift from templates that live somewhere else.
+    - Temp directory with automatic cleanup: the smoke test must leave no trace on the runner, so a
+      later job cannot pass by finding this one's leftovers.
+    - Runs unattended in CI: no prompts, no interactive input, and a non-zero exit on failure.
 
 .EXAMPLE
     ./eng/smoke-test-packages.ps1
@@ -223,7 +225,7 @@ function Invoke-ConsumerPhase {
     New-Item -ItemType Directory -Path $Script:ConsumerDir -Force | Out-Null
     Write-Info "Created consumer directory: $Script:ConsumerDir"
 
-    # Generate .csproj file (inline, per AD-309-1)
+    # Generate .csproj inline -- no external template file to drift from
     $csprojContent = @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -246,7 +248,7 @@ function Invoke-ConsumerPhase {
     Set-Content -Path $csprojPath -Value $csprojContent -Encoding UTF8
     Write-Success "Created SmokeTest.csproj"
 
-    # Generate Program.cs (inline, per AD-309-1)
+    # Generate Program.cs inline -- no external template file to drift from
     # This code exercises basic Dispatch functionality without Excalibur
     $programContent = @'
 using Excalibur.Dispatch;
@@ -628,7 +630,7 @@ catch {
     Write-Host $_.ScriptStackTrace -ForegroundColor DarkGray
 }
 finally {
-    # Always cleanup (AD-309-2)
+    # Always cleanup, so a later job cannot pass on this one's leftovers
     Invoke-CleanupPhase -Success $Script:TestPassed
 }
 

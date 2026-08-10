@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Pack Dispatch projects to local feed for CI validation (AD-327-2).
+    Pack Dispatch projects to a local feed so CI can validate them as a consumer would.
 
 .DESCRIPTION
     This script:

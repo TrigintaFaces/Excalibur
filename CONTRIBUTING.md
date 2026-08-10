@@ -78,7 +78,7 @@ dotnet build -c Release
 dotnet build src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
 ```
 
-### Package Reference Modes (AD-327-1, AD-327-2)
+### Package Reference Modes
 
 The repository supports two build modes:
 
@@ -120,10 +120,12 @@ dotnet build
 
 # Pack produces single-TFM packages
 dotnet pack src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
-# Creates: Excalibur.Dispatch.1.0.0.nupkg with lib/net10.0/
+# Creates: Excalibur.Dispatch.10.0.0-alpha.0.<height>.nupkg with lib/net10.0/
+# The version is derived from git tags, so a local build below the release tag
+# carries a development version rather than the released one.
 ```
 
-### Local Package Validation (AD-328-1, AD-328-2)
+### Local Package Validation
 
 Before pushing changes, you can validate package composition locally using the same process as CI:
 
@@ -150,7 +152,7 @@ This script:
 - Builds Excalibur projects against the packaged dependencies
 - Validates at least one sample compiles against packages
 
-### Warning Policy & Analyzer Gates (AD-329)
+### Warning Policy & Analyzer Gates
 
 All shipping code must build **warning-free**. The repository enforces `TreatWarningsAsErrors=true` globally in `Directory.Build.props`.
 
@@ -191,7 +193,7 @@ catch (Exception ex)
 - **CA1863** (CompositeFormat): Exception paths where caching adds no value
 - **IDE0060** (unused parameter): Interface requires parameter but implementation doesn't use it
 
-### Sample Validation (AD-336)
+### Sample Validation
 
 All P0/P1 sample projects must build successfully. CI enforces this via the `sample-validation` job.
 
@@ -272,7 +274,7 @@ All projects in the repository are governed. When adding a new project, follow t
    dotnet sln Excalibur.sln add <path-to-csproj>
    ```
 
-3. **For shipping packages**, add required metadata (AD-326-1):
+3. **For shipping packages**, add required metadata:
    ```xml
    <PropertyGroup>
      <!-- Required: 1-2 sentence package purpose -->
@@ -488,11 +490,11 @@ This project follows strict .NET coding standards.
 | CancellationToken required | `Task FooAsync(CancellationToken ct)` | `CancellationToken ct = default` |
 | ConfigureAwait in libraries | `await task.ConfigureAwait(false)` | `await task` |
 
-### Namespace Conventions (AD-317)
+### Namespace Conventions
 
 All namespaces must follow the W6 Namespace Modernization guidelines established in Sprint 310-317.
 
-#### DI Extension Classes (AD-317-1)
+#### DI Extension Classes
 
 All `*ServiceCollectionExtensions` classes **MUST** be in the `Microsoft.Extensions.DependencyInjection` namespace:
 
@@ -511,7 +513,7 @@ namespace Excalibur.Dispatch.DependencyInjection;
 public static class DispatchServiceCollectionExtensions { }
 ```
 
-#### Blocked Namespace Patterns (AD-317-2)
+#### Blocked Namespace Patterns
 
 The following namespace patterns are **blocked** and will fail the build:
 
@@ -604,7 +606,7 @@ docs(contributing): add code style guidelines
 
 - [ ] Tests pass locally
 - [ ] Code follows style guidelines (ADR-075)
-- [ ] **Namespace conventions followed (AD-317)** - DI extensions in correct namespace, no blocked patterns
+- [ ] **Namespace conventions followed** - DI extensions in correct namespace, no blocked patterns
 - [ ] Documentation updated (if applicable)
 - [ ] Commit messages follow conventional format
 - [ ] No secrets or sensitive data included

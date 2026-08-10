@@ -88,6 +88,55 @@ function Get-PackageIdentity([string]$fileName) {
     return $null
 }
 
+# ---------------------------------------------------------------- feed protocol
+# WHY THIS TIER DOES NOT USE `dotnet package search`, which is what it used to do.
+#
+# Search is an OPTIONAL resource in the NuGet v3 protocol, and the staging feed does not usefully
+# serve it. The result was a gate that could not pass: a release staged 195 packages successfully and
+# was then told 195 of 195 were "NOT served", one hundred and eight seconds after the push that
+# created them. A clean total zero immediately after a successful push of the same set is the
+# signature of an instrument that cannot answer, not of a feed that lost everything -- a propagation
+# race returns partial results, never a perfect nil.
+#
+# That is the mirror image of the defect this whole file exists to prevent. A gate that cannot fail
+# reports success it did not earn; a gate that cannot pass blocks work that was fine. Both are the
+# same underlying fault -- a verdict decoupled from the thing it claims to measure.
+#
+# PackageBaseAddress is the resource restore itself uses, so it is served wherever installation
+# works, and this tier now asks the same question the INSTALLED tier answers the expensive way.
+# It also lets the tier honour its own stated contract. The documented promise is resolution "by id
+# and version"; a search matched only the ID, so a feed holding some OTHER version of the package
+# satisfied it. The version index makes the version the thing actually asserted.
+
+# Pure. Returns the PackageBaseAddress/3.x @id from a parsed service index, or $null when the feed
+# does not advertise one. $null MUST reach the caller as a REFUSE: a feed we cannot interrogate is
+# unmeasured, and reporting "served" because the question could not be asked is how a gate starts
+# lying.
+function Get-PackageBaseAddress($serviceIndex) {
+    if ($null -eq $serviceIndex -or $null -eq $serviceIndex.resources) { return $null }
+    foreach ($r in $serviceIndex.resources) {
+        if ($r.'@type' -like 'PackageBaseAddress/3*' -and -not [string]::IsNullOrWhiteSpace($r.'@id')) {
+            return ($r.'@id').TrimEnd('/')
+        }
+    }
+    return $null
+}
+
+# Pure. Is $want present in $versions? NuGet normalises to lower case on the wire, so the comparison
+# is case-insensitive.
+#
+# An EMPTY or absent version list returns $false, deliberately and load-bearingly. "The feed listed
+# nothing" and "the feed listed our version" must never reach the same verdict; treating an empty
+# list as satisfaction is precisely the vacuous pass this gate is built to make impossible.
+function Test-VersionServed([string[]]$versions, [string]$want) {
+    if ($null -eq $versions -or $versions.Count -eq 0) { return $false }
+    if ([string]::IsNullOrWhiteSpace($want)) { return $false }
+    foreach ($v in $versions) {
+        if ($null -ne $v -and $v.Trim().ToLowerInvariant() -eq $want.Trim().ToLowerInvariant()) { return $true }
+    }
+    return $false
+}
+
 # ---------------------------------------------------------------- self-test (safety AND liveness)
 if ($SelfTest) {
     $failures = @()
@@ -113,6 +162,66 @@ if ($SelfTest) {
         $failures += 'a versionless name parsed as a package identity'
     } else {
         Write-Host 'SELF-TEST: PASS -- a versionless name is rejected, not guessed (safety)'
+    }
+
+    # ---- the served tier's decision core, exercised in BOTH directions ----
+    #
+    # The HTTP call cannot run offline, so what is locked here is everything that turns a feed's
+    # answer into a verdict. That is where the previous implementation went wrong: the network call
+    # worked fine and returned a truthful "I cannot answer this", and the logic above it read that as
+    # "the package is missing".
+
+    # LIVENESS: a well-formed service index yields the address, so the tier can ask its question.
+    $goodIndex = [pscustomobject]@{ resources = @(
+            [pscustomobject]@{ '@type' = 'SearchQueryService/3.0.0-beta'; '@id' = 'https://feed.invalid/query' },
+            [pscustomobject]@{ '@type' = 'PackageBaseAddress/3.0.0'; '@id' = 'https://feed.invalid/v3-flatcontainer/' }
+        ) }
+    if ((Get-PackageBaseAddress $goodIndex) -ne 'https://feed.invalid/v3-flatcontainer') {
+        $failures += 'a service index advertising PackageBaseAddress did not yield its address'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- the base address is resolved from a service index (liveness)'
+    }
+
+    # SAFETY: a feed WITHOUT the resource must yield $null so the caller REFUSES. Returning a guessed
+    # or default address here would send every query to a URL nobody serves and report the resulting
+    # misses as missing packages -- which is exactly the failure being repaired.
+    $searchOnlyIndex = [pscustomobject]@{ resources = @(
+            [pscustomobject]@{ '@type' = 'SearchQueryService/3.0.0-beta'; '@id' = 'https://feed.invalid/query' }
+        ) }
+    if ($null -ne (Get-PackageBaseAddress $searchOnlyIndex)) {
+        $failures += 'a feed advertising no PackageBaseAddress produced an address anyway'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- a feed that cannot be interrogated yields no address, forcing a REFUSE (safety)'
+    }
+    if ($null -ne (Get-PackageBaseAddress $null)) {
+        $failures += 'a null service index produced an address'
+    }
+
+    # LIVENESS: the staged version, present, is recognised -- including the lower-cased spelling the
+    # wire actually carries. Without this arm a matcher that never matches would pass every safety
+    # arm below and block every release.
+    if (-not (Test-VersionServed @('9.0.0', '10.0.0-alpha.1') '10.0.0-alpha.1')) {
+        $failures += 'a version present in the feed index was not recognised'
+    } elseif (-not (Test-VersionServed @('10.0.0-ALPHA.1') '10.0.0-alpha.1')) {
+        $failures += 'version matching was case-sensitive; the wire form is lower case'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- a staged version present in the index is recognised (liveness)'
+    }
+
+    # SAFETY: a version the feed does not hold must NOT be reported as served. This is the arm that
+    # fails first if anyone ever "fixes" a red release by loosening this tier.
+    if (Test-VersionServed @('9.0.0', '3.0.0-alpha.216') '10.0.0-alpha.1') {
+        $failures += 'a version absent from the feed index was reported as served'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- an absent version is not reported as served (safety)'
+    }
+
+    # SAFETY: the zero-guard. An empty list is the shape a feed returns when it holds nothing at all,
+    # and it must never satisfy the check.
+    if ((Test-VersionServed @() '10.0.0-alpha.1') -or (Test-VersionServed $null '10.0.0-alpha.1')) {
+        $failures += 'an EMPTY version list satisfied the served check'
+    } else {
+        Write-Host 'SELF-TEST: PASS -- an empty version list is not a pass (safety)'
     }
 
     # SAFETY: empty inputs must REFUSE, never pass. A gate that validates nothing and reports success
@@ -176,20 +285,77 @@ Write-Host "pushed: $pushed package(s)"
 
 # ---------------------------------------------------------------- TIER 1: served
 Write-Section 'TIER 1 - every staged package is served by the feed'
+
+$authHeader = @{}
+if (-not [string]::IsNullOrWhiteSpace($FeedToken)) {
+    $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${FeedUser}:${FeedToken}"))
+    $authHeader = @{ Authorization = "Basic $basic" }
+}
+
+# Resolve the address from the feed rather than assuming one. A hard-coded URL would silently target
+# the wrong host the moment the staging feed changes, and every miss would be reported as a missing
+# package instead of as our own misconfiguration.
+$baseAddress = $null
+try {
+    $serviceIndex = Invoke-RestMethod -Uri $FeedUrl -Headers $authHeader -Method Get -ErrorAction Stop
+    $baseAddress = Get-PackageBaseAddress $serviceIndex
+} catch {
+    Write-Host "::error::REFUSE: the staging feed's service index at '$FeedUrl' could not be read: $($_.Exception.Message)"
+    Write-Host '::error::Nothing was measured. This is NOT a statement about the packages.'
+    exit $EXIT_REFUSE
+}
+if ([string]::IsNullOrWhiteSpace($baseAddress)) {
+    Write-Host "::error::REFUSE: the staging feed advertises no PackageBaseAddress resource, so package presence cannot be established here."
+    Write-Host '::error::A feed that cannot be interrogated is UNMEASURED. Reporting these packages as served would be a verdict with no evidence under it.'
+    exit $EXIT_REFUSE
+}
+Write-Host "base address: $baseAddress"
+
 $served = 0
 $notServed = @()
+$unmeasured = @()
 foreach ($pkg in $nupkgs) {
     $identity = Get-PackageIdentity $pkg.Name
     if ($null -eq $identity) {
         $notServed += "$($pkg.Name) (could not parse an id/version from the file name)"
         continue
     }
-    $listed = dotnet package search $identity.Id --source $FeedUrl --exact-match --format json 2>&1 | Out-String
-    if ($LASTEXITCODE -eq 0 -and $listed -match [regex]::Escape($identity.Id)) {
+
+    $idLower = $identity.Id.ToLowerInvariant()
+    $versions = $null
+    try {
+        $index = Invoke-RestMethod -Uri "$baseAddress/$idLower/index.json" -Headers $authHeader -Method Get -ErrorAction Stop
+        $versions = @($index.versions)
+    } catch {
+        # A 404 is a genuine answer -- the feed serves the resource and holds no such package, which
+        # is a FAILURE. Anything else (a 500, a timeout, an auth rejection) means we did not get an
+        # answer at all, and that is UNMEASURED rather than absent. Collapsing the two is how the
+        # previous implementation turned "I cannot tell you" into "it is missing".
+        $status = $null
+        if ($null -ne $_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
+        if ($status -eq 404) {
+            $notServed += "$($identity.Id) $($identity.Version) (feed holds no such package)"
+        } else {
+            $unmeasured += "$($identity.Id) $($identity.Version) (query failed: $($_.Exception.Message))"
+        }
+        continue
+    }
+
+    if (Test-VersionServed $versions $identity.Version) {
         $served++
     } else {
-        $notServed += "$($identity.Id) $($identity.Version)"
+        $held = if ($null -eq $versions -or $versions.Count -eq 0) { '<none>' } else { ($versions | Select-Object -Last 3) -join ', ' }
+        $notServed += "$($identity.Id) $($identity.Version) (feed holds: $held)"
     }
+}
+
+# Reported before the failures, and separately, because they are a different claim. A query that did
+# not complete is not evidence that a package is absent, and folding it into the failure list would
+# blame the artifact for our inability to look at it.
+if ($unmeasured.Count -gt 0) {
+    Write-Host "::error::REFUSE: $($unmeasured.Count) of $($nupkgs.Count) package(s) could not be queried at all:"
+    $unmeasured | Select-Object -First 20 | ForEach-Object { Write-Host "    $_" }
+    exit $EXIT_REFUSE
 }
 if ($notServed.Count -gt 0) {
     Write-Host "::error::$($notServed.Count) of $($nupkgs.Count) staged package(s) are NOT served by the feed:"
