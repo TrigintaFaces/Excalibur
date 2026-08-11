@@ -2,9 +2,11 @@
 -- clause), and sqlcmd defaults it OFF. Without these, every filtered index below fails with
 -- Msg 1934 and is simply absent from the resulting database -- a script runner that does not
 -- check exit status gets a schema silently missing its most selective indexes.
+-- No GO after these: GO is a client batch separator, not T-SQL, and this script is also
+-- executed as a SINGLE command by callers that do not split batches. The setting applies
+-- within its own batch and persists across later ones, so it is not needed.
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
-GO
 
 -- SQL Server Schema Migration for Saga Monitoring
 -- Version: 2.0

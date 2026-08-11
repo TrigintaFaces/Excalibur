@@ -216,6 +216,46 @@ This is why keyed schemas declare their tenant column `NOT NULL` and include it 
 
 `TenantScope` remains the column-agnostic family for append-log-shaped requests, where `TenantScope.None` deliberately emits no term.
 
+## The storage contract: what your tenant column must declare
+
+Isolation is enforced by a `WHERE` clause, so it is only as strong as the column that clause compares. Two properties of the **schema** are load-bearing, and both fail silently when they are missing — no exception, no warning, just a query that returns the wrong set. If you create these tables yourself, override the default table names, or write your own migration, they are your responsibility.
+
+### 1. The tenant column must pin a binary collation
+
+```sql
+[TenantId] NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL
+```
+
+SQL Server's default collation is typically **case-insensitive**, under which `'Acme' = 'acme'` is true. Every tenant-scoped read is an equality comparison on this column, so without an explicit binary collation a tenant whose identifier differs from another's only by case reads that tenant's rows. The comparison **fails open** — it matches more than it should, and nothing errors.
+
+Where the tenant column is part of a key rather than only a filter, the consequence is worse than a leak. The snapshot store's `MERGE` matches on `(AggregateId, AggregateType, TenantId)`; under a case-insensitive collation one tenant's save can **match and overwrite** another tenant's snapshot.
+
+The framework compares tenant terms with ordinal semantics, so the column must agree or the guarantee is lost in storage rather than in code. PostgreSQL and Oracle compare their text types case-sensitively already and need no equivalent clause.
+
+### 2. Untenanted is a value, not an absence
+
+A single-tenant deployment stores the reserved `__untenanted__` sentinel — never `NULL`, and never the empty string. The empty string is specifically excluded because **Oracle folds `''` to `NULL`**, so identical intent would become a different value on that provider. The sentinel is rejected as a real tenant name, so it cannot collide with one of yours.
+
+### Why the event table is nullable and the snapshot table is not
+
+These two look inconsistent and are not:
+
+| | `EventStoreEvents` | `EventStoreSnapshots` |
+|---|---|---|
+| `TenantId` | `NULL` allowed | `NOT NULL` |
+| Where it appears | a `UNIQUE` constraint | the **primary key** |
+| Read predicate | `COALESCE(TenantId, '__untenanted__') = @TenantId` | `TenantId = @TenantId` |
+
+Events are the system of record and predate tenancy in existing deployments, so rows appended before the tenant column existed hold `NULL`. Making the column `NOT NULL` would mean rewriting every row of an append-only log; instead the read path folds `NULL` to the sentinel and those rows stay reachable. New writes never store `NULL`.
+
+Snapshots carry the stronger contract because they can. A snapshot is a rebuildable cache rather than a system of record, so there are no legacy rows to preserve — and its tenant term is part of the **primary key**, which SQL Server does not permit to be nullable. A `DEFAULT` is deliberately omitted there too: with one, a save that forgot to supply the tenant would land silently in the untenanted partition, making "I forgot the tenant" indistinguishable from "this row is deliberately untenanted". Without one, that statement fails outright.
+
+For the same reason, do **not** rewrite the snapshot predicate as `COALESCE(TenantId, …)` to save the sentinel's storage. It cannot help — the column cannot hold `NULL` while it is in the key — and it demotes `TenantId` out of the index seek into a residual filter, so a lookup reads every tenant's row for that aggregate instead of landing on one. The sentinel costs 28 bytes against a snapshot payload usually measured in kilobytes. If snapshot storage is a concern at scale, prune old snapshots instead; they regenerate.
+
+### Running the scripts
+
+Execute the shipped `.sql` with `QUOTED_IDENTIFIER` **ON**. Several schemas declare filtered indexes (`CREATE INDEX … WHERE`), which SQL Server refuses to create without it, and `sqlcmd` defaults it **off** — the index is then simply absent, leaving a database that works but scans where it should seek. The shipped scripts set it themselves; if you split, reorder, or hand-copy them into your own migration tooling, set it there too.
+
 ## Cold/archive storage binds a tenant term
 
 `IColdEventStore` takes a `KeyedTenantPartition` on every method — `WriteAsync`, both `ReadAsync` overloads, and `HasArchivedEventsAsync`. Cold storage object keys are composed from that partition, so events archived under one tenant are not addressable from another tenant's read or watermark check, and the keyed guarantee above extends to the cold tier.

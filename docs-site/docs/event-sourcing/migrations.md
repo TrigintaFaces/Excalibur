@@ -228,7 +228,9 @@ CREATE TABLE [dbo].[Events] (
     [Version] BIGINT NOT NULL,
     [Timestamp] DATETIMEOFFSET NOT NULL,
     -- Nullable: the unscoped path emits neither this column nor its parameter.
-    [TenantId] NVARCHAR(256) NULL,
+    -- Binary collation: the server default is typically case-insensitive, so without it a
+    -- scoped read matches another tenant whose identifier differs only by case.
+    [TenantId] NVARCHAR(256) COLLATE Latin1_General_BIN2 NULL,
     CONSTRAINT [PK_Events_Position] PRIMARY KEY CLUSTERED ([Position]),
     CONSTRAINT [UQ_Events_AggregateVersion] UNIQUE ([AggregateId], [AggregateType], [Version])
 );

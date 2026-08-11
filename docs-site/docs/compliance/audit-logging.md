@@ -418,6 +418,13 @@ var result = await _auditStore.VerifyChainIntegrityAsync(
 ```sql
 CREATE SCHEMA [audit];
 
+-- Filtered indexes (those with a WHERE clause) require QUOTED_IDENTIFIER ON, and sqlcmd
+-- defaults it OFF. Without this the filtered indexes below fail with Msg 1934 and are
+-- simply absent from your database.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 CREATE TABLE [audit].[AuditEvents] (
     -- Identity and ordering
     [SequenceNumber] BIGINT IDENTITY(1,1) NOT NULL,
@@ -439,7 +446,9 @@ CREATE TABLE [audit].[AuditEvents] (
     [ResourceClassification] INT NULL,
 
     -- Context and correlation
-    [TenantId] NVARCHAR(64) NULL,
+    -- Binary collation, and NOT NULL. The server default is typically case-insensitive, under
+    -- which 'Acme' = 'acme' and a tenant-scoped read returns another tenant's rows with no error.
+    [TenantId] NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
     [ApplicationName] NVARCHAR(256) NULL,
     [CorrelationId] NVARCHAR(64) NULL,
     [SessionId] NVARCHAR(64) NULL,
