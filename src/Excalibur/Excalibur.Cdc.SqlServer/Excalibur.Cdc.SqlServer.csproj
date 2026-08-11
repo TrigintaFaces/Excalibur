@@ -37,5 +37,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- Shipped schema: this provider does not create its table at runtime, so a consumer
+         cannot obtain the DDL unless it is packed. Pack must sit on the .sql item itself. -->
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
 </Project>

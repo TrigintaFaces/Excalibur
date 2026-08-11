@@ -1,3 +1,11 @@
+-- SQL Server requires SET QUOTED_IDENTIFIER ON to create a FILTERED index (one with a WHERE
+-- clause), and sqlcmd defaults it OFF. Without these, every filtered index below fails with
+-- Msg 1934 and is simply absent from the resulting database -- a script runner that does not
+-- check exit status gets a schema silently missing its most selective indexes.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 -- SQL Server Schema for Excalibur.Saga.SqlServer
 -- Version: 1.0
 -- This script creates the saga storage schema for the Excalibur framework.

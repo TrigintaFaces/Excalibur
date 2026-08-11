@@ -31,6 +31,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- Shipped schema: the orchestrator does not create its table at runtime, so a consumer
+         cannot obtain the DDL unless it is packed. Pack must sit on the .sql item itself. -->
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">

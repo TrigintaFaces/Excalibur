@@ -1,3 +1,11 @@
+-- SQL Server requires SET QUOTED_IDENTIFIER ON to create a FILTERED index (one with a WHERE
+-- clause), and sqlcmd defaults it OFF. Without these, every filtered index below fails with
+-- Msg 1934 and is simply absent from the resulting database -- a script runner that does not
+-- check exit status gets a schema silently missing its most selective indexes.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 -- SQL Server schema for Dead Letter Messages table
 -- This script creates the necessary table for storing poison messages
 
@@ -17,7 +25,14 @@ BEGIN
         -- a scoped predicate written as TenantId = @TenantId never matches NULL and the row silently
         -- leaves its own tenant's results while remaining in the table. A single-tenant deployment binds
         -- the sentinel, which is a real term like any other.
-        [TenantId] [nvarchar](255) NOT NULL DEFAULT '__untenanted__',
+        --
+        -- The collation is pinned for the same reason the column is NOT NULL: the comparison must not
+        -- fail open. Every read is a scoped `TenantId = @TenantId`, and SQL Server's server default is
+        -- typically case-INSENSITIVE, under which 'Acme' = 'acme'. Without an explicit binary collation
+        -- a tenant whose identifier differs from another's only by case reads that tenant's rows —
+        -- which, for this table, means reading their message bodies. Nothing errors; the predicate
+        -- simply matches more than it should.
+        [TenantId] [nvarchar](255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
         [MessageId] [nvarchar](128) NOT NULL,
         [MessageType] [nvarchar](500) NOT NULL,
         [MessageBody] [nvarchar](max) NOT NULL,
@@ -52,7 +67,40 @@ IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DeadLe
                    WHERE object_id = OBJECT_ID(N'[dbo].[DeadLetterMessages]') AND name = N'TenantId')
 BEGIN
     ALTER TABLE [dbo].[DeadLetterMessages]
-        ADD [TenantId] [nvarchar](255) NOT NULL CONSTRAINT [DF_DeadLetterMessages_TenantId] DEFAULT '__untenanted__';
+        ADD [TenantId] [nvarchar](255) COLLATE Latin1_General_BIN2 NOT NULL
+            CONSTRAINT [DF_DeadLetterMessages_TenantId] DEFAULT '__untenanted__';
+END
+GO
+
+-- RE-COLLATE a database that already has the column in the server's default collation.
+--
+-- The upgrade above is guarded on the column being ABSENT, so it does nothing for an install that
+-- added TenantId before the collation was pinned. Those installs are the ones already holding more
+-- than one tenant's rows, so they are the only ones that can leak, and they are exactly the ones the
+-- additive guard cannot reach. This block is guarded on the COLLATION instead, so it targets that
+-- population and is a no-op everywhere else.
+--
+-- TenantId leads IX_DeadLetterMessages_TenantId_MovedToDeadLetterAt, and SQL Server will not alter a
+-- column an index depends on, so the index is dropped and rebuilt around the alter.
+IF EXISTS (SELECT * FROM sys.columns
+           WHERE object_id = OBJECT_ID(N'[dbo].[DeadLetterMessages]')
+             AND name = N'TenantId'
+             AND collation_name <> N'Latin1_General_BIN2')
+BEGIN
+    IF EXISTS (SELECT * FROM sys.indexes
+               WHERE name = N'IX_DeadLetterMessages_TenantId_MovedToDeadLetterAt'
+                 AND object_id = OBJECT_ID(N'[dbo].[DeadLetterMessages]'))
+    BEGIN
+        DROP INDEX [IX_DeadLetterMessages_TenantId_MovedToDeadLetterAt]
+            ON [dbo].[DeadLetterMessages];
+    END
+
+    ALTER TABLE [dbo].[DeadLetterMessages]
+        ALTER COLUMN [TenantId] [nvarchar](255) COLLATE Latin1_General_BIN2 NOT NULL;
+
+    CREATE NONCLUSTERED INDEX [IX_DeadLetterMessages_TenantId_MovedToDeadLetterAt]
+        ON [dbo].[DeadLetterMessages] ([TenantId], [MovedToDeadLetterAt])
+        INCLUDE ([MessageType], [Reason]);
 END
 GO
 

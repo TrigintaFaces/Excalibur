@@ -127,6 +127,7 @@ for t in \
     "eng/ci/premise-triage.test.sh" \
     "eng/ci/shipped-ddl-sweep.test.sh" \
     "eng/ci/shipped-ddl-sweep-gate.sh --self-test" \
+    "eng/ci/sqlserver-ddl-hygiene.sh --self-test" \
     "eng/ci/sql-predicate-gate.test.sh" \
     "eng/ci/tenant-range-op-coverage-gate.sh --self-test" \
     "eng/ci/tenant-range-op-coverage-gate.test.sh" \
@@ -259,6 +260,15 @@ run "tenant-range-op coverage (real src tree)" bash eng/ci/tenant-range-op-cover
 # baseline does not; and a liveness arm reds if the sweep produced no report at all (a gate that never
 # runs has a vacuously-satisfied baseline).
 run "shipped-ddl-sweep (real repo, set-baselined)" bash eng/ci/shipped-ddl-sweep-gate.sh
+
+# FUNCTIONAL: two properties of shipped SQL Server DDL that fail SILENTLY on a consumer's machine and
+# cannot fail on ours, because we hand them a .sql file and never execute it. A tenant column without a
+# pinned binary collation makes every `TenantId = @TenantId` read match case-INSENSITIVELY, so one
+# tenant reads another's rows and nothing errors; a file carrying a filtered index but no
+# QUOTED_IDENTIFIER loses that index entirely under sqlcmd (Msg 1934), leaving a database silently
+# missing its most selective indexes. Both of these shipped. Three states: 0 clean, 1 a violation,
+# 2 REFUSE (scanned nothing, or scanned files and evaluated no property — never a pass).
+run "sqlserver-ddl-hygiene (real repo)" bash eng/ci/sqlserver-ddl-hygiene.sh
 
 # FUNCTIONAL: run the shard hang-timeout gate against the REAL tree. Self-test-only wiring would
 # validate the detector and never cast the net over the runners and documented commands that actually

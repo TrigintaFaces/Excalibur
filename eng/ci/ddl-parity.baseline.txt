@@ -19,3 +19,10 @@
 Excalibur.EventSourcing:Sqlite
 Excalibur.Outbox:Oracle
 Excalibur.Outbox:Postgres
+
+# Excalibur_Dispatch-le37uz — unlike the gaps above, this one does not block a consumer:
+# the Postgres CDC state store issues CREATE TABLE IF NOT EXISTS on first use, so the table
+# appears without a script. It is listed because operators who provision schema separately,
+# and run the application without table-creation rights, still have nothing to run — the same
+# reason the SqlServer provider requires an explicit script rather than auto-creating.
+Excalibur.Cdc:Postgres
