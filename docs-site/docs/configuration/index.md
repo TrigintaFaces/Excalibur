@@ -185,9 +185,44 @@ services.AddExcalibur(excalibur =>
 
 | Section | Description | Guide |
 |---------|-------------|-------|
+| `ApplicationContext` | Application identity | [Application identity](#application-identity) |
 | Event Sourcing | Event stores, repositories, snapshots | [Event Store Setup](./event-store-setup.md) |
 | Outbox | Reliable messaging, processing options | [Outbox Setup](./outbox-setup.md) |
 | Snapshots | Snapshot strategies and triggers | [Snapshot Setup](./snapshot-setup.md) |
+
+## Application identity
+
+`ConfigureApplicationContext()` establishes who your application is. Two values are required:
+
+| Key | Meaning | Default when unset |
+|-----|---------|--------------------|
+| `ApplicationName` | The application's display identity | The host environment's application name — your entry assembly, unless the host was told otherwise |
+| `ApplicationSystemName` | The machine-readable identity used in URLs, cache keys and stored records | `ApplicationName` in kebab-case |
+
+**Both have defaults, so a host that configures nothing still starts.** Set them explicitly when the
+defaults are not what you want to live with — and for `ApplicationName` in particular, because it is
+written into authorization grant records, where a value derived from an assembly name is rarely the
+one you would choose.
+
+```json
+{
+  "ApplicationContext": {
+    "ApplicationName": "Order Management",
+    "ApplicationSystemName": "order-management"
+  }
+}
+```
+
+A value you supply always wins; only blank values are filled in. The section is bound to
+`IOptions<ApplicationContextOptions>` and validated at startup, so a value that is present but empty
+fails immediately rather than surfacing later as a blank field in a log, a telemetry dimension, or a
+stored grant.
+
+:::note Upgrading from 3.x
+Startup validation of these two values is new. An application that previously ran with a blank
+`ApplicationName` was not working correctly — it was writing that blank into every record that
+carries it. If your host fails to start naming these fields, set them, or accept the defaults above.
+:::
 
 ## Health Checks
 
