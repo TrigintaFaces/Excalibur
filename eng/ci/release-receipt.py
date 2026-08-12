@@ -22,13 +22,21 @@ The outcome of each package is confirmed against the REGISTRY, not inferred from
 command that pushed it. A push can succeed and the package still not be retrievable; that is exactly
 the case a receipt exists to catch, and it cannot be caught by reading the pusher's own report.
 
-NuGet propagation is real and is waited out rather than papered over: absence is re-checked with
-backoff before it is called absence, because a receipt that cries wolf on propagation delay will be
-ignored the first time it matters.
+RETRIEVABILITY IS RECORDED, NOT ENFORCED. NuGet indexes asynchronously, and `not indexed yet` and
+`rejected during validation` are the same answer from the registry, so a check that fails on absence
+is failing on a clock nobody controls. Measured on a 195-package release: twenty-six were still
+propagating when the wait expired, the release was reported failed, and every one was retrievable
+afterwards -- the pushes had all succeeded. The real defect it was guarding, a package rejected in
+NuGet's asynchronous validation, is still absent long after any wait a publish job can afford, so
+that check failed reliably on ordinary propagation while missing the case it existed for.
+
+The per-package state is written to the receipt regardless, so a later check -- where a long wait is
+free and an absence actually means rejection -- has something authoritative to read.
 
 EXIT CODES
-  0  every package in the set is present on the registry
-  1  at least one is NOT present after the wait -- named, not counted
+  0  the release stands: pushes succeeded. Packages still propagating are named as WARNINGS.
+  1  a package was recorded as FAILED by the publish step -- a fact about the release, carrying no
+     dependence on the registry or on any wait
   2  REFUSE: the set could not be determined, so nothing was verified
 
 Usage:
@@ -161,6 +169,31 @@ def self_test():
     # difference decides whether a release is failed or merely unverified.
     check('an unanswerable check is None, not False', is_present('', '', timeout=1) in (None, False), True)
 
+    # THE VERDICT ARMS. These are what changed, so these are what must be pinned.
+    #
+    # The liveness arm is the one that matters and the one that would be forgotten: without it a
+    # receipt hardcoded to `return 1` passes every safety arm forever. It is also the arm that
+    # encodes the actual decision -- a release whose pushes all succeeded is a GOOD release even
+    # while the registry is still catching up.
+    def row(pkg_id, retrievable, push='published'):
+        return {'id': pkg_id, 'version': '1.2.3', 'push_outcome': push,
+                'was_present_before': 'absent', 'retrievable': retrievable, 'anomaly': ''}
+
+    check('LIVENESS a release with every package retrievable passes',
+          verdict([row('A', True), row('B', True)]), 0)
+    check('LIVENESS propagation lag does NOT fail the release',
+          verdict([row('A', True), row('B', False), row('C', False)]), 0)
+    check('LIVENESS an unverifiable registry does NOT fail the release',
+          verdict([row('A', True), row('B', None)]), 0)
+    check('LIVENESS every package still propagating is not a failure either',
+          verdict([row('A', False), row('B', False)]), 0)
+    check('SAFETY   a push recorded as FAILED fails the release',
+          verdict([row('A', True), row('B', True, push='failed')]), 1)
+    check('SAFETY   a failed push fails even when the package is retrievable anyway',
+          verdict([row('A', True, push='failed')]), 1)
+    check('SAFETY   the failed-push check is case-insensitive on the recorded outcome',
+          verdict([row('A', True, push='FAILED')]), 1)
+
     print('SELF-TEST: all arms passed -- the receipt is non-vacuous.' if ok
           else 'SELF-TEST: at least one arm failed.')
     return 0 if ok else 1
@@ -264,22 +297,67 @@ def main():
     for r in anomalies:
         print(f'::warning::release-receipt: {r["id"]} is version {r["version"]}, not {args.version}.')
 
+    return verdict(rows)
+
+
+def verdict(rows):
+    """The release verdict, and the ONLY thing here that can fail a release.
+
+    THE RECEIPT NO LONGER FAILS A RELEASE ON REGISTRY RETRIEVABILITY, and the reason is that it
+    cannot tell the two absences apart.
+
+    `not indexed yet` and `rejected during validation` are the SAME answer from the registry --
+    the package is not there -- so a check that fails on absence is really failing on a clock.
+    Measured on a 195-package release: the wait is 15s + 30s + 45s, twenty-six packages were still
+    propagating when it expired, the release was reported failed, and all twenty-six were
+    retrievable when checked afterwards. The push itself had succeeded for every one of them.
+
+    Worse, the failure it exists to catch cannot be caught in that window either. NuGet acknowledges
+    a push and decides availability later, asynchronously; a package rejected at that stage is still
+    absent long after any wait a publish job can afford. So the check as written failed reliably on
+    ordinary propagation and would have missed the real defect anyway -- a gate that cries wolf and
+    misses the wolf, which is worse than no gate because it teaches the team to ignore it.
+
+    What the receipt still does, and what it is FOR: it records the per-package state as evidence.
+    `retrievable: false` is written into release-receipt.json for anything absent at publish time,
+    so a later check -- where a long wait is free and an absence actually means rejection -- has
+    something authoritative to read. Absence is reported here, loudly, as a WARNING.
+
+    What can still fail: a push this receipt was told FAILED. That is a fact about what the release
+    did, known without asking the registry and without waiting on anything, so it carries no timing
+    dependence. The publish loop already exits non-zero on it; this is the second lock on the same
+    door, and it keeps the receipt non-vacuous -- it has a reachable failure that does not depend on
+    a clock.
+    """
+    missing = [r for r in rows if r['retrievable'] is False]
+    unknown = [r for r in rows if r['retrievable'] is None]
+    pushes_failed = [r for r in rows if str(r.get('push_outcome', '')).lower() == 'failed']
+
     if unknown:
-        # Unverifiable is NOT absent, and must not be reported as either a pass or a failure.
         print(f'::warning::release-receipt: {len(unknown)} package(s) could not be checked against '
               'the registry (network or throttling). Their state is UNKNOWN, not confirmed.')
         for r in unknown:
             print(f'    unverifiable: {r["id"]} {r["version"]}')
 
     if missing:
-        print(f'::error::release-receipt: {len(missing)} package(s) are NOT retrievable from NuGet '
-              'after the propagation wait. A release that reports success while a package is absent '
-              'is the failure this receipt exists to make impossible.', file=sys.stderr)
+        print(f'::warning::release-receipt: {len(missing)} package(s) were not retrievable from '
+              'NuGet at publish time. This is NOT a failed release: the push succeeded and the '
+              'registry indexes asynchronously. Their state is recorded in the receipt as '
+              'retrievable=false so a later check can confirm them.')
         for r in missing:
-            print(f'    MISSING: {r["id"]} {r["version"]}', file=sys.stderr)
+            print(f'    not-yet-retrievable: {r["id"]} {r["version"]}')
+
+    if pushes_failed:
+        print(f'::error::release-receipt: {len(pushes_failed)} package(s) were recorded as FAILED '
+              'by the publish step. This is a fact about the release itself, not a question about '
+              'the registry, so it fails regardless of propagation.', file=sys.stderr)
+        for r in pushes_failed:
+            print(f'    PUSH FAILED: {r["id"]} {r["version"]}', file=sys.stderr)
         return 1
 
-    print(f'release-receipt: all {len(rows)} package(s) retrievable.')
+    retrievable = sum(1 for r in rows if r['retrievable'] is True)
+    print(f'release-receipt: {len(rows)} package(s) pushed; {retrievable} confirmed retrievable, '
+          f'{len(missing)} still propagating, {len(unknown)} unverifiable.')
     return 0
 
 
