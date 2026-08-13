@@ -1570,22 +1570,37 @@ jobs:
       - name: Publish the draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job checks nothing out, so `gh` has no git remote to infer the repository from and
+          # every lookup below fails before it reaches the API. GH_REPO supplies it directly, which is
+          # cheaper than a checkout for a job that only needs to flip one flag.
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
           set -euo pipefail
-          # Idempotent by construction: a release already published is the desired end state, so a
-          # re-run verifies rather than failing. `--draft=false` on a published release is a no-op.
-          state="$(gh release view "v${VERSION}" --json isDraft --jq '.isDraft' 2>/dev/null || echo "missing")"
-          case "$state" in
-            missing)
-              echo "::error::REFUSE: release v${VERSION} does not exist, but publish-nuget succeeded. The packages are on NuGet with no release describing them."
-              exit 1 ;;
-            true)
-              gh release edit "v${VERSION}" --draft=false
-              echo "Published release v${VERSION} -- packages are on NuGet." ;;
-            false)
-              echo "Release v${VERSION} was already published; nothing to do (idempotent re-run)." ;;
-          esac
+          # Three outcomes, kept distinct on purpose: the release is a draft (publish it), it is already
+          # published (idempotent re-run, do nothing), or it is genuinely absent (refuse). A FAILED QUERY
+          # is none of those and must never be folded into "absent" -- doing so reports an inability to
+          # ask as a fact about the release, which is how this step came to claim a release was missing
+          # while it existed.
+          if state="$(gh release view "v${VERSION}" --json isDraft --jq '.isDraft' 2>gh_err.txt)"; then
+            case "$state" in
+              true)
+                gh release edit "v${VERSION}" --draft=false
+                echo "Published release v${VERSION} -- packages are on NuGet." ;;
+              false)
+                echo "Release v${VERSION} was already published; nothing to do (idempotent re-run)." ;;
+              *)
+                echo "::error::CANNOT EVALUATE: unexpected draft state '${state}' for release v${VERSION}."
+                exit 1 ;;
+            esac
+          elif grep -qi "not found" gh_err.txt; then
+            echo "::error::REFUSE: release v${VERSION} does not exist, but publish-nuget succeeded. The packages are on NuGet with no release describing them."
+            exit 1
+          else
+            echo "::error::CANNOT EVALUATE: could not query release v${VERSION}. This is NOT evidence that the release is absent -- the query itself failed."
+            sed 's/^/    /' gh_err.txt
+            exit 1
+          fi
 
   # Runs whatever happened, so a failed publish still says what state the release was left in.
   # Without this, a draft left behind by a failed publish is silent: nothing in the run output tells
