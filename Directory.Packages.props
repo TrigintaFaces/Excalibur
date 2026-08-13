@@ -298,6 +298,14 @@
 		     pulls Microsoft.OpenApi 2.4.1, in which a circular schema reference can StackOverflow-terminate the
 		     process (DoS). Pin to the patched 2.x line (>= 2.7.5) via CPM transitive pinning. -->
 		<PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+		<!-- Security (GHSA-q939-rpr3-3284): Testcontainers transitively pulls SSH.NET 2025.1.0, whose
+		     ScpClient recursive download does not validate server-supplied filenames, so a malicious SSH
+		     server can write outside the target directory via path traversal (High, CVSS 7.1). Pin to the
+		     patched 2026.0.0 via CPM transitive pinning.
+		     Upgrading Testcontainers does NOT fix this: 4.11.0, 4.12.0 and 4.13.0 — the newest at the time
+		     of writing — all declare SSH.NET 2025.1.0, so the pin is the only route to the patched line
+		     until Testcontainers ships its own bump. Remove this entry once it does. -->
+		<PackageVersion Include="SSH.NET" Version="2026.0.0" />
 		<PackageVersion Include="MassTransit" Version="8.5.9" />
 		<PackageVersion Include="MediatR" Version="12.5.0" />
 		<PackageVersion Include="NServiceBus" Version="10.1.3" />

@@ -30,6 +30,15 @@ public static class DataAnnotationsServiceCollectionExtensions
 		_ = builder.Services.RemoveAll<IValidatorResolver>();
 		_ = builder.Services.AddSingleton<IValidatorResolver, DataAnnotationsValidatorResolver>();
 
+		// Hand attribute evaluation to the resolver alone. The middleware evaluates DataAnnotations itself
+		// by default, and since every source accumulates rather than short-circuits, leaving both on
+		// reports each attribute violation twice. Configured rather than hard-set, so a caller who opts
+		// back in afterwards still wins.
+		// Fully qualified: the enclosing Excalibur.Dispatch.Validation namespace declares its own unrelated
+		// ValidationOptions, and an unqualified reference silently binds to that one instead.
+		_ = builder.Services.Configure<global::Excalibur.Dispatch.Options.Middleware.ValidationOptions>(
+			options => options.UseDataAnnotations = false);
+
 		return builder;
 	}
 }

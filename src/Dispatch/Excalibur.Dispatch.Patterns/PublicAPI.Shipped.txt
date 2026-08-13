@@ -180,7 +180,6 @@ const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DeadLetterCleanupC
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DeadLetterMessageRetrieved = 90904 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DeadLetterMessageStored = 90903 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DefaultContextValidatorCreated = 90701 -> int
-const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DefaultValidationServiceCreated = 90600 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.EncryptionDecryptionServiceCreated = 90500 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.EndpointSelected = 90304 -> int
 const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.EndpointUnavailable = 90305 -> int

@@ -101,10 +101,15 @@ public sealed class VerificationScenarioTests
 			dispatcher.DispatchAsync<ValidatedCreateOrderCommand, Guid>(
 				invalidCommand, context, CancellationToken.None));
 
-		// Assert -- should throw ValidationException
+		// Assert -- the dispatch pipeline's own validation exception, not the DataAnnotations one. The
+		// distinction is consumer-visible: only this type carries a 400 status and the per-property error
+		// dictionary that becomes the RFC 9457 "errors" member of the problem-details response.
 		exception.ShouldNotBeNull();
-		exception.ShouldBeOfType<System.ComponentModel.DataAnnotations.ValidationException>(
+		var validationException = exception.ShouldBeOfType<Excalibur.Dispatch.Exceptions.ValidationException>(
 			$"Expected ValidationException but got {exception.GetType().Name}: {exception.Message}");
+
+		validationException.DispatchStatusCode.ShouldBe(400);
+		validationException.ValidationErrors.ShouldContainKey(nameof(ValidatedCreateOrderCommand.CustomerName));
 		_output.WriteLine($"Scenario 2 PASSED: Invalid command rejected with: {exception.Message}");
 	}
 

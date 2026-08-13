@@ -29,13 +29,31 @@ Dispatch includes a `ValidationMiddleware` that validates messages before they r
 
 ## How It Works
 
-The `ValidationMiddleware` runs at the `DispatchMiddlewareStage.Validation` stage. It uses an `IValidatorResolver` to find and execute validators for the incoming message:
+The `ValidationMiddleware` runs at the `DispatchMiddlewareStage.Validation` stage. Every applicable source
+runs and **accumulates** its errors — none of them short-circuits another:
 
-1. The resolver (`IValidatorResolver.TryValidate`) is called first. If it returns a result, that result is used.
-2. If no resolver handles the message, the middleware checks whether the message implements `IValidate` and calls `Validate()`.
-3. Finally, `System.ComponentModel.DataAnnotations` attributes are evaluated.
+1. The registered validator, if the resolver (`IValidatorResolver.TryValidate`) claims the message type —
+   this is what `WithFluentValidation()`/`WithAotFluentValidation()`/`WithDataAnnotationsValidation()`
+   supplies. Runs when `UseCustomValidation` is enabled (default: `true`).
+2. Self-validation: when the message implements `IValidate`, its `Validate()` method is called. Runs when
+   `UseCustomValidation` is enabled.
+3. `System.ComponentModel.DataAnnotations` attributes, when `UseDataAnnotations` is enabled (default: `true`).
+4. The pluggable `IMessageValidationService`, when `UseCustomValidation` is enabled.
 
-If validation fails, the middleware returns a `MessageResult.Failed` with `MessageProblemDetails` (status 400) containing the errors. The handler is never invoked.
+A message that both has a registered validator and carries `[Required]`-style attributes is subject to
+**both** — registering a validator does not disable declarative attributes on the same message. This
+matches how ASP.NET Core model validation and `Microsoft.Extensions.Validation` combine DataAnnotations
+and `IValidatableObject` rather than letting one suppress the other. If `StopOnFirstError` is enabled, the
+accumulated errors are trimmed to the first one after every source has run.
+
+Dispatch validation is a separate moment from ASP.NET Core model validation: ASP.NET validates the bound
+request model at model binding, while this middleware validates the message when it is dispatched. Do not
+expect one to substitute for the other — both end up in the same problem-details wire shape (see
+[Validation Results](#validation-results) below).
+
+If validation fails, the middleware throws `Excalibur.Dispatch.Exceptions.ValidationException`. The
+handler is never invoked, and the exception propagates out of `DispatchAsync` to the caller — it is not
+surfaced as `IMessageResult.IsSuccess == false`.
 
 ## Setup
 
@@ -54,6 +72,14 @@ services.AddDispatch(builder =>
 ```
 
 `WithDataAnnotationsValidation()` replaces the default `NoOpValidatorResolver` with `DataAnnotationsValidatorResolver`, which calls `Validator.TryValidateObject` on every message.
+
+:::note
+`DataAnnotationsValidatorResolver` and the middleware's built-in `UseDataAnnotations` pass read the same
+`System.ComponentModel.DataAnnotations` attributes, so `WithDataAnnotationsValidation()` sets
+`UseDataAnnotations` to `false` for you — attribute evaluation belongs to exactly one source and a violated
+attribute is reported once. If you want both passes, set `options.UseDataAnnotations = true` after calling
+it; the later configuration wins.
+:::
 
 ### FluentValidation (Separate Package)
 
@@ -225,11 +251,12 @@ public class OrderItemValidator : AbstractValidator<OrderItem>
 
 ## Self-Validation with IValidate
 
-Messages can validate themselves by implementing `IValidate`. The middleware calls `Validate()` when no `IValidatorResolver` handles the message:
+Messages can validate themselves by implementing `IValidate`. When `UseCustomValidation` is enabled, the
+middleware always calls `Validate()` on a message that implements it — in addition to, not instead of, a
+registered resolver or DataAnnotations attributes:
 
 ```csharp
 using Excalibur.Dispatch.Validation;
-using Excalibur.Dispatch.Serialization;
 
 public record CreateOrderCommand(decimal Amount, string Currency)
     : IDispatchAction, IValidate
@@ -237,10 +264,10 @@ public record CreateOrderCommand(decimal Amount, string Currency)
     public ValidationResult Validate()
     {
         if (Amount <= 0)
-            return SerializableValidationResult.Failed("Amount must be positive");
+            return ValidationResult.Failure("Amount must be positive");
 
         if (string.IsNullOrWhiteSpace(Currency))
-            return SerializableValidationResult.Failed("Currency is required");
+            return ValidationResult.Failure("Currency is required");
 
         return ValidationResult.Success();
     }
@@ -249,22 +276,38 @@ public record CreateOrderCommand(decimal Amount, string Currency)
 
 ## Validation Results
 
-When validation fails, the middleware returns a `MessageProblemDetails` with status 400:
+When validation fails, the middleware throws `Excalibur.Dispatch.Exceptions.ValidationException` rather
+than returning a failed `IMessageResult` — catch it around the dispatch call:
 
 ```csharp
-var result = await dispatcher.DispatchAsync(action, ct);
-
-if (!result.IsSuccess && result.ProblemDetails is { } problem)
+try
 {
-    // problem.Title == "Validation Failed"
-    // problem.Status == 400
-    // problem.Extensions["errors"] contains the error list
+    var result = await dispatcher.DispatchAsync(action, ct);
+}
+catch (Excalibur.Dispatch.Exceptions.ValidationException ex)
+{
+    // ex.DispatchStatusCode == 400
+    // ex.ValidationErrors is IDictionary<string, string[]>, keyed by property name.
+    // An error not attributable to a single property uses the empty-string key,
+    // matching ASP.NET Core's ModelState.
 }
 ```
 
+In an ASP.NET Core host built on `Excalibur.Hosting.Web`, you don't need to catch it yourself: the
+`GlobalExceptionHandler` catches `ValidationException`, sets the response status from
+`DispatchStatusCode` (400), and projects `ValidationErrors` into the RFC 9457 `errors` extension member —
+the same shape ASP.NET Core's own `ValidationProblemDetails.Errors` uses, so a client that already reads
+`response.errors` works against either source.
+
+A `FluentValidation.ValidationException` thrown directly by your own code — rather than raised through the
+dispatch pipeline — is projected onto that same `errors` member and the same per-property shape, so the
+response contract does not depend on which path rejected the request.
+
 ### ValidationError
 
-Errors are represented as `ValidationError` instances (namespace `Excalibur.Dispatch.Validation`):
+When you author a custom `IValidatorResolver` or an `IValidate.Validate()` implementation, individual
+errors are represented as `ValidationError` instances (namespace `Excalibur.Dispatch.Validation`), passed
+to `ValidationResult.Failure(...)`:
 
 ```csharp
 public sealed class ValidationError
@@ -276,33 +319,23 @@ public sealed class ValidationError
 }
 ```
 
+These are mapped onto the `IDictionary<string, string[]>` shape shown above before they reach the caller
+as `ValidationException.ValidationErrors`.
+
 ## Configuration
 
 ### ValidationOptions
 
-Configure validation behavior via the options pattern:
-
-```csharp
-services.Configure<ValidationOptions>(options =>
-{
-    options.Enabled = true;                  // Enable/disable validation (default: true)
-    options.FailFast = true;                 // Stop on first error (default: true)
-    options.MaxErrors = 10;                  // Max errors to collect (default: 10)
-    options.IncludeDetailedErrors = true;    // Include detailed error info (default: true)
-    options.ValidationTimeout = TimeSpan.FromSeconds(5); // Timeout budget
-});
-```
-
-There is also a middleware-specific `ValidationOptions` in `Excalibur.Dispatch.Options.Middleware`:
+`ValidationMiddleware` is configured via `Excalibur.Dispatch.Options.Middleware.ValidationOptions`:
 
 ```csharp
 services.Configure<Excalibur.Dispatch.Options.Middleware.ValidationOptions>(options =>
 {
-    options.Enabled = true;               // Enable/disable (default: true)
-    options.UseDataAnnotations = true;    // Use DataAnnotations (default: true)
-    options.UseCustomValidation = true;   // Use IMessageValidationService (default: true)
-    options.StopOnFirstError = false;     // Fail-fast mode (default: false)
-    options.BypassValidationForTypes = new[] { "HealthCheckAction" }; // Skip types
+    options.Enabled = true;               // Enable/disable validation entirely (default: true)
+    options.UseDataAnnotations = true;    // Evaluate DataAnnotations attributes (default: true)
+    options.UseCustomValidation = true;   // Run the resolver, IValidate, and IMessageValidationService (default: true)
+    options.StopOnFirstError = false;     // Trim accumulated errors to the first one (default: false)
+    options.BypassValidationForTypes = new[] { "HealthCheckAction" }; // Skip validation for these message type names
 });
 ```
 

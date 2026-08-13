@@ -205,15 +205,8 @@ public sealed class PatternsEventIdShould : UnitTestBase
 	#region Validation Services Event ID Tests (90600-90699)
 
 	[Fact]
-	public void HaveDefaultValidationServiceCreatedInValidationRange()
-	{
-		PatternsEventId.DefaultValidationServiceCreated.ShouldBe(90600);
-	}
-
-	[Fact]
 	public void HaveAllValidationServicesEventIdsInExpectedRange()
 	{
-		PatternsEventId.DefaultValidationServiceCreated.ShouldBeInRange(90600, 90699);
 		PatternsEventId.ProfileSpecificValidationExecuting.ShouldBeInRange(90600, 90699);
 		PatternsEventId.ValidationRuleApplied.ShouldBeInRange(90600, 90699);
 		PatternsEventId.ValidationPassed.ShouldBeInRange(90600, 90699);
@@ -451,7 +444,6 @@ public sealed class PatternsEventIdShould : UnitTestBase
 			PatternsEventId.ReEncryptionCompleted,
 
 			// Validation Services (90600-90699)
-			PatternsEventId.DefaultValidationServiceCreated,
 			PatternsEventId.ProfileSpecificValidationExecuting,
 			PatternsEventId.ValidationRuleApplied,
 			PatternsEventId.ValidationPassed,

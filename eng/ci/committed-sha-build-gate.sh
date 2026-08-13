@@ -211,7 +211,19 @@ fi
 SHA="$(git rev-parse --verify "$REF" 2>/dev/null || true)"
 [ -n "$SHA" ] || { echo "[committed-sha-build-gate] CANNOT EVALUATE — cannot resolve ref: $REF" >&2; exit "$E_ENV"; }
 
-command -v dotnet >/dev/null 2>&1 || { echo "[committed-sha-build-gate] CANNOT EVALUATE — dotnet not on PATH." >&2; exit "$E_ENV"; }
+# Resolve a muxer that can satisfy this repository's global.json pin, preferring a repo-local install.
+# The probe worktree is a clean checkout, and the local SDK directory is untracked — so a bare `dotnet`
+# there resolves no SDK at all and EVERY project "fails". That is an environment fault, not a property
+# of the code, and it must never be counted as one.
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
+DOTNET=""
+for candidate in \
+    "$REPO_ROOT/.dotnet/dotnet.exe" "$REPO_ROOT/.dotnet/dotnet" \
+    "${DOTNET_ROOT:-}/dotnet.exe" "${DOTNET_ROOT:-}/dotnet"; do
+    if [ -x "$candidate" ]; then DOTNET="$candidate"; break; fi
+done
+[ -n "$DOTNET" ] || DOTNET="$(command -v dotnet 2>/dev/null || true)"
+[ -n "$DOTNET" ] || { echo "[committed-sha-build-gate] CANNOT EVALUATE — no dotnet muxer found." >&2; exit "$E_ENV"; }
 
 mapfile -t CHANGED < <(git diff-tree --no-commit-id --name-only -r "$SHA" 2>/dev/null)
 declare -A PROJECTS=()
@@ -263,8 +275,19 @@ for proj in "${!PROJECTS[@]}"; do
     # invocation makes the property set we pass the only property set in play.
     if [ -f "$WT/$proj" ]; then
         built=$((built + 1))
-        (cd "$WT" && dotnet build "$proj" -c Release --no-incremental -nodeReuse:false -p:BuildExamplesAndTests=true -v q) >/tmp/csbg_build.log 2>&1
+        (cd "$WT" && "$DOTNET" build "$proj" -c Release --no-incremental -nodeReuse:false -p:BuildExamplesAndTests=true -v q) >/tmp/csbg_build.log 2>&1
         build_rc=$?
+
+        # The muxer failing to satisfy global.json is an ENVIRONMENT fault, not a compile error, and it
+        # presents on every project at once. Reporting it as "does not compile" would be a FAIL the gate
+        # did not earn, and it reads identically to a genuine break — so REFUSE instead, by the same
+        # rule as the skipped-compile arm above.
+        if grep -qE "A compatible .NET SDK was not found|The command could not be loaded" /tmp/csbg_build.log 2>/dev/null; then
+            echo "[committed-sha-build-gate] CANNOT EVALUATE — $DOTNET cannot resolve the pinned SDK." >&2
+            grep -E "Requested SDK version|global.json file|Install the" /tmp/csbg_build.log 2>/dev/null | head -3 | sed 's/^/      /' >&2
+            echo "      Provision the pinned SDK (the repository's build script installs it locally)." >&2
+            exit "$E_ENV"
+        fi
 
         # A "successful" build of a project whose sources were REMOVED is a false green, and this repo
         # produces exactly that: Directory.Build.targets sets SkipProjectBuild for anything under

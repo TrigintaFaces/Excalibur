@@ -17,6 +17,13 @@ using Microsoft.Extensions.Options;
 
 using MessageResult = Excalibur.Dispatch.MessageResult;
 
+// System.ComponentModel.DataAnnotations (imported above) also declares a ValidationException. An
+// unqualified reference here must keep resolving to the framework's own exception type -- the one
+// ValidationMiddleware actually throws -- matching the alias ValidationMiddleware.cs itself uses.
+using ValidationException = Excalibur.Dispatch.Exceptions.ValidationException;
+using IValidatorResolver = Excalibur.Dispatch.Validation.IValidatorResolver;
+using NoOpValidatorResolver = Excalibur.Dispatch.Validation.NoOpValidatorResolver;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -24,6 +31,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 public sealed class ValidationMiddlewareShould
 {
     private readonly IMessageValidationService _validationService = A.Fake<IMessageValidationService>();
+    private readonly IValidatorResolver _validatorResolver = new NoOpValidatorResolver();
     private readonly ILogger<ValidationMiddleware> _logger;
 
     public ValidationMiddlewareShould()
@@ -36,7 +44,20 @@ public sealed class ValidationMiddlewareShould
     private ValidationMiddleware CreateSut(ValidationOptions? options = null)
     {
         var opts = options ?? new ValidationOptions { Enabled = true, UseCustomValidation = true };
-        return new ValidationMiddleware(Microsoft.Extensions.Options.Options.Create(opts), _validationService, _logger);
+        return new ValidationMiddleware(
+            Microsoft.Extensions.Options.Options.Create(opts), _validationService, _validatorResolver, _logger);
+    }
+
+    [Fact]
+    public void ThrowArgumentNullException_WhenValidatorResolverIsNull()
+    {
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            new ValidationMiddleware(
+                Microsoft.Extensions.Options.Options.Create(new ValidationOptions()),
+                _validationService,
+                null!,
+                _logger));
     }
 
     [Fact]

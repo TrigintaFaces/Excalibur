@@ -2384,15 +2384,11 @@ Excalibur.Dispatch.UnknownEventTypeException
 Excalibur.Dispatch.UnknownEventTypeException.UnknownEventTypeException() -> void
 Excalibur.Dispatch.UnknownEventTypeException.UnknownEventTypeException(string! message) -> void
 Excalibur.Dispatch.UnknownEventTypeException.UnknownEventTypeException(string! message, System.Exception! innerException) -> void
-Excalibur.Dispatch.Validation.IMessageSchemaValidator
-Excalibur.Dispatch.Validation.IMessageSchemaValidator.ValidateAsync(object! message, Excalibur.Dispatch.Validation.MessageValidationContext! context, System.Collections.Generic.ICollection<Excalibur.Dispatch.Validation.ValidationError!>! errors, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.Validation.IValidationResult
 Excalibur.Dispatch.Validation.IValidationResult.Errors.get -> System.Collections.Generic.IReadOnlyCollection<object!>!
 Excalibur.Dispatch.Validation.IValidationResult.Failed(params object![]! errors) -> Excalibur.Dispatch.Validation.IValidationResult!
 Excalibur.Dispatch.Validation.IValidationResult.IsValid.get -> bool
 Excalibur.Dispatch.Validation.IValidationResult.Success() -> Excalibur.Dispatch.Validation.IValidationResult!
-Excalibur.Dispatch.Validation.IValidationService
-Excalibur.Dispatch.Validation.IValidationService.ValidateAsync(object! message, Excalibur.Dispatch.Validation.MessageValidationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Validation.ValidationResult!>
 Excalibur.Dispatch.Validation.MessageValidationContext
 Excalibur.Dispatch.Validation.MessageValidationContext.CorrelationId.get -> string?
 Excalibur.Dispatch.Validation.MessageValidationContext.CorrelationId.set -> void
@@ -2414,24 +2410,6 @@ Excalibur.Dispatch.Validation.ValidationError.Metadata.init -> void
 Excalibur.Dispatch.Validation.ValidationError.PropertyName.get -> string?
 Excalibur.Dispatch.Validation.ValidationError.ValidationError(string! message) -> void
 Excalibur.Dispatch.Validation.ValidationError.ValidationError(string! propertyName, string! message) -> void
-Excalibur.Dispatch.Validation.ValidationOptions
-Excalibur.Dispatch.Validation.ValidationOptions.CustomMetadata.get -> System.Collections.Generic.IDictionary<string!, object!>!
-Excalibur.Dispatch.Validation.ValidationOptions.CustomMetadata.init -> void
-Excalibur.Dispatch.Validation.ValidationOptions.Enabled.get -> bool
-Excalibur.Dispatch.Validation.ValidationOptions.Enabled.set -> void
-Excalibur.Dispatch.Validation.ValidationOptions.FailFast.get -> bool
-Excalibur.Dispatch.Validation.ValidationOptions.FailFast.set -> void
-Excalibur.Dispatch.Validation.ValidationOptions.IncludeDetailedErrors.get -> bool
-Excalibur.Dispatch.Validation.ValidationOptions.IncludeDetailedErrors.set -> void
-Excalibur.Dispatch.Validation.ValidationOptions.MaxErrors.get -> int
-Excalibur.Dispatch.Validation.ValidationOptions.MaxErrors.set -> void
-Excalibur.Dispatch.Validation.ValidationOptions.ValidateContracts.get -> bool
-Excalibur.Dispatch.Validation.ValidationOptions.ValidateContracts.set -> void
-Excalibur.Dispatch.Validation.ValidationOptions.ValidateSchemas.get -> bool
-Excalibur.Dispatch.Validation.ValidationOptions.ValidateSchemas.set -> void
-Excalibur.Dispatch.Validation.ValidationOptions.ValidationOptions() -> void
-Excalibur.Dispatch.Validation.ValidationOptions.ValidationTimeout.get -> System.TimeSpan
-Excalibur.Dispatch.Validation.ValidationOptions.ValidationTimeout.set -> void
 Excalibur.Dispatch.Validation.ValidationResult
 Excalibur.Dispatch.Validation.ValidationResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Validation.ValidationError!>!
 Excalibur.Dispatch.Validation.ValidationResult.Errors.init -> void

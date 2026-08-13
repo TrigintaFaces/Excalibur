@@ -13,6 +13,18 @@ using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+// Aliased rather than imported wholesale: Excalibur.Dispatch.Validation also declares a ValidationError,
+// and an unqualified reference in this file must keep resolving to the middleware's own type.
+using AbstractionsValidationError = Excalibur.Dispatch.Validation.ValidationError;
+
+// Explicit, because System.ComponentModel.DataAnnotations (imported above for the attribute validator)
+// also declares a ValidationException. An unqualified reference binds to THAT one, which carries no
+// per-property errors and no ProblemDetails projection -- so the framework's own validation exception
+// has to be named outright.
+using ValidationException = Excalibur.Dispatch.Exceptions.ValidationException;
+using IValidate = Excalibur.Dispatch.Validation.IValidate;
+using IValidatorResolver = Excalibur.Dispatch.Validation.IValidatorResolver;
 // Common namespace is deprecated - using Messaging.Abstractions instead
 
 namespace Excalibur.Dispatch.Middleware.Validation;
@@ -44,6 +56,14 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 
 	private readonly IMessageValidationService _validationService;
 
+	private readonly IValidatorResolver _validatorResolver;
+
+	/// <summary>
+	/// Stands in for a validation source that reported failure without supplying any error detail.
+	/// </summary>
+	private const string ValidationRejectedWithoutDetailMessage =
+		"The message was rejected by a validator that reported no specific error.";
+
 	private readonly ILogger<ValidationMiddleware> _logger;
 
 	/// <summary>
@@ -52,18 +72,26 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	/// </summary>
 	/// <param name="options"> Configuration options for validation. </param>
 	/// <param name="validationService"> Service for performing message validation. </param>
+	/// <param name="validatorResolver">
+	/// Resolves the validator registered for the message type, if any. Supplied by
+	/// <c>AddDispatchValidation()</c>, which registers a no-op resolver by default and is replaced by
+	/// <c>WithFluentValidation()</c> and friends.
+	/// </param>
 	/// <param name="logger"> Logger for diagnostic information. </param>
 	public ValidationMiddleware(
 		IOptions<ValidationOptions> options,
 		IMessageValidationService validationService,
+		IValidatorResolver validatorResolver,
 		ILogger<ValidationMiddleware> logger)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(validationService);
+		ArgumentNullException.ThrowIfNull(validatorResolver);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_options = options.Value;
 		_validationService = validationService;
+		_validatorResolver = validatorResolver;
 		_logger = logger;
 	}
 
@@ -128,6 +156,15 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 						message.GetType().Name,
 						": ",
 						errorSummary));
+
+				// Carry the errors per property, not only flattened into the message. ValidationException
+				// projects this dictionary into the RFC 9457 "errors" extension, but only when it is
+				// non-empty -- so leaving it unpopulated silently downgrades a field-level validation
+				// failure to an opaque string, and the caller cannot tell which field was rejected.
+				foreach (var error in validationResult.Errors)
+				{
+					_ = exception.AddError(error.PropertyName, error.ErrorMessage);
+				}
 
 				var detailedErrors = _logger.IsEnabled(LogLevel.Warning)
 					? BuildDetailedErrorSummary(validationResult.Errors)
@@ -253,14 +290,39 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	{
 		var errors = new List<ValidationError>();
 
-		// Perform Data Annotations validation if enabled
+		// Every source ACCUMULATES; none of them short-circuits another. A message carrying both a
+		// registered validator and [Required] attributes is subject to both, which is how ASP.NET Core
+		// model validation and Microsoft.Extensions.Validation behave. Short-circuiting here would mean
+		// that registering a single FluentValidation validator silently disabled every annotation on
+		// the message -- a failure the author would never see, because it presents as "validation passed".
+		if (_options.UseCustomValidation)
+		{
+			// 1. The registered validator, if the resolver claims this message type.
+			var resolved = _validatorResolver.TryValidate(message);
+			if (resolved is { IsValid: false })
+			{
+				AddOrSubstitute(errors, MapResolverErrors(resolved.Errors));
+			}
+
+			// 2. Self-validating messages.
+			if (message is IValidate validatable)
+			{
+				var selfValidation = validatable.Validate();
+				if (selfValidation is { IsValid: false })
+				{
+					AddOrSubstitute(errors, MapAbstractionErrors(selfValidation.Errors));
+				}
+			}
+		}
+
+		// 3. Declarative annotations.
 		if (_options.UseDataAnnotations)
 		{
 			var dataAnnotationErrors = ValidateWithDataAnnotations(message);
 			errors.AddRange(dataAnnotationErrors);
 		}
 
-		// Perform custom validation using validation service
+		// 4. The pluggable validation service, retained so an existing IMessageValidationService keeps working.
 		if (_options.UseCustomValidation)
 		{
 			var customValidationResult = await _validationService
@@ -276,6 +338,77 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		}
 
 		return new MessageValidationResult(errors.Count == 0, errors);
+	}
+
+	/// <summary>
+	/// Appends a source's mapped errors, substituting a placeholder when a source reported failure but
+	/// supplied nothing to report.
+	/// </summary>
+	/// <param name="errors"> The accumulating error list. </param>
+	/// <param name="mapped"> The errors mapped from one validation source. </param>
+	/// <remarks>
+	/// A validation source that says "invalid" while producing no error detail must not be able to let the
+	/// message through: <see cref="IValidatorResolver"/> and <see cref="IValidate"/> are public extension
+	/// points, so a third-party implementation can return that combination. Dropping it would fail OPEN --
+	/// a validator would have rejected the message and the pipeline would dispatch it anyway.
+	/// </remarks>
+	private static void AddOrSubstitute(List<ValidationError> errors, IEnumerable<ValidationError> mapped)
+	{
+		var countBefore = errors.Count;
+		errors.AddRange(mapped);
+
+		if (errors.Count == countBefore)
+		{
+			errors.Add(new ValidationError(string.Empty, ValidationRejectedWithoutDetailMessage));
+		}
+	}
+
+	/// <summary>
+	/// Maps the loosely-typed errors an <see cref="IValidatorResolver"/> produces onto the middleware's
+	/// error type.
+	/// </summary>
+	/// <param name="resolverErrors"> The errors reported by the resolver. </param>
+	/// <returns> The mapped errors; entries of an unrecognised type are rendered via <c>ToString</c>. </returns>
+	/// <remarks>
+	/// <see cref="Excalibur.Dispatch.Validation.IValidationResult.Errors"/> is a collection of
+	/// <see cref="object"/>, so the element type is not guaranteed. The shipped resolvers all emit
+	/// <see cref="AbstractionsValidationError"/>; anything else is still surfaced rather than dropped,
+	/// because silently discarding an error would report a message as valid when a validator rejected it.
+	/// </remarks>
+	private static IEnumerable<ValidationError> MapResolverErrors(IReadOnlyCollection<object> resolverErrors)
+	{
+		foreach (var error in resolverErrors)
+		{
+			if (error is AbstractionsValidationError typed)
+			{
+				yield return new ValidationError(typed.PropertyName ?? string.Empty, typed.Message);
+			}
+			else if (error is not null)
+			{
+				yield return new ValidationError(string.Empty, error.ToString() ?? string.Empty);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Maps the errors returned by a self-validating message onto the middleware's error type.
+	/// </summary>
+	/// <param name="abstractionErrors"> The errors reported by <see cref="IValidate.Validate"/>. </param>
+	/// <returns> The mapped errors. </returns>
+	/// <remarks>
+	/// A null <see cref="AbstractionsValidationError.PropertyName"/> becomes an empty key, matching how
+	/// ASP.NET Core's ModelState represents an error that belongs to the object rather than to one field.
+	/// </remarks>
+	private static IEnumerable<ValidationError> MapAbstractionErrors(
+		IReadOnlyList<AbstractionsValidationError> abstractionErrors)
+	{
+		foreach (var error in abstractionErrors)
+		{
+			if (error is not null)
+			{
+				yield return new ValidationError(error.PropertyName ?? string.Empty, error.Message);
+			}
+		}
 	}
 
 	/// <summary>

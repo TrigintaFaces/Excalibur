@@ -378,12 +378,6 @@ public sealed class PatternsEventIdShould
 	// ========================================
 
 	[Fact]
-	public void HaveDefaultValidationServiceCreatedInRange()
-	{
-		PatternsEventId.DefaultValidationServiceCreated.ShouldBe(90600);
-	}
-
-	[Fact]
 	public void HaveProfileSpecificValidationExecutingInRange()
 	{
 		PatternsEventId.ProfileSpecificValidationExecuting.ShouldBe(90601);

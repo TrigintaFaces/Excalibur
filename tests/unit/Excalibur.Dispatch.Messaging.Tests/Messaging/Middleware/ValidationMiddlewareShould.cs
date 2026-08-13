@@ -16,6 +16,14 @@ using Microsoft.Extensions.Options;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 
+// System.ComponentModel.DataAnnotations (imported above for the attribute-validation fixtures) also
+// declares a ValidationException. An unqualified reference in this file must keep resolving to the
+// framework's own exception type -- the one ValidationMiddleware actually throws -- not the
+// DataAnnotations one, exactly as ValidationMiddleware.cs itself aliases it.
+using ValidationException = Excalibur.Dispatch.Exceptions.ValidationException;
+using IValidatorResolver = Excalibur.Dispatch.Validation.IValidatorResolver;
+using NoOpValidatorResolver = Excalibur.Dispatch.Validation.NoOpValidatorResolver;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
 /// <summary>
@@ -31,6 +39,7 @@ public sealed class ValidationMiddlewareShould
 {
 	private readonly ILogger<ValidationMiddleware> _logger;
 	private readonly IMessageValidationService _validationService;
+	private readonly IValidatorResolver _validatorResolver;
 	private readonly IMessageContext _context;
 	private readonly IDictionary<string, object> _contextItems;
 	private readonly DispatchRequestDelegate _successDelegate;
@@ -39,6 +48,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		_logger = A.Fake<ILogger<ValidationMiddleware>>();
 		_validationService = A.Fake<IMessageValidationService>();
+		_validatorResolver = new NoOpValidatorResolver();
 		_context = A.Fake<IMessageContext>();
 
 		_ = A.CallTo(() => _context.MessageId).Returns("test-message-id");
@@ -58,7 +68,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new ValidationMiddleware(null!, _validationService, _logger));
+			new ValidationMiddleware(null!, _validationService, _validatorResolver, _logger));
 	}
 
 	[Fact]
@@ -69,7 +79,18 @@ public sealed class ValidationMiddlewareShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new ValidationMiddleware(options, null!, _logger));
+			new ValidationMiddleware(options, null!, _validatorResolver, _logger));
+	}
+
+	[Fact]
+	public void ThrowArgumentNullException_WhenValidatorResolverIsNull()
+	{
+		// Arrange
+		var options = MsOptions.Create(new ValidationOptions());
+
+		// Act & Assert
+		_ = Should.Throw<ArgumentNullException>(() =>
+			new ValidationMiddleware(options, _validationService, null!, _logger));
 	}
 
 	[Fact]
@@ -80,7 +101,7 @@ public sealed class ValidationMiddlewareShould
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new ValidationMiddleware(options, _validationService, null!));
+			new ValidationMiddleware(options, _validationService, _validatorResolver, null!));
 	}
 
 	#endregion
@@ -92,7 +113,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions());
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 
 		// Assert
 		middleware.Stage.ShouldBe(DispatchMiddlewareStage.Validation);
@@ -103,7 +124,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions());
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 
 		// Assert
 		middleware.ApplicableMessageKinds.ShouldBe(MessageKinds.Action | MessageKinds.Event);
@@ -118,7 +139,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions());
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
@@ -130,7 +151,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions());
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act & Assert
@@ -143,7 +164,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions());
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act & Assert
@@ -160,7 +181,7 @@ public sealed class ValidationMiddlewareShould
 	{
 		// Arrange
 		var options = MsOptions.Create(new ValidationOptions { Enabled = false });
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act
@@ -188,7 +209,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		_ = A.CallTo(() => _validationService.ValidateAsync(
@@ -218,7 +239,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		_ = A.CallTo(() => _validationService.ValidateAsync(
@@ -242,7 +263,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = false
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// Act
@@ -270,7 +291,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = true,
 			UseCustomValidation = false
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = new ValidTestMessage { Name = "Test", Value = 5 };
 
 		// Act
@@ -290,7 +311,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = true,
 			UseCustomValidation = false
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = new InvalidTestMessage { Name = null!, Value = -1 };
 
 		// Act & Assert
@@ -312,7 +333,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = true,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = new ValidTestMessage { Name = "Test", Value = 5 };
 
 		_ = A.CallTo(() => _validationService.ValidateAsync(
@@ -347,7 +368,7 @@ public sealed class ValidationMiddlewareShould
 			UseCustomValidation = true,
 			StopOnFirstError = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		_ = A.CallTo(() => _validationService.ValidateAsync(
@@ -382,7 +403,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// GetItem<object>("TenantId") is an extension method reading from Items dictionary.
@@ -416,7 +437,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// GetItem<object>("UserId") is an extension method reading from Items dictionary.
@@ -449,7 +470,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		// CorrelationId is a direct property on IMessageContext, not from Items
@@ -486,7 +507,7 @@ public sealed class ValidationMiddlewareShould
 			UseDataAnnotations = false,
 			UseCustomValidation = true
 		});
-		var middleware = new ValidationMiddleware(options, _validationService, _logger);
+		var middleware = new ValidationMiddleware(options, _validationService, _validatorResolver, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
 		_ = A.CallTo(() => _validationService.ValidateAsync(

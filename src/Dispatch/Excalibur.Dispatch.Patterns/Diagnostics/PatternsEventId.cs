@@ -230,8 +230,8 @@ public static class PatternsEventId
 	// 90600-90699: Validation Services
 	// ========================================
 
-	/// <summary>Default validation service created.</summary>
-	public const int DefaultValidationServiceCreated = 90600;
+	// 90600 was DefaultValidationServiceCreated, retired with the service it named. The number is left
+	// unused rather than reassigned, so it cannot collide with the meaning it carries in existing logs.
 
 	/// <summary>Profile-specific validation middleware executing.</summary>
 	public const int ProfileSpecificValidationExecuting = 90601;

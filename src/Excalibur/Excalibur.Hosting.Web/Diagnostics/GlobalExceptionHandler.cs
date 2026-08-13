@@ -18,6 +18,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using DispatchValidationException = Excalibur.Dispatch.Exceptions.ValidationException;
 using ValidationException = FluentValidation.ValidationException;
 
 namespace Excalibur.Hosting.Web.Diagnostics;
@@ -183,9 +184,28 @@ public partial class GlobalExceptionHandler : IExceptionHandler
 			Extensions = { ["traceId"] = traceId },
 		};
 
-		if (exception is ValidationException validationException && validationException.Errors?.Any() == true)
+		// The dispatch pipeline's own validation failure. Its per-property errors are already shaped like
+		// ValidationProblemDetails.Errors, so they go under the RFC 9457 member name that ASP.NET Core
+		// clients -- and Angular/fetch callers reading response.errors -- already expect.
+		if (exception is DispatchValidationException dispatchValidationException
+			&& dispatchValidationException.ValidationErrors.Count > 0)
 		{
-			problemDetails.Extensions["validationErrors"] = validationException.Errors;
+			problemDetails.Extensions["errors"] = dispatchValidationException.ValidationErrors;
+		}
+		else if (exception is ValidationException validationException && validationException.Errors?.Any() == true)
+		{
+			// A FluentValidation exception thrown directly by consumer code rather than raised through the
+			// dispatch pipeline. Projected onto the same dictionary shape, under the same member, so a
+			// client reads per-field errors identically regardless of which path rejected the request.
+			// The raw failure objects are deliberately NOT surfaced: they are not part of the serializer's
+			// declared type graph, so writing them throws NotSupportedException under source-generated
+			// JSON and the handler fails instead of responding.
+			problemDetails.Extensions["errors"] = validationException.Errors
+				.GroupBy(failure => failure.PropertyName ?? string.Empty, StringComparer.Ordinal)
+				.ToDictionary(
+					group => group.Key,
+					group => group.Select(failure => failure.ErrorMessage).ToArray(),
+					StringComparer.Ordinal);
 		}
 
 		if (!_env.IsDevelopment() && statusCode >= 500)

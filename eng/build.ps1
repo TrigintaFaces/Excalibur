@@ -125,6 +125,73 @@ try {
 
     if (-not (Test-Path $Project)) { throw "Project or solution not found: $Project" }
 
+    # ---------------------------------------------------------------------------------------------
+    # Provision the pinned SDK before anything invokes dotnet.
+    #
+    # global.json pins an exact version with rollForward disabled, which is what makes a locked-mode
+    # restore reproducible: the SDK decides the version of the packs it injects, so an SDK that moves
+    # silently invalidates every lock file. Pinning without provisioning only moves the problem --
+    # the machine that lacks that exact SDK gets "A compatible .NET SDK was not found" and cannot
+    # build at all. That is not hypothetical: a routine update replaced the pinned SDK on a working
+    # machine the day after it was pinned.
+    #
+    # So the pin and the acquisition are one mechanism. If the pinned SDK is absent, install it into
+    # a repository-local .dotnet and put that first on PATH. Nothing outside the repository is
+    # touched: no system install, no machine-wide version change, and the directory is ignored.
+    # ---------------------------------------------------------------------------------------------
+    function Initialize-PinnedSdk {
+        param([string]$RepoRoot)
+
+        $globalJsonPath = Join-Path $RepoRoot 'global.json'
+        if (-not (Test-Path $globalJsonPath)) { return }
+
+        $pinned = (Get-Content $globalJsonPath -Raw | ConvertFrom-Json).sdk.version
+        if (-not $pinned) { return }
+
+        # `dotnet --list-sdks` is the authority on what is present. Parsing its output is the only
+        # way to ask "is THIS exact version here", which is the question rollForward:disable asks.
+        $installed = @()
+        if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+            $installed = & dotnet --list-sdks 2>$null | ForEach-Object { ($_ -split ' ')[0] }
+        }
+
+        if ($installed -contains $pinned) { return }
+
+        $localRoot = Join-Path $RepoRoot '.dotnet'
+        $localSdk = Join-Path $localRoot "sdk/$pinned"
+        if (-not (Test-Path $localSdk)) {
+            Write-Host "==> pinned .NET SDK $pinned not found; installing it to .dotnet (repository-local)"
+            $installer = Join-Path ([System.IO.Path]::GetTempPath()) "dotnet-install-$pinned"
+
+            if ($IsWindows) {
+                $installer += '.ps1'
+                Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer -UseBasicParsing
+                & $installer -Version $pinned -InstallDir $localRoot -NoPath
+            }
+            else {
+                $installer += '.sh'
+                Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.sh' -OutFile $installer -UseBasicParsing
+                & chmod +x $installer
+                & $installer --version $pinned --install-dir $localRoot --no-path
+            }
+
+            # Captured immediately; anything between the call and this read replaces it.
+            $code = $LASTEXITCODE
+            if ($code -ne 0) { throw "dotnet-install failed for SDK $pinned (exited $code)" }
+        }
+
+        if (-not (Test-Path $localSdk)) {
+            throw "SDK $pinned was not present under $localRoot after install. Refusing to continue: a build against a different SDK is what global.json exists to prevent."
+        }
+
+        $env:PATH = "$localRoot$([System.IO.Path]::PathSeparator)$env:PATH"
+        $env:DOTNET_ROOT = $localRoot
+        $env:DOTNET_MULTILEVEL_LOOKUP = '0'
+        Write-Host "==> using repository-local .NET SDK $pinned from .dotnet"
+    }
+
+    Initialize-PinnedSdk -RepoRoot $repoRoot
+
     $artifacts = Join-Path $repoRoot 'artifacts'
     $commonArgs = @('--verbosity', $Verbosity)
     if ($CI) { $commonArgs += '-p:ContinuousIntegrationBuild=true' }

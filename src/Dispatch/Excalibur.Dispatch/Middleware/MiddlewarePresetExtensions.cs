@@ -86,6 +86,12 @@ public static class MiddlewarePresetExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
+		// The middleware requires a resolver and a validation service. Presets do not call
+		// AddDispatchValidation(), so supply the no-op defaults here directly. TryAdd is correct in both
+		// orders: a resolver/service registered earlier (e.g. by WithFluentValidation()) suppresses these
+		// lines, and one registered later wins on last-registration.
+		builder.Services.TryAddSingleton<IValidatorResolver, NoOpValidatorResolver>();
+		builder.Services.TryAddSingleton<IMessageValidationService, NoOpValidationService>();
 		builder.Services.TryAddSingleton<ValidationMiddleware>();
 		_ = builder.UseMiddleware<ValidationMiddleware>();
 		return builder.UseExceptionMapping();
@@ -158,6 +164,12 @@ public static class MiddlewarePresetExtensions
 		});
 
 		// Add validation
+		// The middleware requires a resolver and a validation service. Presets do not call
+		// AddDispatchValidation(), so supply the no-op defaults here directly. TryAdd is correct in both
+		// orders: a resolver/service registered earlier (e.g. by WithFluentValidation()) suppresses these
+		// lines, and one registered later wins on last-registration.
+		builder.Services.TryAddSingleton<IValidatorResolver, NoOpValidatorResolver>();
+		builder.Services.TryAddSingleton<IMessageValidationService, NoOpValidationService>();
 		builder.Services.TryAddSingleton<ValidationMiddleware>();
 		_ = builder.UseMiddleware<ValidationMiddleware>();
 
@@ -236,6 +248,12 @@ public static class MiddlewarePresetExtensions
 		});
 
 		// Add validation
+		// The middleware requires a resolver and a validation service. Presets do not call
+		// AddDispatchValidation(), so supply the no-op defaults here directly. TryAdd is correct in both
+		// orders: a resolver/service registered earlier (e.g. by WithFluentValidation()) suppresses these
+		// lines, and one registered later wins on last-registration.
+		builder.Services.TryAddSingleton<IValidatorResolver, NoOpValidatorResolver>();
+		builder.Services.TryAddSingleton<IMessageValidationService, NoOpValidationService>();
 		builder.Services.TryAddSingleton<ValidationMiddleware>();
 		_ = builder.UseMiddleware<ValidationMiddleware>();
 

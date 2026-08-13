@@ -2208,7 +2208,7 @@ Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware
 Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.MessageKinds
 Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
-Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware.ValidationMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Middleware.ValidationOptions!>! options, Excalibur.Dispatch.Middleware.Validation.IMessageValidationService! validationService, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware!>! logger) -> void
+Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware.ValidationMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Middleware.ValidationOptions!>! options, Excalibur.Dispatch.Middleware.Validation.IMessageValidationService! validationService, Excalibur.Dispatch.Validation.IValidatorResolver! validatorResolver, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware!>! logger) -> void
 Excalibur.Dispatch.Middleware.Validation.ValidationPipelineExtensions
 Excalibur.Dispatch.Middleware.Versioning.ContractVersionAttribute
 Excalibur.Dispatch.Middleware.Versioning.ContractVersionAttribute.ContractVersionAttribute(string! version) -> void

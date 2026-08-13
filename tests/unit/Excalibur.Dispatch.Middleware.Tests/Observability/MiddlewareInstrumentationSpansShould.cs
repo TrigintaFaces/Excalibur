@@ -11,6 +11,10 @@ using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Telemetry;
 
+// Aliased, not wildcard-imported: Excalibur.Dispatch.Validation also declares a ValidationOptions,
+// distinct from Excalibur.Dispatch.Options.Middleware.ValidationOptions used below.
+using NoOpValidatorResolver = Excalibur.Dispatch.Validation.NoOpValidatorResolver;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -83,6 +87,7 @@ public sealed class MiddlewareInstrumentationSpansShould : IDisposable
 			new ValidationMiddleware(
 				Microsoft.Extensions.Options.Options.Create(new ValidationOptions()),
 				A.Fake<IMessageValidationService>(),
+				new NoOpValidatorResolver(),
 				NullLogger<ValidationMiddleware>.Instance),
 			DispatchTelemetryConstants.ActivitySources.ValidationMiddleware,
 			"ValidationMiddleware.Invoke");

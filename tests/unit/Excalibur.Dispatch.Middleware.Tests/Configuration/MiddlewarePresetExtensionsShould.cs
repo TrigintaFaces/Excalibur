@@ -170,5 +170,22 @@ public sealed class MiddlewarePresetExtensionsShould : UnitTestBase
 		validationRegistrations.ShouldBe(1);
 	}
 
+	[Fact]
+	public void UseValidationStack_MakesValidationMiddlewareResolvable_WithoutAddDispatchValidation()
+	{
+		// Arrange -- deliberately do NOT call AddDispatchValidation(); the preset itself must supply
+		// everything ValidationMiddleware's constructor requires, including the resolver parameter.
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		// Act -- the real preset registration path.
+		services.AddDispatch(builder => builder.UseValidationStack());
+		using var provider = services.BuildServiceProvider();
+		var middleware = provider.GetRequiredService<ValidationMiddleware>();
+
+		// Assert -- resolves without throwing.
+		middleware.ShouldNotBeNull();
+	}
+
 	#endregion
 }

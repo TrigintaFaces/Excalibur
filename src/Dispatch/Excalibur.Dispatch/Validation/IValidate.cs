@@ -15,8 +15,9 @@ namespace Excalibur.Dispatch.Validation;
 /// <item> Validation that depends on external state or services </item>
 /// <item> Performance-critical validation scenarios </item>
 /// </list>
-/// Self-validation is called by the validation middleware after declarative validation passes. Keep validation logic lightweight and avoid
-/// external dependencies where possible for better testability and performance.
+/// Self-validation is invoked by the validation middleware alongside the other validation sources rather than after them: every applicable
+/// source runs and its errors accumulate, so implementing this interface does not suppress the declarative attributes on the same message.
+/// Keep validation logic lightweight and avoid external dependencies where possible for better testability and performance.
 /// </remarks>
 /// <example>
 /// <code>
@@ -25,10 +26,10 @@ namespace Excalibur.Dispatch.Validation;
 /// public ValidationResult Validate()
 /// {
 /// if (Amount &lt;= 0)
-/// return SerializableValidationResult.Failed("Amount must be greater than zero");
+/// return ValidationResult.Failure("Amount must be greater than zero");
 ///
 /// if (string.IsNullOrWhiteSpace(Currency))
-/// return SerializableValidationResult.Failed("Currency is required");
+/// return ValidationResult.Failure("Currency is required");
 ///
 /// return ValidationResult.Success();
 /// }

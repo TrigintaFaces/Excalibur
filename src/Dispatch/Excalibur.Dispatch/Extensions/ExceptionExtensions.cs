@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
+using Excalibur.Dispatch.Exceptions;
+
 namespace Excalibur.Dispatch.Extensions;
 
 /// <summary>
@@ -97,6 +99,16 @@ public static class ExceptionExtensions
 	public static int? GetStatusCode(this Exception exception)
 	{
 		ArgumentNullException.ThrowIfNull(exception);
+
+		// A DispatchException resolves its own status, and that answer outranks reflection. Reflection
+		// looks for a property literally named "StatusCode" and therefore finds the inherited
+		// ApiException.StatusCode default, which silently beats the more specific DispatchStatusCode --
+		// so a ValidationException declaring 400 was reported as 500. This mirrors the precedence the
+		// exception already applies in its own ToProblemDetails().
+		if (exception is DispatchException { DispatchStatusCode: { } dispatchStatusCode })
+		{
+			return dispatchStatusCode;
+		}
 
 		// Check for StatusCode property using cached reflection
 		var statusCode = GetPropertyValue<int?>(exception, StatusCodeKey, StatusCodePropertyCache);
