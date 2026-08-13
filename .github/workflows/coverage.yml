@@ -471,6 +471,15 @@ jobs:
         with:
           ref: ${{ inputs.checkout-ref }}
 
+      - name: Setup .NET
+        # This job runs `dotnet tool restore`, which needs an SDK that satisfies global.json. The
+        # runner's preinstalled SDKs do not, and the pin uses rollForward: disable, so without this
+        # step the muxer resolves nothing and the tool restore exits 155 before any coverage work
+        # begins. Reading global.json rather than naming a version keeps this in step with the pin.
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
       - name: Download coverage artifacts (all shards)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
