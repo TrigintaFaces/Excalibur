@@ -66,6 +66,70 @@ public sealed class ProfileCriticalityReachabilityShould
 
 	private static ServiceProvider EmptyContainer() => new ServiceCollection().BuildServiceProvider();
 
+	/// <summary>Captures log records so a test can assert the level a message was written at.</summary>
+	private sealed class CapturingLoggerProvider : ILoggerProvider
+	{
+		public List<(LogLevel Level, string Message)> Records { get; } = [];
+
+		public ILogger CreateLogger(string categoryName) => new CapturingLogger(Records);
+
+		public void Dispose()
+		{
+		}
+
+		private sealed class CapturingLogger(List<(LogLevel Level, string Message)> records) : ILogger
+		{
+			public IDisposable? BeginScope<TState>(TState state)
+				where TState : notnull => null;
+
+			public bool IsEnabled(LogLevel logLevel) => true;
+
+			public void Log<TState>(
+				LogLevel logLevel,
+				EventId eventId,
+				TState state,
+				Exception? exception,
+				Func<TState, Exception?, string> formatter) =>
+				records.Add((logLevel, formatter(state, exception)));
+		}
+	}
+
+	/// <summary>
+	/// A skipped pipeline stage must be reported at Warning, not Debug.
+	/// </summary>
+	/// <remarks>
+	/// The omission is otherwise undetectable: the dispatch succeeds, nothing throws, and the stage simply
+	/// never runs. Debug is the one level at which that is invisible in every normal production
+	/// configuration, which is precisely where a silently-absent stage does its damage. This asserts the
+	/// level rather than merely that something was logged, because a message nobody sees is the defect.
+	/// </remarks>
+	[Fact]
+	public void ReportASkippedOptionalEntryAtWarningRatherThanDebug()
+	{
+		var profile = new PipelineProfile("skip-visibility", MessageKinds.All);
+		profile.AddMiddleware<UnregisteredSecurityMiddleware>(1, MiddlewareCriticality.Optional);
+
+		var capturing = new CapturingLoggerProvider();
+		var services = new ServiceCollection();
+		_ = services.AddLogging(logging =>
+		{
+			_ = logging.SetMinimumLevel(LogLevel.Trace);
+			_ = logging.AddProvider(capturing);
+		});
+
+		using var provider = services.BuildServiceProvider();
+		_ = new PipelineBuilder("skip-visibility", provider).UseProfile(profile).Build();
+
+		var skip = capturing.Records.FirstOrDefault(
+			record => record.Message.Contains(nameof(UnregisteredSecurityMiddleware), StringComparison.Ordinal));
+
+		skip.Message.ShouldNotBeNull("skipping a configured stage must be reported at all");
+		skip.Level.ShouldBe(
+			LogLevel.Warning,
+			"a configured stage that is not present changes what the pipeline does; at Debug the omission is "
+			+ "invisible in production, which is the condition that lets a stage go missing unnoticed");
+	}
+
 	/// <summary>
 	/// SAFETY. A profile that declares a middleware nothing can resolve must fail the build loudly.
 	/// </summary>

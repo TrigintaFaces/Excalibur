@@ -393,7 +393,13 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		public MiddlewareCriticality Criticality { get; } = criticality;
 	}
 
-	[LoggerMessage(CoreEventId.InvokerMiddlewareSkipped, LogLevel.Debug,
-		"Skipping configured pipeline middleware {MiddlewareType}: not registered in the service provider.")]
+	// Warning, not Debug. A configured pipeline stage that is not present changes what the pipeline
+	// does, and the omission is otherwise undetectable: the dispatch succeeds, nothing throws, and the
+	// stage simply never runs. Debug is the one level at which that goes unseen in every normal
+	// production configuration, which makes it the level at which this particular fact is useless.
+	// A deliberate omission costs one suppressible warning; an accidental one is now visible.
+	[LoggerMessage(CoreEventId.InvokerMiddlewareSkipped, LogLevel.Warning,
+		"Skipping configured pipeline middleware {MiddlewareType}: not registered in the service provider. "
+		+ "This stage will not run. Register it (for example via the matching Use* call) or remove it from the profile.")]
 	private static partial void LogPipelineMiddlewareSkipped(ILogger logger, string middlewareType);
 }

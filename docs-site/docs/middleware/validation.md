@@ -57,6 +57,21 @@ surfaced as `IMessageResult.IsSuccess == false`.
 
 ## Setup
 
+:::warning Call `UseValidation()` — registering a validator is not enough
+`UseValidation()` is what puts `ValidationMiddleware` into the pipeline. Registering a validator, or
+calling `WithFluentValidation()` on its own, gives the middleware something to call but never places the
+middleware anywhere — so nothing calls it.
+
+The failure is quiet. `ValidationMiddleware` appears in the default pipeline profile as an **optional**
+entry, which means a container that has not registered it drops that entry while building the pipeline
+and records the skip at `Debug` level. Under a normal production logging configuration nobody sees it.
+The symptom is that validators are constructed, resolve correctly, and are never invoked — invalid
+messages reach handlers and no error is reported anywhere.
+
+If you are unsure whether validation is live, assert it rather than infer it: resolve
+`ValidationMiddleware` from your built container in a test. If it does not resolve, it is not running.
+:::
+
 ### DataAnnotations (Zero Dependencies)
 
 DataAnnotations validation uses only `System.ComponentModel.DataAnnotations` from the BCL — no external packages required.
