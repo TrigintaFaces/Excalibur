@@ -52,3 +52,9 @@
 tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/Original/*.sql      text eol=lf
 tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/Edited/*.sql        text eol=lf
 tests/integration/Excalibur.Integration.Tests/Fixtures/MigrationDrift/OriginalCrlf/*.sql  text eol=crlf
+
+# Generated SPA build output is a COMMITTED ARTIFACT that CI rebuilds and compares byte-for-byte.
+# `text` alone normalises the blob but still checks out CRLF on Windows, so the working tree and the
+# blob disagree there — and a committed CRLF blob disagrees with every Linux checkout, which is a
+# drift no rebuild can fix. eol=lf pins both sides to the same bytes on every platform.
+src/Excalibur/Excalibur.Operations.Dashboard.Spa/wwwroot/**   text eol=lf

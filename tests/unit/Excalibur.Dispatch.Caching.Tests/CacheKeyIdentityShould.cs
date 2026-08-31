@@ -98,7 +98,7 @@ public sealed class CacheKeyIdentityShould : IDisposable
 
 	// ---------------------------------------------------------------- the serialized-action path
 
-	[Fact(Skip = "Excalibur.Dispatch-g8csbg. MEASURED RED at HEAD, not aspirational: two non-ICacheable actions differing only in a [JsonIgnore] member produce the identical key \"5C-g--sCAF1-eXMnofeZXkusuz7JaEc-nShAY-YxBps\" (DefaultCacheKeyBuilder.cs:109). Skipped for the same reason as the sibling arm above -- a standing red arm destroys the signal the rest of this suite carries. The sound fix is to DETECT that a complete identity cannot be derived and skip caching (return null), as ResolveBaseKey already does at :96 and :114: the builder treats serialized-without-throwing as identity-captured, when serialization is lossy on purpose. Do NOT un-skip without that fix.")]
+	[Fact]
 	public void DistinguishTwoActions_ThatDifferOnlyInStateTheSerializerCannotSee()
 	{
 		// SAFETY. The non-ICacheable branch keys on the serialized action. [JsonIgnore] state is excluded
@@ -121,9 +121,11 @@ public sealed class CacheKeyIdentityShould : IDisposable
 	[Fact]
 	public void ReuseOneEntry_ForTwoEquivalentSerializableActions()
 	{
-		// LIVENESS for the arm above: identical actions must still collapse onto one entry.
-		var first = _keyBuilder.CreateKey(new ReportQuery { Scope = "all", Viewer = "alice" }, NewContext());
-		var second = _keyBuilder.CreateKey(new ReportQuery { Scope = "all", Viewer = "alice" }, NewContext());
+		// LIVENESS for the arm above: identical actions must still collapse onto one entry. The fixture is
+		// deliberately NOT ReportQuery — that type is skipped now precisely because serialization cannot see
+		// all of it, so reusing it here would assert the defect rather than the liveness property.
+		var first = _keyBuilder.CreateKey(new PlainQuery { Scope = "all" }, NewContext());
+		var second = _keyBuilder.CreateKey(new PlainQuery { Scope = "all" }, NewContext());
 
 		first.ShouldNotBeNull("an ordinary serializable action must be cacheable");
 		first.ShouldBe(second!, "two equivalent actions must still hit the cache");
@@ -171,6 +173,11 @@ public sealed class CacheKeyIdentityShould : IDisposable
 		public string GetCacheKey() => SharedLogicalKey;
 
 		public bool ShouldCache(object? result) => true;
+	}
+
+	private sealed class PlainQuery : IDispatchAction<string>
+	{
+		public string Scope { get; init; } = string.Empty;
 	}
 
 	private sealed class ReportQuery : IDispatchAction<string>

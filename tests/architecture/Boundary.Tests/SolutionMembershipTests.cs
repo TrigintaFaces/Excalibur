@@ -141,7 +141,7 @@ public sealed class SolutionMembershipTests
 
     private IReadOnlyList<string> GetManifestExclusions()
     {
-        var manifestPath = Path.Combine(_repoRoot, "management", "governance", "project-manifest.yaml");
+        var manifestPath = Path.Combine(_repoRoot, "eng", "governance", "project-manifest.yaml");
 
         if (!File.Exists(manifestPath))
         {

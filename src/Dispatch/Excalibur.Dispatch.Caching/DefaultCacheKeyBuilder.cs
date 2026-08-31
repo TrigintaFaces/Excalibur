@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Features;
@@ -26,6 +29,9 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 {
 	private const int ReflectionFallbackEventId = 2550;
 	private const int SerializationFallbackEventId = 2551;
+	private const int IncompleteIdentityEventId = 2552;
+
+	private static readonly ConcurrentDictionary<Type, bool> LossyIdentityTypes = new();
 	private readonly ILogger<DefaultCacheKeyBuilder> _logger = logger ?? NullLogger<DefaultCacheKeyBuilder>.Instance;
 
 	/// <inheritdoc />
@@ -98,9 +104,20 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 			default:
 				// Not ICacheable: derive a content-stable key from serialization. Fail open — an unnamed or
 				// unserializable action yields null (skip) rather than failing the request.
-				var fullName = action.GetType().FullName;
+				var actionType = action.GetType();
+				var fullName = actionType.FullName;
 				if (fullName is null)
 				{
+					return null;
+				}
+
+				if (SerializationIsLossyForIdentity(actionType))
+				{
+					// Serialization cannot see all of this action's state, so a key derived from it would be
+					// shared by two actions that can produce different results. Skip caching for the same reason
+					// as the ReflectionFailed branch: never fabricate a key. An action in this shape opts back
+					// into caching by declaring ICacheable<T> and stating its own identity.
+					LogIncompleteIdentity(actionType.Name);
 					return null;
 				}
 
@@ -115,6 +132,34 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 				}
 		}
 	}
+
+	/// <summary>
+	/// Determines whether JSON serialization of <paramref name="type" /> omits state that could change the
+	/// result, which would make a serialization-derived cache key an incomplete identity.
+	/// </summary>
+	/// <remarks>
+	/// Three exclusions are treated as identity-losing, because each hides caller-supplied state from the
+	/// serialized form: a member marked <see cref="JsonIgnoreAttribute" /> (with any condition other than
+	/// <see cref="JsonIgnoreCondition.Never" />), a public property with no public getter, and a converter
+	/// declared on the type itself (its output is opaque here, so completeness cannot be established).
+	/// Non-public state is deliberately NOT treated as lossy: every auto-property has a private backing
+	/// field, so that test would disable caching for essentially every action.
+	/// </remarks>
+	/// <param name="type"> The runtime action type. </param>
+	/// <returns> <see langword="true" /> when a complete identity cannot be derived from serialization. </returns>
+	[RequiresUnreferencedCode("Inspects the action type's members to decide whether serialization captures its full identity")]
+	private static bool SerializationIsLossyForIdentity(Type type) =>
+		// The answer is a property of the TYPE, so it is resolved once per type — CreateKey is a hot path.
+		LossyIdentityTypes.GetOrAdd(
+			type,
+			static t => t.GetCustomAttribute<JsonConverterAttribute>(inherit: true) is not null
+				|| Array.Exists(
+					t.GetProperties(BindingFlags.Public | BindingFlags.Instance),
+					static p => p.GetCustomAttribute<JsonIgnoreAttribute>(inherit: true) is { Condition: not JsonIgnoreCondition.Never }
+						|| p.GetMethod is null or { IsPublic: false })
+				|| Array.Exists(
+					t.GetFields(BindingFlags.Public | BindingFlags.Instance),
+					static f => f.GetCustomAttribute<JsonIgnoreAttribute>(inherit: true) is { Condition: not JsonIgnoreCondition.Never }));
 
 	/// <summary>
 	/// Detects an <c>ICacheable&lt;T&gt;</c> implementation via reflection and invokes <c>GetCacheKey()</c>, handling
@@ -179,6 +224,10 @@ public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serial
 	[LoggerMessage(SerializationFallbackEventId, LogLevel.Debug,
 		"Serialization failed building a cache key for type {TypeName} ({ExceptionType}). Skipping caching (no cache key).")]
 	private partial void LogSerializationFallback(string typeName, string exceptionType);
+
+	[LoggerMessage(IncompleteIdentityEventId, LogLevel.Debug,
+		"Serialization cannot capture the full identity of type {TypeName} (ignored or non-serialized members). Skipping caching (no cache key).")]
+	private partial void LogIncompleteIdentity(string typeName);
 
 	private static string Hash(string input)
 	{

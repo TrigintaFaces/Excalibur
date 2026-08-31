@@ -274,10 +274,15 @@ jobs:
           dotnet restore tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --verbosity quiet
           dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true
 
+      # The filter selects by TYPE NAME, not by a Category trait. No test has ever declared
+      # Category=TransportConformance, so the previous filter matched zero tests and the
+      # assert-tests-executed guard REFUSED -- correctly, and invisibly, because this job runs only
+      # when core or performance code changes and was skipped on the runs where anyone looked.
+      # Type-name matching is what the standalone transport-conformance workflow already uses.
       - name: Run transport conformance suite
         run: |
           bash eng/ci/run-filtered-tests.sh \
-            --filter "Category=TransportConformance" -- \
+            --filter "FullyQualifiedName~TransportConformanceTests" -- \
             tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --configuration Release \
             --no-build \

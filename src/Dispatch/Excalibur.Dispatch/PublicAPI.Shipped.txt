@@ -575,6 +575,8 @@ Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.ExpectsResponse.get -> bool
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.HandlerType.get -> System.Type!
 Excalibur.Dispatch.Delivery.Handlers.IHandlerRegistryEntry.MessageType.get -> System.Type!
+Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectDispatchRegistry
+Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectTryGetMetadata
 Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry
 Excalibur.Dispatch.Delivery.ICronExpression
 Excalibur.Dispatch.Delivery.ICronExpression.Expression.get -> string!
@@ -983,6 +985,8 @@ Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.Skip.get -> int
 Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.Skip.set -> void
 Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.SourceQueue.get -> string?
 Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.SourceQueue.set -> void
+Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.Take.get -> int
+Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.Take.set -> void
 Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.ToDate.get -> System.DateTimeOffset?
 Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.ToDate.set -> void
 Excalibur.Dispatch.ErrorHandling.DeadLetterReason
@@ -1007,6 +1011,7 @@ Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue.GetEntriesAsync(System.Threadi
 Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue.GetEntryAsync(System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ErrorHandling.DeadLetterEntry?>!
 Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue.ReplayAsync(System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.ErrorHandling.IDeadLetterQueueAdmin
+Excalibur.Dispatch.ErrorHandling.IDeadLetterQueueAdmin.GetAllTenantsEntriesAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter? filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.ErrorHandling.DeadLetterEntry!>!>!
 Excalibur.Dispatch.ErrorHandling.IDeadLetterQueueAdmin.GetAllTenantsEntryAsync(System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ErrorHandling.DeadLetterEntry?>!
 Excalibur.Dispatch.ErrorHandling.IDeadLetterQueueAdmin.PurgeAllTenantsEntriesOlderThanAsync(System.TimeSpan olderThan, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Dispatch.ErrorHandling.IDeadLetterQueueAdmin.PurgeAsync(System.Guid entryId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -1219,6 +1224,10 @@ Excalibur.Dispatch.Exceptions.ForbiddenException.ForbiddenException(string! reso
 Excalibur.Dispatch.Exceptions.ForbiddenException.Operation.get -> string?
 Excalibur.Dispatch.Exceptions.ForbiddenException.RequiredPermission.get -> string?
 Excalibur.Dispatch.Exceptions.ForbiddenException.Resource.get -> string?
+Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException
+Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException.HandlerNotRegisteredException() -> void
+Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException.HandlerNotRegisteredException(string! message) -> void
+Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException.HandlerNotRegisteredException(string! message, System.Exception! innerException) -> void
 Excalibur.Dispatch.Exceptions.MessagingException
 Excalibur.Dispatch.Exceptions.MessagingException.MessageId.get -> string?
 Excalibur.Dispatch.Exceptions.MessagingException.MessageId.set -> void
@@ -1924,6 +1933,7 @@ Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlerMiddleware
 Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlerMiddleware.InvokeAsync(Excalibur.Dispatch.IDispatchMessage! message, Excalibur.Dispatch.IMessageContext! context, Excalibur.Dispatch.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.IMessageResult!>
 Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlerMiddleware.Stage.get -> Excalibur.Dispatch.DispatchMiddlewareStage?
 Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlerMiddleware.TypedExceptionHandlerMiddleware(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlerMiddleware!>! logger) -> void
+Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlingPipelineExtensions
 Excalibur.Dispatch.Middleware.Inbox.IMessageEnvelope
 Excalibur.Dispatch.Middleware.Inbox.IMessageEnvelope.MessageId.get -> string!
 Excalibur.Dispatch.Middleware.Inbox.InboxMiddleware
@@ -2471,10 +2481,10 @@ Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions.MaxEntries.set -> void
 Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions.RetentionPeriod.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Delivery.InMemoryInboxOptions.RetentionPeriod.set -> void
 Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions
-Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.EnableBatchDatabaseOperations.get -> bool
-Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.EnableBatchDatabaseOperations.set -> void
 Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.BatchProcessingTimeout.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.BatchProcessingTimeout.set -> void
+Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.EnableBatchDatabaseOperations.get -> bool
+Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.EnableBatchDatabaseOperations.set -> void
 Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.EnableDynamicBatchSizing.get -> bool
 Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.EnableDynamicBatchSizing.set -> void
 Excalibur.Dispatch.Options.Delivery.InboxBatchTuningOptions.InboxBatchTuningOptions() -> void
@@ -2552,6 +2562,8 @@ Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MaxAttempts.get -> int
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MaxAttempts.set -> void
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MaxPayloadBytes.get -> int?
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MaxPayloadBytes.set -> void
+Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MessageTypes.get -> System.Collections.Generic.IList<System.Type!>!
+Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MessageTypes.set -> void
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.OutboxDeliveryOptions() -> void
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.PerRunTotal.get -> int
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.PerRunTotal.set -> void
@@ -2564,6 +2576,7 @@ Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.SingleActiveWriter.set
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithBatchSize(int producerBatchSize, int? consumerBatchSize = null) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithDeliveryGuarantee(Excalibur.Dispatch.Options.Delivery.OutboxDeliveryGuarantee guarantee) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithMaxAttempts(int maxAttempts) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
+Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithMessageTypes(params System.Type![]! messageTypes) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithParallelDegree(int degree) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
 Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithTimeout(System.TimeSpan timeout) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
 Excalibur.Dispatch.Options.ErrorHandling.PoisonMessageAlertingOptions
@@ -3625,6 +3638,7 @@ Excalibur.Dispatch.Serialization.MigrationOptions.MaxConsecutiveFailures.set -> 
 Excalibur.Dispatch.Serialization.MigrationOptions.MigrationOptions() -> void
 Excalibur.Dispatch.Serialization.PayloadSerializer
 Excalibur.Dispatch.Serialization.PayloadSerializer.Deserialize<T>(byte[]! data) -> T
+Excalibur.Dispatch.Serialization.PayloadSerializer.DeserializeObject(byte[]! data, System.Type! type) -> object!
 Excalibur.Dispatch.Serialization.PayloadSerializer.DeserializeTransportMessage<T>(byte[]! data) -> T
 Excalibur.Dispatch.Serialization.PayloadSerializer.GetCurrentSerializerId() -> byte
 Excalibur.Dispatch.Serialization.PayloadSerializer.GetCurrentSerializerName() -> string!
@@ -4384,6 +4398,7 @@ static Excalibur.Dispatch.Configuration.DefaultPipelineProfiles.CreateStrictProf
 static Excalibur.Dispatch.Configuration.DefaultPipelineProfiles.RegisterDefaultProfiles(Excalibur.Dispatch.IPipelineProfileRegistry! registry) -> void
 static Excalibur.Dispatch.Configuration.DispatchBuilderExtensions.AddHandlersFromAssembly(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient, bool registerWithContainer = true) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Configuration.DispatchBuilderExtensions.AddHandlersFromAssembly(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, params System.Reflection.Assembly![]! assemblies) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Configuration.DispatchBuilderExtensions.AddHandlersFromEntryAssembly(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Configuration.DispatchBuilderExtensions.AddPipeline(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, string! profileName, System.Action<Excalibur.Dispatch.IPipelineBuilder!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Configuration.DispatchBuilderOptionsExtensions.WithConsumer(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Options.Configuration.ConsumerOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Configuration.DispatchBuilderOptionsExtensions.WithInbox(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions!>! configure) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
@@ -4426,6 +4441,8 @@ static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.implicit oper
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.implicit operator Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>(TResult value) -> Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.operator !=(Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult> left, Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult> right) -> bool
 static Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult>.operator ==(Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult> left, Excalibur.Dispatch.Delivery.Handlers.HandlerResult<TResult> right) -> bool
+static Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectDispatchRegistry.FromCompletedResult<TResult>(System.Threading.Tasks.Task<TResult>! task) -> System.Threading.Tasks.ValueTask<object?>
+static Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectDispatchRegistry.Register(System.Func<System.Type!, bool>! canHandle, Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectTryGetMetadata! tryGetMetadata, System.Func<Excalibur.Dispatch.IDispatchAction!, System.IServiceProvider!, Excalibur.Dispatch.IMessageContext?, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<object?>>! invoke) -> void
 static Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry.RegisterFactory<T>() -> void
 static Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.operator !=(Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!> left, Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!> right) -> bool
 static Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage>.operator ==(Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!> left, Excalibur.Dispatch.Delivery.MessageEnvelopeHandle<TMessage!> right) -> bool
@@ -4496,6 +4513,8 @@ static Excalibur.Dispatch.Extensions.ConfigureOptionsExtensions.ConfigureNamedOp
 static Excalibur.Dispatch.Extensions.ConfigureOptionsExtensions.ConfigureOptions<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<T!>? configure, System.Action<T!>! defaults) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Dispatch.Extensions.ConfigureOptionsExtensions.ConfigureOptionsWithDeepClone<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<T!>? configure, System.Action<T!>! defaults) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Excalibur.Dispatch.Extensions.ConfigureOptionsExtensions.ConfigureOptionsWithValidation<T>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<T!>? configure, System.Action<T!>! defaults, System.Func<T!, string?>! validate) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Extensions.ExceptionExtensions.GetErrorCode(this System.Exception! exception) -> string?
+static Excalibur.Dispatch.Extensions.ExceptionExtensions.GetErrorCodeOrDefault(this System.Exception! exception, string! defaultValue) -> string!
 static Excalibur.Dispatch.Extensions.ExceptionExtensions.GetStatusCode(this System.Exception! exception) -> int?
 static Excalibur.Dispatch.Extensions.ExceptionExtensions.GetStatusCodeOrDefault(this System.Exception! exception, int defaultValue = 500) -> int
 static Excalibur.Dispatch.Extensions.ExceptionExtensions.HasErrorCode(this System.Exception! exception) -> bool
@@ -4589,6 +4608,7 @@ static Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult.NotHan
 static Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult.operator !=(Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult left, Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult right) -> bool
 static Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult.operator ==(Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult left, Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionHandlerResult right) -> bool
 static Excalibur.Dispatch.Middleware.ErrorHandling.ExceptionMappingPipelineExtensions.UseExceptionMapping(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlingPipelineExtensions.UseTypedExceptionHandling(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Middleware.Inbox.InboxPipelineExtensions.UseIdempotency(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Middleware.Inbox.InboxPipelineExtensions.UseInbox(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
 static Excalibur.Dispatch.Middleware.Logging.AuditLoggingPipelineExtensions.UseAuditLogging(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
@@ -4719,6 +4739,7 @@ static Microsoft.Extensions.DependencyInjection.DispatchCoreHealthChecksBuilderE
 static Microsoft.Extensions.DependencyInjection.DispatchCoreHealthChecksBuilderExtensions.AddStreamingHandlerHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "streaming-handler", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
 static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Configuration.IDispatchBuilder!>? configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]? assembliesToScan) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatchHandlers(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatchHandlers(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params System.Reflection.Assembly![]? assembliesToScan) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatchMiddleware<TMiddleware>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatchPipeline(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -4854,23 +4875,3 @@ virtual Excalibur.Dispatch.Routing.LoadBalancing.RouteHealthMonitor.Dispose(bool
 virtual Excalibur.Dispatch.Transport.DefaultMessageMapper.CopyTransportProperties(Excalibur.Dispatch.Transport.ITransportMessageContext! source, Excalibur.Dispatch.Transport.TransportMessageContext! target) -> void
 virtual Excalibur.Dispatch.Transport.DefaultMessageMapper.CreateTargetContext(string! messageId, string! targetTransport) -> Excalibur.Dispatch.Transport.TransportMessageContext!
 virtual Excalibur.Dispatch.Transport.DefaultMessageMapper.Map(Excalibur.Dispatch.Transport.ITransportMessageContext! source, string! targetTransportName) -> Excalibur.Dispatch.Transport.ITransportMessageContext!
-Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectDispatchRegistry
-Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectTryGetMetadata
-Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException
-Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException.HandlerNotRegisteredException() -> void
-Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException.HandlerNotRegisteredException(string! message) -> void
-Excalibur.Dispatch.Exceptions.HandlerNotRegisteredException.HandlerNotRegisteredException(string! message, System.Exception! innerException) -> void
-Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlingPipelineExtensions
-Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MessageTypes.get -> System.Collections.Generic.IList<System.Type!>!
-Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.MessageTypes.set -> void
-Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions.WithMessageTypes(params System.Type![]! messageTypes) -> Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions!
-Excalibur.Dispatch.Serialization.PayloadSerializer.DeserializeObject(byte[]! data, System.Type! type) -> object!
-static Excalibur.Dispatch.Configuration.DispatchBuilderExtensions.AddHandlersFromEntryAssembly(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectDispatchRegistry.Register(System.Func<System.Type!, bool>! canHandle, Excalibur.Dispatch.Delivery.Handlers.PrecompiledDirectTryGetMetadata! tryGetMetadata, System.Func<Excalibur.Dispatch.IDispatchAction!, System.IServiceProvider!, Excalibur.Dispatch.IMessageContext?, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<object?>>! invoke) -> void
-static Excalibur.Dispatch.Middleware.ErrorHandling.TypedExceptionHandlingPipelineExtensions.UseTypedExceptionHandling(this Excalibur.Dispatch.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Configuration.IDispatchBuilder!
-static Microsoft.Extensions.DependencyInjection.DispatchServiceCollectionExtensions.AddDispatchHandlers(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Excalibur.Dispatch.Extensions.ExceptionExtensions.GetErrorCode(this System.Exception! exception) -> string?
-static Excalibur.Dispatch.Extensions.ExceptionExtensions.GetErrorCodeOrDefault(this System.Exception! exception, string! defaultValue) -> string!
-Excalibur.Dispatch.ErrorHandling.IDeadLetterQueueAdmin.GetAllTenantsEntriesAsync(Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter? filter, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.ErrorHandling.DeadLetterEntry!>!>!
-Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.Take.get -> int
-Excalibur.Dispatch.ErrorHandling.DeadLetterQueryFilter.Take.set -> void

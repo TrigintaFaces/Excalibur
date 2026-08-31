@@ -18,7 +18,7 @@ namespace Boundary.Tests.Architecture;
 public sealed class PackageTestCoverageMappingTests
 {
     private static readonly string RepoRoot = TestHelpers.GetRepositoryRoot();
-    private static readonly string GovernancePath = Path.Combine(RepoRoot, "management", "governance", "framework-governance.json");
+    private static readonly string GovernancePath = Path.Combine(RepoRoot, "eng", "governance", "framework-governance.json");
     private static readonly string ShippingFilterPath = Path.Combine(RepoRoot, "eng", "ci", "shards", "ShippingOnly.slnf");
 
     [Fact]

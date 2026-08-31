@@ -394,7 +394,7 @@ else {
 
 # Generate CSV report
 if ($GenerateReport -or $totalViolations -gt 0) {
-    $reportPath = Join-Path $PSScriptRoot ".." "management" "artifacts" "architecture-boundary-violations.csv"
+    $reportPath = Join-Path $PSScriptRoot ".." "artifacts" "reports" "architecture-boundary-violations.csv"
     $reportDir = Split-Path $reportPath -Parent
 
     if (-not (Test-Path $reportDir)) {

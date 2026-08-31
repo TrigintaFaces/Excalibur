@@ -30,7 +30,7 @@ public sealed class PackageMapDriftTests
     [Fact]
     public void PackageMap_Should_Correlate_With_Existing_Projects()
     {
-        var mapPath = Path.Combine(RepoRoot, "management", "package-map.yaml");
+        var mapPath = Path.Combine(RepoRoot, "eng", "governance", "package-map.yaml");
         if (!File.Exists(mapPath))
         {
             Console.WriteLine($"package-map.yaml not found at {mapPath}; skipping.");
